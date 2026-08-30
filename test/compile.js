@@ -4,9 +4,12 @@
  * root against children Node has already cached.
  */
 
+import { fileURLToPath } from 'node:url';
 import { compile_svelte } from '../src/compile.js';
 
-const code = compile_svelte(new URL('./HotImports.svelte', import.meta.url).pathname, '?v=7');
+const FIXTURE = fileURLToPath(new URL('./HotImports.svelte', import.meta.url));
+
+const code = compile_svelte(FIXTURE, '?v=7');
 
 let failures = 0;
 
@@ -27,7 +30,7 @@ check('no child specifier is left bare', ['HotChild', 'HotSideEffect', 'HotLazy'
 // The renderer import must stay stable, or each reload gets its own shadow tree.
 check('the renderer specifier is untouched', /gpuix-svelte\/renderer['"]/.test(code), true);
 
-const plain = compile_svelte(new URL('./HotImports.svelte', import.meta.url).pathname);
+const plain = compile_svelte(FIXTURE);
 check('no query means no rewrite', plain.includes('?v='), false);
 
 if (failures > 0) {
