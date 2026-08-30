@@ -27,6 +27,11 @@ check('side-effect import is busted', busted('HotSideEffect'), true);
 check('dynamic import() is busted', busted('HotLazy'), true);
 check('no child specifier is left bare', ['HotChild', 'HotSideEffect', 'HotLazy'].some(bare), false);
 
+// A specifier-shaped string is not a specifier; the lexical rewrite busted these too.
+check('a `.svelte` string literal is left alone', busted('HotString'), false);
+check('a commented-out import is left alone', busted('HotComment'), false);
+check('both lookalikes survive verbatim', bare('HotString') && bare('HotComment'), true);
+
 // The renderer import must stay stable, or each reload gets its own shadow tree.
 check('the renderer specifier is untouched', /gpuix-svelte\/renderer['"]/.test(code), true);
 

@@ -148,7 +148,10 @@ resolved `fetch`, a timer) would sit in the queue until the next click. Native e
 `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates that query to child
 `.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
-re-instantiate the root against stale children. The re-import goes through a `file://` URL, since
+re-instantiate the root against stale children. It finds them by parsing the emitted JS with
+`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
+splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
+comment is left alone and the rest of the output stays byte-identical. The re-import goes through a `file://` URL, since
 a bare Windows path parses as a URL scheme.
 
 **`style.js`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
