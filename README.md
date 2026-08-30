@@ -21,7 +21,8 @@ npm run demo              # all four demos at once
 npm run demo:counter      # counter — edit examples/counter/Counter.svelte and save to hot-reload
 npm run demo:tictactoe    # tic-tac-toe with score tracking
 npm run demo:hn           # Hacker News reader (live data, scrollable list)
-npm run demo:glass        # liquid-glass control center (blurred translucent window)
+npm run demo:glass        # control center on real Liquid Glass (NSGlassEffectView,
+                          # macOS 26+; falls back to GPUI's window blur elsewhere)
 npm test                  # headless renderer tests
 ```
 

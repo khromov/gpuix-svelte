@@ -1,4 +1,6 @@
 <script>
+	let { glass = false } = $props();
+
 	let wifi = $state(true);
 	let bluetooth = $state(true);
 	let airdrop = $state(false);
@@ -262,7 +264,9 @@
 
 		<div style="display: flex; justify-content: center">
 			<div style="color: rgba(255,255,255,0.35); font-size: 11px">
-				liquid glass — the desktop shows through the blurred window
+				{glass
+					? 'actual Liquid Glass — NSGlassEffectView behind the window'
+					: 'glassmorphism fallback — GPUI window blur behind the panel'}
 			</div>
 		</div>
 	</div>

@@ -7,6 +7,9 @@ bun.lock
 # test:coverage working copy of svelte's sample suite
 test/.samples-tmp
 
+# compiled on demand by examples/liquid-glass/glass.js
+examples/liquid-glass/.glass-shim.dylib
+
 # output
 out
 dist

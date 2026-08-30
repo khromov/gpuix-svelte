@@ -22,7 +22,10 @@ npm run demo               # all four demos at once
 npm run demo:counter       # counter (hot-reloads on save)
 npm run demo:tictactoe
 npm run demo:hn            # Hacker News reader — live network data, scrolling
-npm run demo:glass         # transparent window, macOS vibrancy
+npm run demo:glass         # real Liquid Glass (NSGlassEffectView) on macOS 26+, via a
+                           # clang-compiled ObjC shim + FFI (koffi/bun:ffi) in
+                           # examples/liquid-glass/glass.js; GPUIX_GLASS=0 forces the
+                           # GPUI window-blur fallback
 
 npm test                   # test:reorder then test:smoke
 npm run test:reorder       # single test — keyed {#each} reordering

@@ -60,6 +60,7 @@
 		"svelte": ">=5.56.0"
 	},
 	"devDependencies": {
+		"koffi": "^3.1.6",
 		"svelte": "https://pkg.pr.new/svelte@18511"
 	},
 	"publishConfig": {
