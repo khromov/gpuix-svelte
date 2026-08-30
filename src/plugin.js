@@ -13,10 +13,9 @@ import { plugin } from 'bun';
 import { compile } from 'svelte/compiler';
 
 /**
- * The specifier the compiler bakes into every component's
- * `import $renderer from '...'`. It must resolve from the `.svelte` file's own
- * location, so compiling components that live outside this workspace needs an
- * absolute path — hence the override.
+ * The compiler bakes this into every component's `import $renderer from '...'`,
+ * which must resolve from the `.svelte` file's own location — so components
+ * outside this workspace need the override to supply an absolute path.
  */
 export const RENDERER_MODULE = process.env.GPUIX_SVELTE_RENDERER || 'gpuix-svelte/renderer';
 

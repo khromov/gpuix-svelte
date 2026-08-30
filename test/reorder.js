@@ -51,7 +51,7 @@ const cases = [
 	[9, 1, 2, 3], // prepend a new key
 	[9, 1, 7, 2, 3, 8], // insert in the middle and at the end
 	[8, 3, 2, 7, 1, 9], // full reverse of the previous
-	[], // empty
+	[],
 	[4, 2], // repopulate from empty
 	[2, 4] // swap the only two
 ];

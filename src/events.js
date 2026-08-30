@@ -8,7 +8,6 @@
  * including the custom-element events.
  */
 
-/** The event types GPUI knows about, spelled the way GPUI spells them. */
 export const GPUI_EVENTS = [
 	// custom elements (<diff>, <markdown>, <input>, <textarea>)
 	'toggleFile',

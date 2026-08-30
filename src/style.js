@@ -13,7 +13,6 @@
 const PX = /^-?\d+(?:\.\d+)?px$/i;
 const NUM = /^-?\d+(?:\.\d+)?$/;
 
-/** `background-color` -> `backgroundColor` */
 function camel(key) {
 	return key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
@@ -29,7 +28,6 @@ function coerce(value) {
 }
 
 /**
- * Parse a CSS declaration list into a plain object.
  * @param {string | null | undefined} css
  * @returns {Record<string, any>}
  */
@@ -53,8 +51,6 @@ export function parse_css_text(css) {
 }
 
 /**
- * Build the style object GPUI receives for an element.
- *
  * `hover` and `active` are GPUI's natively-handled pseudo styles — they are
  * nested objects, which CSS text can't express, so they arrive as their own
  * attributes and get folded back in here.

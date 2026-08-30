@@ -154,10 +154,7 @@ const is_blank = (s) => s == null || s.trim() === '';
  */
 const native_parent_of = (parent) => (parent && parent.kind === 'element' ? parent : null);
 
-/**
- * The GPUI node that `node` must be inserted before, or null to append.
- * Siblings only — never descend, never ascend.
- */
+/** The GPUI node to insert before, or null to append; siblings only, never descend. */
 function first_native_after(cursor) {
 	for (let n = cursor; n !== null; n = n.next) {
 		if (n.nativeId !== null && n.attached) return n;
@@ -189,13 +186,12 @@ function normalize_prop(name, value) {
 
 function apply_prop(el, key, value) {
 	const name = prop_name(key);
-	// `div`/`text` accept only the universal props; everything else is dropped.
 	if (BUILT_IN_TAGS.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
 	if (el.nativeId === null) return;
 	emit(['setCustomPropValue', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
 
-/** Give `node` (and everything below it) a native presence. Idempotent. */
+/** Idempotent: gives `n` and everything below it a native presence. */
 function materialize(n) {
 	if (n.kind === 'comment' || n.kind === 'fragment') return;
 
@@ -380,7 +376,7 @@ const renderer = createRenderer({
 
 	addEventListener(target, type, handler) {
 		const event = to_gpui_event(type);
-		if (event === null) return; // GPUI has no such event
+		if (event === null) return;
 
 		let handlers = target.listeners.get(event);
 		if (!handlers) {

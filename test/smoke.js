@@ -45,7 +45,6 @@ console.log('text:', JSON.stringify(native.getAllText()));
 
 // --- interact -------------------------------------------------------------
 
-/** Find the id of the <text> node with this exact content. */
 function findText(content) {
 	let found = null;
 	(function walk(n) {
@@ -79,7 +78,6 @@ for (let i = 0; i < 3; i++) {
 }
 console.log('after 3 clicks:', JSON.stringify(native.getAllText()));
 
-// remove a row (click the "beta" row's div)
 const betaDiv = parentOf(parentOf(findText('beta')).id);
 dispatch({ elementId: betaDiv.id, eventType: 'click' });
 flushSync();
@@ -87,7 +85,6 @@ commit();
 native.flush();
 console.log('after removing beta:', JSON.stringify(native.getAllText()));
 
-// add two rows
 const addDiv = parentOf(findText('add'));
 for (let i = 0; i < 2; i++) {
 	dispatch({ elementId: addDiv.id, eventType: 'click' });

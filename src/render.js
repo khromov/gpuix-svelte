@@ -101,8 +101,8 @@ export function render(Component, options = {}) {
 		slot.component = null;
 	}
 
-	// Tear the previous tree out of GPUI before building a new one. Native ids
-	// are monotonic, so nothing collides even if this misses something.
+	// Native ids are monotonic, so a missed teardown here can never collide with
+	// the tree built next.
 	if (slot.root && slot.root.nativeId !== null) {
 		commit();
 		slot.native.destroyElement(slot.root.nativeId);
@@ -123,8 +123,8 @@ export function render(Component, options = {}) {
 
 	if (!slot.loop) slot.loop = start_frame_loop(slot.native);
 
-	// Dev affordance: a window can't be inspected from a terminal, but a PNG can.
-	// Preview.app reloads on write, so this doubles as a live view.
+	// A window can't be inspected from a terminal but a PNG can, and Preview.app
+	// reloads on write, so this doubles as a live view.
 	const shot = process.env.GPUIX_SCREENSHOT;
 	if (shot) {
 		setTimeout(() => {
@@ -145,11 +145,9 @@ export function render(Component, options = {}) {
 /**
  * `render()` plus reload-on-save for `.svelte` files.
  *
- * `bun --hot` can't drive this on its own: `.svelte` files are plugin-loaded
- * and so never enter Bun's watch graph, and a `--hot` reload re-evaluates
- * Svelte's runtime too, which orphans the previous component. Watching here
- * instead keeps one Svelte runtime for the life of the process, so the old tree
- * unmounts properly and only the component module is re-instantiated.
+ * Watching here rather than leaning on `bun --hot` keeps one Svelte runtime for
+ * the life of the process, so the old tree unmounts properly — see "Hot reload"
+ * in README.md.
  *
  * @param {string | URL} entry path to the root `.svelte` component
  * @param {Parameters<typeof render>[1]} [options]

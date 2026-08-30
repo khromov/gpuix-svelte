@@ -23,9 +23,9 @@ if (!SOURCE || !existsSync(SOURCE)) {
 	process.exit(0);
 }
 
-// The samples live outside this package, where neither `gpuix-svelte/renderer`
-// nor this install's `svelte` can resolve — importing them in place would mix
-// two svelte runtimes. Copy them under the package root first.
+// Importing the samples in place would mix two svelte runtimes: they live
+// outside this package, where neither `gpuix-svelte/renderer` nor this install's
+// `svelte` can resolve.
 const SAMPLES = fileURLToPath(new URL('./.samples-tmp', import.meta.url));
 rmSync(SAMPLES, { recursive: true, force: true });
 cpSync(SOURCE, SAMPLES, { recursive: true });

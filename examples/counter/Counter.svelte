@@ -1,7 +1,6 @@
 <script>
-	// A port of counter.tsx, plus the control flow that a React reconciler never
-	// has to deal with: {#if} and keyed {#each} both leave anchor nodes in
-	// Svelte's tree that GPUI cannot represent, so they are the interesting part.
+	// {#if} and keyed {#each} both leave anchor nodes in Svelte's tree that GPUI
+	// cannot represent, which is the part of this demo worth watching.
 	let count = $state(0);
 	let hovered = $state(false);
 
@@ -31,7 +30,6 @@
 	style="display: flex; flex-direction: row; align-items: center; justify-content: center;
 	       gap: 24px; width: 100%; height: 100%; background-color: #11111b; padding: 24px"
 >
-	<!-- counter card -->
 	<div
 		style="display: flex; flex-direction: column; align-items: center; justify-content: center;
 		       gap: 16px; padding: 32px; width: 380px; background-color: #1e1e2e; border-radius: 12px"
@@ -84,7 +82,6 @@
 		</div>
 	</div>
 
-	<!-- keyed each-block card -->
 	<div
 		style="display: flex; flex-direction: column; gap: 12px; padding: 24px; width: 320px;
 		       background-color: #1e1e2e; border-radius: 12px"
