@@ -29,7 +29,8 @@
 		"bun"
 	],
 	"scripts": {
-		"demo": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
+		"demo": "bun run demo:counter & bun run demo:tictactoe & bun run demo:hn & bun run demo:glass & wait",
+		"demo:counter": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
 		"demo:tictactoe": "bun --conditions custom-renderer --conditions development examples/tic-tac-toe/main.js",
 		"demo:hn": "bun --conditions custom-renderer --conditions development examples/hacker-news/main.js",
 		"demo:glass": "bun --conditions custom-renderer --conditions development examples/liquid-glass/main.js",
