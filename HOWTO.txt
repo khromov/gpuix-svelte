@@ -32,9 +32,11 @@ Notes
 - GPUIX_SCREENSHOT=/tmp/x.png bun run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
-- @gpuix/native is pinned to ^0.4.0 on purpose — 0.5+/0.6 changed the native
-  mutation contract (dropped commitMutations() etc.) and the renderer has not
-  been ported to it.
+- @gpuix/native is pinned to ^0.5.0 on purpose — 0.6.0 removed the mutation
+  contract this renderer uses (commitMutations(), setCustomPropValue, the
+  granular methods) and the renderer has not been ported to it. 0.5.x keeps
+  the old contract and adds fixes (accurate getWindowSize, sizable test
+  viewport width, simulateScrollWheel on the main renderer).
 - If pkg.pr.new/svelte@18511 stops resolving, the committed bun.lock keeps
   installs working; only `bun update svelte` needs the URL to be live.
 - Optional: bun run test:coverage runs Svelte's own custom-renderer samples if

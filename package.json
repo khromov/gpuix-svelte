@@ -40,7 +40,7 @@
 		"test:coverage": "bun --conditions custom-renderer --conditions development test/coverage.js"
 	},
 	"dependencies": {
-		"@gpuix/native": "^0.4.0"
+		"@gpuix/native": "^0.5.0"
 	},
 	"peerDependencies": {
 		"svelte": ">=5.56.0"

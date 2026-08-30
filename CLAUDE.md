@@ -32,8 +32,9 @@ bun run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
 GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
 through `dispatch()`. Calling `dispatch()` directly injects events at an element and *bypasses* hit
-testing, so it can pass while the real window fails. The headless viewport is fixed at 1280x538
-logical px — elements laid out below that can't be hit.
+testing, so it can pass while the real window fails. The headless viewport width follows
+`new TestGpuixRenderer(width, height)`, but its height caps at 538 logical px — elements laid
+out below that can't be hit (shift the layout up inside an absolute wrapper to reach them).
 
 Tests are plain scripts that assert and `process.exit(1)` — **not** `bun test` / `bun:test`.
 Adding one means adding a `test:*` script and chaining it into `test`. CI (`.github/workflows/test.yml`)
@@ -66,7 +67,7 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 - **`svelte` is pinned to `https://pkg.pr.new/svelte@18511`** (CI preview of the custom-renderer
   branch). The committed `bun.lock` keeps installs working if that URL dies; only
   `bun update svelte` needs it live.
-- **`@gpuix/native` is pinned to `^0.4.0` on purpose.** 0.5+/0.6 changed the native mutation
+- **`@gpuix/native` is pinned to `^0.5.0` on purpose.** 0.6.0 removed the native mutation
   contract (dropped `commitMutations()`); the renderer has not been ported.
 
 ## Architecture
