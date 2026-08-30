@@ -28,6 +28,12 @@ bun run test:smoke         # single test — mount + click Counter headlessly
 bun run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 ```
 
+To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
+GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
+through `dispatch()`. Calling `dispatch()` directly injects events at an element and *bypasses* hit
+testing, so it can pass while the real window fails. The headless viewport is fixed at 1280x538
+logical px — elements laid out below that can't be hit.
+
 Tests are plain scripts that assert and `process.exit(1)` — **not** `bun test` / `bun:test`.
 Adding one means adding a `test:*` script and chaining it into `test`. CI (`.github/workflows/test.yml`)
 runs `bun run test` on macOS only.
@@ -121,6 +127,15 @@ the two stay in sync. Unknown events are dropped silently.
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`).
+- **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a
+  `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
+  give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
+  mousedown: for drags, put `mousemove`/`mouseup` on the surfaces the cursor may cross and treat a
+  move with `pressedButton == null` as the release (see the sliders in
+  `examples/liquid-glass/LiquidGlass.svelte`).
+- `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
+  `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
+  example.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion` as props; other attributes
   are dropped for built-ins and forwarded for custom element types.
 - Examples import the package by name (`import { render_hot } from 'gpuix-svelte'`) via the
