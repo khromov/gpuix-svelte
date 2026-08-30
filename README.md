@@ -8,6 +8,13 @@ Svelte custom renderer for [GPUI](https://www.gpui.rs/) (Zed's GPU-accelerated U
 [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native). Native desktop windows from ordinary
 Svelte components — no webview.
 
+## Screenshot
+
+The four demos — Hacker News, tic-tac-toe, the liquid-glass control center and the counter — each in
+its own native window.
+
+![The four gpuix-svelte demos running as native macOS windows](.github/resources/demos.png)
+
 ## Try it
 
 Runs on **Node.js >= 24** or **Bun >= 1.4.0**. No Rust or other toolchains needed — the native
