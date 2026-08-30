@@ -12,7 +12,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { mount, flushSync } from 'svelte';
-import '../src/plugin.js';
 import renderer, { set_native, create_root, commit } from '../src/renderer.js';
 
 const SOURCE = process.env.SVELTE_SAMPLES_DIR;

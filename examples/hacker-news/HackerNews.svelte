@@ -1,4 +1,6 @@
 <script>
+	import { spawn } from 'node:child_process';
+
 	const API = 'https://hacker-news.firebaseio.com/v0';
 	const FEEDS = ['top', 'new', 'best'];
 	const COUNT = 25;
@@ -40,7 +42,7 @@
 			process.platform === 'darwin' ? ['open', url]
 			: process.platform === 'win32' ? ['cmd', '/c', 'start', '', url]
 			: ['xdg-open', url];
-		Bun.spawn(cmd);
+		spawn(cmd[0], cmd.slice(1), { stdio: 'ignore', detached: true }).unref();
 	}
 
 	function domain(story) {

@@ -7,7 +7,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { mount, flushSync } from 'svelte';
-import '../src/plugin.js';
 import renderer, { set_native, create_root, commit, dispatch } from '../src/renderer.js';
 
 const native = new TestGpuixRenderer();

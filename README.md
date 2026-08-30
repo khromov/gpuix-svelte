@@ -10,29 +10,34 @@ Svelte components — no webview.
 
 ## Try it
 
-Requires [Bun](https://bun.com). No Rust or other toolchains needed — the native binary comes
+Requires Node.js 24 or newer. No Rust or other toolchains needed — the native binary comes
 prebuilt from npm.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
 cd gpuix-svelte
-bun install
-bun run demo              # all four demos at once
-bun run demo:counter      # counter — edit examples/counter/Counter.svelte and save to hot-reload
-bun run demo:tictactoe    # tic-tac-toe with score tracking
-bun run demo:hn           # Hacker News reader (live data, scrollable list)
-bun run demo:glass        # liquid-glass control center (blurred translucent window)
-bun run test              # headless renderer tests
+npm install
+npm run demo              # all four demos at once
+npm run demo:counter      # counter — edit examples/counter/Counter.svelte and save to hot-reload
+npm run demo:tictactoe    # tic-tac-toe with score tracking
+npm run demo:hn           # Hacker News reader (live data, scrollable list)
+npm run demo:glass        # liquid-glass control center (blurred translucent window)
+npm test                  # headless renderer tests
 ```
+
+[Bun](https://bun.com) works too — `bun install`, then run an entry point directly
+(`bun --conditions custom-renderer --conditions development examples/counter/main.js`). It picks
+the `.svelte` loader up from `bunfig.toml`; the package scripts themselves always use Node.
 
 ## Use in your own project
 
 ```bash
-bun add github:khromov/gpuix-svelte     # until it's on npm
-bun add -d svelte@https://pkg.pr.new/svelte@18511
+npm install github:khromov/gpuix-svelte     # until it's on npm
+npm install -D svelte@https://pkg.pr.new/svelte@18511
 ```
 
-Register the `.svelte` loader in `bunfig.toml`:
+The `.svelte` loader has to be registered before your entry module resolves. On Node that is
+`--import gpuix-svelte/register`; on Bun it is a `bunfig.toml` preload:
 
 ```toml
 preload = ["gpuix-svelte/plugin"]
@@ -53,7 +58,7 @@ Run with both conditions flags — they are **required** (without them Svelte re
 build and `mount()` doesn't exist):
 
 ```bash
-bun --conditions custom-renderer --conditions development app.js
+node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.js
 ```
 
 See [HOWTO.txt](HOWTO.txt) for a few more details and troubleshooting notes.

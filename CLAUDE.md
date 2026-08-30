@@ -12,21 +12,22 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 ## Commands
 
 Everything goes through the package scripts. They embed
-`bun --conditions custom-renderer --conditions development`, which is **mandatory** — without
-those flags `svelte` resolves to its server build and `mount()` does not exist.
+`node --conditions custom-renderer --conditions development --import ./src/register.js`. The
+conditions are **mandatory** — without them `svelte` resolves to its server build and `mount()`
+does not exist — and `--import` installs the `.svelte` loader.
 
 ```bash
-bun install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
-bun run demo               # all four demos at once
-bun run demo:counter       # counter (hot-reloads on save)
-bun run demo:tictactoe
-bun run demo:hn            # Hacker News reader — live network data, scrolling
-bun run demo:glass         # transparent window, macOS vibrancy
+npm install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
+npm run demo               # all four demos at once
+npm run demo:counter       # counter (hot-reloads on save)
+npm run demo:tictactoe
+npm run demo:hn            # Hacker News reader — live network data, scrolling
+npm run demo:glass         # transparent window, macOS vibrancy
 
-bun run test               # test:reorder then test:smoke
-bun run test:reorder       # single test — keyed {#each} reordering
-bun run test:smoke         # single test — mount + click Counter headlessly
-bun run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
+npm test                   # test:reorder then test:smoke
+npm run test:reorder       # single test — keyed {#each} reordering
+npm run test:smoke         # single test — mount + click Counter headlessly
+npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 ```
 
 To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
@@ -36,9 +37,9 @@ testing, so it can pass while the real window fails. The headless viewport width
 `new TestGpuixRenderer(width, height)`, but its height caps at 538 logical px — elements laid
 out below that can't be hit (shift the layout up inside an absolute wrapper to reach them).
 
-Tests are plain scripts that assert and `process.exit(1)` — **not** `bun test` / `bun:test`.
+Tests are plain scripts that assert and `process.exit(1)` — no test runner.
 Adding one means adding a `test:*` script and chaining it into `test`. CI (`.github/workflows/test.yml`)
-runs `bun run test` on macOS only.
+runs `npm test` on macOS only.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -50,7 +51,7 @@ in place would mix two Svelte runtimes.
 A window can't be inspected from a terminal, but a PNG can:
 
 ```bash
-GPUIX_SCREENSHOT=/tmp/x.png bun run demo:counter    # writes a PNG after every mount/remount
+GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter    # writes a PNG after every mount/remount
                                                     # (single demo — all four share the path)
 ```
 
@@ -61,12 +62,14 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 
 - **No build step, no TypeScript emit.** Plain ESM JS with JSDoc types; `exports` points straight
   at `src/*.js`. Keep it that way.
+- **Node >= 24**, for `module.registerHooks`. Bun still works but nothing in `package.json`
+  targets it — keep runtime-specific code confined to `register.js` / `plugin.js`.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
 - **`svelte` is pinned to `https://pkg.pr.new/svelte@18511`** (CI preview of the custom-renderer
-  branch). The committed `bun.lock` keeps installs working if that URL dies; only
-  `bun update svelte` needs it live.
+  branch). The committed `package-lock.json` keeps installs working if that URL dies; only
+  `npm update svelte` needs it live.
 - **`@gpuix/native` range is `>=0.5.0 <0.7.0`** (installs 0.6.0) and the renderer speaks the
   0.6.0 mutation contract, which 0.5.x also accepts: applyBatch only — no `removeChild` op
   (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and
@@ -81,15 +84,21 @@ Three layers, `src/`:
 ```
 render.js    window lifecycle + frame loop  ─┐
 renderer.js  shadow tree → GPUI projection   ├─ style.js / events.js are its translation helpers
-plugin.js    Bun loader for .svelte          ─┘
+compile.js   .svelte → JS, runtime-agnostic  ─┘
+  register.js  Node loader (module.registerHooks)   ─ the default
+  plugin.js    Bun loader (Bun.plugin)              ─ opt-in, referenced by nothing
 ```
 
-**`plugin.js`** compiles `.svelte` on import with `experimental: { customRenderer }`, which makes
-the compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component. Registered
-via `bunfig.toml`'s `preload` for demos; tests `import '../src/plugin.js'` directly (same module
-path, so no double registration). `GPUIX_SVELTE_RENDERER` overrides the baked import specifier —
-needed for components outside this workspace, since it must resolve from the `.svelte` file's own
-location.
+**`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
+compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
+`GPUIX_SVELTE_RENDERER` overrides that baked specifier — needed for components outside this
+workspace, since it must resolve from the `.svelte` file's own location.
+
+The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
+`module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
+be installed before the entry module resolves — Node via `--import ./src/register.js` in every
+script, Bun via `bunfig.toml`'s `preload`. Tests rely on that registration rather than importing a
+loader themselves.
 
 **`renderer.js`** is where the real work is. Svelte's renderer contract is DOM-shaped (fragments,
 comments, sibling walking); GPUI's tree is flat, id-based and knows only `div`/`text` plus a few
@@ -148,11 +157,10 @@ the two stay in sync. Unknown events are dropped silently.
 - Examples import the package by name (`import { render_hot } from 'gpuix-svelte'`) via the
   self-reference in `exports`.
 
-## Bun
+## Runtime
 
-Use Bun, not Node: `bun <file>`, `bun install`, `bun run <script>`, `bunx`. Bun loads `.env`
-automatically — no `dotenv`. Prefer `Bun.file` over `node:fs` read/write and `Bun.$` over execa.
-Bun API docs live in `node_modules/bun-types/docs/**.mdx`.
+Node, via `npm`: `npm install`, `npm run <script>`, `npx`. Keep the source runtime-agnostic —
+`node:*` builtins only, no `Bun.*` calls and no `bun:` imports outside `src/plugin.js`.
 
 ## Comments
 

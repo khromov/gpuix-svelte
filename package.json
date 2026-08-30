@@ -10,11 +10,15 @@
 		".": "./src/index.js",
 		"./renderer": "./src/renderer.js",
 		"./plugin": "./src/plugin.js",
+		"./register": "./src/register.js",
 		"./package.json": "./package.json"
 	},
 	"files": [
 		"src"
 	],
+	"engines": {
+		"node": ">=24"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/khromov/gpuix-svelte"
@@ -26,18 +30,18 @@
 		"custom-renderer",
 		"native",
 		"gui",
-		"bun"
+		"node"
 	],
 	"scripts": {
-		"demo": "bun run demo:counter & bun run demo:tictactoe & bun run demo:hn & bun run demo:glass & wait",
-		"demo:counter": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
-		"demo:tictactoe": "bun --conditions custom-renderer --conditions development examples/tic-tac-toe/main.js",
-		"demo:hn": "bun --conditions custom-renderer --conditions development examples/hacker-news/main.js",
-		"demo:glass": "bun --conditions custom-renderer --conditions development examples/liquid-glass/main.js",
-		"test": "bun run test:reorder && bun run test:smoke",
-		"test:reorder": "bun --conditions custom-renderer --conditions development test/reorder.js",
-		"test:smoke": "bun --conditions custom-renderer --conditions development test/smoke.js",
-		"test:coverage": "bun --conditions custom-renderer --conditions development test/coverage.js"
+		"demo": "npm run demo:counter & npm run demo:tictactoe & npm run demo:hn & npm run demo:glass & wait",
+		"demo:counter": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/counter/main.js",
+		"demo:tictactoe": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/tic-tac-toe/main.js",
+		"demo:hn": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/hacker-news/main.js",
+		"demo:glass": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass/main.js",
+		"test": "npm run test:reorder && npm run test:smoke",
+		"test:reorder": "node --conditions custom-renderer --conditions development --import ./src/register.js test/reorder.js",
+		"test:smoke": "node --conditions custom-renderer --conditions development --import ./src/register.js test/smoke.js",
+		"test:coverage": "node --conditions custom-renderer --conditions development --import ./src/register.js test/coverage.js"
 	},
 	"dependencies": {
 		"@gpuix/native": ">=0.5.0 <0.7.0"

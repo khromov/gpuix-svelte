@@ -1,3 +1,4 @@
-# Compiles .svelte files on import. Needed by `bun run demo`; the tests import
-# src/plugin.js themselves (same module path, so no double registration).
+# Bun is optional — every package script runs on Node, which picks the loader up
+# from `--import ./src/register.js` instead. This preload is what makes
+# `bun <file>` work for anyone who prefers it.
 preload = ["./src/plugin.js"]
