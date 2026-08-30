@@ -36,9 +36,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: npm run bun:test
 
-  # @gpuix/native 0.6.0's linux-x64-gnu prebuild carries no TestGpuixRenderer —
-  # it ships without the test-support feature — so the suites cannot run here.
-  # This checks the binding still loads, which is what the demos need.
+  # gpuix compiles TestGpuixRenderer only on macOS and Windows — it needs
+  # render_to_image, which the Vulkan/wgpu backend lacks — so the suites cannot
+  # run here. This checks the binding still loads, which is what the demos need.
   linux:
     runs-on: ubuntu-latest
     steps:
