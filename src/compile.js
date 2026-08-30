@@ -34,6 +34,9 @@ export function compile_svelte(path, query) {
 	// Propagate the cache-buster to child components, or a reload would
 	// re-instantiate the root against stale children.
 	return query
-		? js.code.replace(/(from\s*['"])([^'"]+\.svelte)(['"])/g, `$1$2${query}$3`)
+		? js.code.replace(
+				/((?:from|import)\s*\(?\s*['"])([^'"]+\.svelte)(['"])/g,
+				`$1$2${query}$3`
+			)
 		: js.code;
 }
