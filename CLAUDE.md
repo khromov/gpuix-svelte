@@ -29,10 +29,15 @@ npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, m
                            # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
                            # window-blur fallback; NOT part of `npm run demo`
 
-npm test                   # test:reorder, test:smoke, test:autocommit
+npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
+                           # test:teardown, test:lifecycle, test:compile
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
+npm run test:style         # single test — CSS shorthand expansion, and what must never reach serde
+npm run test:teardown      # single test — removal marks dirty, blank text demotes, listeners survive
+npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
+npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 ```
 
@@ -118,17 +123,21 @@ comments, sibling walking); GPUI's tree is flat, id-based and knows only `div`/`
 custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
 - Elements and non-blank text get a `nativeId`; comments, blank text and fragments never do —
-  they are ordering-only.
+  they are ordering-only. That holds in both directions: text set to `''` at runtime gives its id
+  back, or it would keep a slot in GPUI's flex/gap layout.
 - Ids are allocated lazily, when a node first becomes reachable from the root (`live`). Svelte
   renders offscreen constantly, and eager creation would leak a Rust node per abandoned render.
 - Because virtual nodes are always leaves, "the next native node" is a flat scan of following
   siblings (`first_native_after`) — nothing to descend into.
 - `remove()` never destroys: Svelte removes and re-inserts the same node in consecutive statements,
-  so nodes go to `pending_destroy` and are reaped in `commit()`.
+  so nodes go to `pending_destroy` and are reaped in `commit()`. It still has to `mark_dirty()`,
+  though — a frame that only removes nodes queues no mutation, so nothing else would tell the frame
+  loop (or the auto-commit microtask) that there is anything to ship.
 - `next_id` is monotonic across remounts, so a stale tree's ids can't collide with the new one's.
 - Mutations queue as tuples and ship as **one** `applyBatch(json)` per commit, then
   `commitMutations()`. `applyBatch` returns the ids Rust destroyed (whole subtrees), which is how
-  the id map and listener registry learn what to purge.
+  the id map learns what to purge. The node's `listeners` map survives that purge, like `attrs`
+  does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
 **`render.js`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
 reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
@@ -137,16 +146,29 @@ blocking UI thread and there is no frame loop, so `set_auto_commit(true)` makes 
 schedule its own commit on a microtask — otherwise a mutation with no native event behind it (a
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
 `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
-directory and re-imports with a `?v=N` cache-buster; `plugin.js` propagates that query to child
-`.svelte` imports, or a reload would re-instantiate the root against stale children — through a
-`file://` URL, since a bare Windows path parses as a URL scheme.
+directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates that query to child
+`.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
+re-instantiate the root against stale children. It finds them by parsing the emitted JS with
+`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
+splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
+comment is left alone and the rest of the output stays byte-identical. The re-import goes through a `file://` URL, since
+a bare Windows path parses as a URL scheme.
 
 **`style.js`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The
 raw string is kept on the shadow node because Svelte read-modify-writes it for `style:` directives.
 `hover`/`active` are GPUI's native pseudo-styles — nested objects CSS text can't express, so they
-arrive as their own attributes and get folded back in. No allowlist is needed; serde drops unknown
-keys on the Rust side.
+arrive as their own attributes and get folded back in.
+
+Unknown *keys* need no allowlist — serde drops them. Unknown **values** are the opposite: a key
+GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and that throw loses
+the whole frame. So multi-value box shorthands (`padding`, `margin`, `border-width`,
+`border-radius`, `gap`, `inset`) expand to the longhands GPUI actually has, and each value is then
+checked against the key's Rust type: `NUMBER_ONLY` keys (all the spacing, border and font metrics)
+are `f64`, so `1rem`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
+`DimensionValue` and take `%` or `auto`; `boxShadow` is a struct CSS text can never build. Anything
+that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
+even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
 
 **`events.js`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
@@ -154,8 +176,11 @@ the two stay in sync. Unknown events are dropped silently.
 
 ## Writing components for this renderer
 
-- Style with inline `style="..."` (and `style:` directives). `class` is ignored, so `<style>`
-  blocks and CSS classes do nothing.
+- Style with inline `style="..."` (and `style:` directives). Box shorthands like
+  `padding: 12px 24px` work; `rem`/`em`/`vh` units do not — GPUI lengths are logical pixels — and
+  neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
+  `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning. `class` is ignored, so `<style>` blocks and CSS
+  classes do nothing.
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`).

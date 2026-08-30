@@ -15,7 +15,8 @@ import renderer, {
 	commit,
 	is_dirty,
 	dispatch,
-	set_auto_commit
+	set_auto_commit,
+	queue_destroy
 } from './renderer.js';
 
 /**
@@ -30,7 +31,24 @@ function host() {
 	return (globalThis[SLOT] ??= { native: null, root: null, component: null, loop: null });
 }
 
-function start_frame_loop(native) {
+/**
+ * A throwing handler must not escape into the native callback, and must not
+ * cost the host its own `onEvent`.
+ */
+export function handle_event(event, onEvent) {
+	try {
+		dispatch(event);
+		// Run Svelte's effects now rather than on the next microtask, so the
+		// mutations they produce make it into this frame's batch.
+		flushSync();
+		commit();
+	} catch (error) {
+		console.error('[gpuix-svelte] event handler failed:', error);
+	}
+	onEvent?.(event);
+}
+
+export function start_frame_loop(native) {
 	if (!native.requiresTick()) {
 		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop
 		// to poll `is_dirty()` and commits have to schedule themselves.
@@ -49,7 +67,13 @@ function start_frame_loop(native) {
 		if (stopped) return;
 
 		const started = performance.now();
-		if (is_dirty()) commit();
+		try {
+			if (is_dirty()) commit();
+		} catch (error) {
+			// The reschedule below is the only thing keeping the window alive, so a
+			// bad mutation must not escape past it.
+			console.error('[gpuix-svelte] commit failed:', error);
+		}
 
 		if (native.tick() === false) {
 			stopped = true;
@@ -87,12 +111,7 @@ export function render(Component, options = {}) {
 			}
 			if (!event) return;
 
-			dispatch(event);
-			// Run Svelte's effects now rather than on the next microtask, so the
-			// mutations they produce make it into this frame's batch.
-			flushSync();
-			commit();
-			onEvent?.(event);
+			handle_event(event, onEvent);
 		});
 
 		slot.native.init(window_options);
@@ -113,15 +132,18 @@ export function render(Component, options = {}) {
 
 	// Native ids are monotonic, so a missed teardown here can never collide with
 	// the tree built next.
+	let retiring = null;
 	if (slot.root && slot.root.nativeId !== null) {
 		commit();
-		// via applyBatch — the direct destroyElement method is gone in 0.6
-		slot.native.applyBatch(JSON.stringify([['destroyElement', slot.root.nativeId]]));
+		retiring = slot.root.nativeId;
 	}
 
 	set_native(slot.native);
 
 	const root = create_root(rootStyle);
+	// Queued after `setRoot`, so the tree is never rootless mid-batch — on
+	// Windows/Linux the UI thread paints without waiting for us.
+	if (retiring !== null) queue_destroy(retiring);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');
 	renderer.insert(root, anchor, null);

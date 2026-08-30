@@ -1,12 +1,18 @@
 # gpuix-svelte
 
-> ⚠️ **Work in progress.** Experimental — built on Svelte's unreleased
-> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Only tested on macOS for now, but will be
-> compatible with macOS/Linux/Windows.
+> **Work in progress.** Experimental — built on Svelte's unreleased
+> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Tested on macOS / Windows, also compatible with Linux.
 
 Svelte custom renderer for [GPUI](https://www.gpui.rs/) (Zed's GPU-accelerated UI framework), via
 [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native). Native desktop windows from ordinary
 Svelte components — no webview.
+
+## What does it look like?
+
+The four demos — Hacker News, tic-tac-toe, the liquid-glass control center and the counter — each in
+its own native window.
+
+![The four gpuix-svelte demos running as native macOS windows](.github/resources/demos.png)
 
 ## Try it
 
