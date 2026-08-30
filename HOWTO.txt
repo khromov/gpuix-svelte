@@ -14,6 +14,10 @@ HOWTO: run from a fresh clone (macOS, Apple Silicon)
 
     bun run demo:tictactoe   # tic-tac-toe with score tracking
     bun run demo:hn          # Hacker News reader (live data, scrolling)
+    bun run demo:glass       # liquid glass: transparent window with
+                             # windowBackground "blurred" (macOS vibrancy);
+                             # screenshots can't capture the desktop blur,
+                             # only the real window shows it
 
 Success looks like:
     [gpuix-svelte] created native window

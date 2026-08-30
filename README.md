@@ -19,6 +19,7 @@ bun install
 bun run demo              # counter — edit examples/counter/Counter.svelte and save to hot-reload
 bun run demo:tictactoe    # tic-tac-toe with score tracking
 bun run demo:hn           # Hacker News reader (live data, scrollable list)
+bun run demo:glass        # liquid-glass control center (blurred translucent window)
 bun run test              # headless renderer tests
 ```
 
