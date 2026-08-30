@@ -2,7 +2,9 @@
 	let {
 		glass = false,
 		scrim = 'rgba(22, 22, 34, 0.42)',
-		backing = 'GPUI window blur behind the panel'
+		backing = 'GPUI window blur behind the panel',
+		// Room for the traffic lights the transparent titlebar draws over.
+		padTop = 44
 	} = $props();
 
 	let wifi = $state(true);
@@ -81,7 +83,7 @@
 
 <div
 	style="display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%;
-	       background-color: {scrim}; padding: 22px; padding-top: 44px"
+	       background-color: {scrim}; padding: 22px; padding-top: {padTop}px"
 	onmousemove={move}
 	onmouseup={release}
 >
