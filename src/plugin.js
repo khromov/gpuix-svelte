@@ -1,10 +1,6 @@
 /**
- * Bun loader for `.svelte` files — the opt-in path; Node uses `register.js`.
- *
  * Registered via `bunfig.toml`'s `preload` so it is in place before the entry
  * module resolves.
- *
- * Reloading is driven by `render_hot`, not `bun --hot` — see render.js.
  */
 
 import { plugin } from 'bun';

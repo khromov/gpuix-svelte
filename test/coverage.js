@@ -1,10 +1,6 @@
 /**
- * Feature coverage: compile and mount every sample from Svelte's own
- * custom-renderer suite against the GPUI renderer.
- *
- * The upstream suite asserts on serialized HTML, which GPUI has no analogue
- * for, so the bar here is weaker: does it compile, mount and survive a native
- * applyBatch. That is still enough to find contract gaps.
+ * The upstream suite asserts on serialized HTML, which GPUI has no analogue for, so
+ * the bar here is only: does it compile, mount and survive a native applyBatch.
  */
 
 import { readdirSync, readFileSync, existsSync, rmSync, cpSync } from 'node:fs';

@@ -1,4 +1,3 @@
-# Bun is optional — every package script runs on Node, which picks the loader up
-# from `--import ./src/register.js` instead. This preload is what makes
-# `bun <file>` work for anyone who prefers it.
+# Bun is optional — the default scripts run on Node, which picks the loader up from
+# `--import ./src/register.js` instead.
 preload = ["./src/plugin.js"]

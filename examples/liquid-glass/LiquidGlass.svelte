@@ -66,7 +66,6 @@
 		})
 	);
 
-	// glass material tokens
 	const CARD =
 		'background-color: rgba(255,255,255,0.10); border-width: 1px; ' +
 		'border-color: rgba(255,255,255,0.18); border-radius: 22px';
@@ -83,7 +82,6 @@
 	onmouseup={release}
 >
 	<div style="display: flex; flex-direction: column; gap: 14px; width: 100%">
-		<!-- header -->
 		<div style="display: flex; flex-direction: row; align-items: center; justify-content: space-between">
 			<div style="color: rgba(255,255,255,0.95); font-size: 20px; font-weight: bold">
 				Control Center
@@ -91,7 +89,6 @@
 			<div style="color: rgba(255,255,255,0.7); font-size: 15px">{clock}</div>
 		</div>
 
-		<!-- connectivity -->
 		<div
 			style="display: flex; flex-direction: column; gap: 2px; padding: 16px; {CARD}"
 			onmousemove={move}
@@ -135,7 +132,6 @@
 			{/each}
 		</div>
 
-		<!-- media player -->
 		<div
 			style="display: flex; flex-direction: column; gap: 12px; padding: 18px; {CARD}"
 			onmousemove={move}
@@ -210,7 +206,6 @@
 			</div>
 		</div>
 
-		<!-- sliders -->
 		<div
 			style="display: flex; flex-direction: column; gap: 14px; padding: 18px; {CARD}"
 			onmousemove={move}
@@ -244,7 +239,6 @@
 			{/each}
 		</div>
 
-		<!-- mode pills -->
 		<div style="display: flex; flex-direction: row; gap: 12px">
 			{#each [
 				{ label: 'Focus', accent: 'rgba(255,159,10,0.65)', get on() { return focus; }, flip: () => (focus = !focus) },

@@ -1,8 +1,6 @@
 /**
- * Node loader for `.svelte` files.
- *
  * Installed via `node --import gpuix-svelte/register` so the hook is in place
- * before the entry module resolves. Needs Node >= 24 for `registerHooks`.
+ * before the entry module resolves.
  */
 
 import { registerHooks } from 'node:module';

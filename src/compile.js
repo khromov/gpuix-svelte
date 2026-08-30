@@ -1,8 +1,7 @@
 /**
- * Compiles `.svelte` on import for both runtime loaders — `register.js` (Node)
- * and `plugin.js` (Bun). `experimental.customRenderer` is what makes the
- * compiler emit `import $renderer from 'gpuix-svelte/renderer'` and wrap the
- * component in `$.push_renderer($renderer)`.
+ * `experimental.customRenderer` is what makes the compiler emit
+ * `import $renderer from 'gpuix-svelte/renderer'` and wrap the component in
+ * `$.push_renderer($renderer)`.
  */
 
 import { readFileSync } from 'node:fs';

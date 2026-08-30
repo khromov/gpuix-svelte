@@ -1,7 +1,6 @@
 #import <AppKit/AppKit.h>
 
-// Compiled on demand by glass.js:
-//   clang -dynamiclib -fobjc-arc -framework AppKit -o .glass-shim.dylib glass-shim.m
+// Compiled on demand by glass.js.
 
 static NSView *glass_view = nil;
 
@@ -9,10 +8,8 @@ int gpuix_glass_available(void) {
     return NSClassFromString(@"NSGlassEffectView") != nil;
 }
 
-// Insert the real Liquid Glass material (NSGlassEffectView, macOS 26) below
-// GPUI's Metal view — the same recipe GPUI uses for its own blur view: a
-// contentView subview positioned NSWindowBelow, autoresizing with the window.
-// Returns the CGWindowID, or a negative code. Idempotent.
+// The same recipe GPUI uses for its own blur view, so the material lands below
+// the Metal view rather than over it.
 long gpuix_glass_attach(double corner_radius) {
     if (glass_view) return (long)glass_view.window.windowNumber;
     if (NSApp.windows.count == 0) return -1;

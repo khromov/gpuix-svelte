@@ -1,11 +1,6 @@
 /**
- * Keyed-reorder projection test.
- *
- * `{#each}` reordering goes through Svelte's `move()`, which re-inserts each
- * node before an anchor that is usually a comment or an empty text node — i.e.
- * a node with no GPUI presence. This is the one place the shadow-tree
- * projection can silently produce the wrong native order, so it gets its own
- * exhaustive-ish test.
+ * `{#each}` reordering re-inserts each node before an anchor with no GPUI presence,
+ * which is the one place the projection can silently produce the wrong native order.
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
@@ -42,17 +37,17 @@ const around = (items) => ['head', 'IF', ...items.map(String), 'tail'];
 check('initial', around([1, 2, 3, 4, 5]));
 
 const cases = [
-	[5, 4, 3, 2, 1], // full reverse
-	[1, 2, 3, 4, 5], // back again
-	[2, 1, 3, 5, 4], // adjacent swaps at both ends
-	[3, 1, 2, 5, 4], // rotate a prefix
-	[1, 2, 3], // shrink from the tail
-	[9, 1, 2, 3], // prepend a new key
-	[9, 1, 7, 2, 3, 8], // insert in the middle and at the end
-	[8, 3, 2, 7, 1, 9], // full reverse of the previous
+	[5, 4, 3, 2, 1],
+	[1, 2, 3, 4, 5],
+	[2, 1, 3, 5, 4],
+	[3, 1, 2, 5, 4],
+	[1, 2, 3],
+	[9, 1, 2, 3],
+	[9, 1, 7, 2, 3, 8],
+	[8, 3, 2, 7, 1, 9],
 	[],
-	[4, 2], // repopulate from empty
-	[2, 4] // swap the only two
+	[4, 2],
+	[2, 4]
 ];
 
 for (const next of cases) {

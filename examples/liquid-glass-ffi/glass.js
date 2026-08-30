@@ -1,11 +1,6 @@
 /**
- * Real Liquid Glass for the demo window: compiles glass-shim.m on demand and
- * loads it into this process (the one that owns the NSWindow), so an
- * NSGlassEffectView can be slid under GPUI's Metal view. No changes to
- * @gpuix/native — AppKit is reached over FFI: bun:ffi under Bun, koffi under
- * Node. Returns null (→ caller falls back to GPUI's window blur) when not on
- * macOS, the class is missing (pre-macOS 26), clang is unavailable, or
- * GPUIX_GLASS=0.
+ * The shim has to load into this process, the one that owns the NSWindow, which is
+ * why AppKit is reached over FFI rather than through a change to @gpuix/native.
  */
 
 import { existsSync, statSync } from 'node:fs';

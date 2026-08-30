@@ -3,7 +3,6 @@ import { init_glass } from './glass.js';
 
 // Same control center as ../liquid-glass, but on Apple's actual Liquid Glass:
 // an NSGlassEffectView (macOS 26+) slid under GPUI's Metal view over FFI.
-// Where that isn't possible it falls back to the plain demo's window blur.
 const glass = await init_glass();
 
 await render_hot(new URL('../liquid-glass/LiquidGlass.svelte', import.meta.url), {

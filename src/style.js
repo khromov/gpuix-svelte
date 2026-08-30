@@ -1,11 +1,4 @@
 /**
- * CSS text -> GPUI `StyleDesc`.
- *
- * Svelte hands the renderer the `style` attribute as CSS *text*, never as an
- * object: `set_css_text` calls `renderer.setAttribute(el, 'style', string)`.
- * GPUI wants a camelCase JSON object whose lengths are bare numbers (px).
- * So this is the translation layer between the two.
- *
  * Unknown keys need no allowlist — serde drops them when deserializing
  * `StyleDesc` on the Rust side.
  */
@@ -17,10 +10,7 @@ function camel(key) {
 	return key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-/**
- * GPUI takes numbers for lengths and `number | "N%" | "auto"` for dimensions,
- * so `12px` must become `12` while `50%`, `auto` and `#1e1e2e` stay strings.
- */
+/** `12px` must become `12`, while `50%`, `auto` and `#1e1e2e` stay strings. */
 function coerce(value) {
 	if (PX.test(value)) return parseFloat(value);
 	if (NUM.test(value)) return parseFloat(value);

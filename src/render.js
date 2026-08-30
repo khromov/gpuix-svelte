@@ -1,8 +1,6 @@
 /**
- * App entry point: open a GPUI window and mount a Svelte component into it.
- *
  * The structure mirrors `@gpuix/react`'s `render()` — a `globalThis` slot so
- * `bun --hot` remounts onto the same window, and a paced `setTimeout` loop
+ * `render_hot` remounts onto the same window, and a paced `setTimeout` loop
  * driving `tick()`.
  */
 
@@ -27,8 +25,7 @@ function host() {
 
 function start_frame_loop(native) {
 	if (!native.requiresTick()) {
-		// Windows/Linux: GPUI owns a blocking UI thread and there is no JS frame
-		// to hang a commit on, so drain on a microtask instead.
+		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop.
 		return { stop() {} };
 	}
 
@@ -144,11 +141,8 @@ export function render(Component, options = {}) {
 
 
 /**
- * `render()` plus reload-on-save for `.svelte` files.
- *
  * Watching here rather than leaning on `bun --hot` keeps one Svelte runtime for
- * the life of the process, so the old tree unmounts properly — see "Hot reload"
- * in README.md.
+ * the life of the process, so the old tree unmounts properly.
  *
  * @param {string | URL} entry path to the root `.svelte` component
  * @param {Parameters<typeof render>[1]} [options]

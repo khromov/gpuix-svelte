@@ -1,31 +1,14 @@
 /**
- * Svelte custom renderer targeting Zed's GPUI.
- *
- * Svelte's renderer contract is DOM-shaped: fragments, comments, text nodes,
- * parent/sibling walking. GPUI's tree is flat, id-based, and knows only `div`,
- * `text` and its custom element types. Neither comments nor fragments have any
- * GPUI representation, and Svelte creates a lot of both — every `{#if}`,
- * `{#each}` and component boundary leaves anchor nodes behind.
- *
- * So this module keeps a JS shadow tree and *projects* it onto GPUI:
- *
- *   - Elements and non-blank text nodes get a `nativeId`.
- *   - Comments, blank text nodes and fragments never do. They are ordering-only.
- *   - Native ids are allocated lazily, when a node first becomes reachable from
- *     the root. Svelte renders offscreen constantly (the shared each-block
- *     fragment, deferred `{#if}` branches, `<svelte:boundary>` pending content),
- *     and eager creation would leak a Rust node for every abandoned render.
- *
- * Because virtual nodes are always leaves, "the next native node" is a flat
- * scan of following siblings — a native node can never hide beneath a virtual
- * one, so there is nothing to descend into.
+ * A JS shadow tree projected onto GPUI: it holds the fragments and comments GPUI has
+ * no representation for, and allocates native ids lazily, because Svelte renders
+ * offscreen constantly and eager creation would leak a Rust node per abandoned render.
  */
 
 import { createRenderer } from 'svelte/renderer';
 import { build_style } from './style.js';
 import { to_gpui_event } from './events.js';
 
-/** Element types GPUI can build. Anything else degrades to `div`. */
+/** Anything not listed here degrades to `div`. */
 const GPUI_TAGS = new Set([
 	'div',
 	'text',
@@ -55,10 +38,6 @@ const PROP_ALIASES = new Map([
 	['testid', 'testId']
 ]);
 
-// ---------------------------------------------------------------------------
-// module state
-// ---------------------------------------------------------------------------
-
 /** @type {any} the live GpuixRenderer (or TestGpuixRenderer) */
 let native = null;
 
@@ -68,12 +47,11 @@ let queue = [];
 /** nativeId -> shadow node, for event dispatch and destroy bookkeeping. */
 let by_id = new Map();
 
-/** Nodes detached but not yet destroyed. See `remove` / `commit`. */
 let pending_destroy = new Set();
 
 /**
- * Monotonic across remounts on purpose: `bun --hot` builds a fresh tree while
- * the old GPUI nodes may still exist, and reused ids would collide with them.
+ * Monotonic across remounts on purpose: `render_hot` builds a fresh tree while the old
+ * GPUI nodes may still exist, and reused ids would collide with them.
  */
 let next_id = 0;
 let dirty = false;
@@ -84,10 +62,6 @@ function emit(op) {
 	queue.push(op);
 	dirty = true;
 }
-
-// ---------------------------------------------------------------------------
-// shadow tree
-// ---------------------------------------------------------------------------
 
 function node(kind, name, data) {
 	return {
@@ -142,10 +116,6 @@ function unlink(child) {
 	child.next = null;
 }
 
-// ---------------------------------------------------------------------------
-// projection
-// ---------------------------------------------------------------------------
-
 const is_blank = (s) => s == null || s.trim() === '';
 
 /**
@@ -154,7 +124,7 @@ const is_blank = (s) => s == null || s.trim() === '';
  */
 const native_parent_of = (parent) => (parent && parent.kind === 'element' ? parent : null);
 
-/** The GPUI node to insert before, or null to append; siblings only, never descend. */
+/** Siblings only: a native node can never hide beneath a virtual one. */
 function first_native_after(cursor) {
 	for (let n = cursor; n !== null; n = n.next) {
 		if (n.nativeId !== null && n.attached) return n;
@@ -191,7 +161,7 @@ function apply_prop(el, key, value) {
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
 
-/** Idempotent: gives `n` and everything below it a native presence. */
+/** Idempotent. */
 function materialize(n) {
 	if (n.kind === 'comment' || n.kind === 'fragment') return;
 
@@ -205,7 +175,7 @@ function materialize(n) {
 			by_id.set(n.nativeId, n);
 			emit(['createElement', n.nativeId, 'text']);
 			emit(['setText', n.nativeId, n.data]);
-			return; // text nodes have no children
+			return;
 		}
 
 		n.nativeId = ++next_id;
@@ -231,7 +201,6 @@ function materialize(n) {
 	}
 }
 
-/** Put an already-materialized node in its correct native slot. */
 function attach(n) {
 	if (n.nativeId === null) return;
 
@@ -252,10 +221,6 @@ function set_live(n, value) {
 	n.live = value;
 	for (let c = n.first; c; c = c.next) set_live(c, value);
 }
-
-// ---------------------------------------------------------------------------
-// the renderer
-// ---------------------------------------------------------------------------
 
 const renderer = createRenderer({
 	createFragment: () => node('fragment', '', ''),
@@ -315,7 +280,6 @@ const renderer = createRenderer({
 			return;
 		}
 
-		// A blank anchor that just gained content becomes a real GPUI text node.
 		if (n.kind !== 'text' || is_blank(text) || !n.live) return;
 		materialize(n);
 		attach(n);
@@ -327,8 +291,7 @@ const renderer = createRenderer({
 	getParent: (n) => n.parent,
 
 	insert(parent, n, anchor) {
-		// Inserting a fragment splats its children — all before the same anchor,
-		// in order — and drains it. Fragments are never nested.
+		// Fragments are never nested, so this recurses at most one level.
 		if (n.kind === 'fragment') {
 			for (let c = n.first, next; c; c = next) {
 				next = c.next;
@@ -347,9 +310,8 @@ const renderer = createRenderer({
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
 		} else if (n.nativeId !== null && n.attached) {
-			// Moved out of the live tree into an offscreen fragment. Native has no
-			// detach op (removeChild is gone in 0.6), so commit() destroys the
-			// subtree; it re-materializes if it ever becomes live again.
+			// Native has no detach op (removeChild is gone in 0.6), so commit()
+			// destroys the subtree; it re-materializes if it becomes live again.
 			pending_destroy.add(n);
 		}
 	},
@@ -358,11 +320,8 @@ const renderer = createRenderer({
 		if (n.parent === null) return;
 
 		unlink(n);
-		// The native side keeps the node attached until commit() — native has no
-		// detach op, and a reinsert reparents implicitly (insertBefore/appendChild
-		// detach from the old parent). Never destroy here: Svelte removes and
-		// re-inserts the same node in consecutive statements (see `each.js`'s
-		// controlled-anchor reset).
+		// Never destroy here: Svelte removes and re-inserts the same node in
+		// consecutive statements (see `each.js`'s controlled-anchor reset).
 		set_live(n, false);
 		pending_destroy.add(n);
 	},
@@ -405,11 +364,8 @@ const renderer = createRenderer({
 
 export default renderer;
 
-// ---------------------------------------------------------------------------
-// host wiring — used by `render.js`, not by compiled components
-// ---------------------------------------------------------------------------
+// Host wiring — used by `render.js`, not by compiled components.
 
-/** Point the renderer at a `GpuixRenderer` / `TestGpuixRenderer`, resetting state. */
 export function set_native(instance) {
 	native = instance;
 	queue = [];
@@ -418,7 +374,6 @@ export function set_native(instance) {
 	dirty = false;
 }
 
-/** Create the single GPUI root element and return its shadow node. */
 export function create_root(style = { display: 'flex', width: '100%', height: '100%' }) {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
@@ -435,10 +390,7 @@ export function create_root(style = { display: 'flex', width: '100%', height: '1
 
 export const is_dirty = () => dirty;
 
-/**
- * Destroy what is genuinely gone, then ship the batch across the FFI boundary
- * in a single call.
- */
+/** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
 	for (const n of pending_destroy) {
 		// Anything that left the live tree and was not rescued into it goes away —
@@ -474,7 +426,6 @@ export function commit() {
 	native.commitMutations?.();
 }
 
-/** Route a native `EventPayload` to the Svelte handlers registered for it. */
 export function dispatch(payload) {
 	const target = by_id.get(payload.elementId);
 	if (!target) return;
