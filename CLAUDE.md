@@ -18,7 +18,8 @@ does not exist — and `--import` installs the `.svelte` loader.
 
 ```bash
 npm install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
-npm run demo               # all four demos at once
+npm run demo               # all four demos at once (via scripts/demo-all.js —
+                           # cmd.exe has no `&` ... `wait`)
 npm run demo:counter       # counter (hot-reloads on save)
 npm run demo:tictactoe
 npm run demo:hn            # Hacker News reader — live network data, scrolling
@@ -85,7 +86,9 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
   (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and
   re-materialize if shown again), `setCustomProp` not `setCustomPropValue`, and
   `commitMutations?.()` only where it exists. 0.6.0 dropped the darwin-x64 / linux-arm64 /
-  win32-arm64 prebuilds — pin 0.5.x on those platforms.
+  win32-arm64 prebuilds — pin 0.5.x on those platforms. `TestGpuixRenderer` does not exist on Linux at all —
+  gpuix gates `mod test_renderer` on macOS/Windows and builds Linux with `--no-default-features`
+  until wgpu grows image readback — so CI there can only check that the binding loads.
 
 ## Architecture
 
@@ -135,7 +138,8 @@ schedule its own commit on a microtask — otherwise a mutation with no native e
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
 `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `plugin.js` propagates that query to child
-`.svelte` imports, or a reload would re-instantiate the root against stale children.
+`.svelte` imports, or a reload would re-instantiate the root against stale children — through a
+`file://` URL, since a bare Windows path parses as a URL scheme.
 
 **`style.js`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The

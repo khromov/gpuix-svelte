@@ -7,7 +7,11 @@ on:
 
 jobs:
   node:
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,7 +21,11 @@ jobs:
       - run: npm test
 
   bun:
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       # Deps come from npm either way — one lockfile, and Bun runs against it.
@@ -27,3 +35,16 @@ jobs:
       - run: npm ci
       - uses: oven-sh/setup-bun@v2
       - run: npm run bun:test
+
+  # gpuix compiles TestGpuixRenderer only on macOS and Windows — it needs
+  # render_to_image, which the Vulkan/wgpu backend lacks — so the suites cannot
+  # run here. This checks the binding still loads, which is what the demos need.
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: node -e "const n = require('@gpuix/native'); if (typeof n.GpuixRenderer !== 'function') { console.error('GpuixRenderer missing from the linux prebuild'); process.exit(1) } console.log('binding ok')"

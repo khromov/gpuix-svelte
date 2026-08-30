@@ -4,6 +4,8 @@
  */
 
 import { existsSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { mount, flushSync } from 'svelte';
 import renderer, { set_native, create_root, commit, dispatch } from '../src/renderer.js';
@@ -89,7 +91,7 @@ for (let i = 0; i < 2; i++) {
 }
 console.log('after 2 adds:', JSON.stringify(native.getAllText()));
 
-const shot = '/tmp/gpuix-svelte-headless.png';
+const shot = join(tmpdir(), 'gpuix-svelte-headless.png');
 native.captureScreenshot(shot);
 console.log('screenshot:', shot);
 

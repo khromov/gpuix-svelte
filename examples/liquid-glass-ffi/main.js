@@ -10,9 +10,14 @@ await render_hot(new URL('../liquid-glass/LiquidGlass.svelte', import.meta.url),
 	width: 400,
 	height: 780,
 	transparent: true,
-	windowBackground: glass ? 'transparent' : 'blurred',
+	// GPUI's window blur is the macOS fallback; elsewhere only plain transparency
+	// exists, so the panel carries a heavier scrim of its own.
+	windowBackground: glass || process.platform !== 'darwin' ? 'transparent' : 'blurred',
 	titlebarTransparent: true,
-	props: { glass: glass !== null }
+	props: {
+		glass: glass !== null,
+		...(glass || process.platform === 'darwin' ? {} : { scrim: 'rgba(22, 22, 34, 0.92)' })
+	}
 });
 
 if (glass) {
