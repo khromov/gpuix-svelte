@@ -17,7 +17,8 @@
 		"src"
 	],
 	"engines": {
-		"node": ">=24"
+		"node": ">=24",
+		"bun": ">=1.4.0"
 	},
 	"repository": {
 		"type": "git",
@@ -41,7 +42,16 @@
 		"test": "npm run test:reorder && npm run test:smoke",
 		"test:reorder": "node --conditions custom-renderer --conditions development --import ./src/register.js test/reorder.js",
 		"test:smoke": "node --conditions custom-renderer --conditions development --import ./src/register.js test/smoke.js",
-		"test:coverage": "node --conditions custom-renderer --conditions development --import ./src/register.js test/coverage.js"
+		"test:coverage": "node --conditions custom-renderer --conditions development --import ./src/register.js test/coverage.js",
+		"bun:demo": "npm run bun:demo:counter & npm run bun:demo:tictactoe & npm run bun:demo:hn & npm run bun:demo:glass & wait",
+		"bun:demo:counter": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
+		"bun:demo:tictactoe": "bun --conditions custom-renderer --conditions development examples/tic-tac-toe/main.js",
+		"bun:demo:hn": "bun --conditions custom-renderer --conditions development examples/hacker-news/main.js",
+		"bun:demo:glass": "bun --conditions custom-renderer --conditions development examples/liquid-glass/main.js",
+		"bun:test": "npm run bun:test:reorder && npm run bun:test:smoke",
+		"bun:test:reorder": "bun --conditions custom-renderer --conditions development test/reorder.js",
+		"bun:test:smoke": "bun --conditions custom-renderer --conditions development test/smoke.js",
+		"bun:test:coverage": "bun --conditions custom-renderer --conditions development test/coverage.js"
 	},
 	"dependencies": {
 		"@gpuix/native": ">=0.5.0 <0.7.0"

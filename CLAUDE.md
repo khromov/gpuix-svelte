@@ -30,6 +30,10 @@ npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 ```
 
+Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
+running the same entry point through Bun, which takes the loader from `bunfig.toml` rather than
+`--import`. Deps come from `npm install` either way. Adding a script means adding both halves.
+
 To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
 GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
 through `dispatch()`. Calling `dispatch()` directly injects events at an element and *bypasses* hit
@@ -39,7 +43,7 @@ out below that can't be hit (shift the layout up inside an absolute wrapper to r
 
 Tests are plain scripts that assert and `process.exit(1)` — no test runner.
 Adding one means adding a `test:*` script and chaining it into `test`. CI (`.github/workflows/test.yml`)
-runs `npm test` on macOS only.
+runs `npm test` and `npm run bun:test` as two macOS jobs.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -62,8 +66,8 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 
 - **No build step, no TypeScript emit.** Plain ESM JS with JSDoc types; `exports` points straight
   at `src/*.js`. Keep it that way.
-- **Node >= 24**, for `module.registerHooks`. Bun still works but nothing in `package.json`
-  targets it — keep runtime-specific code confined to `register.js` / `plugin.js`.
+- **Node >= 24** (for `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in CI; keep
+  runtime-specific code confined to `register.js` / `plugin.js`.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
@@ -86,7 +90,7 @@ render.js    window lifecycle + frame loop  ─┐
 renderer.js  shadow tree → GPUI projection   ├─ style.js / events.js are its translation helpers
 compile.js   .svelte → JS, runtime-agnostic  ─┘
   register.js  Node loader (module.registerHooks)   ─ the default
-  plugin.js    Bun loader (Bun.plugin)              ─ opt-in, referenced by nothing
+  plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts
 ```
 
 **`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
@@ -97,8 +101,8 @@ workspace, since it must resolve from the `.svelte` file's own location.
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
 be installed before the entry module resolves — Node via `--import ./src/register.js` in every
-script, Bun via `bunfig.toml`'s `preload`. Tests rely on that registration rather than importing a
-loader themselves.
+`node` script, Bun via `bunfig.toml`'s `preload`. Tests rely on that registration rather than
+importing a loader themselves.
 
 **`renderer.js`** is where the real work is. Svelte's renderer contract is DOM-shaped (fragments,
 comments, sibling walking); GPUI's tree is flat, id-based and knows only `div`/`text` plus a few
@@ -160,7 +164,7 @@ the two stay in sync. Unknown events are dropped silently.
 ## Runtime
 
 Node, via `npm`: `npm install`, `npm run <script>`, `npx`. Keep the source runtime-agnostic —
-`node:*` builtins only, no `Bun.*` calls and no `bun:` imports outside `src/plugin.js`.
+`node:*` builtins only, no `Bun.*` calls and no `bun` imports outside `src/plugin.js`.
 
 ## Comments
 

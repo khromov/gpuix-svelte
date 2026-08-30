@@ -10,8 +10,8 @@ Svelte components — no webview.
 
 ## Try it
 
-Requires Node.js 24 or newer. No Rust or other toolchains needed — the native binary comes
-prebuilt from npm.
+Runs on **Node.js >= 24** or **Bun >= 1.4.0**. No Rust or other toolchains needed — the native
+binary comes prebuilt from npm.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
@@ -25,9 +25,10 @@ npm run demo:glass        # liquid-glass control center (blurred translucent win
 npm test                  # headless renderer tests
 ```
 
-[Bun](https://bun.com) works too — `bun install`, then run an entry point directly
-(`bun --conditions custom-renderer --conditions development examples/counter/main.js`). It picks
-the `.svelte` loader up from `bunfig.toml`; the package scripts themselves always use Node.
+Every command has a [Bun](https://bun.com) twin under a `bun:` prefix — `npm run bun:test`,
+`npm run bun:demo`, `npm run bun:demo:counter`, and so on. They run the same entry points through
+Bun, which picks the `.svelte` loader up from `bunfig.toml` instead of `--import`. Dependencies
+still come from `npm install` either way; there is one lockfile, and CI runs both runtimes.
 
 ## Use in your own project
 

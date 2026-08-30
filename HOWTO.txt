@@ -1,7 +1,7 @@
 HOWTO: run from a fresh clone (macOS, Apple Silicon)
 ====================================================
 
-Needs Node.js 24 or newer.
+Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
 
     npm install     # that's the whole setup.
                     #   @gpuix/native arrives prebuilt from npm (no Rust, no
@@ -43,10 +43,11 @@ Notes
   darwin-x64 / linux-arm64 / win32-arm64 prebuilds; pin 0.5.x on those.
 - If pkg.pr.new/svelte@18511 stops resolving, the committed package-lock.json
   keeps installs working; only `npm update svelte` needs the URL to be live.
-- Bun is optional. `bun install`, then run an entry point directly:
-  `bun --conditions custom-renderer --conditions development examples/counter/main.js`
-  — bunfig.toml preloads src/plugin.js, Bun's equivalent of the Node loader.
-  The package scripts always use Node.
+- Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
+  npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
+  Same entry points, run through Bun, which preloads src/plugin.js via
+  bunfig.toml instead of taking --import. Dependencies still come from
+  npm install either way; CI runs both runtimes.
 - Optional: npm run test:coverage runs Svelte's own custom-renderer samples if
   SVELTE_SAMPLES_DIR points at a svelte checkout's
   packages/svelte/tests/custom-renderers/samples directory.
