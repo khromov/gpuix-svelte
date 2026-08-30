@@ -66,9 +66,23 @@ check('keywords, percents and colors stay strings', parse_css_text('width: 50%; 
 });
 check('negative lengths survive', parse_css_text('margin-top: -4px'), { marginTop: -4 });
 
-console.log('\n-- the next two lines should each warn once --');
+console.log('\n-- the next lines should each warn once --');
 check('unsupported unit is dropped, not shipped', parse_css_text('font-size: 1rem'), {});
 check('multi-value box-shadow is dropped', parse_css_text('box-shadow: 0 2px 4px rgba(0,0,0,.2)'), {});
+// GPUI types these as bare `f64`, so `auto` and `%` are just as fatal as `1rem`.
+check('auto never reaches a pixel-only key', parse_css_text('margin: 0 auto'), {
+	marginTop: 0,
+	marginBottom: 0
+});
+check('percent never reaches a pixel-only key', parse_css_text('border-radius: 50%; top: 50%'), {});
+check('the slash form of border-radius is dropped', parse_css_text('border-radius: 10px / 20px'), {
+	borderTopLeftRadius: 10,
+	borderBottomRightRadius: 20
+});
+check('box-shadow keywords are dropped too', parse_css_text('box-shadow: none'), {});
+check('percent still works where GPUI takes one', parse_css_text('max-width: 80%'), {
+	maxWidth: '80%'
+});
 
 // The whole point: none of this may reach Rust as a string it will reject.
 const native = new TestGpuixRenderer(400, 200);
@@ -78,7 +92,11 @@ const anchor = renderer.createComment('');
 renderer.insert(root, anchor, null);
 
 const box = renderer.createElement('div');
-renderer.setAttribute(box, 'style', 'padding: 12px 24px; border-radius: 4px 8px; font-size: 1rem');
+renderer.setAttribute(
+	box,
+	'style',
+	'padding: 12px 24px; border-radius: 4px 8px; font-size: 1rem; margin: 0 auto; box-shadow: none'
+);
 renderer.insert(root, box, anchor);
 const label = renderer.createElement('text');
 renderer.setText(label, 'X');

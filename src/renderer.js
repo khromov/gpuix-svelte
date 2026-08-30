@@ -69,7 +69,13 @@ function mark_dirty() {
 	// A microtask, so Svelte's effects finish emitting and the batch ships whole.
 	queueMicrotask(() => {
 		commit_scheduled = false;
-		if (dirty) commit();
+		try {
+			if (dirty) commit();
+		} catch (error) {
+			// Nothing else wraps this one, and an escaped throw here is an
+			// uncaughtException that takes the whole process down.
+			console.error('[gpuix-svelte] commit failed:', error);
+		}
 	});
 }
 

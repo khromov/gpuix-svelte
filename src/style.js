@@ -7,7 +7,53 @@
 const PX = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)px$/i;
 const NUM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
 const PERCENT = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)%$/;
-const NUMERIC_ISH = /^[+-.\d]/;
+const NUMERIC_ISH = /^[-+.\d]/;
+
+/** GPUI reads these as a bare `f64`, so any string at all fails to deserialize. */
+const NUMBER_ONLY = new Set([
+	'flexGrow',
+	'flexShrink',
+	'flexBasis',
+	'gap',
+	'rowGap',
+	'columnGap',
+	'gridTemplateColumns',
+	'gridTemplateRows',
+	'padding',
+	'paddingTop',
+	'paddingRight',
+	'paddingBottom',
+	'paddingLeft',
+	'margin',
+	'marginTop',
+	'marginRight',
+	'marginBottom',
+	'marginLeft',
+	'top',
+	'right',
+	'bottom',
+	'left',
+	'opacity',
+	'borderWidth',
+	'borderTopWidth',
+	'borderRightWidth',
+	'borderBottomWidth',
+	'borderLeftWidth',
+	'borderRadius',
+	'borderTopLeftRadius',
+	'borderTopRightRadius',
+	'borderBottomLeftRadius',
+	'borderBottomRightRadius',
+	'fontSize',
+	'lineHeight',
+	'lineClamp'
+]);
+
+/** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
+const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
+
+/** A struct on the Rust side — CSS text can never produce one. */
+const NEVER = new Set(['boxShadow']);
 
 /** GPUI has no `inset` field, so that one expands even when it holds one value. */
 const BOX = {
@@ -43,19 +89,29 @@ function coerce(value) {
 	return value;
 }
 
+function accepts(key, value) {
+	if (NEVER.has(key)) return false;
+	if (NUMBER_ONLY.has(key)) return typeof value === 'number';
+	if (DIMENSION.has(key)) {
+		return typeof value === 'number' || value === 'auto' || PERCENT.test(value);
+	}
+	// Not a key we have typed: serde drops it if GPUI doesn't know it either, but
+	// a length-shaped string on one it does know would throw, so keep those out.
+	return typeof value !== 'string' || !NUMERIC_ISH.test(value);
+}
+
 /**
- * A value that still looks like a length after coercion (`1rem`, `12px 24px`,
- * `0 2px 4px rgba(...)`) would throw on the Rust side and take the frame loop
- * with it, so drop it and say so once.
+ * A value GPUI's deserializer would reject (`1rem`, `12px 24px`, `50%` on a
+ * pixel-only key) throws out of `applyBatch` and takes the whole frame with it,
+ * so drop it and say so once per property.
  */
 function assign(out, key, value) {
 	const coerced = coerce(value);
 
-	if (typeof coerced === 'string' && NUMERIC_ISH.test(coerced) && !PERCENT.test(coerced)) {
-		const seen = `${key}: ${value}`;
-		if (!warned.has(seen)) {
-			warned.add(seen);
-			console.warn(`[gpuix-svelte] dropped unsupported style value \`${seen}\``);
+	if (!accepts(key, coerced)) {
+		if (!warned.has(key)) {
+			warned.add(key);
+			console.warn(`[gpuix-svelte] dropped unsupported style value \`${key}: ${value}\``);
 		}
 		return;
 	}

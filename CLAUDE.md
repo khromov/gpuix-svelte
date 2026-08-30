@@ -158,12 +158,14 @@ raw string is kept on the shadow node because Svelte read-modify-writes it for `
 arrive as their own attributes and get folded back in.
 
 Unknown *keys* need no allowlist — serde drops them. Unknown **values** are the opposite: a key
-GPUI does know, handed a string it can't parse into an `f64`, throws out of `applyBatch`, and that
-throw loses the whole frame. So multi-value box shorthands (`padding`, `margin`, `border-width`,
-`border-radius`, `gap`, `inset`) expand to the longhands GPUI actually has, and any value that
-still looks like a length afterwards (`1rem`, `2em`, a `box-shadow`) is dropped with a one-time
-warning rather than shipped. `inset` expands even when it holds a single value, because GPUI has
-`top`/`right`/`bottom`/`left` but no `inset`.
+GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and that throw loses
+the whole frame. So multi-value box shorthands (`padding`, `margin`, `border-width`,
+`border-radius`, `gap`, `inset`) expand to the longhands GPUI actually has, and each value is then
+checked against the key's Rust type: `NUMBER_ONLY` keys (all the spacing, border and font metrics)
+are `f64`, so `1rem`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
+`DimensionValue` and take `%` or `auto`; `boxShadow` is a struct CSS text can never build. Anything
+that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
+even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
 
 **`events.js`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
@@ -172,8 +174,10 @@ the two stay in sync. Unknown events are dropped silently.
 ## Writing components for this renderer
 
 - Style with inline `style="..."` (and `style:` directives). Box shorthands like
-  `padding: 12px 24px` work; `rem`/`em`/`vh` units do not — GPUI lengths are logical pixels.
-  `class` is ignored, so `<style>` blocks and CSS classes do nothing.
+  `padding: 12px 24px` work; `rem`/`em`/`vh` units do not — GPUI lengths are logical pixels — and
+  neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
+  `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning. `class` is ignored, so `<style>` blocks and CSS
+  classes do nothing.
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`).
