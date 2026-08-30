@@ -8,9 +8,12 @@ HOWTO: run from a fresh clone (macOS, Apple Silicon)
                     #   CI preview of the unreleased custom-renderer branch.
     bun run test    # headless: TestGpuixRenderer drives the real Metal
                     # pipeline without opening a window
-    bun run demo    # opens the counter window; edit examples/Counter.svelte
-                    # and save to hot-reload (content must change — a bare
-                    # `touch` does nothing)
+    bun run demo    # opens the counter window; edit
+                    # examples/counter/Counter.svelte and save to hot-reload
+                    # (content must change — a bare `touch` does nothing)
+
+    bun run demo:tictactoe   # tic-tac-toe with score tracking
+    bun run demo:hn          # Hacker News reader (live data, scrolling)
 
 Success looks like:
     [gpuix-svelte] created native window

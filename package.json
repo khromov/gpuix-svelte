@@ -29,7 +29,9 @@
 		"bun"
 	],
 	"scripts": {
-		"demo": "bun --conditions custom-renderer --conditions development examples/counter-svelte.js",
+		"demo": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
+		"demo:tictactoe": "bun --conditions custom-renderer --conditions development examples/tic-tac-toe/main.js",
+		"demo:hn": "bun --conditions custom-renderer --conditions development examples/hacker-news/main.js",
 		"test": "bun run test:reorder && bun run test:smoke",
 		"test:reorder": "bun --conditions custom-renderer --conditions development test/reorder.js",
 		"test:smoke": "bun --conditions custom-renderer --conditions development test/smoke.js",

@@ -1,4 +1,3 @@
-
 Default to using Bun instead of Node.js.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`
@@ -119,3 +118,17 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - `svelte` comes from `https://pkg.pr.new/svelte@18511` (unreleased custom-renderer branch);
   `@gpuix/native` is pinned to `^0.4.0` because 0.5+/0.6 changed the native mutation
   contract (no `commitMutations()`).
+- To SEE what a demo renders: launch it with `GPUIX_SCREENSHOT=/tmp/x.png bun run demo`
+  (a PNG is written after every mount/remount) and open the PNG with the Read tool.
+  Headless code can call `TestGpuixRenderer.captureScreenshot(path)` — real Metal
+  pipeline, no window (see test/smoke.js).
+
+## Comments
+
+Use code comments sparingly, this is important.
+
+- Comment the **why**, never the **what** — the code already says what it does, and a comment that restates it just rots. Prefer no comment to an obvious one.
+- **One sentence.** Allow a second only when the why is genuinely incomprehensible without it (a non-obvious constraint, a bug being worked around, an ordering dependency between two calls); never a third. A comment that keeps growing usually means the code needs a better name or a smaller function, not more prose.
+- Do not add comment signatures for new functions unless you need to explain WHY the function is needed.
+- Do not add comments for CSS - ever!
+- Do not add comments to simple functions.

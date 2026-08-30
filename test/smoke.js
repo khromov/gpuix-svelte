@@ -17,7 +17,7 @@ const root = create_root();
 const anchor = renderer.createComment('');
 renderer.insert(root, anchor, null);
 
-const Counter = (await import('../examples/Counter.svelte')).default;
+const Counter = (await import('../examples/counter/Counter.svelte')).default;
 mount(Counter, { renderer, target: root, anchor, props: {} });
 flushSync();
 commit();
