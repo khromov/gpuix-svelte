@@ -240,13 +240,13 @@
 		<!-- mode pills -->
 		<div style="display: flex; flex-direction: row; gap: 12px">
 			{#each [
-				{ label: 'Focus', get on() { return focus; }, flip: () => (focus = !focus) },
-				{ label: 'Night Shift', get on() { return night; }, flip: () => (night = !night) }
+				{ label: 'Focus', accent: 'rgba(255,159,10,0.65)', get on() { return focus; }, flip: () => (focus = !focus) },
+				{ label: 'Night Shift', accent: 'rgba(10,132,255,0.55)', get on() { return night; }, flip: () => (night = !night) }
 			] as pill (pill.label)}
 				<div
 					style="display: flex; align-items: center; justify-content: center; flex-grow: 1;
 					       padding: 12px; cursor: pointer; {CARD}"
-					style:background-color={pill.on ? 'rgba(10,132,255,0.55)' : 'rgba(255,255,255,0.10)'}
+					style:background-color={pill.on ? pill.accent : 'rgba(255,255,255,0.10)'}
 					hover="border-color: rgba(255,255,255,0.35)"
 					onclick={pill.flip}
 				>
