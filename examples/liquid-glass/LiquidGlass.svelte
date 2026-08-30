@@ -266,7 +266,7 @@
 			<div style="color: rgba(255,255,255,0.35); font-size: 11px">
 				{glass
 					? 'actual Liquid Glass — NSGlassEffectView behind the window'
-					: 'glassmorphism fallback — GPUI window blur behind the panel'}
+					: 'glassmorphism — GPUI window blur behind the panel'}
 			</div>
 		</div>
 	</div>

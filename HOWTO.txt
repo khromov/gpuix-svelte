@@ -17,14 +17,17 @@ Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
                              # a bare `touch` does nothing)
     npm run demo:tictactoe   # tic-tac-toe with score tracking
     npm run demo:hn          # Hacker News reader (live data, scrolling)
-    npm run demo:glass       # control center on REAL Liquid Glass: a tiny ObjC
+    npm run demo:glass       # liquid glass control center: transparent window
+                             # with windowBackground "blurred" (macOS vibrancy)
+    npm run demo:glass-ffi   # the same app on REAL Liquid Glass: a tiny ObjC
                              # shim (clang-compiled on first run) slides an
                              # NSGlassEffectView under GPUI's Metal view, loaded
                              # via koffi (Node) or bun:ffi (Bun). Needs macOS 26;
-                             # elsewhere it falls back to GPUI's window blur.
-                             # GPUIX_GLASS=0 forces the fallback. Note that
-                             # GPUIX_SCREENSHOT can't capture the material —
-                             # only the real window (or screencapture) shows it
+                             # elsewhere it falls back to the window blur.
+                             # GPUIX_GLASS=0 forces the fallback. Not part of
+                             # `npm run demo`. Note that GPUIX_SCREENSHOT can't
+                             # capture either material — only the real window
+                             # (or `screencapture`) shows it
 
 Success looks like:
     [gpuix-svelte] created native window
@@ -45,8 +48,9 @@ Notes
   setCustomProp instead of setCustomPropValue, commitMutations() called only
   when present — and 0.5.x accepts all of that too. Note: 0.6.0 dropped the
   darwin-x64 / linux-arm64 / win32-arm64 prebuilds; pin 0.5.x on those.
-- If pkg.pr.new/svelte@18511 stops resolving, the committed package-lock.json
-  keeps installs working; only `npm update svelte` needs the URL to be live.
+- The committed package-lock.json pins svelte's exact version and integrity
+  hash, but resolves it from pkg.pr.new/svelte@18511 — that URL has to be live
+  for `npm ci` as well, not just for `npm update svelte`.
 - Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
   npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
   Same entry points, run through Bun, which preloads src/plugin.js via

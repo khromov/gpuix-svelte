@@ -22,10 +22,11 @@ npm run demo               # all four demos at once
 npm run demo:counter       # counter (hot-reloads on save)
 npm run demo:tictactoe
 npm run demo:hn            # Hacker News reader — live network data, scrolling
-npm run demo:glass         # real Liquid Glass (NSGlassEffectView) on macOS 26+, via a
-                           # clang-compiled ObjC shim + FFI (koffi/bun:ffi) in
-                           # examples/liquid-glass/glass.js; GPUIX_GLASS=0 forces the
-                           # GPUI window-blur fallback
+npm run demo:glass         # transparent window, macOS vibrancy (GPUI window blur)
+npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, macOS 26+)
+                           # via a clang-compiled ObjC shim + FFI (koffi/bun:ffi) in
+                           # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
+                           # window-blur fallback; NOT part of `npm run demo`
 
 npm test                   # test:reorder then test:smoke
 npm run test:reorder       # single test — keyed {#each} reordering
@@ -75,8 +76,9 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
 - **`svelte` is pinned to `https://pkg.pr.new/svelte@18511`** (CI preview of the custom-renderer
-  branch). The committed `package-lock.json` keeps installs working if that URL dies; only
-  `npm update svelte` needs it live.
+  branch). The committed `package-lock.json` pins the exact version and integrity hash, but its
+  `resolved` is that same URL — pkg.pr.new has to be live for `npm ci` too, not just
+  `npm update svelte`.
 - **`@gpuix/native` range is `>=0.5.0 <0.7.0`** (installs 0.6.0) and the renderer speaks the
   0.6.0 mutation contract, which 0.5.x also accepts: applyBatch only — no `removeChild` op
   (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and

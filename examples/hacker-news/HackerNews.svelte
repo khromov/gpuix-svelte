@@ -42,7 +42,10 @@
 			process.platform === 'darwin' ? ['open', url]
 			: process.platform === 'win32' ? ['cmd', '/c', 'start', '', url]
 			: ['xdg-open', url];
-		spawn(cmd[0], cmd.slice(1), { stdio: 'ignore', detached: true }).unref();
+		const child = spawn(cmd[0], cmd.slice(1), { stdio: 'ignore', detached: true });
+		// An unhandled 'error' event (no xdg-open on the box) would take the window down with it.
+		child.on('error', (err) => console.error('[hacker-news] could not open browser:', err.message));
+		child.unref();
 	}
 
 	function domain(story) {
