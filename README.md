@@ -17,7 +17,8 @@ prebuilt from npm.
 git clone https://github.com/khromov/gpuix-svelte
 cd gpuix-svelte
 bun install
-bun run demo              # counter — edit examples/counter/Counter.svelte and save to hot-reload
+bun run demo              # all four demos at once
+bun run demo:counter      # counter — edit examples/counter/Counter.svelte and save to hot-reload
 bun run demo:tictactoe    # tic-tac-toe with score tracking
 bun run demo:hn           # Hacker News reader (live data, scrollable list)
 bun run demo:glass        # liquid-glass control center (blurred translucent window)

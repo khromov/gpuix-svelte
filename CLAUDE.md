@@ -17,7 +17,8 @@ those flags `svelte` resolves to its server build and `mount()` does not exist.
 
 ```bash
 bun install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
-bun run demo               # counter (hot-reloads on save)
+bun run demo               # all four demos at once
+bun run demo:counter       # counter (hot-reloads on save)
 bun run demo:tictactoe
 bun run demo:hn            # Hacker News reader — live network data, scrolling
 bun run demo:glass         # transparent window, macOS vibrancy
@@ -48,7 +49,8 @@ in place would mix two Svelte runtimes.
 A window can't be inspected from a terminal, but a PNG can:
 
 ```bash
-GPUIX_SCREENSHOT=/tmp/x.png bun run demo    # writes a PNG after every mount/remount
+GPUIX_SCREENSHOT=/tmp/x.png bun run demo:counter    # writes a PNG after every mount/remount
+                                                    # (single demo — all four share the path)
 ```
 
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls

@@ -1,5 +1,5 @@
 /**
- * The `--conditions custom-renderer` flag in the `demo` script is not optional —
+ * The `--conditions custom-renderer` flag in the `demo:counter` script is not optional —
  * it is how `svelte` resolves to its client build outside a browser.
  */
 
