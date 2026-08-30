@@ -1,5 +1,9 @@
 <script>
-	let { glass = false } = $props();
+	let {
+		glass = false,
+		scrim = 'rgba(22, 22, 34, 0.42)',
+		backing = 'GPUI window blur behind the panel'
+	} = $props();
 
 	let wifi = $state(true);
 	let bluetooth = $state(true);
@@ -77,7 +81,7 @@
 
 <div
 	style="display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%;
-	       background-color: rgba(22, 22, 34, 0.42); padding: 22px; padding-top: 44px"
+	       background-color: {scrim}; padding: 22px; padding-top: 44px"
 	onmousemove={move}
 	onmouseup={release}
 >
@@ -265,7 +269,7 @@
 			<div style="color: rgba(255,255,255,0.35); font-size: 11px">
 				{glass
 					? 'actual Liquid Glass — NSGlassEffectView behind the window'
-					: 'glassmorphism — GPUI window blur behind the panel'}
+					: `glassmorphism — ${backing}`}
 			</div>
 		</div>
 	</div>
