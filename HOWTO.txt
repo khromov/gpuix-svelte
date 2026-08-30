@@ -56,6 +56,9 @@ Notes
   Same entry points, run through Bun, which preloads src/plugin.js via
   bunfig.toml instead of taking --import. Dependencies still come from
   npm install either way; CI runs both runtimes.
+- Linux runs the demos but not the tests: @gpuix/native 0.6.0's linux-x64-gnu
+  prebuild exports no TestGpuixRenderer (built without the test-support
+  feature), so the headless suites cannot construct one.
 - Windows/Linux have no frame loop (requiresTick() is false), so the renderer
   drains its mutation queue on a microtask instead — see set_auto_commit() and
   npm run test:autocommit.

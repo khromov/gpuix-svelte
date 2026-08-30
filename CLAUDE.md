@@ -86,7 +86,9 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
   (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and
   re-materialize if shown again), `setCustomProp` not `setCustomPropValue`, and
   `commitMutations?.()` only where it exists. 0.6.0 dropped the darwin-x64 / linux-arm64 /
-  win32-arm64 prebuilds — pin 0.5.x on those platforms.
+  win32-arm64 prebuilds — pin 0.5.x on those platforms. Its linux-x64-gnu binary also ships
+  without the test-support feature, so `TestGpuixRenderer` is undefined there and CI can only
+  check that the binding loads.
 
 ## Architecture
 
