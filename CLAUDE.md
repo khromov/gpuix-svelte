@@ -67,8 +67,12 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 - **`svelte` is pinned to `https://pkg.pr.new/svelte@18511`** (CI preview of the custom-renderer
   branch). The committed `bun.lock` keeps installs working if that URL dies; only
   `bun update svelte` needs it live.
-- **`@gpuix/native` is pinned to `^0.5.0` on purpose.** 0.6.0 removed the native mutation
-  contract (dropped `commitMutations()`); the renderer has not been ported.
+- **`@gpuix/native` range is `>=0.5.0 <0.7.0`** (installs 0.6.0) and the renderer speaks the
+  0.6.0 mutation contract, which 0.5.x also accepts: applyBatch only — no `removeChild` op
+  (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and
+  re-materialize if shown again), `setCustomProp` not `setCustomPropValue`, and
+  `commitMutations?.()` only where it exists. 0.6.0 dropped the darwin-x64 / linux-arm64 /
+  win32-arm64 prebuilds — pin 0.5.x on those platforms.
 
 ## Architecture
 

@@ -105,7 +105,8 @@ export function render(Component, options = {}) {
 	// the tree built next.
 	if (slot.root && slot.root.nativeId !== null) {
 		commit();
-		slot.native.destroyElement(slot.root.nativeId);
+		// via applyBatch — the direct destroyElement method is gone in 0.6
+		slot.native.applyBatch(JSON.stringify([['destroyElement', slot.root.nativeId]]));
 	}
 
 	set_native(slot.native);

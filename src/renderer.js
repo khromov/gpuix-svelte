@@ -188,7 +188,7 @@ function apply_prop(el, key, value) {
 	const name = prop_name(key);
 	if (BUILT_IN_TAGS.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
 	if (el.nativeId === null) return;
-	emit(['setCustomPropValue', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
+	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
 
 /** Idempotent: gives `n` and everything below it a native presence. */
@@ -337,40 +337,33 @@ const renderer = createRenderer({
 			return;
 		}
 
-		const was_live = n.live;
-		const old_parent = was_live ? native_parent_of(n.parent) : null;
-
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
-
-		pending_destroy.delete(n); // resurrected before the next commit
 
 		set_live(n, parent.live === true);
 
 		if (n.live) {
+			pending_destroy.delete(n); // resurrected before the next commit
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
-		} else if (was_live && n.attached && old_parent && old_parent.nativeId !== null) {
-			// moved out of the live tree, into an offscreen fragment
-			emit(['removeChild', old_parent.nativeId, n.nativeId]);
-			n.attached = false;
+		} else if (n.nativeId !== null && n.attached) {
+			// Moved out of the live tree into an offscreen fragment. Native has no
+			// detach op (removeChild is gone in 0.6), so commit() destroys the
+			// subtree; it re-materializes if it ever becomes live again.
+			pending_destroy.add(n);
 		}
 	},
 
 	remove(n) {
 		if (n.parent === null) return;
 
-		const np = n.live ? native_parent_of(n.parent) : null;
 		unlink(n);
-
-		if (n.nativeId !== null && n.attached && np && np.nativeId !== null) {
-			emit(['removeChild', np.nativeId, n.nativeId]);
-		}
-		n.attached = false;
-
+		// The native side keeps the node attached until commit() — native has no
+		// detach op, and a reinsert reparents implicitly (insertBefore/appendChild
+		// detach from the old parent). Never destroy here: Svelte removes and
+		// re-inserts the same node in consecutive statements (see `each.js`'s
+		// controlled-anchor reset).
 		set_live(n, false);
-		// Never destroy here — Svelte removes and re-inserts the same node in
-		// consecutive statements (see `each.js`'s controlled-anchor reset).
 		pending_destroy.add(n);
 	},
 
@@ -448,7 +441,10 @@ export const is_dirty = () => dirty;
  */
 export function commit() {
 	for (const n of pending_destroy) {
-		if (n.parent === null && n.nativeId !== null) emit(['destroyElement', n.nativeId]);
+		// Anything that left the live tree and was not rescued into it goes away —
+		// including nodes parked in offscreen fragments, which native would
+		// otherwise keep painting in their old spot.
+		if (!n.live && n.nativeId !== null) emit(['destroyElement', n.nativeId]);
 	}
 	pending_destroy.clear();
 
@@ -474,7 +470,8 @@ export function commit() {
 		by_id.delete(id);
 	}
 
-	native.commitMutations();
+	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
+	native.commitMutations?.();
 }
 
 /** Route a native `EventPayload` to the Svelte handlers registered for it. */

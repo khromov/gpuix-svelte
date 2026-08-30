@@ -32,11 +32,12 @@ Notes
 - GPUIX_SCREENSHOT=/tmp/x.png bun run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
-- @gpuix/native is pinned to ^0.5.0 on purpose — 0.6.0 removed the mutation
-  contract this renderer uses (commitMutations(), setCustomPropValue, the
-  granular methods) and the renderer has not been ported to it. 0.5.x keeps
-  the old contract and adds fixes (accurate getWindowSize, sizable test
-  viewport width, simulateScrollWheel on the main renderer).
+- @gpuix/native accepts ">=0.5.0 <0.7.0" (installs 0.6.0 by default). The
+  renderer speaks the 0.6.0 contract — applyBatch only, no removeChild op
+  (reinserts reparent implicitly; detached nodes are destroyed at commit),
+  setCustomProp instead of setCustomPropValue, commitMutations() called only
+  when present — and 0.5.x accepts all of that too. Note: 0.6.0 dropped the
+  darwin-x64 / linux-arm64 / win32-arm64 prebuilds; pin 0.5.x on those.
 - If pkg.pr.new/svelte@18511 stops resolving, the committed bun.lock keeps
   installs working; only `bun update svelte` needs the URL to be live.
 - Optional: bun run test:coverage runs Svelte's own custom-renderer samples if
