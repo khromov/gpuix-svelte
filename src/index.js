@@ -5,6 +5,7 @@ export {
 	create_root,
 	commit,
 	is_dirty,
+	set_auto_commit,
 	dispatch
 } from './renderer.js';
 export { parse_css_text, build_style } from './style.js';

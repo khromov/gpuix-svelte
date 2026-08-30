@@ -28,9 +28,10 @@ npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, m
                            # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
                            # window-blur fallback; NOT part of `npm run demo`
 
-npm test                   # test:reorder then test:smoke
+npm test                   # test:reorder, test:smoke, test:autocommit
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
+npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 ```
 
@@ -129,8 +130,10 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 **`render.js`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
 reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
 `setImmediate` burns ~73% CPU at idle. On `requiresTick() === false` (Windows/Linux) GPUI owns a
-blocking UI thread and there is no frame loop. Native events run `dispatch` → `flushSync()` →
-`commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
+blocking UI thread and there is no frame loop, so `set_auto_commit(true)` makes the renderer
+schedule its own commit on a microtask — otherwise a mutation with no native event behind it (a
+resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
+`dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `plugin.js` propagates that query to child
 `.svelte` imports, or a reload would re-instantiate the root against stale children.
 

@@ -55,12 +55,22 @@ let pending_destroy = new Set();
  */
 let next_id = 0;
 let dirty = false;
+let auto_commit = false;
+let commit_scheduled = false;
 
 const warned_tags = new Set();
 
 function emit(op) {
 	queue.push(op);
 	dirty = true;
+
+	if (!auto_commit || commit_scheduled) return;
+	commit_scheduled = true;
+	// A microtask, so Svelte's effects finish emitting and the batch ships whole.
+	queueMicrotask(() => {
+		commit_scheduled = false;
+		if (dirty) commit();
+	});
 }
 
 function node(kind, name, data) {
@@ -389,6 +399,11 @@ export function create_root(style = { display: 'flex', width: '100%', height: '1
 }
 
 export const is_dirty = () => dirty;
+
+/** Where no frame loop polls `is_dirty()`, mutations have to drain themselves. */
+export function set_auto_commit(enabled) {
+	auto_commit = enabled;
+}
 
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {

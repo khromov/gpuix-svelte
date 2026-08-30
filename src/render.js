@@ -9,7 +9,14 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GpuixRenderer } from '@gpuix/native';
 import { mount, unmount, flushSync } from 'svelte';
-import renderer, { set_native, create_root, commit, is_dirty, dispatch } from './renderer.js';
+import renderer, {
+	set_native,
+	create_root,
+	commit,
+	is_dirty,
+	dispatch,
+	set_auto_commit
+} from './renderer.js';
 
 /**
  * ~125fps, above any common refresh rate. `setImmediate` instead of a paced
@@ -25,8 +32,14 @@ function host() {
 
 function start_frame_loop(native) {
 	if (!native.requiresTick()) {
-		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop.
-		return { stop() {} };
+		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop
+		// to poll `is_dirty()` and commits have to schedule themselves.
+		set_auto_commit(true);
+		return {
+			stop() {
+				set_auto_commit(false);
+			}
+		};
 	}
 
 	let stopped = false;
