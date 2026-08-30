@@ -1,6 +1,9 @@
 # dependencies (bun install)
 node_modules
 
+# test:coverage working copy of svelte's sample suite
+test/.samples-tmp
+
 # output
 out
 dist

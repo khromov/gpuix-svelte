@@ -104,3 +104,18 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+## This project (gpuix-svelte)
+
+- Plain-JS ESM package with JSDoc types — there is NO build step and NO TypeScript emit.
+  `exports` points straight at `src/*.js`. Keep it that way.
+- Every run/test command REQUIRES `bun --conditions custom-renderer --conditions development`;
+  without the flags svelte resolves to its server build and `mount()` doesn't exist.
+  Always use the package scripts (`bun run demo`, `bun run test`, ...) which embed them.
+- `.svelte` files are compiled on import by `src/plugin.js`, registered via `bunfig.toml`
+  `preload` (the tests import it directly instead).
+- NEVER use `bun --hot` here — `render_hot` implements its own in-process hot reload;
+  see the "Hot reload" section of README.md for why `--hot` breaks.
+- `svelte` comes from `https://pkg.pr.new/svelte@18511` (unreleased custom-renderer branch);
+  `@gpuix/native` is pinned to `^0.4.0` because 0.5+/0.6 changed the native mutation
+  contract (no `commitMutations()`).

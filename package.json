@@ -1,11 +1,51 @@
 {
-  "name": "gpuix-svelte",
-  "module": "index.ts",
-  "type": "module",
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^7"
-  }
+	"name": "gpuix-svelte",
+	"version": "0.1.0",
+	"description": "Svelte custom renderer for GPUI (Zed's GPU-accelerated UI framework), via @gpuix/native",
+	"type": "module",
+	"license": "MIT",
+	"author": "Stanislav Khromov",
+	"main": "src/index.js",
+	"exports": {
+		".": "./src/index.js",
+		"./renderer": "./src/renderer.js",
+		"./plugin": "./src/plugin.js",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/khromov/gpuix-svelte"
+	},
+	"keywords": [
+		"svelte",
+		"gpui",
+		"gpuix",
+		"custom-renderer",
+		"native",
+		"gui",
+		"bun"
+	],
+	"scripts": {
+		"demo": "bun --conditions custom-renderer --conditions development examples/counter-svelte.js",
+		"test": "bun run test:reorder && bun run test:smoke",
+		"test:reorder": "bun --conditions custom-renderer --conditions development test/reorder.js",
+		"test:smoke": "bun --conditions custom-renderer --conditions development test/smoke.js",
+		"test:coverage": "bun --conditions custom-renderer --conditions development test/coverage.js"
+	},
+	"dependencies": {
+		"@gpuix/native": "^0.4.0"
+	},
+	"peerDependencies": {
+		"svelte": ">=5.56.0"
+	},
+	"devDependencies": {
+		"svelte": "https://pkg.pr.new/svelte@18511"
+	},
+	"publishConfig": {
+		"registry": "https://registry.npmjs.org/",
+		"access": "public"
+	}
 }
