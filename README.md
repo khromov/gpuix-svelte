@@ -1,7 +1,8 @@
 # gpuix-svelte
 
 > ⚠️ **Work in progress.** Experimental — built on Svelte's unreleased
-> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511) and not yet published to npm.
+> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Only tested on macOS for now, but will be
+> compatible with macOS/Linux/Windows.
 
 Svelte custom renderer for [GPUI](https://www.gpui.rs/) (Zed's GPU-accelerated UI framework), via
 [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native). Native desktop windows from ordinary
@@ -38,12 +39,12 @@ preload = ["gpuix-svelte/plugin"]
 
 ```js
 // app.js
-import { render_hot } from 'gpuix-svelte';
+import { render_hot } from "gpuix-svelte";
 
-render_hot(new URL('./App.svelte', import.meta.url), {
-	title: 'Hello GPUI',
-	width: 820,
-	height: 560
+render_hot(new URL("./App.svelte", import.meta.url), {
+  title: "Hello GPUI",
+  width: 820,
+  height: 560,
 });
 ```
 
