@@ -60,8 +60,8 @@ let commit_scheduled = false;
 
 const warned_tags = new Set();
 
-function emit(op) {
-	queue.push(op);
+/** Removals queue no op of their own, so they have to raise the flag themselves. */
+function mark_dirty() {
 	dirty = true;
 
 	if (!auto_commit || commit_scheduled) return;
@@ -71,6 +71,11 @@ function emit(op) {
 		commit_scheduled = false;
 		if (dirty) commit();
 	});
+}
+
+function emit(op) {
+	queue.push(op);
+	mark_dirty();
 }
 
 function node(kind, name, data) {
@@ -286,6 +291,16 @@ const renderer = createRenderer({
 		n.data = text;
 
 		if (n.nativeId !== null) {
+			// Going blank has to give the id back, or the node keeps its slot in
+			// GPUI's flex layout — the same reason blank text never gets one.
+			if (n.kind === 'text' && is_blank(text)) {
+				emit(['destroyElement', n.nativeId]);
+				by_id.delete(n.nativeId);
+				n.nativeId = null;
+				n.attached = false;
+				return;
+			}
+
 			emit(['setText', n.nativeId, text]);
 			return;
 		}
@@ -323,6 +338,7 @@ const renderer = createRenderer({
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
 			pending_destroy.add(n);
+			mark_dirty();
 		}
 	},
 
@@ -334,6 +350,7 @@ const renderer = createRenderer({
 		// consecutive statements (see `each.js`'s controlled-anchor reset).
 		set_live(n, false);
 		pending_destroy.add(n);
+		mark_dirty();
 	},
 
 	addEventListener(target, type, handler) {
@@ -382,6 +399,7 @@ export function set_native(instance) {
 	by_id = new Map();
 	pending_destroy = new Set();
 	dirty = false;
+	commit_scheduled = false;
 }
 
 export function create_root(style = { display: 'flex', width: '100%', height: '100%' }) {
@@ -399,6 +417,11 @@ export function create_root(style = { display: 'flex', width: '100%', height: '1
 }
 
 export const is_dirty = () => dirty;
+
+/** Lets a remount retire the previous root inside the new tree's batch. */
+export function queue_destroy(nativeId) {
+	emit(['destroyElement', nativeId]);
+}
 
 /** Where no frame loop polls `is_dirty()`, mutations have to drain themselves. */
 export function set_auto_commit(enabled) {
@@ -425,14 +448,13 @@ export function commit() {
 	dirty = false;
 
 	// Rust destroys whole subtrees, so the returned ids are how we learn which
-	// descendants to purge from the id map and the listener registry.
+	// descendants to purge from the id map.
 	const destroyed = native.applyBatch(json);
 	for (const id of destroyed) {
 		const n = by_id.get(id);
 		if (n) {
 			n.nativeId = null;
 			n.attached = false;
-			n.listeners.clear();
 		}
 		by_id.delete(id);
 	}
