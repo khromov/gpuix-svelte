@@ -6,7 +6,7 @@
 
 import { watch } from 'node:fs';
 import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GpuixRenderer } from '@gpuix/native';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
@@ -161,10 +161,13 @@ export function render(Component, options = {}) {
  * @param {Parameters<typeof render>[1]} [options]
  */
 export async function render_hot(entry, options = {}) {
-	const path = entry instanceof URL ? fileURLToPath(entry) : entry;
+	// A bare Windows path is not a valid import specifier ("D:" parses as a URL
+	// scheme), so the cache-buster is appended to a file:// URL instead.
+	const url = entry instanceof URL ? entry : pathToFileURL(entry);
+	const path = fileURLToPath(url);
 
 	let version = 0;
-	const load = async () => (await import(`${path}?v=${++version}`)).default;
+	const load = async () => (await import(`${url.href}?v=${++version}`)).default;
 
 	render(await load(), options);
 
