@@ -1,13 +1,11 @@
 /**
- * Headless smoke test: mount Counter.svelte into GPUI's test renderer, which
- * runs the real Metal pipeline without opening a window. This is where
- * anchor-projection bugs show up, so it runs before the windowed app.
+ * The test renderer runs the real Metal pipeline without opening a window, which is
+ * where anchor-projection bugs show up, so this runs before the windowed app.
  */
 
 import { existsSync, statSync } from 'node:fs';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { mount, flushSync } from 'svelte';
-import '../src/plugin.js';
 import renderer, { set_native, create_root, commit, dispatch } from '../src/renderer.js';
 
 const native = new TestGpuixRenderer();
@@ -43,8 +41,6 @@ let blanks = 0;
 console.log(`elements=${elements} textNodes=${texts} blankTextNodes=${blanks}`);
 console.log('text:', JSON.stringify(native.getAllText()));
 
-// --- interact -------------------------------------------------------------
-
 function findText(content) {
 	let found = null;
 	(function walk(n) {
@@ -55,7 +51,6 @@ function findText(content) {
 	return found;
 }
 
-/** The clickable ancestor is the div holding the text node. */
 function parentOf(id) {
 	let found = null;
 	(function walk(n, parent) {
@@ -97,8 +92,6 @@ console.log('after 2 adds:', JSON.stringify(native.getAllText()));
 const shot = '/tmp/gpuix-svelte-headless.png';
 native.captureScreenshot(shot);
 console.log('screenshot:', shot);
-
-// --- assertions -------------------------------------------------------------
 
 let failed = 0;
 const check = (ok, msg) => {

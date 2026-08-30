@@ -1,24 +1,33 @@
 HOWTO: run from a fresh clone (macOS, Apple Silicon)
 ====================================================
 
-    bun install     # that's the whole setup.
+Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
+
+    npm install     # that's the whole setup.
                     #   @gpuix/native arrives prebuilt from npm (no Rust, no
                     #   submodules, no Metal toolchain, nothing to compile);
                     #   svelte comes from https://pkg.pr.new/svelte@18511, the
                     #   CI preview of the unreleased custom-renderer branch.
-    bun run test    # headless: TestGpuixRenderer drives the real Metal
+    npm test        # headless: TestGpuixRenderer drives the real Metal
                     # pipeline without opening a window
-    bun run demo    # opens all four demo windows at once
+    npm run demo    # opens all four demo windows at once
 
-    bun run demo:counter     # counter; edit examples/counter/Counter.svelte
+    npm run demo:counter     # counter; edit examples/counter/Counter.svelte
                              # and save to hot-reload (content must change —
                              # a bare `touch` does nothing)
-    bun run demo:tictactoe   # tic-tac-toe with score tracking
-    bun run demo:hn          # Hacker News reader (live data, scrolling)
-    bun run demo:glass       # liquid glass: transparent window with
-                             # windowBackground "blurred" (macOS vibrancy);
-                             # screenshots can't capture the desktop blur,
-                             # only the real window shows it
+    npm run demo:tictactoe   # tic-tac-toe with score tracking
+    npm run demo:hn          # Hacker News reader (live data, scrolling)
+    npm run demo:glass       # liquid glass control center: transparent window
+                             # with windowBackground "blurred" (macOS vibrancy)
+    npm run demo:glass-ffi   # the same app on REAL Liquid Glass: a tiny ObjC
+                             # shim (clang-compiled on first run) slides an
+                             # NSGlassEffectView under GPUI's Metal view, loaded
+                             # via koffi (Node) or bun:ffi (Bun). Needs macOS 26;
+                             # elsewhere it falls back to the window blur.
+                             # GPUIX_GLASS=0 forces the fallback. Not part of
+                             # `npm run demo`. Note that GPUIX_SCREENSHOT can't
+                             # capture either material — only the real window
+                             # (or `screencapture`) shows it
 
 Success looks like:
     [gpuix-svelte] created native window
@@ -28,8 +37,9 @@ Notes
 -----
 - The `--conditions custom-renderer --conditions development` flags baked into
   every package script are mandatory. Without them svelte's exports resolve to
-  its server build and mount() doesn't exist. Always go through `bun run ...`.
-- GPUIX_SCREENSHOT=/tmp/x.png bun run demo:counter writes a PNG on every
+  its server build and mount() doesn't exist. So is `--import ./src/register.js`,
+  which installs the .svelte loader. Always go through `npm run ...`.
+- GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
 - @gpuix/native accepts ">=0.5.0 <0.7.0" (installs 0.6.0 by default). The
@@ -38,8 +48,14 @@ Notes
   setCustomProp instead of setCustomPropValue, commitMutations() called only
   when present — and 0.5.x accepts all of that too. Note: 0.6.0 dropped the
   darwin-x64 / linux-arm64 / win32-arm64 prebuilds; pin 0.5.x on those.
-- If pkg.pr.new/svelte@18511 stops resolving, the committed bun.lock keeps
-  installs working; only `bun update svelte` needs the URL to be live.
-- Optional: bun run test:coverage runs Svelte's own custom-renderer samples if
+- The committed package-lock.json pins svelte's exact version and integrity
+  hash, but resolves it from pkg.pr.new/svelte@18511 — that URL has to be live
+  for `npm ci` as well, not just for `npm update svelte`.
+- Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
+  npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
+  Same entry points, run through Bun, which preloads src/plugin.js via
+  bunfig.toml instead of taking --import. Dependencies still come from
+  npm install either way; CI runs both runtimes.
+- Optional: npm run test:coverage runs Svelte's own custom-renderer samples if
   SVELTE_SAMPLES_DIR points at a svelte checkout's
   packages/svelte/tests/custom-renderers/samples directory.

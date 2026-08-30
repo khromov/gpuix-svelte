@@ -1,11 +1,6 @@
 /**
- * Event-name translation.
- *
- * Svelte lowercases event names when it compiles `onmouseenter={...}` down to
- * `$.event('mouseenter', ...)`. GPUI's retained tree keys listeners by the
- * camelCase names in `@gpuix/react`'s EVENT_PROPS (`mouseEnter`). Deriving the
- * map by lowercasing GPUI's own list keeps the two in sync automatically,
- * including the custom-element events.
+ * Deriving the map by lowercasing GPUI's own list keeps it in sync with the names
+ * Svelte emits, which the compiler has already lowercased.
  */
 
 export const GPUI_EVENTS = [
@@ -16,7 +11,6 @@ export const GPUI_EVENTS = [
 	'linkClick',
 	'change',
 	'submit',
-	// mouse
 	'click',
 	'mouseDown',
 	'mouseUp',
@@ -27,10 +21,8 @@ export const GPUI_EVENTS = [
 	// keyboard — require focus (tabIndex or autofocus)
 	'keyDown',
 	'keyUp',
-	// focus
 	'focus',
 	'blur',
-	// scroll
 	'scroll'
 ];
 
