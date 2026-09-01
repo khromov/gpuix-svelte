@@ -3,6 +3,10 @@
 > **Work in progress.** Experimental — built on Svelte's unreleased
 > [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Tested on macOS / Windows, also compatible with Linux.
 
+> [!IMPORTANT]
+> Needs **Node.js >= 26.1** — the liquid-glass FFI demo drives its ObjC shim through the built-in
+> `node:ffi`, which landed in 26.1 — or **Bun >= 1.4.0**, which uses `bun:ffi` instead.
+
 Svelte custom renderer for [GPUI](https://www.gpui.rs/) (Zed's GPU-accelerated UI framework), via
 [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native). Native desktop windows from ordinary
 Svelte components — no webview.
@@ -16,8 +20,7 @@ its own native window.
 
 ## Try it
 
-Runs on **Node.js >= 24** or **Bun >= 1.4.0**. No Rust or other toolchains needed — the native
-binary comes prebuilt from npm.
+No Rust or other toolchains needed — the native binary comes prebuilt from npm.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
@@ -42,8 +45,11 @@ still come from `npm install` either way; there is one lockfile, and CI runs bot
 
 ```bash
 npm install github:khromov/gpuix-svelte     # until it's on npm
-npm install -D svelte@https://pkg.pr.new/svelte@18511
+npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511    # latest build of the custom-renderer PR
 ```
+
+`svelte` has to be Svelte's unreleased custom-renderer branch; pkg.svelte.dev serves its latest
+build (this repo pins one specific commit under `vendor/` instead, see `CLAUDE.md`).
 
 The `.svelte` loader has to be registered before your entry module resolves. On Node that is
 `--import gpuix-svelte/register`; on Bun it is a `bunfig.toml` preload:

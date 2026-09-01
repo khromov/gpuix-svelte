@@ -17,7 +17,7 @@
 		"src"
 	],
 	"engines": {
-		"node": ">=24",
+		"node": ">=26.1.0",
 		"bun": ">=1.4.0"
 	},
 	"repository": {
@@ -39,7 +39,7 @@
 		"demo:tictactoe": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/tic-tac-toe/main.js",
 		"demo:hn": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/hacker-news/main.js",
 		"demo:glass": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass/main.js",
-		"demo:glass-ffi": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass-ffi/main.js",
+		"demo:glass-ffi": "node --experimental-ffi --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass-ffi/main.js",
 		"test": "npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile",
 		"test:reorder": "node --conditions custom-renderer --conditions development --import ./src/register.js test/reorder.js",
 		"test:smoke": "node --conditions custom-renderer --conditions development --import ./src/register.js test/smoke.js",
@@ -49,6 +49,7 @@
 		"test:teardown": "node --conditions custom-renderer --conditions development --import ./src/register.js test/teardown.js",
 		"test:style": "node --conditions custom-renderer --conditions development --import ./src/register.js test/style.js",
 		"test:coverage": "node --conditions custom-renderer --conditions development --import ./src/register.js test/coverage.js",
+		"vendor": "node scripts/vendor-svelte.js",
 		"bun:demo": "node scripts/demo-all.js --bun",
 		"bun:demo:counter": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
 		"bun:demo:tictactoe": "bun --conditions custom-renderer --conditions development examples/tic-tac-toe/main.js",
@@ -66,15 +67,14 @@
 		"bun:test:coverage": "bun --conditions custom-renderer --conditions development test/coverage.js"
 	},
 	"dependencies": {
-		"@gpuix/native": ">=0.5.0 <0.7.0",
+		"@gpuix/native": ">=0.7.0 <=0.8.0",
 		"acorn": "^8.18.0"
 	},
 	"peerDependencies": {
 		"svelte": ">=5.56.0"
 	},
 	"devDependencies": {
-		"koffi": "^3.1.6",
-		"svelte": "https://pkg.pr.new/svelte@18511"
+		"svelte": "file:vendor/svelte-5.57.0-6be4ab9.tgz"
 	},
 	"publishConfig": {
 		"registry": "https://registry.npmjs.org/",

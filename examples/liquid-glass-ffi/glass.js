@@ -29,10 +29,13 @@ export async function init_glass() {
 			available = () => lib.symbols.gpuix_glass_available();
 			attach = (radius) => Number(lib.symbols.gpuix_glass_attach(radius));
 		} else {
-			const koffi = (await import('koffi')).default;
-			const lib = koffi.load(DYLIB);
-			available = lib.func('gpuix_glass_available', 'int', []);
-			attach = lib.func('gpuix_glass_attach', 'long', ['double']);
+			const { dlopen } = await import('node:ffi');
+			const { functions } = dlopen(DYLIB, {
+				gpuix_glass_available: { arguments: [], return: 'int32' },
+				gpuix_glass_attach: { arguments: ['float64'], return: 'int64' }
+			});
+			available = () => functions.gpuix_glass_available();
+			attach = (radius) => Number(functions.gpuix_glass_attach(radius));
 		}
 
 		if (!available()) return null;

@@ -1,13 +1,13 @@
 HOWTO: run from a fresh clone (macOS Apple Silicon, Windows x64, Linux x64)
 ==========================================================================
 
-Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
+Needs Node.js 26.1 or newer, or Bun 1.4.0 or newer.
 
     npm install     # that's the whole setup.
                     #   @gpuix/native arrives prebuilt from npm (no Rust, no
                     #   submodules, no Metal toolchain, nothing to compile);
-                    #   svelte comes from https://pkg.pr.new/svelte@18511, the
-                    #   CI preview of the unreleased custom-renderer branch.
+                    #   svelte comes from vendor/svelte-<version>-<sha>.tgz, a
+                    #   build of the unreleased custom-renderer PR (see CLAUDE.md)
     npm test        # headless: TestGpuixRenderer drives the real Metal
                     # pipeline without opening a window
     npm run demo    # opens all four demo windows at once
@@ -22,7 +22,8 @@ Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
     npm run demo:glass-ffi   # the same app on REAL Liquid Glass: a tiny ObjC
                              # shim (clang-compiled on first run) slides an
                              # NSGlassEffectView under GPUI's Metal view, loaded
-                             # via koffi (Node) or bun:ffi (Bun). Needs macOS 26;
+                             # via node:ffi (Node; --experimental-ffi is baked
+                             # into the script) or bun:ffi (Bun). Needs macOS 26;
                              # elsewhere it falls back to the window blur.
                              # GPUIX_GLASS=0 forces the fallback. Not part of
                              # `npm run demo`. Note that GPUIX_SCREENSHOT can't
@@ -42,15 +43,15 @@ Notes
 - GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
-- @gpuix/native accepts ">=0.5.0 <0.7.0" (installs 0.6.0 by default). The
-  renderer speaks the 0.6.0 contract — applyBatch only, no removeChild op
-  (reinserts reparent implicitly; detached nodes are destroyed at commit),
-  setCustomProp instead of setCustomPropValue, commitMutations() called only
-  when present — and 0.5.x accepts all of that too. Note: 0.6.0 dropped the
-  darwin-x64 / linux-arm64 / win32-arm64 prebuilds; pin 0.5.x on those.
-- The committed package-lock.json pins svelte's exact version and integrity
-  hash, but resolves it from pkg.pr.new/svelte@18511 — that URL has to be live
-  for `npm ci` as well, not just for `npm update svelte`.
+- @gpuix/native accepts ">=0.7.0 <=0.8.0" (installs 0.7.0). The renderer
+  speaks its contract — applyBatch only, no removeChild op (reinserts
+  reparent implicitly; detached nodes are destroyed at commit), setCustomProp
+  instead of setCustomPropValue, commitMutations() called only when present.
+  Prebuilds exist for darwin-arm64 / linux-x64 / win32-x64 only.
+- svelte is a vendored tarball (vendor/svelte-<version>-<sha>.tgz): pkg.pr.new
+  stopped building the PR in July 2026, and pkg.svelte.dev drops a build once a
+  force-push removes its commit. `npm run vendor` moves it to the current PR
+  head.
 - Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
   npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
   Same entry points, run through Bun, which preloads src/plugin.js via
@@ -58,10 +59,12 @@ Notes
   npm install either way; CI runs both runtimes.
 - Linux runs the demos but not the tests: gpuix compiles TestGpuixRenderer
   only on macOS and Windows (it needs render_to_image, which the Vulkan/wgpu
-  backend lacks), so the headless suites cannot construct one there.
-- Windows/Linux have no frame loop (requiresTick() is false), so the renderer
-  drains its mutation queue on a microtask instead — see set_auto_commit() and
-  npm run test:autocommit.
+  backend lacks); on Linux its constructor throws, so the headless suites
+  cannot run there.
+- Since native 0.7.0 requiresTick() is true everywhere, so the frame loop runs
+  on Windows/Linux too (tick() there only polls whether GPUI's UI thread is
+  alive). Where it is false the renderer drains its mutation queue on a
+  microtask instead — see set_auto_commit() and npm run test:autocommit.
 - macOS vibrancy (windowBackground "blurred") is macOS-only. The liquid-glass
   demo asks for plain "transparent" elsewhere and darkens its own panel, so the
   window is still see-through; demo:glass-ffi's non-macOS path does the same.

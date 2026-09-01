@@ -25,7 +25,7 @@ npm run demo:tictactoe
 npm run demo:hn            # Hacker News reader — live network data, scrolling
 npm run demo:glass         # transparent window, macOS vibrancy (GPUI window blur)
 npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, macOS 26+)
-                           # via a clang-compiled ObjC shim + FFI (koffi/bun:ffi) in
+                           # via a clang-compiled ObjC shim + FFI (node:ffi/bun:ffi) in
                            # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
                            # window-blur fallback; NOT part of `npm run demo`
 
@@ -39,6 +39,8 @@ npm run test:teardown      # single test — removal marks dirty, blank text dem
 npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
+npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
+                           # head; see "Hard constraints". Not a runtime script, so no bun twin
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
@@ -77,23 +79,32 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 
 - **No build step, no TypeScript emit.** Plain ESM JS with JSDoc types; `exports` points straight
   at `src/*.js`. Keep it that way.
-- **Node >= 24** (for `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in CI; keep
-  runtime-specific code confined to `register.js` / `plugin.js`.
+- **Node >= 26.1** (the glass-ffi demo loads its ObjC shim with the experimental `node:ffi`;
+  everything else only needs 24's `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in
+  CI; keep runtime-specific code confined to `register.js` / `plugin.js`.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
-- **`svelte` is pinned to `https://pkg.pr.new/svelte@18511`** (CI preview of the custom-renderer
-  branch). The committed `package-lock.json` pins the exact version and integrity hash, but its
-  `resolved` is that same URL — pkg.pr.new has to be live for `npm ci` too, not just
-  `npm update svelte`.
-- **`@gpuix/native` range is `>=0.5.0 <0.7.0`** (installs 0.6.0) and the renderer speaks the
-  0.6.0 mutation contract, which 0.5.x also accepts: applyBatch only — no `removeChild` op
-  (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and
-  re-materialize if shown again), `setCustomProp` not `setCustomPropValue`, and
-  `commitMutations?.()` only where it exists. 0.6.0 dropped the darwin-x64 / linux-arm64 /
-  win32-arm64 prebuilds — pin 0.5.x on those platforms. `TestGpuixRenderer` does not exist on Linux at all —
-  gpuix gates `mod test_renderer` on macOS/Windows and builds Linux with `--no-default-features`
-  until wgpu grows image readback — so CI there can only check that the binding loads.
+- **`svelte` is vendored**: `devDependencies.svelte` is `file:vendor/svelte-<version>-<sha7>.tgz`,
+  a build of sveltejs/svelte at that commit of the custom-renderer PR stack (#18042 → #18405 →
+  #18461 → #18511, whose `custom-condition` branch is the tip). It can't be a URL: upstream
+  replaced pkg.pr.new with pkg.svelte.dev on 2026-07-24 (#18253), and pkg.svelte.dev drops a build
+  once a force-push removes its commit from the branch — and this PR is rebased on every update —
+  so a `https://pkg.svelte.dev/svelte/c/<sha>` pin 404s as soon as the PR is pushed again
+  (pkg.pr.new's `svelte@18511` still resolves, but is frozen at the July build, 5.56.7). `npm run vendor` moves the pin: it looks up the PR head on GitHub, downloads that
+  commit's tarball from pkg.svelte.dev (`/svelte/c/<sha>`; it errors if the build isn't up yet),
+  swaps the tarball, repoints `package.json` and runs `npm install`. Then run `npm test` and
+  `npm run bun:test`. For a commit pkg.svelte.dev no longer has, `pnpm build && pnpm pack` in a
+  svelte checkout's `packages/svelte` and drop the tarball in by hand under the same name. `.gitignore` un-ignores
+  `vendor/*.tgz` for this; `files` keeps it out of the npm package.
+- **`@gpuix/native` range is `>=0.7.0 <=0.8.0`** (installs 0.7.0) and the renderer speaks its
+  mutation contract: applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes
+  that leave the live tree are destroyed at commit and re-materialize if shown again),
+  `setCustomProp` not `setCustomPropValue`, and `commitMutations?.()` only where it exists.
+  Prebuilds exist for darwin-arm64 / linux-x64 / win32-x64 only. On Linux `TestGpuixRenderer` is
+  a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix builds it with
+  `--no-default-features` until wgpu grows image readback — so CI there can only check that the
+  binding loads.
 
 ## Architecture
 
@@ -141,9 +152,11 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
 **`render.js`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
 reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
-`setImmediate` burns ~73% CPU at idle. On `requiresTick() === false` (Windows/Linux) GPUI owns a
-blocking UI thread and there is no frame loop, so `set_auto_commit(true)` makes the renderer
-schedule its own commit on a microtask — otherwise a mutation with no native event behind it (a
+`setImmediate` burns ~73% CPU at idle. Since native 0.7.0 `requiresTick()` is true on every
+platform — on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether
+that thread is still alive — and it returns false once the last window closes, which ends the
+loop and the process. Where it is false, `set_auto_commit(true)` makes the renderer schedule its
+own commit on a microtask instead — otherwise a mutation with no native event behind it (a
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
 `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates that query to child
@@ -183,7 +196,8 @@ the two stay in sync. Unknown events are dropped silently.
   classes do nothing.
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
-- Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`).
+- Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
+  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
 - **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a
   `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
   give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
