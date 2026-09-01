@@ -33,6 +33,7 @@ npm run demo:hn           # Hacker News reader (live data, scrollable list)
 npm run demo:glass        # liquid-glass control center (GPUI's blurred translucent window)
 npm run demo:glass-ffi    # same app on REAL Liquid Glass — NSGlassEffectView via FFI
                           # (macOS 26+; falls back to the window blur elsewhere)
+npm run demo:styling      # styling playground — which CSS text reaches GPUI and which is dropped
 npm test                  # headless renderer tests
 ```
 

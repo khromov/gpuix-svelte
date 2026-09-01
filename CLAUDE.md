@@ -28,6 +28,9 @@ npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, m
                            # via a clang-compiled ObjC shim + FFI (node:ffi/bun:ffi) in
                            # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
                            # window-blur fallback; NOT part of `npm run demo`
+npm run demo:styling       # styling playground: three columns of style strings next to what GPUI
+                           # made of them (reads like CSS / looks like CSS but is not / GPUI-only);
+                           # NOT part of `npm run demo`
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile
