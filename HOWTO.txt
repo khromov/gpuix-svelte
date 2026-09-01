@@ -57,6 +57,10 @@ Notes
   Same entry points, run through Bun, which preloads src/plugin.js via
   bunfig.toml instead of taking --import. Dependencies still come from
   npm install either way; CI runs both runtimes.
+- npm run compile bundles the tic-tac-toe example into dist/tictactoe
+  (dist\tictactoe.exe on Windows) with Bun.build({ compile }); npm run
+  compile:app also wraps it as a macOS .app. Bun-only, and built per OS —
+  npm installs only the host's prebuilt addon, so there is no cross-compiling.
 - Linux runs the demos but not the tests: gpuix compiles TestGpuixRenderer
   only on macOS and Windows (it needs render_to_image, which the Vulkan/wgpu
   backend lacks); on Linux its constructor throws, so the headless suites

@@ -52,6 +52,8 @@
 		"test:style": "node --conditions custom-renderer --conditions development --import ./src/register.js test/style.js",
 		"test:coverage": "node --conditions custom-renderer --conditions development --import ./src/register.js test/coverage.js",
 		"vendor": "node scripts/vendor-svelte.js",
+		"compile": "bun scripts/compile.js",
+		"compile:app": "bun scripts/compile.js --app",
 		"bun:demo": "node scripts/demo-all.js --bun",
 		"bun:demo:counter": "bun --conditions custom-renderer --conditions development examples/counter/main.js",
 		"bun:demo:tictactoe": "bun --conditions custom-renderer --conditions development examples/tic-tac-toe/main.js",
