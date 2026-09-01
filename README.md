@@ -3,6 +3,10 @@
 > **Work in progress.** Experimental — built on Svelte's unreleased
 > [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Tested on macOS / Windows, also compatible with Linux.
 
+> [!IMPORTANT]
+> Needs **Node.js >= 26.1** — the liquid-glass FFI demo drives its ObjC shim through the built-in
+> `node:ffi`, which landed in 26.1 — or **Bun >= 1.4.0**, which uses `bun:ffi` instead.
+
 Svelte custom renderer for [GPUI](https://www.gpui.rs/) (Zed's GPU-accelerated UI framework), via
 [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native). Native desktop windows from ordinary
 Svelte components — no webview.
@@ -16,8 +20,7 @@ its own native window.
 
 ## Try it
 
-Runs on **Node.js >= 26.1** or **Bun >= 1.4.0**. No Rust or other toolchains needed — the native
-binary comes prebuilt from npm.
+No Rust or other toolchains needed — the native binary comes prebuilt from npm.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
