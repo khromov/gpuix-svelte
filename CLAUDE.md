@@ -33,7 +33,7 @@ npm run demo:styling       # styling playground: three columns of style strings 
                            # NOT part of `npm run demo`
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
-                           # test:teardown, test:lifecycle, test:compile
+                           # test:teardown, test:lifecycle, test:compile, test:css
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -41,6 +41,7 @@ npm run test:style         # single test — CSS shorthand expansion, and what m
 npm run test:teardown      # single test — removal marks dirty, blank text demotes, listeners survive
 npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
+npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
@@ -126,6 +127,20 @@ compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every compone
 `GPUIX_SVELTE_RENDERER` overrides that baked specifier — needed for components outside this
 workspace, since it must resolve from the `.svelte` file's own location.
 
+It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
+renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
+(`modernAst: true`) and appends a `define_styles(scope, rules)` call to the component: one rule
+per compound selector, keyed by the `svelte-<hash>` scope class the compiler already stamps on
+every matched element (`cssHash` captures it). Only classes, one optional tag, and
+`:hover`/`:active` are accepted — combinators, `:global`, attribute selectors, at-rules and
+nesting are refused with a warning naming the file — and declarations go through
+`parse_css_text` at compile time, so the value checks below apply to them too. Rules are
+emitted weakest first (tags under classes, then source order), and the renderer's
+`class_rules()` picks the ones whose classes the element carries on every `class` change, so
+`class:` directives and dynamic class strings restyle for free. `build_style` then lays the
+inline `style` on top; `:hover` rules become GPUI's native `hover` object with the `hover=`
+attribute winning.
+
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
 be installed before the entry module resolves — Node via `--import ./src/register.js` in every
@@ -195,8 +210,13 @@ the two stay in sync. Unknown events are dropped silently.
 - Style with inline `style="..."` (and `style:` directives). Box shorthands like
   `padding: 12px 24px` work; `rem`/`em`/`vh` units do not — GPUI lengths are logical pixels — and
   neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
-  `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning. `class` is ignored, so `<style>` blocks and CSS
-  classes do nothing.
+  `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning.
+- `<style>` blocks work for class rules: `.btn { }`, `.btn.primary { }`, `.a, .b { }`, a tag
+  (`div { }`), and `.btn:hover` / `.btn:active`, scoped per component like Svelte's DOM output.
+  Specificity is class count then source order, inline `style` always wins. Descendant
+  selectors, `:global`, attribute selectors, media queries and nesting are refused at compile
+  time with a warning. `flex: 1`, `border: 1px solid ...`, unitless `line-height` and
+  `display: none` have the same problems in a class rule as inline (see the styling playground).
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);

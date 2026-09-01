@@ -79,6 +79,50 @@ node --conditions custom-renderer --conditions development --import gpuix-svelte
 
 See [HOWTO.txt](HOWTO.txt) for a few more details and troubleshooting notes.
 
+## Styling
+
+There is no CSS engine. The `style` attribute is parsed into a plain object and sent to GPUI,
+whose layout is flexbox in logical pixels. `<style>` blocks work for class rules, compiled the
+same way.
+
+```svelte
+<div class="btn" style="padding: 8px 16px; border-radius: 8px">Click</div>
+
+<style>
+  .btn { background-color: #313244; color: #cdd6f4; }
+  .btn:hover { background-color: #45475a; }
+</style>
+```
+
+**What works**
+
+- Inline `style` and `style:` directives. Box shorthands (`padding: 8px 16px`, `margin`,
+  `border-width`, `border-radius`, `gap`, `inset`) expand to GPUI's longhands.
+- `<style>` rules made of classes, at most one tag, and `:hover` / `:active`: `.btn`,
+  `.btn.primary`, `.a, .b`, `div`. Scoped per component like Svelte's DOM output. Specificity is
+  class count, then source order; inline `style` always wins. `class:` directives and dynamic
+  class strings restyle live.
+- `hover="..."` and `active="..."` attributes, GPUI's native pseudo styles.
+- Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
+- `display: flex | grid` and the flexbox properties, `position: absolute`, `overflow: hidden | scroll`,
+  `opacity`, `cursor`, `white-space`, `text-overflow`, `font-*`, `text-align`.
+
+**What doesn't work**
+
+- Units other than `px` (`rem`, `em`, `vh`), and `%` or `auto` outside `width` / `height` /
+  `min-*` / `max-*`. Dropped with a warning, so `margin: 0 auto` never centers.
+- Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1`), `border: 1px solid #fff` (use
+  `border-width` + `border-color`), `background: linear-gradient(...)`, `box-shadow`.
+- `line-height: 1.5` means 1.5 px. Always give it a unit.
+- `display: none` and `visibility` do nothing. Use `{#if}`.
+- Other selectors: descendant combinators, `:global`, attribute selectors, `@media`, nesting.
+  Refused at compile time with a warning.
+- `transform`, `transition`, `z-index`, `text-decoration`, `letter-spacing` are silently ignored.
+  Only text properties (colour, font) inherit from a parent.
+- Probably a lot of other things from CSS.
+
+`npm run demo:styling` shows all of these side by side.
+
 ## License
 
 MIT

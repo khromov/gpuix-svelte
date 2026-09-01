@@ -11,6 +11,11 @@
 					note: 'box shorthands expand to the four GPUI longhands'
 				},
 				{
+					kind: 'class',
+					label: 'class="chip"  (.chip and .chip:hover in <style>)',
+					note: 'class rules are compiled into a GPUI style; hover the chip'
+				},
+				{
 					css: 'background-color: rebeccapurple; color: hsl(50 90% 70%)',
 					note: 'any CSS colour syntax: names, hsl(), rgb(), 8-digit hex'
 				},
@@ -123,6 +128,12 @@
 	const FILL = 'background-color: #313244';
 	const BLOCKS = ['#89b4fa', '#f38ba8', '#a6e3a1', '#f9e2af', '#cba6f7', '#94e2d5'];
 	const LONG = 'The quick brown fox jumps over the lazy dog and keeps running well past the edge of this box';
+
+	// Inline wins over a class, so the class case must not carry the base inline.
+	function sample_style(c) {
+		if (c.kind === 'class') return '';
+		return `${BASE}; ${c.bare ? '' : FILL}; ${c.css ?? ''}`;
+	}
 </script>
 
 <div
@@ -140,13 +151,18 @@
 					style="display: flex; flex-direction: column; gap: 6px; padding: 10px;
 					       background-color: #1e1e2e; border-radius: 8px"
 				>
-					<div style="font-family: Menlo; font-size: 11px; color: #cba6f7">{c.css}</div>
+					<div style="font-family: Menlo; font-size: 11px; color: #cba6f7">{c.label ?? c.css}</div>
 
 					<div
 						style="display: flex; flex-direction: row; width: 100%; padding: 4px;
 						       background-color: #181825; border-radius: 4px"
 					>
-						<div style="{BASE}; {c.bare ? '' : FILL}; {c.css}" hover={c.hover} active={c.active}>
+						<div
+							class={c.kind === 'class' ? 'chip' : null}
+							style={sample_style(c)}
+							hover={c.hover}
+							active={c.active}
+						>
 							{#if c.kind === 'children'}
 								{#each BLOCKS as color}
 									<div style="width: 28px; height: 20px; border-radius: 3px" style:background-color={color}></div>
@@ -165,3 +181,17 @@
 		</div>
 	{/each}
 </div>
+
+<style>
+	.chip {
+		background-color: #cba6f7;
+		color: #1e1e2e;
+		border-radius: 999px;
+		padding: 6px 14px;
+		font-weight: bold;
+		cursor: pointer;
+	}
+	.chip:hover {
+		background-color: #f5c2e7;
+	}
+</style>

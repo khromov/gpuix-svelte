@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { Parser } from 'acorn';
 import { compile } from 'svelte/compiler';
+import { parse_css_text } from './style.js';
 
 /**
  * The compiler bakes this into every component's `import $renderer from '...'`,
@@ -60,15 +61,90 @@ function bust_child_specifiers(code, query) {
 }
 
 /**
+ * One compound selector: classes, at most one tag, and `:hover`/`:active`, which
+ * map onto GPUI's native pseudo styles. There is no runtime to match anything else.
+ *
+ * @param {any} complex a `ComplexSelector` node
+ * @returns {{ classes: string[], tag: string | null, pseudo: string | null } | null}
+ */
+function compile_selector(complex) {
+	if (complex.children.length !== 1 || complex.children[0].combinator) return null;
+
+	/** @type {string[]} */
+	const classes = [];
+	let tag = null;
+	let pseudo = null;
+
+	for (const s of complex.children[0].selectors) {
+		if (s.type === 'ClassSelector') {
+			classes.push(s.name);
+		} else if (s.type === 'TypeSelector' && tag === null) {
+			tag = s.name;
+		} else if (s.type === 'PseudoClassSelector' && s.args === null && pseudo === null && (s.name === 'hover' || s.name === 'active')) {
+			pseudo = s.name;
+		} else {
+			return null;
+		}
+	}
+
+	return classes.length === 0 && tag === null ? null : { classes, tag, pseudo };
+}
+
+/**
+ * Weakest first, so the renderer can apply them in order and let later ones win:
+ * classes over tags, as CSS specificity has it, then source order.
+ *
+ * @param {any} css the `<style>` block's AST
+ * @param {string} source
+ * @param {string} path
+ */
+function extract_rules(css, source, path) {
+	const rules = [];
+	const refuse = (text) =>
+		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — only class and tag selectors, plus :hover/:active, reach GPUI`);
+
+	for (const node of css.children) {
+		if (node.type !== 'Rule') {
+			refuse(`@${node.name} ${node.prelude}`.trim());
+			continue;
+		}
+
+		const declarations = [];
+		for (const child of node.block.children) {
+			if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
+			else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
+		}
+		const style = parse_css_text(declarations.join('; '));
+
+		for (const complex of node.prelude.children) {
+			const selector = compile_selector(complex);
+			if (selector === null) refuse(source.slice(complex.start, complex.end));
+			else rules.push({ ...selector, style });
+		}
+	}
+
+	return rules.sort((a, b) => weight(a) - weight(b));
+}
+
+const weight = (rule) => rule.classes.length * 2 + (rule.tag === null ? 0 : 1);
+
+/**
  * @param {string} path absolute path to a `.svelte` file
  * @param {string} [query] the `?v=N` cache-buster `render_hot` appends, if any
  * @returns {string} compiled client-side JS
  */
 export function compile_svelte(path, query) {
-	const { js, warnings } = compile(readFileSync(path, 'utf8'), {
+	const source = readFileSync(path, 'utf8');
+	let scope = null;
+
+	const { js, warnings, ast } = compile(source, {
 		filename: path,
 		generate: 'client',
 		runes: true,
+		modernAst: true,
+		// The value returned here is the class the compiler stamps on every element a
+		// selector matches, which is how the renderer finds the right sheet at runtime.
+		cssHash: (args) => (scope = `svelte-${args.hash(args.css)}`),
 		experimental: { customRenderer: RENDERER_MODULE }
 	});
 
@@ -76,7 +152,16 @@ export function compile_svelte(path, query) {
 		console.warn(`[gpuix-svelte] ${path}: ${warning.message}`);
 	}
 
+	let code = js.code;
+	if (scope !== null && ast.css) {
+		const rules = extract_rules(ast.css, source, path);
+		if (rules.length > 0) {
+			code += `\nimport { define_styles as $define_styles } from ${JSON.stringify(RENDERER_MODULE)};\n`;
+			code += `$define_styles(${JSON.stringify(scope)}, ${JSON.stringify(rules)});\n`;
+		}
+	}
+
 	// Propagate the cache-buster to child components, or a reload would
 	// re-instantiate the root against stale children.
-	return query ? bust_child_specifiers(js.code, query) : js.code;
+	return query ? bust_child_specifiers(code, query) : code;
 }

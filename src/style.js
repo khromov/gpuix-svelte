@@ -162,15 +162,27 @@ export function parse_css_text(css) {
 /**
  * `hover` and `active` are GPUI's natively-handled pseudo styles — they are
  * nested objects, which CSS text can't express, so they arrive as their own
- * attributes and get folded back in here.
+ * attributes (or as `:hover`/`:active` rules) and get folded back in here.
  *
  * @param {Record<string, any>} attrs raw attribute strings off the shadow node
+ * @param {{ pseudo: string | null, style: Record<string, any> }[]} [rules] the
+ *   element's matching `<style>` rules, weakest first
  */
-export function build_style(attrs) {
-	const style = parse_css_text(attrs.style);
+export function build_style(attrs, rules = []) {
+	const style = {};
+	let hover = null;
+	let active = null;
 
-	if (attrs.hover) style.hover = parse_css_text(attrs.hover);
-	if (attrs.active) style.active = parse_css_text(attrs.active);
+	for (const rule of rules) {
+		if (rule.pseudo === 'hover') hover = Object.assign(hover ?? {}, rule.style);
+		else if (rule.pseudo === 'active') active = Object.assign(active ?? {}, rule.style);
+		else Object.assign(style, rule.style);
+	}
+
+	// Inline wins over a class, as in CSS.
+	Object.assign(style, parse_css_text(attrs.style));
+	if (hover || attrs.hover) style.hover = Object.assign(hover ?? {}, parse_css_text(attrs.hover));
+	if (active || attrs.active) style.active = Object.assign(active ?? {}, parse_css_text(attrs.active));
 
 	return style;
 }

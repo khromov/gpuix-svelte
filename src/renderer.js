@@ -28,8 +28,8 @@ const GPUI_TAGS = new Set([
 const BUILT_IN_TAGS = new Set(['div', 'text']);
 const UNIVERSAL_PROPS = new Set(['autoFocus', 'tabIndex', 'testId', 'motion']);
 
-/** Attributes that feed `setStyle` rather than a custom prop. */
-const STYLE_ATTRS = new Set(['style', 'hover', 'active']);
+/** Attributes that feed `setStyle` rather than a custom prop — `class` via the component's `<style>` rules. */
+const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
 
 /** Svelte lowercases some attributes; GPUI wants them camelCased. */
 const PROP_ALIASES = new Map([
@@ -59,6 +59,10 @@ let auto_commit = false;
 let commit_scheduled = false;
 
 const warned_tags = new Set();
+
+/** scope class -> that component's `<style>` rules, weakest first (see compile.js). */
+const stylesheets = new Map();
+const NO_RULES = [];
 
 /** Removals queue no op of their own, so they have to raise the flag themselves. */
 function mark_dirty() {
@@ -162,9 +166,30 @@ function map_tag(name) {
 	return 'div';
 }
 
+/**
+ * The scope class the compiler stamps on every matched element doubles as the
+ * sheet's key, so an element without one never pays for a lookup.
+ */
+function class_rules(el) {
+	const value = el.attrs.class;
+	if (typeof value !== 'string' || value === '') return NO_RULES;
+
+	const names = value.split(/\s+/);
+	let matched = null;
+	for (const name of names) {
+		const sheet = stylesheets.get(name);
+		if (!sheet) continue;
+		for (const rule of sheet) {
+			if (rule.tag !== null && rule.tag !== el.name) continue;
+			if (rule.classes.every((c) => names.includes(c))) (matched ??= []).push(rule);
+		}
+	}
+	return matched ?? NO_RULES;
+}
+
 function apply_style(el) {
 	if (el.nativeId === null) return;
-	emit(['setStyle', el.nativeId, build_style(el.attrs)]);
+	emit(['setStyle', el.nativeId, build_style(el.attrs, class_rules(el))]);
 }
 
 const prop_name = (key) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
@@ -206,7 +231,7 @@ function materialize(n) {
 		if (Object.keys(n.attrs).length > 0) {
 			apply_style(n);
 			for (const key of Object.keys(n.attrs)) {
-				if (STYLE_ATTRS.has(key) || key === 'class') continue;
+				if (STYLE_ATTRS.has(key)) continue;
 				apply_prop(n, key, n.attrs[key]);
 			}
 		}
@@ -275,7 +300,7 @@ const renderer = createRenderer({
 		el.attrs[key] = value;
 
 		if (STYLE_ATTRS.has(key)) apply_style(el);
-		else if (key !== 'class') apply_prop(el, key, value);
+		else apply_prop(el, key, value);
 	},
 
 	removeAttribute(el, name) {
@@ -283,7 +308,7 @@ const renderer = createRenderer({
 		delete el.attrs[name];
 
 		if (STYLE_ATTRS.has(name)) apply_style(el);
-		else if (name !== 'class') apply_prop(el, name, null);
+		else apply_prop(el, name, null);
 	},
 
 	hasAttribute: (el, name) => name in el.attrs,
@@ -396,6 +421,11 @@ const renderer = createRenderer({
 });
 
 export default renderer;
+
+/** Runs at import time, from the call compile.js appends to every component with a `<style>`. */
+export function define_styles(scope, rules) {
+	stylesheets.set(scope, rules);
+}
 
 // Host wiring — used by `render.js`, not by compiled components.
 
