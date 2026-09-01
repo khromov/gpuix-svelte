@@ -96,14 +96,14 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
   `npm run bun:test`. For a commit pkg.svelte.dev no longer has, `pnpm build && pnpm pack` in a
   svelte checkout's `packages/svelte` and drop the tarball in by hand under the same name. `.gitignore` un-ignores
   `vendor/*.tgz` for this; `files` keeps it out of the npm package.
-- **`@gpuix/native` range is `>=0.5.0 <0.7.0`** (installs 0.6.0) and the renderer speaks the
-  0.6.0 mutation contract, which 0.5.x also accepts: applyBatch only — no `removeChild` op
-  (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and
-  re-materialize if shown again), `setCustomProp` not `setCustomPropValue`, and
-  `commitMutations?.()` only where it exists. 0.6.0 dropped the darwin-x64 / linux-arm64 /
-  win32-arm64 prebuilds — pin 0.5.x on those platforms. `TestGpuixRenderer` does not exist on Linux at all —
-  gpuix gates `mod test_renderer` on macOS/Windows and builds Linux with `--no-default-features`
-  until wgpu grows image readback — so CI there can only check that the binding loads.
+- **`@gpuix/native` range is `>=0.7.0 <=0.8.0`** (installs 0.7.0) and the renderer speaks its
+  mutation contract: applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes
+  that leave the live tree are destroyed at commit and re-materialize if shown again),
+  `setCustomProp` not `setCustomPropValue`, and `commitMutations?.()` only where it exists.
+  Prebuilds exist for darwin-arm64 / linux-x64 / win32-x64 only. On Linux `TestGpuixRenderer` is
+  a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix builds it with
+  `--no-default-features` until wgpu grows image readback — so CI there can only check that the
+  binding loads.
 
 ## Architecture
 
@@ -151,9 +151,11 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
 **`render.js`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
 reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
-`setImmediate` burns ~73% CPU at idle. On `requiresTick() === false` (Windows/Linux) GPUI owns a
-blocking UI thread and there is no frame loop, so `set_auto_commit(true)` makes the renderer
-schedule its own commit on a microtask — otherwise a mutation with no native event behind it (a
+`setImmediate` burns ~73% CPU at idle. Since native 0.7.0 `requiresTick()` is true on every
+platform — on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether
+that thread is still alive — and it returns false once the last window closes, which ends the
+loop and the process. Where it is false, `set_auto_commit(true)` makes the renderer schedule its
+own commit on a microtask instead — otherwise a mutation with no native event behind it (a
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
 `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates that query to child
@@ -193,7 +195,8 @@ the two stay in sync. Unknown events are dropped silently.
   classes do nothing.
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
-- Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`).
+- Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
+  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
 - **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a
   `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
   give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
