@@ -201,6 +201,28 @@ are `f64`, so `1rem`, `50%` and `auto` are all fatal there; only `width`/`height
 that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
 even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
 
+### Regenerating README's styling reference
+
+The two `<details>` lists under README's "Styling" heading are transcribed from the native side,
+so redo them whenever `@gpuix/native` moves. The npm package ships no Rust; read the release tag on
+upstream (`https://raw.githubusercontent.com/remorses/gpuix/@gpuix/native@<version>/packages/native/src/<file>`,
+tags exist for every release; the sibling `../gpuix` checkout lags and is not a source of truth):
+
+- `style.rs`, `struct StyleDesc` — every key and its type. `Option<f64>` keys are pixel-only,
+  `DimensionValue` takes `%`/`auto`, `String` keys are keyword-matched, and anything that is a
+  struct (`BoxShadowValue`, `BackgroundValue::Gradient`) is unreachable from CSS text. Its
+  `parse_cursor` is the cursor keyword list.
+- `renderer.rs`, `fn apply_styles` — the keywords each `String` key actually matches; a key that is
+  in `StyleDesc` but not here is accepted and ignored (`visibility`, `display: none`).
+  `sed -n '/fn apply_styles/,/^}/p' renderer.rs | grep -n 'Some("'` lists them all. `parse_font_weight`
+  is the weight names; `overflow: scroll` is handled separately in `build_host_container`.
+- `color.rs` — colour syntax (`csscolorparser` since 0.7.0, so names and `hsl()` work).
+
+Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION` in `src/style.js`,
+add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
+mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
+`StyleDesc`, with unknown keys already dropped, which is exactly what README claims.
+
 **`events.js`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
 the two stay in sync. Unknown events are dropped silently.

@@ -102,7 +102,7 @@ same way.
   `.btn.primary`, `.a, .b`, `div`. Scoped per component like Svelte's DOM output. Specificity is
   class count, then source order; inline `style` always wins. `class:` directives and dynamic
   class strings restyle live.
-- `hover="..."` and `active="..."` attributes, GPUI's native pseudo styles.
+- `hover="..."` and `active="..."` attributes: `:hover` and `:active` styles set directly on the element.
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
 - `display: flex | grid` and the flexbox properties, `position: absolute`, `overflow: hidden | scroll`,
   `opacity`, `cursor`, `white-space`, `text-overflow`, `font-*`, `text-align`.
@@ -120,6 +120,60 @@ same way.
 - `transform`, `transition`, `z-index`, `text-decoration`, `letter-spacing` are silently ignored.
   Only text properties (colour, font) inherit from a parent.
 - Probably a lot of other things from CSS.
+
+<details>
+<summary>Working, standard CSS semantics</summary>
+
+Values are logical pixels unless noted. Only the listed keywords are recognised.
+
+- Layout: `display: flex | grid`; `flex-direction: row | column`; `flex-wrap: wrap | wrap-reverse | nowrap`;
+  `flex-grow`, `flex-shrink`, `flex-basis`; `gap`, `row-gap`, `column-gap`.
+- Alignment: `align-items: center | start | end`; `align-self: center | start | end | stretch | baseline`;
+  `align-content: center | start | end | space-between | space-around | space-evenly | stretch | normal`;
+  `justify-content: center | start | end | space-between | space-around` (the `flex-` prefixed forms too;
+  no `space-evenly` for `justify-content`).
+- Sizing: `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` in px, `%` or `auto`.
+- Spacing: `padding`, `margin` and their four sides, with 1 to 4 value shorthands.
+- Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
+- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll`.
+- Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
+  `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value shorthands.
+- Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
+  `text-align: left | center | right | start`; `line-height` in px; `white-space: nowrap | normal`;
+  `text-overflow: ellipsis`.
+- Interaction: `cursor` with the CSS keyword set (`pointer`, `text`, `grab`, `grabbing`, `move`,
+  `crosshair`, `not-allowed`, the `*-resize` family, `copy`, `alias`, `context-menu`, `default`);
+  `pointer-events: none | auto`; `user-select: none`; `:hover` and `:active` rules in `<style>`.
+
+</details>
+
+<details>
+<summary>Working, non-standard CSS semantics</summary>
+
+Accepted, but not what CSS would mean by it.
+
+- Unitless numbers are pixels: `padding: 12`, `font-size: 18`.
+- `grid-template-columns: 3` and `grid-template-rows: 2` take a count of equal tracks, not a track list.
+  `grid-column-min` and `grid-row-min` (`min-content | max-content`) set each track's minimum; neither
+  is a CSS property.
+- `justify-content: between | around` are aliases for `space-between` and `space-around`.
+- `position: fixed` lays out exactly like `absolute`; there is no viewport to fix to.
+- `text-overflow: ellipsis-start` truncates from the left.
+- `line-clamp: N` works unprefixed, without `display: -webkit-box`.
+- `font-weight` also takes `thin`, `extralight`, `light`, `medium`, `semibold`, `extrabold`, `black`
+  and any number from 1 to 1000.
+- `hover="..."` and `active="..."` are attributes that take the same CSS text as `style` and apply
+  only while the pointer is over, or pressing, the element. CSS cannot write a `:hover` rule inline;
+  here `<div style="color: #ccc" hover="color: #fff">` is the same as `.x { color: #ccc }` plus
+  `.x:hover { color: #fff }`. If both exist, the attribute wins.
+- `selection-color` sets the text-selection highlight; CSS has no equivalent.
+- With `pointer-events` unset, an element that paints a background or is `position: absolute` blocks
+  clicks to whatever is behind it, and events never bubble. Give decorative children
+  `pointer-events: none`.
+- Animation goes through the `motion={{ initial, animate, transition }}` prop (`left`, `top`, `width`,
+  `height`, `opacity`, `border-radius`), not `transition`.
+
+</details>
 
 `npm run demo:styling` shows all of these side by side.
 
