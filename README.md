@@ -42,6 +42,20 @@ Every command has a [Bun](https://bun.com) twin under a `bun:` prefix — `npm r
 Bun, which picks the `.svelte` loader up from `bunfig.toml` instead of `--import`. Dependencies
 still come from `npm install` either way; there is one lockfile, and CI runs both runtimes.
 
+## Build a standalone binary
+
+Bun can compile an example into one executable that runs without Node, Bun or `node_modules`:
+
+```bash
+npm run compile        # tic-tac-toe → dist/tictactoe (dist\tictactoe.exe on Windows)
+npm run compile:app    # macOS: additionally wraps it as dist/Tic-tac-toe.app
+```
+
+The result is ~80 MB — the Bun runtime, the Svelte runtime and the 17 MB GPUI addon. It is built
+for the machine it runs on: run the same command on macOS (arm64), Linux (x64) or Windows (x64) to
+get that platform's binary. There is no cross-compiling, since npm only installs the addon prebuilt
+for the host. The macOS binary is unsigned, so a downloaded copy needs a right-click → Open once.
+
 ## Use in your own project
 
 ```bash

@@ -45,6 +45,9 @@ npm run test:css           # single test — <style> class rules: specificity, i
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
+npm run compile            # tic-tac-toe → dist/tictactoe (.exe on Windows) via Bun.build({ compile });
+                           # Bun-only, so no twin — it refuses to run under Node
+npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper (macOS only, no icon)
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
@@ -78,6 +81,20 @@ GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter    # writes a PNG after every m
 
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls
 `TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.js`.
+
+### Standalone binary
+
+`scripts/compile.js` is `Bun.build({ compile })` over `examples/tic-tac-toe/standalone.js`, a
+static-`render()` entry — `render_hot` re-imports from disk and can't live in a binary, so `main.js`
+stays the dev entry. The `.svelte` plugin has to be passed explicitly: `Bun.build` never sees the
+`Bun.plugin` registration from `bunfig.toml`, and without one a `.svelte` import silently becomes a
+file asset while the build still succeeds — hence `src/plugin.js` exports its load hook and the
+script counts the components that went through it. `custom-renderer` is a build-time condition
+there, and `production` only takes effect together with the `process.env.NODE_ENV` define, because
+Bun implies `development` otherwise and esm-env lists it first. `@gpuix/native`'s loader bundles
+as-is and Bun embeds the host's `.node` prebuild on its own, which is why a binary is built on the OS
+it targets (npm only installs the host prebuild). `GPUIX_SVELTE_RENDERER` is a build-time variable on
+this path. CI compiles on all three prebuild platforms but never launches the result.
 
 ## Hard constraints
 
@@ -119,7 +136,7 @@ render.js    window lifecycle + frame loop  ─┐
 renderer.js  shadow tree → GPUI projection   ├─ style.js / events.js are its translation helpers
 compile.js   .svelte → JS, runtime-agnostic  ─┘
   register.js  Node loader (module.registerHooks)   ─ the default
-  plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts
+  plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.js
 ```
 
 **`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
@@ -254,13 +271,20 @@ the two stay in sync. Unknown events are dropped silently.
   example.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion` as props; other attributes
   are dropped for built-ins and forwarded for custom element types.
+- `bind:` is refused by the compiler under `customRenderer`. To get hold of an element use
+  `{@attach (node) => ...}` (or `use:`); the node is the renderer's shadow node, and `node.nativeId`
+  is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()` (`[x, y, w, h]`,
+  a clipped child still reports its full size). GPUI paints no scrollbars; the styling playground
+  draws its own thumb this way, refreshed from the column's `onscroll` a frame later, since the
+  offset moves after the wheel event returns.
 - Examples import the package by name (`import { render_hot } from 'gpuix-svelte'`) via the
   self-reference in `exports`.
 
 ## Runtime
 
 Node, via `npm`: `npm install`, `npm run <script>`, `npx`. Keep the source runtime-agnostic —
-`node:*` builtins only, no `Bun.*` calls and no `bun` imports outside `src/plugin.js`.
+`node:*` builtins only, no `Bun.*` calls and no `bun` imports outside `src/plugin.js` and
+`scripts/compile.js` (Bun is the compiler there).
 
 ## Comments
 
