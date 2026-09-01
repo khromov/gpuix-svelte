@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +25,7 @@ const dist = join(root, 'dist');
 const binary = join(dist, process.platform === 'win32' ? 'tictactoe.exe' : 'tictactoe');
 const bundle = join(dist, 'Tic-tac-toe.app');
 const icon = join(root, 'examples/tic-tac-toe/icon.png');
+const ico = join(dist, 'AppIcon.ico');
 
 const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -68,6 +69,10 @@ rmSync(binary, { force: true });
 rmSync(bundle, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 
+// Unlike the .app's icon, this one is a resource inside the executable, so it has
+// to exist before the build rather than after it.
+if (process.platform === 'win32') write_ico(icon, ico);
+
 const result = await Bun.build({
 	entrypoints: [join(root, 'examples/tic-tac-toe/standalone.js')],
 	target: 'bun',
@@ -83,7 +88,7 @@ const result = await Bun.build({
 		// A bunfig.toml or .env beside the launched binary (this repo's, say) must not reconfigure it.
 		autoloadBunfig: false,
 		autoloadDotenv: false,
-		...(process.platform === 'win32' && { windows: { hideConsole: true } })
+		...(process.platform === 'win32' && { windows: { hideConsole: true, icon: ico } })
 	}
 });
 
@@ -96,6 +101,8 @@ if (components === 0) {
 	console.error('[compile] no .svelte file went through the plugin');
 	process.exit(1);
 }
+
+rmSync(ico, { force: true });
 
 // The output is Bun's own executable plus the payload, and the addon is at least
 // 17 MB on every platform, so anything closer to bare Bun than that lost it.
@@ -134,6 +141,61 @@ function write_icns(png, out) {
 		run('sips', ['-z', `${points * 2}`, `${points * 2}`, png, '--out', join(iconset, `icon_${points}x${points}@2x.png`)]);
 	}
 	run('iconutil', ['-c', 'icns', iconset, '-o', out]);
+	rmSync(iconset, { recursive: true, force: true });
+}
+
+// The Windows counterpart to write_icns: System.Drawing is what every Windows
+// PowerShell has in place of sips, and the .ico around the PNGs it cuts is a
+// 6-byte header plus a 16-byte entry each, which Windows has read since Vista.
+function write_ico(png, out) {
+	// Largest first, because Bun leaves its own `IDI_MYICON` group behind pointing at
+	// RT_ICON #1 and a string-named group outranks ours: whatever lands first is the
+	// icon Explorer shows, upscaled to every size it needs.
+	const sizes = [256, 128, 64, 48, 32, 16];
+	const iconset = join(dist, 'AppIcon.icoset');
+	rmSync(iconset, { recursive: true, force: true });
+	mkdirSync(iconset);
+
+	const script = join(iconset, 'resize.ps1');
+	writeFileSync(
+		script,
+		`Add-Type -AssemblyName System.Drawing
+$source = [System.Drawing.Image]::FromFile('${png}')
+foreach ($size in ${sizes.join(', ')}) {
+	$bitmap = New-Object System.Drawing.Bitmap $size, $size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+	$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+	$graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+	$graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+	$graphics.Clear([System.Drawing.Color]::Transparent)
+	$graphics.DrawImage($source, (New-Object System.Drawing.Rectangle 0, 0, $size, $size))
+	$graphics.Dispose()
+	$bitmap.Save((Join-Path '${iconset}' "$size.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+	$bitmap.Dispose()
+}
+$source.Dispose()
+`
+	);
+	run('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script]);
+
+	const images = sizes.map((size) => readFileSync(join(iconset, `${size}.png`)));
+	const header = Buffer.alloc(6 + 16 * sizes.length);
+	header.writeUInt16LE(1, 2);
+	header.writeUInt16LE(sizes.length, 4);
+
+	let offset = header.length;
+	sizes.forEach((size, i) => {
+		const entry = 6 + i * 16;
+		// 256 doesn't fit the byte, and 0 is how the format spells it.
+		header.writeUInt8(size === 256 ? 0 : size, entry);
+		header.writeUInt8(size === 256 ? 0 : size, entry + 1);
+		header.writeUInt16LE(1, entry + 4);
+		header.writeUInt16LE(32, entry + 6);
+		header.writeUInt32LE(images[i].length, entry + 8);
+		header.writeUInt32LE(offset, entry + 12);
+		offset += images[i].length;
+	});
+
+	writeFileSync(out, Buffer.concat([header, ...images]));
 	rmSync(iconset, { recursive: true, force: true });
 }
 

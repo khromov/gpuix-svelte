@@ -94,9 +94,17 @@ there, and `production` only takes effect together with the `process.env.NODE_EN
 Bun implies `development` otherwise and esm-env lists it first. `@gpuix/native`'s loader bundles
 as-is and Bun embeds the host's `.node` prebuild on its own, which is why a binary is built on the OS
 it targets (npm only installs the host prebuild). `GPUIX_SVELTE_RENDERER` is a build-time variable on
-this path. CI compiles on all three prebuild platforms but never launches the result. The `.app`'s
-icon is `examples/tic-tac-toe/icon.png`, rasterized at 1024 px from the `icon.svg` beside it; `--app`
-cuts it into an `.icns` with `sips` + `iconutil`, which ship with macOS.
+this path. CI compiles on all three prebuild platforms but never launches the result. The icon on
+both platforms is `examples/tic-tac-toe/icon.png`, rasterized at 1024 px from the `icon.svg` beside
+it; `--app` cuts it into an `.icns` with `sips` + `iconutil`, which ship with macOS. On Windows it
+becomes an executable resource instead of a bundled file, so `write_ico` runs *before* the build and
+passes the result as `compile.windows.icon`: PowerShell's `System.Drawing` stands in for `sips`, and
+the `.ico` is assembled here — a 6-byte header plus one 16-byte entry per size over the PNGs
+themselves, which Windows reads uncompressed-or-PNG since Vista. It lives in `dist/` only for the
+length of the build. Its sizes are ordered **largest first**, working around a Bun bug: Bun swaps the
+`RT_ICON` payloads for ours but leaves its own `IDI_MYICON` group directory behind, still pointing at
+`RT_ICON #1`. A string-named group sorts ahead of our numeric one in the PE, so `#1` is the icon
+Explorer actually resolves and scales to every size — 16px first meant a blurry upscale everywhere.
 
 ## Hard constraints
 
