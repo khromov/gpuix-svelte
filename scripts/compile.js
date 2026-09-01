@@ -4,6 +4,7 @@
  * outside src/plugin.js that needs Bun.
  */
 
+import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const dist = join(root, 'dist');
 const binary = join(dist, process.platform === 'win32' ? 'tictactoe.exe' : 'tictactoe');
 const bundle = join(dist, 'Tic-tac-toe.app');
+const icon = join(root, 'examples/tic-tac-toe/icon.png');
 
 const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,6 +32,8 @@ const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <dict>
 	<key>CFBundleExecutable</key>
 	<string>tictactoe</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.gpuix.svelte.tictactoe</string>
 	<key>CFBundleName</key>
@@ -104,14 +108,39 @@ if (size < floor) {
 
 if (app) {
 	const macos = join(bundle, 'Contents', 'MacOS');
+	const resources = join(bundle, 'Contents', 'Resources');
 	mkdirSync(macos, { recursive: true });
+	mkdirSync(resources, { recursive: true });
 	copyFileSync(binary, join(macos, 'tictactoe'));
 	chmodSync(join(macos, 'tictactoe'), 0o755);
 	writeFileSync(join(bundle, 'Contents', 'Info.plist'), PLIST);
+	write_icns(icon, join(resources, 'AppIcon.icns'));
 }
 
 console.log(`[compile] ${relative(root, binary)} (${mb(size)} MB)${app ? ` + ${relative(root, bundle)}` : ''}`);
 
 function mb(bytes) {
 	return (bytes / 1048576).toFixed(1);
+}
+
+// iconutil only reads an .iconset directory holding the ten standard sizes,
+// which sips cuts from the 1024px source; both ship with macOS.
+function write_icns(png, out) {
+	const iconset = join(dist, 'AppIcon.iconset');
+	rmSync(iconset, { recursive: true, force: true });
+	mkdirSync(iconset);
+	for (const points of [16, 32, 128, 256, 512]) {
+		run('sips', ['-z', `${points}`, `${points}`, png, '--out', join(iconset, `icon_${points}x${points}.png`)]);
+		run('sips', ['-z', `${points * 2}`, `${points * 2}`, png, '--out', join(iconset, `icon_${points}x${points}@2x.png`)]);
+	}
+	run('iconutil', ['-c', 'icns', iconset, '-o', out]);
+	rmSync(iconset, { recursive: true, force: true });
+}
+
+function run(command, args) {
+	const { status, stderr } = spawnSync(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+	if (status !== 0) {
+		console.error(`[compile] ${command} ${args.join(' ')} failed:\n${stderr}`);
+		process.exit(1);
+	}
 }

@@ -47,7 +47,7 @@ npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build 
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run compile            # tic-tac-toe → dist/tictactoe (.exe on Windows) via Bun.build({ compile });
                            # Bun-only, so no twin — it refuses to run under Node
-npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper (macOS only, no icon)
+npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its icon (macOS only)
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
@@ -94,7 +94,9 @@ there, and `production` only takes effect together with the `process.env.NODE_EN
 Bun implies `development` otherwise and esm-env lists it first. `@gpuix/native`'s loader bundles
 as-is and Bun embeds the host's `.node` prebuild on its own, which is why a binary is built on the OS
 it targets (npm only installs the host prebuild). `GPUIX_SVELTE_RENDERER` is a build-time variable on
-this path. CI compiles on all three prebuild platforms but never launches the result.
+this path. CI compiles on all three prebuild platforms but never launches the result. The `.app`'s
+icon is `examples/tic-tac-toe/icon.png`, rasterized at 1024 px from the `icon.svg` beside it; `--app`
+cuts it into an `.icns` with `sips` + `iconutil`, which ship with macOS.
 
 ## Hard constraints
 
