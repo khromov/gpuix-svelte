@@ -61,6 +61,9 @@ Notes
   (dist\tictactoe.exe on Windows) with Bun.build({ compile }); npm run
   compile:app also wraps it as a macOS .app. Bun-only, and built per OS —
   npm installs only the host's prebuilt addon, so there is no cross-compiling.
+  Set CODESIGN_IDENTITY to a Developer ID certificate to sign the output, and
+  NOTARY_PROFILE (from `xcrun notarytool store-credentials`) to also notarize
+  and staple the .app; either unset means that step is skipped.
 - Linux runs the demos but not the tests: gpuix compiles TestGpuixRenderer
   only on macOS and Windows (it needs render_to_image, which the Vulkan/wgpu
   backend lacks); on Linux its constructor throws, so the headless suites

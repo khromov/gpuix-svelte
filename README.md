@@ -54,7 +54,12 @@ npm run compile:app    # macOS: additionally wraps it as dist/Tic-tac-toe.app
 The result is ~80 MB — the Bun runtime, the Svelte runtime and the 17 MB GPUI addon. It is built
 for the machine it runs on: run the same command on macOS (arm64), Linux (x64) or Windows (x64) to
 get that platform's binary. There is no cross-compiling, since npm only installs the addon prebuilt
-for the host. The macOS binary is unsigned, so a downloaded copy needs a right-click → Open once.
+for the host.
+
+The output is unsigned unless `CODESIGN_IDENTITY` names a Developer ID certificate in your keychain;
+with `NOTARY_PROFILE` (a `notarytool` keychain profile) as well, `compile:app` also notarizes and
+staples the bundle and leaves `dist/Tic-tac-toe.zip` ready to ship. macOS blocks a downloaded
+unsigned copy until it is allowed under System Settings → Privacy & Security.
 
 ## Use in your own project
 
