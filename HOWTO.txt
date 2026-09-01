@@ -1,7 +1,7 @@
 HOWTO: run from a fresh clone (macOS Apple Silicon, Windows x64, Linux x64)
 ==========================================================================
 
-Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
+Needs Node.js 26.1 or newer, or Bun 1.4.0 or newer.
 
     npm install     # that's the whole setup.
                     #   @gpuix/native arrives prebuilt from npm (no Rust, no
@@ -22,7 +22,8 @@ Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
     npm run demo:glass-ffi   # the same app on REAL Liquid Glass: a tiny ObjC
                              # shim (clang-compiled on first run) slides an
                              # NSGlassEffectView under GPUI's Metal view, loaded
-                             # via koffi (Node) or bun:ffi (Bun). Needs macOS 26;
+                             # via node:ffi (Node; --experimental-ffi is baked
+                             # into the script) or bun:ffi (Bun). Needs macOS 26;
                              # elsewhere it falls back to the window blur.
                              # GPUIX_GLASS=0 forces the fallback. Not part of
                              # `npm run demo`. Note that GPUIX_SCREENSHOT can't

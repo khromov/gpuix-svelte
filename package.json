@@ -17,7 +17,7 @@
 		"src"
 	],
 	"engines": {
-		"node": ">=24",
+		"node": ">=26.1.0",
 		"bun": ">=1.4.0"
 	},
 	"repository": {
@@ -39,7 +39,7 @@
 		"demo:tictactoe": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/tic-tac-toe/main.js",
 		"demo:hn": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/hacker-news/main.js",
 		"demo:glass": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass/main.js",
-		"demo:glass-ffi": "node --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass-ffi/main.js",
+		"demo:glass-ffi": "node --experimental-ffi --conditions custom-renderer --conditions development --import ./src/register.js examples/liquid-glass-ffi/main.js",
 		"test": "npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile",
 		"test:reorder": "node --conditions custom-renderer --conditions development --import ./src/register.js test/reorder.js",
 		"test:smoke": "node --conditions custom-renderer --conditions development --import ./src/register.js test/smoke.js",
@@ -74,7 +74,6 @@
 		"svelte": ">=5.56.0"
 	},
 	"devDependencies": {
-		"koffi": "^3.1.6",
 		"svelte": "file:vendor/svelte-5.57.0-6be4ab9.tgz"
 	},
 	"publishConfig": {

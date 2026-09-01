@@ -16,7 +16,7 @@ its own native window.
 
 ## Try it
 
-Runs on **Node.js >= 24** or **Bun >= 1.4.0**. No Rust or other toolchains needed — the native
+Runs on **Node.js >= 26.1** or **Bun >= 1.4.0**. No Rust or other toolchains needed — the native
 binary comes prebuilt from npm.
 
 ```bash

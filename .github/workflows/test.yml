@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
       - run: npm ci
       - run: npm test
 
@@ -31,7 +31,7 @@ jobs:
       # Deps come from npm either way — one lockfile, and Bun runs against it.
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
       - run: npm ci
       - uses: oven-sh/setup-bun@v2
       - run: npm run bun:test
@@ -45,6 +45,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
       - run: npm ci
       - run: node -e "const n = require('@gpuix/native'); if (typeof n.GpuixRenderer !== 'function') { console.error('GpuixRenderer missing from the linux prebuild'); process.exit(1) } console.log('binding ok')"

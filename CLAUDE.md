@@ -25,7 +25,7 @@ npm run demo:tictactoe
 npm run demo:hn            # Hacker News reader — live network data, scrolling
 npm run demo:glass         # transparent window, macOS vibrancy (GPUI window blur)
 npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, macOS 26+)
-                           # via a clang-compiled ObjC shim + FFI (koffi/bun:ffi) in
+                           # via a clang-compiled ObjC shim + FFI (node:ffi/bun:ffi) in
                            # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
                            # window-blur fallback; NOT part of `npm run demo`
 
@@ -79,8 +79,9 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 
 - **No build step, no TypeScript emit.** Plain ESM JS with JSDoc types; `exports` points straight
   at `src/*.js`. Keep it that way.
-- **Node >= 24** (for `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in CI; keep
-  runtime-specific code confined to `register.js` / `plugin.js`.
+- **Node >= 26.1** (the glass-ffi demo loads its ObjC shim with the experimental `node:ffi`;
+  everything else only needs 24's `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in
+  CI; keep runtime-specific code confined to `register.js` / `plugin.js`.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
