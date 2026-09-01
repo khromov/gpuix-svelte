@@ -42,8 +42,11 @@ still come from `npm install` either way; there is one lockfile, and CI runs bot
 
 ```bash
 npm install github:khromov/gpuix-svelte     # until it's on npm
-npm install -D svelte@https://pkg.pr.new/svelte@18511
+npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511    # latest build of the custom-renderer PR
 ```
+
+`svelte` has to be Svelte's unreleased custom-renderer branch; pkg.svelte.dev serves its latest
+build (this repo pins one specific commit under `vendor/` instead, see `CLAUDE.md`).
 
 The `.svelte` loader has to be registered before your entry module resolves. On Node that is
 `--import gpuix-svelte/register`; on Bun it is a `bunfig.toml` preload:

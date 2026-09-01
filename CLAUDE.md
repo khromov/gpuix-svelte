@@ -39,6 +39,9 @@ npm run test:teardown      # single test — removal marks dirty, blank text dem
 npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
+npm run vendor             # re-vendor svelte from the PR head (or a given ref / full sha):
+                           # downloads pkg.svelte.dev's build, or --build compiles it; see
+                           # "Hard constraints". Not a runtime script, so no bun twin
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
@@ -82,10 +85,18 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
-- **`svelte` is pinned to `https://pkg.pr.new/svelte@18511`** (CI preview of the custom-renderer
-  branch). The committed `package-lock.json` pins the exact version and integrity hash, but its
-  `resolved` is that same URL — pkg.pr.new has to be live for `npm ci` too, not just
-  `npm update svelte`.
+- **`svelte` is vendored**: `devDependencies.svelte` is `file:vendor/svelte-<version>-<sha7>.tgz`,
+  a build of sveltejs/svelte at that commit of the custom-renderer PR stack (#18042 → #18405 →
+  #18461 → #18511, whose `custom-condition` branch is the tip). It can't be a URL: upstream
+  replaced pkg.pr.new with pkg.svelte.dev on 2026-07-24 (#18253), and pkg.svelte.dev drops a build
+  once a force-push removes its commit from the branch — and this PR is rebased on every update —
+  so a `https://pkg.svelte.dev/svelte/c/<sha>` pin 404s as soon as the PR is pushed again
+  (pkg.pr.new's `svelte@18511` still resolves, but is frozen at the July build, 5.56.7). `npm run vendor [ref|full-sha] [--build] [--force]` moves the pin: it resolves
+  `refs/pull/18511/head`, downloads that commit's tarball from pkg.svelte.dev — or, with `--build`
+  or when there is none, shallow-fetches the commit into `$TMPDIR/gpuix-svelte-vendor` and
+  `pnpm build && pnpm pack`s it — swaps the tarball, repoints `package.json` and runs
+  `npm install`. Then run `npm test` and `npm run bun:test`. `.gitignore` un-ignores
+  `vendor/*.tgz` for this; `files` keeps it out of the npm package.
 - **`@gpuix/native` range is `>=0.5.0 <0.7.0`** (installs 0.6.0) and the renderer speaks the
   0.6.0 mutation contract, which 0.5.x also accepts: applyBatch only — no `removeChild` op
   (reinserts reparent implicitly; nodes that leave the live tree are destroyed at commit and

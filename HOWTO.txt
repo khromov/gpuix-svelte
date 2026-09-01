@@ -6,8 +6,8 @@ Needs Node.js 24 or newer, or Bun 1.4.0 or newer.
     npm install     # that's the whole setup.
                     #   @gpuix/native arrives prebuilt from npm (no Rust, no
                     #   submodules, no Metal toolchain, nothing to compile);
-                    #   svelte comes from https://pkg.pr.new/svelte@18511, the
-                    #   CI preview of the unreleased custom-renderer branch.
+                    #   svelte comes from vendor/svelte-<version>-<sha>.tgz, a
+                    #   build of the unreleased custom-renderer PR (see CLAUDE.md)
     npm test        # headless: TestGpuixRenderer drives the real Metal
                     # pipeline without opening a window
     npm run demo    # opens all four demo windows at once
@@ -48,9 +48,10 @@ Notes
   setCustomProp instead of setCustomPropValue, commitMutations() called only
   when present — and 0.5.x accepts all of that too. Note: 0.6.0 dropped the
   darwin-x64 / linux-arm64 / win32-arm64 prebuilds; pin 0.5.x on those.
-- The committed package-lock.json pins svelte's exact version and integrity
-  hash, but resolves it from pkg.pr.new/svelte@18511 — that URL has to be live
-  for `npm ci` as well, not just for `npm update svelte`.
+- svelte is a vendored tarball (vendor/svelte-<version>-<sha>.tgz): pkg.pr.new
+  stopped building the PR in July 2026, and pkg.svelte.dev drops a build once a
+  force-push removes its commit. `npm run vendor` moves it to the current PR
+  head.
 - Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
   npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
   Same entry points, run through Bun, which preloads src/plugin.js via
