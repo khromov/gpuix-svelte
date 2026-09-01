@@ -263,9 +263,12 @@ the two stay in sync. Unknown events are dropped silently.
 - **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a
   `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
   give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
-  mousedown: for drags, put `mousemove`/`mouseup` on the surfaces the cursor may cross and treat a
-  move with `pressedButton == null` as the release (see the sliders in
-  `examples/liquid-glass/LiquidGlass.svelte`).
+  mousedown: for drags, put `mousemove`/`mouseup` on the surfaces the cursor may cross (or show a
+  window-sized `position: absolute` overlay for the drag's duration, as the styling playground's
+  scrollbar does) and treat a move with `pressedButton == null` as the release (see the sliders in
+  `examples/liquid-glass/LiquidGlass.svelte`). A left mousedown also starts a text selection that
+  every later move extends across whatever text lies in between, unless the element under the
+  pointer (or an ancestor) has `user-select: none` — put it on every drag handle.
 - `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
   `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
   example.

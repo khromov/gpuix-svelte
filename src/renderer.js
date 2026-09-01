@@ -438,6 +438,9 @@ export function set_native(instance) {
 	commit_scheduled = false;
 }
 
+/** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
+export const get_native = () => native;
+
 export function create_root(style = { display: 'flex', width: '100%', height: '100%' }) {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
