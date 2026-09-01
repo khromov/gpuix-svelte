@@ -31,6 +31,15 @@ npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, m
 npm run demo:styling       # styling playground: three columns of style strings next to what GPUI
                            # made of them (reads like CSS / looks like CSS but is not / GPUI-only);
                            # NOT part of `npm run demo`
+npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
+                           # explanation + diagram on the left and highlighted source + the same
+                           # component running live on the right, with a quiz. Prose is
+                           # examples/tutorial/content/*.md, the registry is steps.js, samples/
+                           # hot-reload; GPUIX_TUTORIAL_STEP=7 starts at step 7. The only user
+                           # of GPUI's <code>/<markdown> elements. `bun run tutorial` runs it on
+                           # Bun: scripts/run-example.js picks the runtime from --bun or
+                           # npm_config_user_agent (Bun's script runner executes `node ...` on
+                           # real Node otherwise). NOT part of `npm run demo`
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css

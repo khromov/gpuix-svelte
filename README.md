@@ -34,8 +34,13 @@ npm run demo:glass        # liquid-glass control center (GPUI's blurred transluc
 npm run demo:glass-ffi    # same app on REAL Liquid Glass — NSGlassEffectView via FFI
                           # (macOS 26+; falls back to the window blur elsewhere)
 npm run demo:styling      # styling playground — which CSS text reaches GPUI and which is dropped
+npm run tutorial          # interactive onboarding guide — 12 steps with live samples and quizzes
 npm test                  # headless renderer tests
 ```
+
+New here? `npm run tutorial` (or `bun run tutorial`) opens a guided walkthrough of the renderer that
+is itself a gpuix-svelte app: each step pairs an explanation and a diagram with the source of a
+small component and that component running live, and ends with a quiz.
 
 Every command has a [Bun](https://bun.com) twin under a `bun:` prefix — `npm run bun:test`,
 `npm run bun:demo`, `npm run bun:demo:counter`, and so on. They run the same entry points through
@@ -56,10 +61,38 @@ for the machine it runs on: run the same command on macOS (arm64), Linux (x64) o
 get that platform's binary. There is no cross-compiling, since npm only installs the addon prebuilt
 for the host.
 
-The output is unsigned unless `CODESIGN_IDENTITY` names a Developer ID certificate in your keychain;
-with `NOTARY_PROFILE` (a `notarytool` keychain profile) as well, `compile:app` also notarizes and
-staples the bundle and leaves `dist/Tic-tac-toe.zip` ready to ship. macOS blocks a downloaded
-unsigned copy until it is allowed under System Settings → Privacy & Security.
+The output is unsigned by default, and macOS blocks a downloaded unsigned copy until it is allowed
+under System Settings → Privacy & Security. See [Signing](#signing).
+
+## Signing
+
+### macOS
+
+`compile` signs when `CODESIGN_IDENTITY` names a Developer ID Application certificate in your
+keychain; `compile:app` also notarizes and staples the bundle when `NOTARY_PROFILE` names a
+`notarytool` keychain profile, and leaves `dist/Tic-tac-toe.zip` ready to ship. One-time setup:
+
+1. Create an app-specific password at https://account.apple.com → Sign-In and Security →
+   App-Specific Passwords.
+2. Store it under a profile name, with the team ID from your certificate:
+
+   ```bash
+   xcrun notarytool store-credentials notary --apple-id you@example.com --team-id TEAMID --password xxxx-xxxx-xxxx-xxxx
+   ```
+
+   A 403 "required agreement is missing or has expired" means the Account Holder has to accept the
+   current Program License Agreement at https://appstoreconnect.apple.com/agreements; it can take a
+   while to propagate after that.
+3. Put both variables in a `.env` at the repo root — gitignored, and Bun loads it when it runs the
+   script — so plain `npm run compile:app` signs from now on:
+
+   ```
+   CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+   NOTARY_PROFILE=notary
+   ```
+
+If Apple rejects a submission the script prints the submission output and exits;
+`xcrun notarytool log <submission-id> --keychain-profile notary` has the reason.
 
 ## Use in your own project
 
