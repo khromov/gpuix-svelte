@@ -25,6 +25,8 @@ const dist = join(root, 'dist');
 const binary = join(dist, process.platform === 'win32' ? 'tictactoe.exe' : 'tictactoe');
 const bundle = join(dist, 'Tic-tac-toe.app');
 const icon = join(root, 'examples/tic-tac-toe/icon.png');
+const identity = process.env.CODESIGN_IDENTITY;
+const notary = process.env.NOTARY_PROFILE;
 
 const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -43,6 +45,27 @@ const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>
+`;
+
+// Under the hardened runtime Bun's JavaScriptCore JIT needs the executable-memory
+// entitlements, and the GPUI addon is extracted and dlopen'd at launch without our
+// team's signature, which library validation would otherwise refuse.
+const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-executable-page-protection</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
 </dict>
 </plist>
@@ -119,8 +142,52 @@ if (app) {
 
 console.log(`[compile] ${relative(root, binary)} (${mb(size)} MB)${app ? ` + ${relative(root, bundle)}` : ''}`);
 
+if (!identity) {
+	console.log('[compile] CODESIGN_IDENTITY not set; leaving the output unsigned');
+} else if (process.platform !== 'darwin') {
+	console.log('[compile] CODESIGN_IDENTITY is macOS-only (codesign); leaving the output unsigned');
+} else {
+	sign(binary);
+	if (app) sign(bundle);
+}
+
+if (!notary) {
+	console.log('[compile] NOTARY_PROFILE not set; skipping notarization');
+} else if (!identity || process.platform !== 'darwin') {
+	console.log('[compile] NOTARY_PROFILE needs CODESIGN_IDENTITY on macOS; skipping notarization');
+} else if (!app) {
+	console.log('[compile] notarization applies to the .app bundle; add --app');
+} else {
+	notarize(bundle);
+}
+
 function mb(bytes) {
 	return (bytes / 1048576).toFixed(1);
+}
+
+function sign(target) {
+	const entitlements = join(dist, 'entitlements.plist');
+	writeFileSync(entitlements, ENTITLEMENTS);
+	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity, target]);
+	run('codesign', ['--verify', '--strict', target]);
+	console.log(`[compile] signed ${relative(root, target)} as ${identity}`);
+}
+
+// Stapling only works on a bundle, and the ticket has to be stapled before the
+// zip that ships is made, so the submission zip is rebuilt afterwards.
+function notarize(target) {
+	const zip = join(dist, 'Tic-tac-toe.zip');
+	run('ditto', ['-c', '-k', '--keepParent', target, zip]);
+	console.log('[compile] notarizing (Apple usually takes a few minutes)');
+	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', notary, '--wait']);
+	if (!/status: Accepted/.test(output)) {
+		console.error(`[compile] notarization was not accepted; see \`xcrun notarytool log\` for the submission below\n${output}`);
+		process.exit(1);
+	}
+	run('xcrun', ['stapler', 'staple', target]);
+	run('spctl', ['--assess', '--type', 'execute', target]);
+	run('ditto', ['-c', '-k', '--keepParent', target, zip]);
+	console.log(`[compile] notarized and stapled; ${relative(root, zip)} is the one to ship`);
 }
 
 // iconutil only reads an .iconset directory holding the ten standard sizes,
@@ -138,9 +205,10 @@ function write_icns(png, out) {
 }
 
 function run(command, args) {
-	const { status, stderr } = spawnSync(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+	const { status, stdout, stderr } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 	if (status !== 0) {
-		console.error(`[compile] ${command} ${args.join(' ')} failed:\n${stderr}`);
+		console.error(`[compile] ${command} ${args.join(' ')} failed:\n${stderr || stdout}`);
 		process.exit(1);
 	}
+	return stdout;
 }

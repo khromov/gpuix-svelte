@@ -96,7 +96,11 @@ as-is and Bun embeds the host's `.node` prebuild on its own, which is why a bina
 it targets (npm only installs the host prebuild). `GPUIX_SVELTE_RENDERER` is a build-time variable on
 this path. CI compiles on all three prebuild platforms but never launches the result. The `.app`'s
 icon is `examples/tic-tac-toe/icon.png`, rasterized at 1024 px from the `icon.svg` beside it; `--app`
-cuts it into an `.icns` with `sips` + `iconutil`, which ship with macOS.
+cuts it into an `.icns` with `sips` + `iconutil`, which ship with macOS. Signing is opt-in through
+env vars so CI stays unsigned: `CODESIGN_IDENTITY` signs with the hardened runtime and the JIT
+entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notarizes and staples the
+`.app` through `notarytool` — a few minutes, and it needs `xcrun notarytool store-credentials
+<profile>` done once. Gatekeeper rejects a signed-but-unnotarized app, so both are needed to ship.
 
 ## Hard constraints
 
