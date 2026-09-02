@@ -8,18 +8,19 @@
 	import { push } from '../lib/router.svelte.ts';
 	import { focus } from '../lib/ui.svelte.ts';
 
+	const PAGE = 200;
 	let page = $state(1);
-	const visible = $derived(data.items.slice(0, page * 50));
+	const visible = $derived(data.items.slice(0, page * PAGE));
 </script>
 
 <div class="route">
 	<div class="capture"><CaptureBox /></div>
-	<Scroller pad="0 20px 20px 20px" gap={8} testid="timeline">
+	<Scroller virtual estimate={100} pad="0 20px 20px 20px" testid="timeline">
 		{#each visible as item (item.id)}
-			<ItemCard {item} onopen={() => push(`/item/${item.id}`)} />
+			<div class="row"><ItemCard {item} onopen={() => push(`/item/${item.id}`)} /></div>
 		{/each}
 		{#if visible.length < data.items.length}
-			<Button label="Load more" onclick={() => page++} />
+			<div class="row"><Button label="Load more" onclick={() => page++} /></div>
 		{/if}
 		{#if data.items.length === 0}
 			<EmptyState
@@ -34,4 +35,5 @@
 <style>
 	.route { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
 	.capture { padding: 16px 20px 10px 20px; }
+	.row { display: flex; flex-direction: column; width: 100%; padding-bottom: 8px; }
 </style>

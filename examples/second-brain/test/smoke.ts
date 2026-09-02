@@ -26,6 +26,7 @@ import {
 	click_test_id,
 	press,
 	painted,
+	all_text,
 	screenshot,
 	check,
 	finish
@@ -54,7 +55,8 @@ async function tap(text: string, opts?: ClickOptions) {
 await wait();
 await wait();
 check('brand painted', painted().includes('Substrate'));
-check('seeded note painted', painted().includes('Compost notes'));
+// Off-screen rows of the virtual timeline are retained but not painted.
+check('seeded note in the timeline', all_text().some((t) => t.includes('Compost notes')));
 check('sidebar counts painted', painted().includes('Everything'));
 
 // The palette reaches every <style> through set_css_vars, so a mode switch is one restyle.
@@ -127,7 +129,7 @@ await wait();
 check('confirm deletes the item', app.get_item(note.id), null);
 check('delete navigates back', route.path, '/');
 await wait();
-check('deleted note gone from the timeline', painted().includes('Buy compost for the raised beds'), false);
+check('deleted note gone from the timeline', all_text().some((t) => t.includes('Buy compost for the raised beds')), false);
 
 console.log('screenshot:', screenshot(join(tmpdir(), 'substrate-smoke.png')));
 

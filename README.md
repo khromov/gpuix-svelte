@@ -318,6 +318,15 @@ without a thumb, `follow` to keep the bottom in view while content grows (a stre
 `testid`. Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys
 as fallbacks.
 
+A plain scroll column still lays out and paints every child on every frame, on screen or not, so a
+long list gets slow in proportion to its length. `virtual` renders GPUI's native `<virtual-list>`
+instead: every direct child is one row (wrap each item in a `div` with `width: 100%`, since rows
+size to their content and the list has no `gap`), GPUI builds and paints only the rows near the viewport, `estimate` is the
+height hint for rows it has not measured yet, and `follow` becomes the list's own tail-following.
+The thumb then works in rows rather than pixels, from `getListScrollTop` and the `visibleRange`
+event, and a drag scrolls with `scrollToItem`. Substrate's timeline is the example: 50 cards went
+from ~24 ms to ~1.4 ms per frame.
+
 **`Portal`** — paint order is document order, so a modal, toast or menu had to be the root's last
 child. `<Portal>` renders from wherever the overlay is needed and still paints on top: the renderer
 hangs only the native node off the root, so Svelte's `{#if}` blocks and teardown are untouched. The
