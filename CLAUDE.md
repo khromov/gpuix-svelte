@@ -110,8 +110,10 @@ testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`
 last two). Prefer those over calling `dispatch()` directly, which injects an event at an element
 and *bypasses* hit testing, so it can pass while the real window fails — the renderer's own tests
 do it only where the batching itself is under test. The headless viewport width follows
-`mount_headless`'s `width`/`height`, but its height caps at 538 logical px — elements laid out below
-that can't be hit (`click` throws; shift the layout up inside an absolute wrapper to reach them).
+`mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px — elements laid
+out below that can't be hit (`click` throws; shift the layout up inside an absolute wrapper to reach
+them) — and Windows ignores the request and opens a 1024×749 viewport, so never assert against the
+size you asked for; read `native.getWindowSize()` (`test/portal.js` does).
 `src/window.js` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
 renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
 

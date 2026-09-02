@@ -416,7 +416,8 @@ GPUI paint (`await wait(ms)` first for timers and promises); `find_text`, `find_
 `click_text`, `click_test_id`, `click_at`, `press` and `type` go through GPUI's real hit testing
 and input pipeline; `painted()`, `all_text()`, `bounds()` and `screenshot(path)` read back. The
 headless viewport is at most 538 px tall, so keep test layouts short (`click` says when a target is
-outside). The headless renderer emits no `focus`/`blur` events (a window does), so `focus()` and
+outside), and Windows ignores the requested size, so read `native.getWindowSize()` rather than
+asserting the numbers you passed. The headless renderer emits no `focus`/`blur` events (a window does), so `focus()` and
 `unfocus()` stand in for them. Tests are plain scripts — no runner.
 
 ## Known limitations

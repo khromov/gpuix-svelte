@@ -8,7 +8,7 @@ import { TestGpuixRenderer, hasTestGpuixRenderer } from '@gpuix/native';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.js';
 
-/** The headless viewport can be any width, but never taller than this. */
+/** The headless viewport can be any width, but never taller than this; Windows ignores the size altogether. */
 export const MAX_HEADLESS_HEIGHT = 538;
 
 function native() {
