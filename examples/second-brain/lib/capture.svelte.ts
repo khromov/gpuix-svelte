@@ -3,7 +3,7 @@
  * the chooser or the clipboard, recordings, playback.
  */
 
-import { unlinkSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { data, get_app } from './data.svelte.ts';
 import { choose_files } from './dialogs.ts';
 import { warn } from './log.ts';
@@ -128,9 +128,7 @@ export async function stop_recording() {
 	const seconds = await rec.stop();
 	if (seconds < 0.5) {
 		toast('Recording too short', 'error');
-		try {
-			unlinkSync(recording.path);
-		} catch {}
+		rmSync(recording.path, { force: true });
 		return;
 	}
 	await get_app().add_audio(recording.path, { move: true });

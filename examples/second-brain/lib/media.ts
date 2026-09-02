@@ -98,7 +98,7 @@ export function create_media(dirs: DataDirs) {
 		/** `file` is the stored original. */
 		async prepare_pcm(file: string, id: number): Promise<{ pcm_path: string; duration: number; converted: boolean }> {
 			const extension = extname(file).slice(1).toLowerCase();
-			let pcm_path = file;
+			let pcm_path: string;
 			if (extension === 'wav' && (await wav_is_pcm16_mono_16k(file)).ok) {
 				pcm_path = file;
 			} else if (extension === 'wav') {

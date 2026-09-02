@@ -66,7 +66,7 @@
 			{:else if failed}
 				<div class="error">{item.error ?? 'failed'}</div>
 			{/if}
-			{#each signals ?? [] as signal}
+			{#each signals ?? [] as signal (signal)}
 				<div class="signal {signal}">
 					{#if signal === 'clip'}<Icon name="sparkles" size={11} tone="image" />{/if}
 					<div class="signal-text">{SIGNAL[signal] ?? signal}</div>

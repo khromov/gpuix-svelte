@@ -8,17 +8,6 @@ export default ts.config(
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
 	{ files: ['**/*.svelte', '**/*.svelte.ts'], languageOptions: { parserOptions: { parser: ts.parser } } },
-	{
-		languageOptions: { globals: { ...globals.node, Bun: 'readonly' } },
-		rules: {
-			'@typescript-eslint/no-explicit-any': 'off',
-			'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-			'no-empty': ['error', { allowEmptyCatch: true }],
-			'no-irregular-whitespace': ['error', { skipRegExps: true }],
-			'no-useless-assignment': 'off',
-			'svelte/require-each-key': 'off',
-			'svelte/prefer-svelte-reactivity': 'off'
-		}
-	},
+	{ languageOptions: { globals: { ...globals.node, Bun: 'readonly' } } },
 	{ ignores: ['**/node_modules', 'dist', 'vendor', 'test/.samples-tmp', 'examples/second-brain/.data'] }
 );

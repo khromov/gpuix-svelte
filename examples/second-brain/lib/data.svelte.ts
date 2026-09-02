@@ -145,7 +145,7 @@ export function ago(ts: number): string {
 	if (mins < 60) return `${mins}m ago`;
 	if (mins < 60 * 24) return `${Math.round(mins / 60)}h ago`;
 	if (mins < 60 * 24 * 30) return `${Math.round(mins / (60 * 24))}d ago`;
-	return new Date(ts).toLocaleDateString();
+	return new Intl.DateTimeFormat().format(ts);
 }
 
 export const display_title = (item: Item): string => item.title || (item.kind === 'link' ? item.source_url : '') || 'Untitled';

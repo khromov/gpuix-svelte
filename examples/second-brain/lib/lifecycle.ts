@@ -32,12 +32,16 @@ export function install_exit_handlers() {
 		for (const fn of hooks) {
 			try {
 				fn();
-			} catch {}
+			} catch {
+				// One hook failing must not skip the rest at exit.
+			}
 		}
 		for (const proc of children) {
 			try {
 				proc.kill();
-			} catch {}
+			} catch {
+				// Already gone.
+			}
 		}
 	});
 

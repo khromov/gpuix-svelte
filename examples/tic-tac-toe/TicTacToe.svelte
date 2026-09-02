@@ -70,9 +70,9 @@
 		style="display: flex; flex-direction: column; gap: 8px; padding: 16px;
 		       background-color: #1e1e2e; border-radius: 12px"
 	>
-		{#each [0, 1, 2] as row}
+		{#each [0, 1, 2] as row (row)}
 			<div style="display: flex; flex-direction: row; gap: 8px">
-				{#each [0, 1, 2] as col}
+				{#each [0, 1, 2] as col (col)}
 					{@const i = row * 3 + col}
 					<div
 						style="display: flex; align-items: center; justify-content: center;

@@ -23,7 +23,7 @@
 	<div style="font-size: 11px; font-weight: bold; color: #f9e2af">QUIZ</div>
 	<div style="font-size: 13px; line-height: 19px; color: #cdd6f4">{question}</div>
 
-	{#each options as option, i}
+	{#each options as option, i (option)}
 		<div
 			style="padding: 8px 10px; border-radius: 6px; border-width: 1px; font-size: 13px; line-height: 18px;
 			       user-select: none; {option_style(i)}"

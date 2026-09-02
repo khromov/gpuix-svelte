@@ -162,7 +162,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 
 	async function transcribe_step(item: Item) {
 		const language = settings.get('stt.language') || null;
-		const result = await ml.transcribe(item.meta.pcm_path, {
+		const result = await ml.transcribe(item.meta.pcm_path!, {
 			language,
 			on_progress: (p) =>
 				emit_item(item.id, {

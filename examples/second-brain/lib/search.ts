@@ -109,7 +109,9 @@ export function create_search({ store, vectors, images, ml }: { store: Store; ve
 			try {
 				const item = store.get_item_by_url(normalize_url(q));
 				if (item) rankings.url = [{ id: item.id, score: 1 }];
-			} catch {}
+			} catch {
+				// Looked like a URL but did not parse as one; the other rankings still apply.
+			}
 		}
 
 		if (signals.includes('clip') && (!kinds || kinds.includes('image')) && images.size > 0) {

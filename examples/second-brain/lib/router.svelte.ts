@@ -4,7 +4,7 @@
  * hot remount.
  */
 
-import type { Component } from 'svelte';
+import type { AnyComponent } from 'gpuix-svelte';
 
 /** The current location. */
 export interface Route {
@@ -16,7 +16,7 @@ export interface Route {
 /** One entry of the route table `RouteView` resolves against. */
 export interface RouteEntry {
 	path: string;
-	load: () => Promise<{ default: Component<any, any, any> }>;
+	load: () => Promise<{ default: AnyComponent }>;
 	props?: Record<string, unknown>;
 	title: string;
 }
