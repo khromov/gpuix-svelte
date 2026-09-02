@@ -12,17 +12,18 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse_appearance } from '../lib/appearance.js';
-import { create_app } from '../lib/app.js';
-import { chunk_markdown } from '../lib/chunk.js';
-import { normalize_base_url, parse_sse } from '../lib/llm.js';
-import { MlClient } from '../lib/ml-client.js';
-import { MlStub } from '../lib/ml-stub.js';
-import { chunk_body, fts_query, match_ranges, parse_query, query_terms, rrf, snippet_around } from '../lib/rank.js';
-import { init_recorder } from '../lib/recorder.js';
-import { decode_entities, extract, normalize_url, pick_title } from '../lib/scrape.js';
-import { VectorIndex, from_blob, to_blob } from '../lib/vectors.js';
-import { decode_wav, encode_wav, wav_header } from '../lib/wav.js';
+import { parse_appearance } from '../lib/appearance.ts';
+import { create_app } from '../lib/app.ts';
+import { chunk_markdown } from '../lib/chunk.ts';
+import { normalize_base_url, parse_sse } from '../lib/llm.ts';
+import { MlClient } from '../lib/ml-client.ts';
+import { MlStub } from '../lib/ml-stub.ts';
+import { chunk_body, fts_query, match_ranges, parse_query, query_terms, rrf, snippet_around } from '../lib/rank.ts';
+import { init_recorder } from '../lib/recorder.ts';
+import { decode_entities, extract, normalize_url, pick_title } from '../lib/scrape.ts';
+import type { Failure, Fetcher } from '../lib/types.ts';
+import { VectorIndex, from_blob, to_blob } from '../lib/vectors.ts';
+import { decode_wav, encode_wav, wav_header } from '../lib/wav.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 // --- wav
@@ -72,7 +73,7 @@ import { check, finish } from 'gpuix-svelte/test';
 	fv.setUint16(18, 24, true);
 	fv.setUint32(20, 3, true);
 	fv.setUint16(24, 1, true);
-	const chunk = (id, body) => {
+	const chunk = (id: string, body: Uint8Array) => {
 		const out = new Uint8Array(8 + body.length + (body.length & 1));
 		for (let i = 0; i < 4; i++) out[i] = id.charCodeAt(i);
 		new DataView(out.buffer).setUint32(4, body.length, true);
@@ -144,7 +145,7 @@ import { check, finish } from 'gpuix-svelte/test';
 			c.close();
 		}
 	});
-	const events = [];
+	const events: string[] = [];
 	for await (const e of parse_sse(stream)) events.push(e);
 	check('sse events', events.join('|'), '{"choices":[{"delta":{"content":"Hel"}}]}|{"a":1}\n{"b":2}|{"choices":[],"usage":{}}|[DONE]');
 	check('ollama base url', normalize_base_url('http://localhost:11434'), 'http://localhost:11434/v1');
@@ -167,7 +168,7 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('chunk_body strips heading path', chunk_body('Title › Section\n\nBody here', 'Title'), 'Body here');
 
 	check('parse_query strips kind:', JSON.stringify(parse_query('compost kind:note')), '{"text":"compost","kinds":["text"],"unknown":[]}');
-	check('parse_query several kinds and aliases', parse_query('kind:links,img is:voice foo').kinds.join(','), 'link,image,audio');
+	check('parse_query several kinds and aliases', parse_query('kind:links,img is:voice foo').kinds!.join(','), 'link,image,audio');
 	check('parse_query unknown kind reported', parse_query('kind:bogus x').unknown.join(','), 'bogus');
 	check('parse_query kind only', JSON.stringify(parse_query('kind:image')), '{"text":"","kinds":["image"],"unknown":[]}');
 
@@ -175,7 +176,7 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('query_terms longest first, no fts syntax', terms.join(','), 'compost,worms');
 	const long = `${'filler '.repeat(80)}the compost heap needs turning ${'more '.repeat(80)}`;
 	const around = snippet_around(long, terms, 120);
-	check('snippet windows around the first term', around.includes('compost heap') && around.startsWith('…') && around.endsWith('…'));
+	check('snippet windows around the first term', around!.includes('compost heap') && around!.startsWith('…') && around!.endsWith('…'));
 	check('snippet is null without a match', snippet_around('nothing here', terms), null);
 	check('match_ranges finds every occurrence', JSON.stringify(match_ranges('Compost, worms, compost.', terms)), '[[0,7],[9,14],[16,23]]');
 
@@ -194,7 +195,7 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('short body → one chunk', chunk_markdown('Just a line.').length, 1);
 
 	const index = new VectorIndex(4, 1);
-	const unit = (...v) => {
+	const unit = (...v: number[]) => {
 		const n = Math.hypot(...v);
 		return Float32Array.from(v.map((x) => x / n));
 	};
@@ -215,7 +216,7 @@ import { check, finish } from 'gpuix-svelte/test';
 // --- store + ingest with the stub
 const icon = fileURLToPath(new URL('../../tic-tac-toe/icon.png', import.meta.url));
 const PAGE = `<html lang="en"><head><title>Soil page</title><meta property="og:title" content="All about loam"><meta property="og:image" content="/hero.png"></head><body><nav>NAV</nav><article><h1>Loam</h1><p>Loam is soil composed of sand, silt and clay. Gardeners love it because it drains well but holds water.</p></article></body></html>`;
-const fixture_fetch = async (url) => {
+const fixture_fetch: Fetcher = async (url) => {
 	if (url.endsWith('/hero.png')) return new Response(await Bun.file(icon).bytes(), { headers: { 'content-type': 'image/png' } });
 	if (url.includes('fail')) return new Response('nope', { status: 500 });
 	return new Response(PAGE, { headers: { 'content-type': 'text/html; charset=utf-8' } });
@@ -231,19 +232,19 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('link dedupes by normalized url', (await app.add_link('https://example.com/soil')).existed, true);
 	const image = await app.add_image(icon);
 	check('image has dimensions', image.width, 1024);
-	check('image has a thumbnail', existsSync(image.thumb_path));
+	check('image has a thumbnail', existsSync(image.thumb_path!));
 	const wav = join(dir, 'memo.wav');
 	await Bun.write(wav, encode_wav(Float32Array.from({ length: 44100 }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 440 * i) / 44100)), 44100));
 	const audio = await app.add_audio(wav);
 	await app.ingest.idle();
 
-	check('note ready', app.get_item(note.id).status, 'ready');
-	check('link scraped title', app.get_item(link.id).title, 'All about loam');
-	check('link body from article', app.get_item(link.id).body.includes('drains well'));
-	check('link thumb fetched', existsSync(app.get_item(link.id).thumb_path ?? ''));
-	check('audio converted', Math.round(app.get_item(audio.id).duration), 1);
-	check('audio transcribed by stub', app.get_item(audio.id).body.startsWith('Stub transcript'));
-	check('image ready', app.get_item(image.id).status, 'ready');
+	check('note ready', app.get_item(note.id)!.status, 'ready');
+	check('link scraped title', app.get_item(link.id)!.title, 'All about loam');
+	check('link body from article', app.get_item(link.id)!.body.includes('drains well'));
+	check('link thumb fetched', existsSync(app.get_item(link.id)!.thumb_path ?? ''));
+	check('audio converted', Math.round(app.get_item(audio.id)!.duration!), 1);
+	check('audio transcribed by stub', app.get_item(audio.id)!.body.startsWith('Stub transcript'));
+	check('image ready', app.get_item(image.id)!.status, 'ready');
 	check('chunk vectors indexed', app.vectors.size, 3);
 	check('image vector indexed', app.images.size, 1);
 	check('chunk blob is 768 floats', app.store.chunks_of(note.id).length, 1);
@@ -272,16 +273,16 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 
 	const { item: bad } = await app.add_link('https://example.com/fail');
 	await app.ingest.idle();
-	check('http 500 marks error', app.get_item(bad.id).status, 'error');
-	check('attempts counted', app.get_item(bad.id).attempts, 1);
+	check('http 500 marks error', app.get_item(bad.id)!.status, 'error');
+	check('attempts counted', app.get_item(bad.id)!.attempts, 1);
 
 	ml.fail_next('transcribe', { transient: false, message: 'boom' });
 	const audio2 = await app.add_audio(wav);
 	await app.ingest.idle();
-	check('permanent failure → error', app.get_item(audio2.id).error, 'boom');
+	check('permanent failure → error', app.get_item(audio2.id)!.error, 'boom');
 	app.retry(audio2.id);
 	await app.ingest.idle();
-	check('retry recovers', app.get_item(audio2.id).status, 'ready');
+	check('retry recovers', app.get_item(audio2.id)!.status, 'ready');
 
 	app.settings.set('llm.model', 'x');
 	check('settings roundtrip', app.settings.get('llm.model'), 'x');
@@ -298,7 +299,7 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 
 // --- MlClient against the fake worker
 {
-	const client = new MlClient({ worker_path: fileURLToPath(new URL('./fake-worker.js', import.meta.url)), models_dir: dir, autoload: false });
+	const client = new MlClient({ worker_path: fileURLToPath(new URL('./fake-worker.ts', import.meta.url)), models_dir: dir, autoload: false });
 	await client.start();
 	check('worker up', client.status.worker, 'up');
 	await client.load('embed');
@@ -313,7 +314,7 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	let progressed = false;
 	await client.transcribe('/x.wav', { on_progress: () => (progressed = true) });
 	check('progress forwarded', progressed);
-	const code = await client.embed_texts(['__crash__']).catch((e) => e.code);
+	const code = await client.embed_texts(['__crash__']).catch((e: Failure) => e.code);
 	check('crash rejects pending', code, 'WORKER_CRASHED');
 	await new Promise((r) => setTimeout(r, 1500));
 	check('auto restart', client.status.worker, 'up');

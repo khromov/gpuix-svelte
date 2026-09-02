@@ -1,44 +1,48 @@
 import { existsSync } from 'node:fs';
 import { extname } from 'node:path';
-import { track } from './lifecycle.js';
-import { decode_wav, header_duration, wav_header } from './wav.js';
+import { track } from './lifecycle.ts';
+import type { Failure } from './types.ts';
+import { decode_wav, header_duration, wav_header } from './wav.ts';
 
 export const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aac', '.ogg', '.opus', '.flac', '.aiff', '.aif', '.caf', '.webm', '.mp4', '.mov'];
 
-let ffmpeg;
+export interface LoadedAudio {
+	samples: Float32Array;
+	sampleRate: 16000;
+	duration: number;
+	via: 'wav' | 'ffmpeg';
+}
+
+let ffmpeg: string | null | undefined;
 
 /** A Finder-launched app gets a PATH without Homebrew, hence the fixed candidates. */
-export function ffmpeg_path() {
+export function ffmpeg_path(): string | null {
 	if (ffmpeg !== undefined) return ffmpeg;
 	const candidates = [process.env.GPUIX_BRAIN_FFMPEG, Bun.which('ffmpeg'), '/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg'];
 	ffmpeg = candidates.find((p) => p && existsSync(p)) ?? null;
 	return ffmpeg;
 }
 
-export function ffmpeg_available() {
+export function ffmpeg_available(): { ok: boolean; reason?: string } {
 	return ffmpeg_path() ? { ok: true } : { ok: false, reason: 'ffmpeg not on PATH — WAV import only (brew install ffmpeg)' };
 }
 
-/**
- * @param {string} path
- * @returns {Promise<{ samples: Float32Array, sampleRate: 16000, duration: number, via: 'wav' | 'ffmpeg' }>}
- */
-export async function load_audio(path) {
+export async function load_audio(path: string): Promise<LoadedAudio> {
 	if (extname(path).toLowerCase() === '.wav') {
 		try {
 			const { samples, duration } = decode_wav(await Bun.file(path).bytes());
 			return { samples, sampleRate: 16000, duration, via: 'wav' };
 		} catch (err) {
-			if (err.code !== 'EWAVFORMAT' || !ffmpeg_path()) throw err;
+			if ((err as Failure).code !== 'EWAVFORMAT' || !ffmpeg_path()) throw err;
 		}
 	}
 	return decode_with_ffmpeg(path);
 }
 
-async function decode_with_ffmpeg(path) {
+async function decode_with_ffmpeg(path: string): Promise<LoadedAudio> {
 	const bin = ffmpeg_path();
 	if (!bin) {
-		const err = new Error('ffmpeg not found — install it (brew install ffmpeg) or import WAV files');
+		const err: Failure = new Error('ffmpeg not found — install it (brew install ffmpeg) or import WAV files');
 		err.code = 'ENOFFMPEG';
 		throw err;
 	}
@@ -56,16 +60,11 @@ async function decode_with_ffmpeg(path) {
 	return { samples, sampleRate: 16000, duration: samples.length / 16000, via: 'ffmpeg' };
 }
 
-/**
- * Converts anything ffmpeg reads into the 16 kHz mono 16-bit WAV the worker wants.
- *
- * @param {string} src
- * @param {string} dest
- */
-export async function convert_to_wav(src, dest) {
+/** Converts anything ffmpeg reads into the 16 kHz mono 16-bit WAV the worker wants. */
+export async function convert_to_wav(src: string, dest: string) {
 	const bin = ffmpeg_path();
 	if (!bin) {
-		const err = new Error(`ffmpeg not found — install it (brew install ffmpeg) to import ${extname(src) || 'this'} files`);
+		const err: Failure = new Error(`ffmpeg not found — install it (brew install ffmpeg) to import ${extname(src) || 'this'} files`);
 		err.code = 'ENOFFMPEG';
 		throw err;
 	}
@@ -77,7 +76,7 @@ export async function convert_to_wav(src, dest) {
 }
 
 /** Header only; 0 when the file is not a WAV. */
-export async function wav_duration(path) {
+export async function wav_duration(path: string): Promise<number> {
 	try {
 		const file = Bun.file(path);
 		const head = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
@@ -87,8 +86,7 @@ export async function wav_duration(path) {
 	}
 }
 
-/** @param {string} path @returns {Promise<{ ok: boolean, sampleRate?: number, channels?: number, bits?: number }>} */
-export async function wav_is_pcm16_mono_16k(path) {
+export async function wav_is_pcm16_mono_16k(path: string): Promise<{ ok: boolean; sampleRate?: number; channels?: number; bits?: number }> {
 	try {
 		const file = Bun.file(path);
 		const h = wav_header(new Uint8Array(await file.slice(0, 65536).arrayBuffer()), file.size);

@@ -53,7 +53,9 @@ export const LIGHT = {
 	'scroller-thumb-hover': '#b3a488'
 };
 
-export const DARK = {
+export type Palette = typeof LIGHT;
+
+export const DARK: Palette = {
 	appearance: 'dark',
 	bg: '#1b1815',
 	surface: '#231f1b',
@@ -109,7 +111,7 @@ export const KIND_COLOR = {
 
 export const FONT = { sans: 'IBM Plex Sans', mono: 'Lilex' };
 
-function md(t) {
+function md(t: Palette) {
 	return {
 		appearance: t.appearance,
 		bg: t.surface,

@@ -1,9 +1,10 @@
-<script>
-	import { push } from '../lib/router.svelte.js';
-	import { KIND_ICON } from '../lib/icons.js';
+<script lang="ts">
+	import type { Source } from '../lib/ask.ts';
+	import { push } from '../lib/router.svelte.ts';
+	import { KIND_ICON } from '../lib/icons.ts';
 	import Icon from './Icon.svelte';
 
-	let { source, cited = false } = $props();
+	let { source, cited = false }: { source: Source; cited?: boolean } = $props();
 
 </script>
 

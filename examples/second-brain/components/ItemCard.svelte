@@ -1,17 +1,32 @@
-<script>
-	import { ago, display_title, get_app, preview, status_text } from '../lib/data.svelte.js';
-	import { match_ranges } from '../lib/rank.js';
-	import { resolved } from '../lib/theme.svelte.js';
+<script lang="ts">
+	import { ago, display_title, get_app, preview, status_text } from '../lib/data.svelte.ts';
+	import { match_ranges } from '../lib/rank.ts';
+	import type { Item } from '../lib/store.ts';
+	import { resolved } from '../lib/theme.svelte.ts';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import KindBadge from './KindBadge.svelte';
 	import Spinner from './Spinner.svelte';
 	import Thumb from './Thumb.svelte';
 
-	let { item, onopen, snippet = null, signals = null, terms = null, compact = false } = $props();
+	let {
+		item,
+		onopen,
+		snippet = null,
+		signals = null,
+		terms = null,
+		compact = false
+	}: {
+		item: Item;
+		onopen: (item: Item) => void;
+		snippet?: string | null;
+		signals?: string[] | null;
+		terms?: string[] | null;
+		compact?: boolean;
+	} = $props();
 
 	// A CLIP hit means the picture itself matched the words, which deserves saying.
-	const SIGNAL = { vector: 'semantic', fts: 'keyword', clip: 'visual match', url: 'address', kind: 'by kind' };
+	const SIGNAL: Record<string, string> = { vector: 'semantic', fts: 'keyword', clip: 'visual match', url: 'address', kind: 'by kind' };
 	// GPUI paints these behind matching text; the ochre reads on both palettes.
 	const MARK = { light: 'rgba(184, 130, 43, 0.35)', dark: 'rgba(217, 163, 74, 0.38)' };
 	const mode = $derived(resolved());
@@ -19,7 +34,7 @@
 	const failed = $derived(item.status === 'error');
 	const title = $derived(display_title(item));
 	const text = $derived(snippet ?? preview(item));
-	const mark = (s) => {
+	const mark = (s: string) => {
 		if (!terms?.length) return null;
 		const ranges = match_ranges(s, terms);
 		return ranges.length ? { ranges, color: MARK[mode], radius: 3 } : null;

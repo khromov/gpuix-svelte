@@ -1,16 +1,21 @@
-import { get_app } from './data.svelte.js';
+import type { Source } from './ask.ts';
+import { get_app } from './data.svelte.ts';
 
-/**
- * @typedef {{ id: number, role: 'user' | 'assistant', content: string, sources?: any[], cited?: number[],
- *   streaming?: boolean, error?: string | null }} ChatMessage
- */
+export interface ChatMessage {
+	id: number;
+	role: 'user' | 'assistant';
+	content: string;
+	sources?: Source[];
+	cited?: number[];
+	streaming?: boolean;
+	error?: string | null;
+}
 
-/** @type {{ messages: ChatMessage[], streaming: boolean, draft: string }} */
-export const chat = $state({ messages: [], streaming: false, draft: '' });
+export const chat = $state<{ messages: ChatMessage[]; streaming: boolean; draft: string }>({ messages: [], streaming: false, draft: '' });
 
-let controller = null;
+let controller: AbortController | null = null;
 
-export async function send(question) {
+export async function send(question: string) {
 	const q = question.trim();
 	if (!q || chat.streaming) return;
 	const app = get_app();
@@ -36,7 +41,7 @@ export async function send(question) {
 		});
 		Object.assign(msg, { content: result.answer, sources: result.sources, cited: result.cited, streaming: false });
 	} catch (err) {
-		Object.assign(msg, { streaming: false, error: err.name === 'AbortError' ? 'stopped' : err.message });
+		Object.assign(msg, { streaming: false, error: (err as Error).name === 'AbortError' ? 'stopped' : (err as Error).message });
 	} finally {
 		chat.streaming = false;
 		controller = null;

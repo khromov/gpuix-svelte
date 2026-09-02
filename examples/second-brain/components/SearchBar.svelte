@@ -1,9 +1,9 @@
-<script>
-	import { blur, get_native } from 'gpuix-svelte';
+<script lang="ts">
+	import { blur, get_native, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import SearchSuggest from './SearchSuggest.svelte';
-	import { push, replace, route } from '../lib/router.svelte.js';
-	import { focus, register, ui } from '../lib/ui.svelte.js';
+	import { push, replace, route } from '../lib/router.svelte.ts';
+	import { focus, register, ui } from '../lib/ui.svelte.ts';
 	import Icon from './Icon.svelte';
 	import IconButton from './IconButton.svelte';
 
@@ -15,9 +15,9 @@
 	];
 	let value = $state(route.query.q ?? '');
 	let focused = $state(false);
-	let node = null;
-	let timer = null;
-	let blur_timer = null;
+	let node: ShadowNode | null = null;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let blur_timer: ReturnType<typeof setTimeout> | undefined;
 
 	// Leaving the search route clears the box; typing on any route opens it.
 	$effect(() => {
@@ -25,20 +25,20 @@
 		else if (route.query.q !== undefined && route.query.q !== value.trim()) value = route.query.q;
 	});
 
-	function navigate(q) {
+	function navigate(q: string) {
 		const href = `/search?q=${encodeURIComponent(q)}`;
 		if (route.path === '/search') replace(href);
 		else push(href);
 	}
 
 	/** The last word decides: `k` offers `kind:`, `kind:` and `kind:im` offer the kinds. */
-	function suggestions_for(text) {
+	function suggestions_for(text: string) {
 		const at = text.lastIndexOf(' ');
 		const token = text.slice(at + 1).toLowerCase();
 		const head = text.slice(0, at + 1);
 		if (!token) return [];
 		// Completing `kind:` opens the kinds right away; completing a kind searches.
-		const complete = (word, done) => () => {
+		const complete = (word: string, done: boolean) => () => {
 			value = `${head}${word}${done ? ' ' : ''}`;
 			if (done) navigate(value.trim());
 			focus('search');
@@ -70,7 +70,7 @@
 		ui.suggest = { items, active: 0, left: x - 12, top: y + h + 6, width: w + 24 };
 	}
 
-	function change(text) {
+	function change(text: string) {
 		value = text;
 		show_suggestions();
 		clearTimeout(timer);
@@ -79,7 +79,7 @@
 		}, 200);
 	}
 
-	function submit(text) {
+	function submit(text: string) {
 		clearTimeout(timer);
 		value = text;
 		ui.suggest = null;
@@ -94,7 +94,7 @@
 	}
 
 	// Arrows move through the completions and Tab takes one; Enter still searches.
-	function onkey(e) {
+	function onkey(e: GpuixEvent) {
 		if (e.key === 'escape') return ui.suggest ? (ui.suggest = null) : clear();
 		const s = ui.suggest;
 		if (!s) return;
@@ -121,7 +121,7 @@
 <div class="search" class:focused>
 	<Icon name="search" size={15} tone="faint" />
 	<input
-		{@attach (n) => {
+		{@attach (n: ShadowNode) => {
 			node = n;
 			register('search', n);
 		}}

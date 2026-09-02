@@ -3,16 +3,37 @@
  * LM Studio all speak this, differing only in how much of the base URL they expect.
  */
 
-import { friendly_fetch_error } from './scrape.js';
+import type { Cap } from './capabilities.ts';
+import { friendly_fetch_error } from './scrape.ts';
 
-/**
- * @typedef {{ baseUrl: string, apiKey?: string, model: string, timeoutMs?: number }} LlmConfig
- * @typedef {{ role: 'system' | 'user' | 'assistant', content: string | Array<{ type: 'text', text: string } |
- *   { type: 'image_url', image_url: { url: string, detail?: 'low' | 'high' | 'auto' } }> }} Message
- */
+export interface LlmConfig {
+	baseUrl: string;
+	apiKey?: string;
+	model: string;
+	timeoutMs?: number;
+}
+
+export type MessageContent =
+	| string
+	| Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } }>;
+
+export interface Message {
+	role: 'system' | 'user' | 'assistant';
+	content: MessageContent;
+}
+
+export interface ChatOptions {
+	stream?: boolean;
+	signal?: AbortSignal;
+	onDelta?: (delta: string, full: string) => void;
+	temperature?: number;
+	maxTokens?: number;
+}
+
+export type Llm = ReturnType<typeof create_llm>;
 
 /** `http://localhost:11434` and a pasted `…/v1/chat/completions` both end up as `…/v1`. */
-export function normalize_base_url(input) {
+export function normalize_base_url(input: string | null | undefined): string {
 	let url = (input ?? '').trim().replace(/\/+$/, '');
 	if (!url) return '';
 	if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
@@ -21,23 +42,23 @@ export function normalize_base_url(input) {
 	return url;
 }
 
-/** @returns {LlmConfig | null} */
-export function llm_config_from_env() {
+export function llm_config_from_env(): LlmConfig | null {
 	const baseUrl = process.env.GPUIX_BRAIN_LLM_URL;
 	const model = process.env.GPUIX_BRAIN_LLM_MODEL;
 	if (!baseUrl || !model) return null;
 	return { baseUrl: normalize_base_url(baseUrl), apiKey: process.env.GPUIX_BRAIN_LLM_KEY ?? '', model };
 }
 
-/** @param {LlmConfig | null} config */
-export function llm_available(config) {
+export function llm_available(config: LlmConfig | null): Cap {
 	if (!config?.baseUrl || !config?.model) return { ok: false, reason: 'no LLM configured — set a base URL and model in Settings' };
 	return { ok: true };
 }
 
 export class LlmError extends Error {
-	/** @param {string} message @param {{ status?: number, code?: string, cause?: unknown }} [extra] */
-	constructor(message, { status = 0, code = 'LLM', cause } = {}) {
+	declare status: number;
+	declare code: string;
+
+	constructor(message: string, { status = 0, code = 'LLM', cause }: { status?: number; code?: string; cause?: unknown } = {}) {
 		super(message);
 		this.name = 'LlmError';
 		this.status = status;
@@ -46,18 +67,13 @@ export class LlmError extends Error {
 	}
 }
 
-/**
- * One `data:` payload per event, buffered across chunk boundaries.
- *
- * @param {ReadableStream<Uint8Array>} body
- * @returns {AsyncGenerator<string>}
- */
-export async function* parse_sse(body) {
+/** One `data:` payload per event, buffered across chunk boundaries. */
+export async function* parse_sse(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
 	const decoder = new TextDecoder();
 	let buf = '';
-	let data = [];
+	let data: string[] = [];
 
-	const take = (line) => {
+	const take = (line: string): string | null => {
 		if (line.endsWith('\r')) line = line.slice(0, -1);
 		if (line === '') {
 			const event = data.length ? data.join('\n') : null;
@@ -87,7 +103,7 @@ export async function* parse_sse(body) {
 	if (data.length) yield data.join('\n');
 }
 
-function host_of(url) {
+function host_of(url: string): string {
 	try {
 		return new URL(url).host;
 	} catch {
@@ -95,12 +111,7 @@ function host_of(url) {
 	}
 }
 
-/**
- * @param {number} status
- * @param {string} body
- * @param {{ url: string, baseUrl: string, model: string }} ctx
- */
-export function friendly_http_error(status, body, { url, baseUrl, model }) {
+export function friendly_http_error(status: number, body: string, { url, baseUrl, model }: { url: string; baseUrl: string; model: string }): LlmError {
 	const host = host_of(url);
 	let detail = '';
 	try {
@@ -108,7 +119,7 @@ export function friendly_http_error(status, body, { url, baseUrl, model }) {
 	} catch {
 		detail = body.slice(0, 200);
 	}
-	let message;
+	let message: string;
 	if (status === 401 || status === 403) message = `API key rejected by ${host}`;
 	else if (status === 404 && /model/i.test(detail)) {
 		message = `model "${model}" not found on ${host}`;
@@ -124,24 +135,21 @@ export function friendly_http_error(status, body, { url, baseUrl, model }) {
 const DESCRIBE_PROMPT =
 	'Describe this image in two or three sentences. Transcribe any visible text verbatim. End with a line starting "Tags:" and three to six comma-separated tags.';
 
-/**
- * @param {LlmConfig} config
- */
-export function create_llm(config) {
+export function create_llm(config: LlmConfig) {
 	const baseUrl = normalize_base_url(config.baseUrl);
 	const timeoutMs = config.timeoutMs ?? 120_000;
 
-	const headers = () => {
-		const h = { 'Content-Type': 'application/json', 'X-Title': 'Substrate' };
+	const headers = (): Record<string, string> => {
+		const h: Record<string, string> = { 'Content-Type': 'application/json', 'X-Title': 'Substrate' };
 		if (config.apiKey) h.Authorization = `Bearer ${config.apiKey}`;
 		return h;
 	};
 
-	const request = async (path, init, signal) => {
+	const request = async (path: string, init: RequestInit, signal?: AbortSignal): Promise<Response> => {
 		const url = `${baseUrl}${path}`;
 		const signals = [AbortSignal.timeout(timeoutMs)];
 		if (signal) signals.push(signal);
-		let res;
+		let res: Response;
 		try {
 			res = await fetch(url, { ...init, headers: headers(), signal: AbortSignal.any(signals) });
 		} catch (err) {
@@ -159,20 +167,14 @@ export function create_llm(config) {
 		return res;
 	};
 
-	/**
-	 * @param {Message[]} messages
-	 * @param {{ stream?: boolean, signal?: AbortSignal, onDelta?: (delta: string, full: string) => void,
-	 *   temperature?: number, maxTokens?: number }} [opts]
-	 * @returns {Promise<string>}
-	 */
-	async function chat(messages, { stream = true, signal, onDelta, temperature = 0.2, maxTokens } = {}) {
-		const body = { model: config.model, messages, stream, temperature };
+	async function chat(messages: Message[], { stream = true, signal, onDelta, temperature = 0.2, maxTokens }: ChatOptions = {}): Promise<string> {
+		const body: Record<string, unknown> = { model: config.model, messages, stream, temperature };
 		if (maxTokens) body.max_tokens = maxTokens;
 		const res = await request('/chat/completions', { method: 'POST', body: JSON.stringify(body) }, signal);
 
 		const type = (res.headers.get('content-type') ?? '').toLowerCase();
 		if (!stream || type.includes('application/json')) {
-			const json = await res.json();
+			const json: any = await res.json();
 			if (json.error) throw new LlmError(json.error.message ?? String(json.error));
 			const text = json.choices?.[0]?.message?.content ?? '';
 			onDelta?.(text, text);
@@ -180,7 +182,7 @@ export function create_llm(config) {
 		}
 
 		let full = '';
-		for await (const payload of parse_sse(res.body)) {
+		for await (const payload of parse_sse(res.body!)) {
 			if (payload === '[DONE]') break;
 			let obj;
 			try {
@@ -197,10 +199,10 @@ export function create_llm(config) {
 		return full;
 	}
 
-	async function models() {
+	async function models(): Promise<string[]> {
 		const res = await request('/models', { method: 'GET' });
-		const json = await res.json();
-		const list = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : [];
+		const json: any = await res.json();
+		const list: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : [];
 		return list.map((m) => m.id ?? m.name).filter(Boolean).sort();
 	}
 
@@ -209,11 +211,7 @@ export function create_llm(config) {
 		return { ok: true, models: list, modelListed: list.includes(config.model) };
 	}
 
-	/**
-	 * @param {Uint8Array} bytes
-	 * @param {{ prompt?: string, signal?: AbortSignal }} [opts]
-	 */
-	async function describe_image(bytes, { prompt = DESCRIBE_PROMPT, signal } = {}) {
+	async function describe_image(bytes: Uint8Array, { prompt = DESCRIBE_PROMPT, signal }: { prompt?: string; signal?: AbortSignal } = {}): Promise<string> {
 		const webp = await new Bun.Image(bytes).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).bytes();
 		const url = `data:image/webp;base64,${Buffer.from(webp).toString('base64')}`;
 		return chat(
@@ -222,8 +220,7 @@ export function create_llm(config) {
 		);
 	}
 
-	/** @param {string} text @param {{ maxWords?: number, signal?: AbortSignal }} [opts] */
-	async function summarize(text, { maxWords = 120, signal } = {}) {
+	async function summarize(text: string, { maxWords = 120, signal }: { maxWords?: number; signal?: AbortSignal } = {}): Promise<string> {
 		return chat(
 			[
 				{ role: 'system', content: `Summarize the user's text in three to five bullet points, at most ${maxWords} words in total. Plain markdown, no preamble.` },
@@ -233,8 +230,7 @@ export function create_llm(config) {
 		);
 	}
 
-	/** @param {string} text @param {{ signal?: AbortSignal }} [opts] */
-	async function suggest_title(text, { signal } = {}) {
+	async function suggest_title(text: string, { signal }: { signal?: AbortSignal } = {}): Promise<string> {
 		const raw = await chat(
 			[
 				{ role: 'system', content: 'Reply with only a title for the text: at most eight words, no quotes, no trailing period.' },

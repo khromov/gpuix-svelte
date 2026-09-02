@@ -1,37 +1,42 @@
-import { track } from './lifecycle.js';
+import { track } from './lifecycle.ts';
 
-const UTIS = {
+export type FileKinds = 'image' | 'audio' | 'wav' | 'any';
+
+interface ChooseOptions {
+	kinds: FileKinds;
+	multiple: boolean;
+	prompt: string;
+}
+
+const UTIS: Partial<Record<FileKinds, string>> = {
 	image: '{"public.image"}',
 	audio: '{"public.audio", "public.movie"}',
 	wav: '{"com.microsoft.waveform-audio"}'
 };
 
-const LINUX_FILTERS = {
+const LINUX_FILTERS: Partial<Record<FileKinds, string>> = {
 	image: 'Images | *.png *.jpg *.jpeg *.gif *.webp *.bmp *.heic *.tiff',
 	audio: 'Audio | *.wav *.mp3 *.m4a *.aac *.ogg *.opus *.flac *.aiff *.webm *.mp4',
 	wav: 'WAV | *.wav'
 };
 
-export function picker_available() {
+export function picker_available(): { ok: boolean; reason?: string } {
 	if (process.platform === 'darwin') return { ok: true };
 	if (process.platform === 'linux' && (Bun.which('zenity') || Bun.which('kdialog'))) return { ok: true };
 	return { ok: false, reason: `no file picker on ${process.platform} — type a path instead` };
 }
 
-/**
- * @param {{ kinds?: 'image' | 'audio' | 'wav' | 'any', multiple?: boolean, prompt?: string }} [opts]
- * @returns {Promise<string[]>} empty on cancel
- */
-export async function choose_files({ kinds = 'any', multiple = false, prompt = 'Add to Substrate' } = {}) {
+/** Empty on cancel. */
+export async function choose_files({ kinds = 'any', multiple = false, prompt = 'Add to Substrate' }: Partial<ChooseOptions> = {}): Promise<string[]> {
 	if (process.platform === 'darwin') return choose_mac({ kinds, multiple, prompt });
 	if (process.platform === 'linux') return choose_linux({ kinds, multiple, prompt });
 	throw new Error(picker_available().reason);
 }
 
-const escape_applescript = (s) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+const escape_applescript = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
 /** `as list` makes the single-selection alias and the multi-selection list read the same. */
-async function choose_mac({ kinds, multiple, prompt }) {
+async function choose_mac({ kinds, multiple, prompt }: ChooseOptions): Promise<string[]> {
 	const types = UTIS[kinds] ? ` of type ${UTIS[kinds]}` : '';
 	const selections = `${multiple ? 'with' : 'without'} multiple selections allowed`;
 	const lines = [
@@ -50,8 +55,8 @@ async function choose_mac({ kinds, multiple, prompt }) {
 	return stdout.split('\n').map((s) => s.trim()).filter(Boolean);
 }
 
-async function choose_linux({ kinds, multiple, prompt }) {
-	let cmd;
+async function choose_linux({ kinds, multiple, prompt }: ChooseOptions): Promise<string[]> {
+	let cmd: string[];
 	if (Bun.which('zenity')) {
 		cmd = ['zenity', '--file-selection', `--title=${prompt}`];
 		if (multiple) cmd.push('--multiple', '--separator=\n');
@@ -66,7 +71,7 @@ async function choose_linux({ kinds, multiple, prompt }) {
 	return stdout.split('\n').map((s) => s.trim()).filter(Boolean);
 }
 
-async function run(cmd) {
+async function run(cmd: string[]) {
 	const proc = track(Bun.spawn(cmd, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' }));
 	const [stdout, stderr, code] = await Promise.all([
 		new Response(proc.stdout).text(),

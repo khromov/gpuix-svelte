@@ -1,15 +1,16 @@
-<script>
+<script lang="ts">
 	import EmptyState from '../components/EmptyState.svelte';
 	import Icon from '../components/Icon.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
-	import { data, get_app } from '../lib/data.svelte.js';
-	import { parse_query } from '../lib/rank.js';
-	import { push, replace } from '../lib/router.svelte.js';
+	import { data, get_app } from '../lib/data.svelte.ts';
+	import { parse_query } from '../lib/rank.ts';
+	import { push, replace } from '../lib/router.svelte.ts';
+	import type { App } from '../lib/app.ts';
 
-	let { query } = $props();
+	let { query }: { query: Record<string, string> } = $props();
 
 	// Primitives, so a same-valued `data.ml` / `data.counts` reassignment does not re-run the search.
 	const model_states = $derived(`${data.ml.embed?.state}/${data.ml.clip?.state}`);
@@ -22,17 +23,17 @@
 		{ value: 'image', label: 'Images' },
 		{ value: 'audio', label: 'Audio' }
 	];
-	const KIND_WORD = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
+	const KIND_WORD: Record<string, string> = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
 	const q = $derived((query?.q ?? '').trim());
 	const parsed = $derived(parse_query(q));
 	let filter = $state('all');
 	// A kind: in the query is the filter; the segmented control mirrors it.
 	const active = $derived(parsed.kinds ? (parsed.kinds.length === 1 ? parsed.kinds[0] : 'all') : filter);
-	let result = $state({ hits: [], degraded: [], terms: [], kinds: null, text: '' });
+	let result = $state<Awaited<ReturnType<App['search']>>>({ hits: [], degraded: [], terms: [], kinds: null, text: '' });
 	let loading = $state(false);
 	let generation = 0;
 
-	function choose(value) {
+	function choose(value: string) {
 		if (parsed.kinds) {
 			const text = value === 'all' ? parsed.text : `${parsed.text} kind:${KIND_WORD[value]}`.trim();
 			replace(`/search?q=${encodeURIComponent(text)}`);

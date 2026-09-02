@@ -1,8 +1,9 @@
-<script>
-	import { KIND_ICON } from '../lib/icons.js';
+<script lang="ts">
+	import { KIND_ICON } from '../lib/icons.ts';
+	import type { Item } from '../lib/store.ts';
 	import Icon from './Icon.svelte';
 
-	let { item, size = 52 } = $props();
+	let { item, size = 52 }: { item: Item; size?: number } = $props();
 
 </script>
 

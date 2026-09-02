@@ -1,7 +1,7 @@
-<script>
-	import { data } from '../lib/data.svelte.js';
-	import { push, route } from '../lib/router.svelte.js';
-	import { set_mode, theme } from '../lib/theme.svelte.js';
+<script lang="ts">
+	import { data } from '../lib/data.svelte.ts';
+	import { push, route } from '../lib/router.svelte.ts';
+	import { set_mode, theme } from '../lib/theme.svelte.ts';
 	import { blur } from 'gpuix-svelte';
 	import Icon from './Icon.svelte';
 	import NavItem from './NavItem.svelte';

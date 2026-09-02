@@ -1,14 +1,17 @@
 /**
- * Speaks ml/worker.js's protocol with hash vectors, so the client's spawn, IPC,
+ * Speaks ml/worker.ts's protocol with hash vectors, so the client's spawn, IPC,
  * typed-array transport and crash recovery run for real without a model.
  */
 
-import { hash_vec } from '../lib/ml-stub.js';
+import type { ModelName, WorkerHandlers, WorkerJob, WorkerMessage, WorkerRequest } from '../lib/ml-client.ts';
+import { hash_vec } from '../lib/ml-stub.ts';
 
-const send = (msg) => process.send?.(msg);
-const ready = new Set();
+type Handler = (msg: WorkerJob, id: number) => unknown;
 
-const handlers = {
+const send = (msg: WorkerMessage) => process.send?.(msg);
+const ready = new Set<ModelName>();
+
+const handlers: Omit<WorkerHandlers, 'unload'> = {
 	load({ model }) {
 		send({ type: 'status', model, state: 'downloading', progress: 50, file: 'fake.onnx' });
 		ready.add(model);
@@ -38,13 +41,13 @@ const handlers = {
 	}
 };
 
-process.on('message', async (msg) => {
+process.on('message', async (msg: WorkerRequest) => {
 	if (msg?.type === 'shutdown') process.exit(0);
 	try {
-		const result = await handlers[msg.type](msg, msg.id);
+		const result = await (handlers[msg.type as keyof typeof handlers] as Handler)(msg, msg.id);
 		send({ id: msg.id, ok: true, result });
 	} catch (err) {
-		send({ id: msg.id, ok: false, error: { message: err.message, code: 'INFERENCE', transient: false } });
+		send({ id: msg.id, ok: false, error: { message: (err as Error).message, code: 'INFERENCE', transient: false } });
 	}
 });
 process.on('disconnect', () => process.exit(0));

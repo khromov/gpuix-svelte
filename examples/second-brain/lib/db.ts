@@ -61,8 +61,7 @@ END;
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
-/** @param {string} path */
-export function open_db(path) {
+export function open_db(path: string): Database {
 	const db = new Database(path, { create: true, strict: true });
 	// NORMAL is enough: the window closes by process.exit, not a power cut.
 	db.run('PRAGMA journal_mode = WAL');
@@ -74,9 +73,8 @@ export function open_db(path) {
 	return db;
 }
 
-/** @param {Database} db @returns {number} */
-export function migrate(db) {
-	let version = db.query('PRAGMA user_version').get().user_version;
+export function migrate(db: Database): number {
+	let version = db.query<{ user_version: number }, []>('PRAGMA user_version').get()!.user_version;
 	while (version < MIGRATIONS.length) {
 		const next = version + 1;
 		db.transaction(() => {

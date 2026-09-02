@@ -5,13 +5,13 @@
  */
 
 if (!process.versions.bun) {
-	console.error('[doctor] needs Bun — `npm run brain:doctor` runs `bun examples/second-brain/ml/doctor.js`');
+	console.error('[doctor] needs Bun — `npm run brain:doctor` runs `bun examples/second-brain/ml/doctor.ts`');
 	process.exit(1);
 }
 
 const t0 = performance.now();
-const lap = (label, since) => console.log(`[doctor] ${label}: ${(performance.now() - since).toFixed(0)} ms`);
-const progress = (p) => {
+const lap = (label: string, since: number) => console.log(`[doctor] ${label}: ${(performance.now() - since).toFixed(0)} ms`);
+const progress = (p: { status: string; file?: string; progress?: number }) => {
 	if (p.status === 'progress') process.stdout.write(`\r  ${p.file} ${p.progress?.toFixed(0)}%   `);
 	if (p.status === 'done') process.stdout.write(`\r  ${p.file} done          \n`);
 };
@@ -45,9 +45,9 @@ const e = await embed(
 	['search_document: Substrate remembers everything you pour into it.', 'search_query: what does substrate remember?'],
 	{ pooling: 'mean', normalize: true }
 );
-const dim = e.dims[1];
-const a = e.data.subarray(0, dim);
-const b = e.data.subarray(dim, 2 * dim);
+const dim: number = e.dims[1];
+const a: Float32Array = e.data.subarray(0, dim);
+const b: Float32Array = e.data.subarray(dim, 2 * dim);
 let dot = 0;
 for (let i = 0; i < dim; i++) dot += a[i] * b[i];
 console.log(`[doctor] embed dims ${JSON.stringify(e.dims)} | cosine(doc, query) = ${dot.toFixed(3)}`);
@@ -55,7 +55,7 @@ lap('embed infer', s);
 
 s = performance.now();
 const sharp = (await import('sharp')).default;
-const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#e08030' } })
+const png: Buffer = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#e08030' } })
 	.png()
 	.toBuffer();
 console.log(`[doctor] sharp ok, ${png.length}-byte png`);

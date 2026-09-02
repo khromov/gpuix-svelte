@@ -30,12 +30,13 @@ import {
 	check,
 	finish
 } from 'gpuix-svelte/test';
-import { create_app } from '../lib/app.js';
-import { MlStub } from '../lib/ml-stub.js';
-import { route } from '../lib/router.svelte.js';
-import { DARK, LIGHT } from '../lib/theme.js';
-import { set_mode } from '../lib/theme.svelte.js';
-import { ui } from '../lib/ui.svelte.js';
+import type { ClickOptions } from 'gpuix-svelte/test';
+import { create_app } from '../lib/app.ts';
+import { MlStub } from '../lib/ml-stub.ts';
+import { route } from '../lib/router.svelte.ts';
+import { DARK, LIGHT } from '../lib/theme.ts';
+import { set_mode } from '../lib/theme.svelte.ts';
+import { ui } from '../lib/ui.svelte.ts';
 
 const app = await create_app({ data_dir: mkdtempSync(join(tmpdir(), 'substrate-smoke-')), ml: new MlStub(), seed: true });
 await app.ingest.idle();
@@ -45,7 +46,7 @@ const App = (await import('../App.svelte')).default;
 const { native } = mount_headless(App, { props: { app }, width: 1100, height: 538 });
 
 /** A click, then the timers and dynamic imports a route change runs through. */
-async function tap(text, opts) {
+async function tap(text: string, opts?: ClickOptions) {
 	click_text(text, opts);
 	await wait();
 }
@@ -57,7 +58,7 @@ check('seeded note painted', painted().includes('Compost notes'));
 check('sidebar counts painted', painted().includes('Everything'));
 
 // The palette reaches every <style> through set_css_vars, so a mode switch is one restyle.
-const root_bg = () => find_test_id('root').style.backgroundColor;
+const root_bg = () => find_test_id('root')!.style!.backgroundColor;
 check('dark palette applied through css vars', root_bg(), DARK.bg);
 set_mode('light');
 await wait();
@@ -67,7 +68,7 @@ await wait();
 
 const textarea = find((n) => n.type === 'textarea');
 check('capture textarea exists', textarea != null);
-dispatch({ elementId: textarea.id, eventType: 'change', value: 'Buy compost for the raised beds' });
+dispatch({ elementId: textarea!.id, eventType: 'change', value: 'Buy compost for the raised beds' });
 await wait();
 await tap('Save');
 await app.ingest.idle();
@@ -93,8 +94,8 @@ check('brand click goes home', route.path, '/');
 
 // Typing `k` into the search box offers `kind:`; picking a kind completes and searches.
 const search_input = find((n) => n.type === 'input');
-focus(search_input);
-dispatch({ elementId: search_input.id, eventType: 'change', value: 'k' });
+focus(search_input!);
+dispatch({ elementId: search_input!.id, eventType: 'change', value: 'k' });
 await wait();
 check('typing k suggests kind:', ui.suggest?.items.map((i) => i.label).join(','), 'kind:');
 check('suggestion painted', painted().includes('filter by kind — note, link, image or audio'));
@@ -106,7 +107,7 @@ check('completion searches by kind', route.path === '/search' && route.query.q, 
 check('kind listing paints the image', painted().includes('Tic-tac-toe icon'));
 // Escape in the box clears it; the window handler sees `editing` and leaves the route
 // alone. blur() is a no-op headlessly, so unfocus() stands in for the box letting go.
-focus(search_input);
+focus(search_input!);
 press('escape');
 await wait();
 check('escape clears the search box', route.path, '/search');

@@ -1,18 +1,27 @@
-import { ffmpeg_available } from './audio.js';
-import { clipboard_available } from './clipboard.js';
-import { picker_available } from './dialogs.js';
-import { llm_available } from './llm.js';
-import { player_available } from './player.js';
-import { init_recorder, recorder_available } from './recorder.js';
+import { ffmpeg_available } from './audio.ts';
+import { clipboard_available } from './clipboard.ts';
+import { picker_available } from './dialogs.ts';
+import { llm_available, type LlmConfig } from './llm.ts';
+import { player_available } from './player.ts';
+import { init_recorder, recorder_available } from './recorder.ts';
 
-/** @typedef {{ ok: boolean, reason?: string }} Cap */
+export interface Cap {
+	ok: boolean;
+	reason?: string;
+}
 
-/**
- * @param {{ llmConfig?: import('./llm.js').LlmConfig | null }} [opts]
- * @returns {Promise<{ platform: string, recorder: Cap, ffmpeg: Cap, clipboardImage: Cap, clipboardText: Cap,
- *   filePicker: Cap, player: Cap, llm: Cap }>}
- */
-export async function capabilities({ llmConfig = null } = {}) {
+export interface Capabilities {
+	platform: string;
+	recorder: Cap;
+	ffmpeg: Cap;
+	clipboardImage: Cap;
+	clipboardText: Cap;
+	filePicker: Cap;
+	player: Cap;
+	llm: Cap;
+}
+
+export async function capabilities({ llmConfig = null }: { llmConfig?: LlmConfig | null } = {}): Promise<Capabilities> {
 	await init_recorder();
 	const clipboard = clipboard_available();
 	return {

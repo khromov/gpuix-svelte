@@ -4,24 +4,35 @@
  * chunk before `data`, and a recorder that was killed leaves `data` sized 0.
  */
 
-/**
- * @typedef {{ formatTag: number, channels: number, sampleRate: number, bitsPerSample: number,
- *   blockAlign: number, dataOffset: number, dataLength: number }} WavHeader
- */
+import type { Failure } from './types.ts';
 
-/**
- * @param {Uint8Array} bytes the file, or its first 64 KiB together with `fileSize`
- * @param {number} [fileSize]
- * @returns {WavHeader}
- */
-export function wav_header(bytes, fileSize = bytes.length) {
+export interface WavHeader {
+	formatTag: number;
+	channels: number;
+	sampleRate: number;
+	bitsPerSample: number;
+	blockAlign: number;
+	dataOffset: number;
+	dataLength: number;
+}
+
+export interface DecodedWav {
+	samples: Float32Array;
+	sampleRate: number;
+	duration: number;
+	sourceRate: number;
+	channels: number;
+}
+
+/** `bytes` is the file, or its first 64 KiB together with `fileSize`. */
+export function wav_header(bytes: Uint8Array, fileSize = bytes.length): WavHeader {
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-	const tag = (at) => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
+	const tag = (at: number) => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
 
 	if (bytes.length < 12 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('not a RIFF/WAVE file');
 
-	let fmt = null;
-	let data = null;
+	let fmt: Omit<WavHeader, 'dataOffset' | 'dataLength'> | null = null;
+	let data: Pick<WavHeader, 'dataOffset' | 'dataLength'> | null = null;
 	let at = 12;
 
 	while (at + 8 <= bytes.length) {
@@ -53,23 +64,17 @@ export function wav_header(bytes, fileSize = bytes.length) {
 	return { ...fmt, ...data };
 }
 
-/** @param {WavHeader} header */
-export const header_duration = (header) =>
+export const header_duration = (header: WavHeader) =>
 	header.sampleRate > 0 ? header.dataLength / (header.sampleRate * header.channels * (header.bitsPerSample >> 3)) : 0;
 
-/**
- * @param {Uint8Array} bytes
- * @param {{ targetRate?: number }} [opts]
- * @returns {{ samples: Float32Array, sampleRate: number, duration: number, sourceRate: number, channels: number }}
- */
-export function decode_wav(bytes, { targetRate = 16000 } = {}) {
+export function decode_wav(bytes: Uint8Array, { targetRate = 16000 }: { targetRate?: number } = {}): DecodedWav {
 	const h = wav_header(bytes);
 	const view = new DataView(bytes.buffer, bytes.byteOffset + h.dataOffset, h.dataLength);
 	const { formatTag, channels, bitsPerSample } = h;
 	const bytesPer = bitsPerSample >> 3;
 	const frames = Math.floor(h.dataLength / (bytesPer * channels));
 
-	let read;
+	let read: (o: number) => number;
 	if (formatTag === 1 && bitsPerSample === 8) read = (o) => (view.getUint8(o) - 128) / 128;
 	else if (formatTag === 1 && bitsPerSample === 16) read = (o) => view.getInt16(o, true) / 32768;
 	else if (formatTag === 1 && bitsPerSample === 24)
@@ -78,7 +83,7 @@ export function decode_wav(bytes, { targetRate = 16000 } = {}) {
 	else if (formatTag === 3 && bitsPerSample === 32) read = (o) => view.getFloat32(o, true);
 	else if (formatTag === 3 && bitsPerSample === 64) read = (o) => view.getFloat64(o, true);
 	else {
-		const err = new Error(`unsupported WAV: format ${formatTag}, ${bitsPerSample}-bit`);
+		const err: Failure = new Error(`unsupported WAV: format ${formatTag}, ${bitsPerSample}-bit`);
 		err.code = 'EWAVFORMAT';
 		throw err;
 	}
@@ -98,12 +103,8 @@ export function decode_wav(bytes, { targetRate = 16000 } = {}) {
 /**
  * Box-averaging on the way down is a crude anti-alias filter, but the 44.1k → 16k
  * case is what matters and speech survives it fine.
- *
- * @param {Float32Array} samples
- * @param {number} fromRate
- * @param {number} toRate
  */
-export function resample(samples, fromRate, toRate) {
+export function resample(samples: Float32Array, fromRate: number, toRate: number): Float32Array {
 	if (fromRate === toRate || samples.length === 0) return samples;
 	const ratio = fromRate / toRate;
 	const length = Math.max(1, Math.round(samples.length / ratio));
@@ -133,18 +134,12 @@ export function resample(samples, fromRate, toRate) {
 	return out;
 }
 
-/**
- * 16-bit PCM with the classic 44-byte header.
- *
- * @param {Float32Array} samples interleaved when `channels > 1`
- * @param {number} [sampleRate]
- * @param {number} [channels]
- */
-export function encode_wav(samples, sampleRate = 16000, channels = 1) {
+/** 16-bit PCM with the classic 44-byte header; `samples` are interleaved when `channels > 1`. */
+export function encode_wav(samples: Float32Array, sampleRate = 16000, channels = 1): Uint8Array {
 	const dataLength = samples.length * 2;
 	const bytes = new Uint8Array(44 + dataLength);
 	const view = new DataView(bytes.buffer);
-	const str = (at, s) => {
+	const str = (at: number, s: string) => {
 		for (let i = 0; i < s.length; i++) bytes[at + i] = s.charCodeAt(i);
 	};
 

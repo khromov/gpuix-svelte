@@ -4,7 +4,26 @@
  * whole document, so it is pure and fixture-testable.
  */
 
-import { warn } from './log.js';
+import { warn } from './log.ts';
+import type { Failure, Fetcher } from './types.ts';
+
+export interface PageData {
+	title: string;
+	siteName: string;
+	description: string;
+	imageUrl: string | null;
+	canonical: string | null;
+	lang: string;
+	text: string;
+	candidates: Array<{ name: string; chars: number }>;
+}
+
+export type ScrapedPage = PageData & { url: string; contentType: string; truncated: boolean };
+
+interface Span {
+	start: number;
+	end: number;
+}
 
 const UA =
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 Substrate/0.1';
@@ -29,7 +48,7 @@ const BLOCK_TAGS = new Set([
 	'header', 'footer', 'aside', 'nav', 'address', 'details', 'summary', 'hr'
 ]);
 
-const ENTITIES = {
+const ENTITIES: Record<string, string> = {
 	amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', copy: '©',
 	reg: '®', trade: '™', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', laquo: '«', raquo: '»', bull: '•', middot: '·',
 	times: '×', deg: '°', euro: '€', pound: '£', yen: '¥', sect: '§', para: '¶', shy: '', ensp: ' ', emsp: ' ', thinsp: ' ',
@@ -39,9 +58,8 @@ const ENTITIES = {
 	agrave: 'à', ccedil: 'ç', ntilde: 'ñ'
 };
 
-/** @param {string} s */
-export function decode_entities(s) {
-	return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (match, body) => {
+export function decode_entities(s: string): string {
+	return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (match, body: string) => {
 		if (body[0] === '#') {
 			const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
 			return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
@@ -50,7 +68,7 @@ export function decode_entities(s) {
 	});
 }
 
-const tidy = (s) =>
+const tidy = (s: string) =>
 	s
 		.replace(/\r/g, '')
 		.replace(/[ \t\f\v ]+/g, ' ')
@@ -62,15 +80,15 @@ const tidy = (s) =>
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();
 
-function truncate(text, max) {
+function truncate(text: string, max: number): string {
 	if (text.length <= max) return text;
 	const cut = text.lastIndexOf('\n', max);
 	return text.slice(0, cut > max / 2 ? cut : max) + '\n\n[truncated]';
 }
 
-const nonblank = (tokens) => tokens.join('').replace(/\s+/g, '').length;
+const nonblank = (tokens: string[]) => tokens.join('').replace(/\s+/g, '').length;
 
-function resolve(href, base) {
+function resolve(href: string | null | undefined, base: string): string | null {
 	if (!href) return null;
 	try {
 		return new URL(href, base).href;
@@ -79,21 +97,11 @@ function resolve(href, base) {
 	}
 }
 
-/**
- * @typedef {{ title: string, siteName: string, description: string, imageUrl: string | null,
- *   canonical: string | null, lang: string, text: string, candidates: Array<{ name: string, chars: number }> }} PageData
- */
-
-/**
- * @param {string} html
- * @param {{ baseUrl?: string, maxChars?: number }} [opts]
- * @returns {PageData}
- */
-export function extract(html, { baseUrl = 'http://localhost/', maxChars = 200_000 } = {}) {
-	const meta = { title: '', og: {}, twitter: {}, description: '', canonical: '', lang: '', base: '' };
-	const out = [];
-	const candidates = [];
-	const headings = [];
+export function extract(html: string, { baseUrl = 'http://localhost/', maxChars = 200_000 }: { baseUrl?: string; maxChars?: number } = {}): PageData {
+	const meta = { title: '', og: {} as Record<string, string>, twitter: {} as Record<string, string>, description: '', canonical: '', lang: '', base: '' };
+	const out: string[] = [];
+	const candidates: Array<Span & { name: string }> = [];
+	const headings: Array<Span & { level: number }> = [];
 	let skip = 0;
 	let pre = 0;
 	let textBuf = '';
@@ -103,11 +111,11 @@ export function extract(html, { baseUrl = 'http://localhost/', maxChars = 200_00
 	// element (a later onEndTag replaces the earlier one), so the `*` handler below
 	// is the single place that registers it.
 	const flags = { drop: false, candidate: false };
-	const attr = (el, name) => {
+	const attr = (el: HTMLRewriterTypes.Element, name: string) => {
 		const value = el.getAttribute(name);
 		return value == null ? null : decode_entities(value);
 	};
-	const push = (s) => {
+	const push = (s: string) => {
 		if (skip === 0) out.push(s);
 	};
 
@@ -265,18 +273,16 @@ export function extract(html, { baseUrl = 'http://localhost/', maxChars = 200_00
 	};
 }
 
-const words_of = (s) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2));
+const words_of = (s: string) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2));
 
 /**
  * og:title wins when it says more than the site's name; a `<title>` loses its
  * " | Site" tail; and a page whose tags only name the site takes its first headline.
- *
- * @param {{ og: string, tag: string, headline?: string, siteName: string, hostname: string }} parts
  */
-export function pick_title({ og, tag, headline, siteName, hostname }) {
+export function pick_title({ og, tag, headline, siteName, hostname }: { og: string; tag: string; headline?: string; siteName: string; hostname: string }): string {
 	const site = (siteName || hostname || '').toLowerCase();
-	const generic = (t) => !t || t.toLowerCase() === site || t.toLowerCase() === hostname.toLowerCase();
-	const strip_site = (t) => {
+	const generic = (t: string) => !t || t.toLowerCase() === site || t.toLowerCase() === hostname.toLowerCase();
+	const strip_site = (t: string) => {
 		const m = /^(.*?)\s+[|\-–—:·]\s+([^|\-–—:·]+)$/.exec(t);
 		if (!m) return t;
 		const tail = m[2].trim().toLowerCase();
@@ -294,8 +300,7 @@ export function pick_title({ og, tag, headline, siteName, hostname }) {
 	return clean_tag || headline || '';
 }
 
-/** @param {string} raw */
-export function normalize_url(raw) {
+export function normalize_url(raw: string): string {
 	const url = new URL(raw.trim());
 	url.hostname = url.hostname.toLowerCase();
 	url.hash = '';
@@ -307,38 +312,33 @@ export function normalize_url(raw) {
 }
 
 /** A URL on its own line is a link; anything else is a note. */
-export function looks_like_url(text) {
+export function looks_like_url(text: string): boolean {
 	const t = text.trim();
 	return /^https?:\/\/\S+$/i.test(t) && !/\s/.test(t);
 }
 
-/**
- * @param {unknown} err
- * @param {string} url
- * @returns {Error}
- */
-export function friendly_fetch_error(err, url) {
+export function friendly_fetch_error(err: unknown, url: string): Failure {
 	let host = url;
 	try {
 		host = new URL(url).host;
 	} catch {}
-	const message = String(err?.message ?? err);
-	const name = err?.name ?? '';
-	let friendly;
+	const message = String((err as Failure)?.message ?? err);
+	const name = (err as Failure)?.name ?? '';
+	let friendly: string;
 	if (name === 'TimeoutError' || /timed? ?out/i.test(message)) friendly = `${host} timed out`;
 	else if (/ConnectionRefused|ECONNREFUSED/i.test(message)) friendly = `connection refused by ${host}`;
 	else if (/ENOTFOUND|getaddrinfo|dns|FailedToOpenSocket/i.test(message)) friendly = `host not found: ${host}`;
 	else if (/certificate|TLS|SSL/i.test(message)) friendly = `TLS error talking to ${host}`;
 	else friendly = `${host}: ${message}`;
-	const out = new Error(friendly);
+	const out = new Error(friendly) as Failure;
 	out.cause = err;
 	out.transient = !/host not found/.test(friendly);
 	return out;
 }
 
-async function read_capped(res, maxBytes) {
-	const reader = res.body.getReader();
-	const chunks = [];
+async function read_capped(res: Response, maxBytes: number): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+	const reader = res.body!.getReader();
+	const chunks: Uint8Array[] = [];
 	let received = 0;
 	let truncated = false;
 	for (;;) {
@@ -361,28 +361,26 @@ async function read_capped(res, maxBytes) {
 	return { bytes, truncated };
 }
 
-function decode_body(bytes, contentType) {
+function decode_body(bytes: Uint8Array, contentType: string): string {
 	let label = /charset=["']?([\w-]+)/i.exec(contentType)?.[1];
 	if (!label) {
-		const head = new TextDecoder('latin1').decode(bytes.subarray(0, 2048));
+		const head = new TextDecoder('latin1' as Bun.Encoding).decode(bytes.subarray(0, 2048));
 		label = /<meta[^>]+charset=["']?([\w-]+)/i.exec(head)?.[1];
 	}
 	try {
-		return new TextDecoder(label ?? 'utf-8').decode(bytes);
+		return new TextDecoder((label ?? 'utf-8') as Bun.Encoding).decode(bytes);
 	} catch {
 		return new TextDecoder('utf-8').decode(bytes);
 	}
 }
 
-/**
- * @param {string} url
- * @param {{ timeoutMs?: number, maxBytes?: number, maxChars?: number, fetch?: typeof fetch }} [opts]
- * @returns {Promise<PageData & { url: string, contentType: string, truncated: boolean }>}
- */
-export async function scrape(url, { timeoutMs = 15_000, maxBytes = 3_000_000, maxChars = 200_000, fetch: fetch_fn = fetch } = {}) {
+export async function scrape(
+	url: string,
+	{ timeoutMs = 15_000, maxBytes = 3_000_000, maxChars = 200_000, fetch: fetch_fn = fetch }: { timeoutMs?: number; maxBytes?: number; maxChars?: number; fetch?: Fetcher } = {}
+): Promise<ScrapedPage> {
 	if (!/^https?:\/\//i.test(url)) throw Object.assign(new Error('only http(s) links can be scraped'), { transient: false });
 
-	let res;
+	let res: Response;
 	try {
 		res = await fetch_fn(url, {
 			redirect: 'follow',
@@ -398,14 +396,14 @@ export async function scrape(url, { timeoutMs = 15_000, maxBytes = 3_000_000, ma
 	}
 
 	if (!res.ok) {
-		const err = new Error(`HTTP ${res.status} from ${new URL(res.url || url).host}`);
+		const err = new Error(`HTTP ${res.status} from ${new URL(res.url || url).host}`) as Failure;
 		err.transient = res.status === 429 || res.status >= 500;
 		throw err;
 	}
 
 	const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
 	const type = contentType.split(';')[0].trim();
-	const permanent = (message) => Object.assign(new Error(message), { transient: false });
+	const permanent = (message: string) => Object.assign(new Error(message), { transient: false });
 	if (type === 'application/pdf') throw permanent('PDF pages are not supported yet');
 	if (type.startsWith('image/')) throw permanent('that URL is an image — use Add image instead');
 	if (type.startsWith('audio/') || type.startsWith('video/')) throw permanent('that URL is media, not a page');
@@ -432,7 +430,7 @@ export async function scrape(url, { timeoutMs = 15_000, maxBytes = 3_000_000, ma
 	return { ...page, url: finalUrl, contentType: type || 'text/html', truncated };
 }
 
-function empty_page(url) {
+function empty_page(url: string): PageData {
 	let hostname = '';
 	try {
 		hostname = new URL(url).hostname.replace(/^www\./, '');
@@ -440,15 +438,12 @@ function empty_page(url) {
 	return { title: '', siteName: hostname, description: '', imageUrl: null, canonical: url, lang: '', text: '', candidates: [] };
 }
 
-/**
- * The thumbnail is optional: any failure here is a warning, never a failed ingest.
- *
- * @param {string} url
- * @param {string} destPath
- * @param {{ maxBytes?: number, maxDim?: number, fetch?: typeof fetch }} [opts]
- * @returns {Promise<{ path: string, width: number, height: number } | null>}
- */
-export async function fetch_image(url, destPath, { maxBytes = 8_000_000, maxDim = 512, fetch: fetch_fn = fetch } = {}) {
+/** The thumbnail is optional: any failure here is a warning, never a failed ingest. */
+export async function fetch_image(
+	url: string,
+	destPath: string,
+	{ maxBytes = 8_000_000, maxDim = 512, fetch: fetch_fn = fetch }: { maxBytes?: number; maxDim?: number; fetch?: Fetcher } = {}
+): Promise<{ path: string; width: number; height: number } | null> {
 	try {
 		const res = await fetch_fn(url, {
 			redirect: 'follow',
@@ -465,7 +460,7 @@ export async function fetch_image(url, destPath, { maxBytes = 8_000_000, maxDim 
 		const { width, height } = await new Bun.Image(destPath).metadata();
 		return { path: destPath, width, height };
 	} catch (err) {
-		warn(`thumbnail skipped for ${url}:`, err.message);
+		warn(`thumbnail skipped for ${url}:`, (err as Error).message);
 		return null;
 	}
 }

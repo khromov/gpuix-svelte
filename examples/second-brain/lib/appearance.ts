@@ -1,4 +1,6 @@
-function command() {
+export type Appearance = 'dark' | 'light';
+
+function command(): string[] | null {
 	if (process.platform === 'darwin') return ['defaults', 'read', '-g', 'AppleInterfaceStyle'];
 	if (process.platform === 'linux') return ['gsettings', 'get', 'org.gnome.desktop.interface', 'color-scheme'];
 	if (process.platform === 'win32') {
@@ -7,13 +9,7 @@ function command() {
 	return null;
 }
 
-/**
- * @param {string} platform
- * @param {number} exitCode
- * @param {string} stdout
- * @returns {'dark' | 'light'}
- */
-export function parse_appearance(platform, exitCode, stdout) {
+export function parse_appearance(platform: string, exitCode: number, stdout: string): Appearance {
 	const out = (stdout ?? '').trim();
 	// `defaults` exits 1 when the key is absent, which is what light mode looks like.
 	if (platform === 'darwin') return exitCode === 0 && /dark/i.test(out) ? 'dark' : 'light';
@@ -22,15 +18,15 @@ export function parse_appearance(platform, exitCode, stdout) {
 	return 'dark';
 }
 
-export const forced = () => {
+export const forced = (): Appearance | null => {
 	const mode = process.env.GPUIX_BRAIN_THEME;
 	return mode === 'dark' || mode === 'light' ? mode : null;
 };
 
 /** Synchronous, for the first paint only. */
-export function system_appearance() {
+export function system_appearance(): Appearance {
 	const cmd = command();
-	if (forced()) return forced();
+	if (forced()) return forced()!;
 	if (!cmd) return 'dark';
 	try {
 		const result = Bun.spawnSync(cmd, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore' });
@@ -40,9 +36,9 @@ export function system_appearance() {
 	}
 }
 
-export async function system_appearance_async() {
+export async function system_appearance_async(): Promise<Appearance> {
 	const cmd = command();
-	if (forced()) return forced();
+	if (forced()) return forced()!;
 	if (!cmd) return 'dark';
 	try {
 		const proc = Bun.spawn(cmd, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore' });
@@ -53,13 +49,9 @@ export async function system_appearance_async() {
 	}
 }
 
-/**
- * @param {(mode: 'dark' | 'light') => void} cb called on every change, and once at start
- * @param {number} [intervalMs]
- * @returns {() => void}
- */
-export function watch_appearance(cb, intervalMs = 3000) {
-	let last = null;
+/** `cb` runs on every change, and once at start. */
+export function watch_appearance(cb: (mode: Appearance) => void, intervalMs = 3000): () => void {
+	let last: Appearance | null = null;
 	const probe = async () => {
 		const mode = await system_appearance_async();
 		if (mode === last) return;

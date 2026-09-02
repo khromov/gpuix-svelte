@@ -6,6 +6,14 @@
  *   bun examples/second-brain/scripts/import-hn.js [count]
  */
 
+import type { Item } from '../lib/store.ts';
+
+interface Story {
+	id: number;
+	title: string;
+	url: string;
+}
+
 if (!process.versions.bun) {
 	console.error('[import-hn] needs Bun');
 	process.exit(1);
@@ -14,24 +22,24 @@ if (!process.versions.bun) {
 const count = Number(process.argv[2]) || 30;
 const API = 'https://hacker-news.firebaseio.com/v0';
 
-const { create_app } = await import('../lib/app.js');
+const { create_app } = await import('../lib/app.ts');
 const app = await create_app();
 
-const ids = await (await fetch(`${API}/topstories.json`)).json();
-const stories = (await Promise.all(ids.slice(0, count).map(async (id) => (await fetch(`${API}/item/${id}.json`)).json()))).filter(
+const ids = (await (await fetch(`${API}/topstories.json`)).json()) as number[];
+const stories = (await Promise.all(ids.slice(0, count).map(async (id) => (await fetch(`${API}/item/${id}.json`)).json() as Promise<Story | null>))).filter(
 	(s) => s?.url
-);
+) as Story[];
 console.log(`[import-hn] ${stories.length} stories with links`);
 
 const started = performance.now();
-const added = [];
+const added: Array<{ story: Story; item: Item; existed: boolean }> = [];
 for (const story of stories) {
 	try {
 		const { item, existed } = await app.add_link(story.url);
 		added.push({ story, item, existed });
 		console.log(`  ${existed ? 'have' : 'new '} ${item.id}  ${story.title}`);
 	} catch (err) {
-		console.log(`  skip     ${story.url}: ${err.message}`);
+		console.log(`  skip     ${story.url}: ${(err as Error).message}`);
 	}
 }
 
@@ -42,7 +50,7 @@ let ok = 0;
 for (const { story, item } of added) {
 	const fresh = app.get_item(item.id);
 	if (!fresh) continue;
-	const site = fresh.meta.site_name ?? new URL(story.url).hostname;
+	const site: string = fresh.meta.site_name ?? new URL(story.url).hostname;
 	if (fresh.status === 'ready') {
 		ok++;
 		console.log(`  ok    ${String(fresh.id).padStart(3)}  ${site.padEnd(28)} ${fresh.body.length.toString().padStart(6)} chars  thumb=${fresh.thumb_path ? 'y' : '-'}  ${JSON.stringify(fresh.title).slice(0, 60)}`);

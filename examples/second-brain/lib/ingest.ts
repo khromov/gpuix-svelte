@@ -4,34 +4,60 @@
  * instead of replaying an hour of Whisper.
  */
 
-import { chunk_markdown, embed_text } from './chunk.js';
-import { create_llm } from './llm.js';
-import { warn } from './log.js';
-import { derive_title, segments_to_markdown } from './media.js';
-import { thumb_path } from './paths.js';
-import { fetch_image, scrape } from './scrape.js';
+import type { Bus, ItemEvent } from './bus.ts';
+import { chunk_markdown, embed_text } from './chunk.ts';
+import { create_llm } from './llm.ts';
+import { warn } from './log.ts';
+import { derive_title, segments_to_markdown, type Media } from './media.ts';
+import type { MlLike } from './ml-client.ts';
+import { thumb_path, type DataDirs } from './paths.ts';
+import { fetch_image, scrape } from './scrape.ts';
+import type { Settings } from './settings.ts';
+import type { Item, Store } from './store.ts';
+import type { Failure, Fetcher } from './types.ts';
+import type { VectorIndex } from './vectors.ts';
 
 const RETRY_DELAYS = [5_000, 30_000, 120_000];
 const MAX_ATTEMPTS = 3;
 
-/**
- * @param {{ store: any, vectors: import('./vectors.js').VectorIndex, images: import('./vectors.js').VectorIndex,
- *   ml: any, media: any, settings: any, bus: any, dirs: import('./paths.js').DataDirs,
- *   io_concurrency?: number, fetch?: typeof fetch }} deps
- */
-export function create_ingestor({ store, vectors, images, ml, media, settings, bus, dirs, io_concurrency = 4, fetch: fetch_fn = fetch }) {
-	const queue = [];
-	const active = new Set();
-	const timers = new Map();
-	let waiters = [];
+export interface IngestDeps {
+	store: Store;
+	vectors: VectorIndex;
+	images: VectorIndex;
+	ml: MlLike;
+	media: Media;
+	settings: Settings;
+	bus: Bus;
+	dirs: DataDirs;
+	io_concurrency?: number;
+	fetch?: Fetcher;
+}
+
+export interface QueueStats {
+	pending: number;
+	active: number;
+	done: number;
+	failed: number;
+	active_ids: number[];
+}
+
+export type Ingestor = ReturnType<typeof create_ingestor>;
+
+type Step = (item: Item) => Promise<void>;
+
+export function create_ingestor({ store, vectors, images, ml, media, settings, bus, dirs, io_concurrency = 4, fetch: fetch_fn = fetch }: IngestDeps) {
+	const queue: number[] = [];
+	const active = new Set<number>();
+	const timers = new Map<number, ReturnType<typeof setTimeout>>();
+	let waiters: Array<() => void> = [];
 	let done = 0;
 	let failed = 0;
 
-	const stats = () => ({ pending: queue.length, active: active.size, done, failed, active_ids: [...active] });
-	const emit_item = (id, extra = {}) => bus.emit({ type: 'item', id, ...extra });
+	const stats = (): QueueStats => ({ pending: queue.length, active: active.size, done, failed, active_ids: [...active] });
+	const emit_item = (id: number, extra: Omit<ItemEvent, 'type' | 'id'> = {}) => bus.emit({ type: 'item', id, ...extra });
 	const emit_queue = () => bus.emit({ type: 'queue', ...stats() });
 
-	function enqueue(id, { priority = 'normal' } = {}) {
+	function enqueue(id: number, { priority = 'normal' }: { priority?: 'normal' | 'high' } = {}) {
 		if (active.has(id) || queue.includes(id)) return;
 		if (priority === 'high') queue.unshift(id);
 		else queue.push(id);
@@ -40,7 +66,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 
 	function pump() {
 		while (active.size < io_concurrency && queue.length) {
-			const id = queue.shift();
+			const id = queue.shift()!;
 			active.add(id);
 			run(id).finally(() => {
 				active.delete(id);
@@ -52,8 +78,8 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		emit_queue();
 	}
 
-	function plan(item) {
-		const steps = [];
+	function plan(item: Item): Array<[string, Step]> {
+		const steps: Array<[string, Step]> = [];
 		if (item.kind === 'link' && !item.body) steps.push(['scrape', scrape_step]);
 		if (item.kind === 'audio' && !item.meta.pcm_path) steps.push(['convert', convert_step]);
 		if (item.kind === 'audio' && !item.body) steps.push(['transcribe', transcribe_step]);
@@ -63,7 +89,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		return steps;
 	}
 
-	async function run(id) {
+	async function run(id: number) {
 		let item = store.get_item(id);
 		if (!item) return;
 		store.set_status(id, 'processing');
@@ -79,17 +105,17 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 			done++;
 			emit_item(id, { status: 'ready' });
 		} catch (err) {
-			const message = err?.message ?? String(err);
+			const message = (err as Failure)?.message ?? String(err);
 			warn(`item ${id} failed:`, message);
 			store.set_status(id, 'error', { error: message });
 			failed++;
 			emit_item(id, { status: 'error', error: message });
 			const attempts = store.get_item(id)?.attempts ?? MAX_ATTEMPTS;
-			if (err?.transient && attempts < MAX_ATTEMPTS) schedule_retry(id, attempts);
+			if ((err as Failure)?.transient && attempts < MAX_ATTEMPTS) schedule_retry(id, attempts);
 		}
 	}
 
-	function schedule_retry(id, attempts) {
+	function schedule_retry(id: number, attempts: number) {
 		clearTimeout(timers.get(id));
 		const delay = RETRY_DELAYS[Math.min(attempts - 1, RETRY_DELAYS.length - 1)];
 		timers.set(
@@ -103,11 +129,11 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		);
 	}
 
-	async function scrape_step(item) {
-		const page = await scrape(item.source_url, { fetch: fetch_fn });
+	async function scrape_step(item: Item) {
+		const page = await scrape(item.source_url!, { fetch: fetch_fn });
 		const body = page.text || page.description || `No readable text at ${item.source_url}.`;
-		const patch = {
-			title: item.meta.auto_title ? page.title || page.siteName || item.source_url : item.title,
+		const patch: Partial<Item> = {
+			title: item.meta.auto_title ? page.title || page.siteName || item.source_url! : item.title,
 			body,
 			meta: {
 				canonical_url: page.canonical,
@@ -128,13 +154,13 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		store.update_item(item.id, patch);
 	}
 
-	async function convert_step(item) {
+	async function convert_step(item: Item) {
 		if (!item.file_path) throw Object.assign(new Error('audio file missing'), { transient: false });
 		const { pcm_path, duration } = await media.prepare_pcm(item.file_path, item.id);
 		store.update_item(item.id, { duration, meta: { pcm_path } });
 	}
 
-	async function transcribe_step(item) {
+	async function transcribe_step(item: Item) {
 		const language = settings.get('stt.language') || null;
 		const result = await ml.transcribe(item.meta.pcm_path, {
 			language,
@@ -148,47 +174,47 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		});
 		const spoken = segments_to_markdown(result.segments, result.text);
 		const words = spoken.split(/\s+/).filter((w) => /\p{L}|\p{N}/u.test(w)).length;
-		const patch = { body: words > 0 ? spoken : '(no speech detected)', meta: { segments: result.segments, language: result.language } };
+		const patch: Partial<Item> = { body: words > 0 ? spoken : '(no speech detected)', meta: { segments: result.segments, language: result.language } };
 		if (item.meta.auto_title && words >= 3) patch.title = derive_title(spoken) || item.title;
 		store.update_item(item.id, patch);
 	}
 
 	// Failure here is a note on the item, not a failed ingest: the LLM is optional.
-	async function describe_step(item) {
+	async function describe_step(item: Item) {
 		const config = settings.vision_config();
 		if (!config || !item.file_path) return;
 		try {
 			const description = await create_llm(config).describe_image(await Bun.file(item.file_path).bytes());
 			store.update_item(item.id, { body: description.trim(), meta: { described_by: config.model, describe_error: null } });
 		} catch (err) {
-			warn(`describe failed for item ${item.id}:`, err.message);
-			store.update_item(item.id, { meta: { describe_error: err.message } });
+			warn(`describe failed for item ${item.id}:`, (err as Error).message);
+			store.update_item(item.id, { meta: { describe_error: (err as Error).message } });
 		}
 	}
 
-	async function clip_step(item) {
+	async function clip_step(item: Item) {
 		if (!ml.available || ml.status.worker === 'down') return;
-		let vec;
+		let vec: Float32Array;
 		try {
-			vec = await ml.clip_image(item.meta.display_path ?? item.file_path);
+			vec = await ml.clip_image(item.meta.display_path ?? item.file_path!);
 		} catch (err) {
-			if (err.code === 'ML_UNAVAILABLE') return;
+			if ((err as Failure).code === 'ML_UNAVAILABLE') return;
 			throw err;
 		}
 		store.set_image_embedding(item.id, ml.model_id('clip'), vec);
 		images.add(item.id, item.id, vec);
 	}
 
-	async function embed_step(item) {
+	async function embed_step(item: Item) {
 		// Without a worker the item stays keyword-searchable; existing vectors are kept.
 		if (!ml.available) return;
 		const chunks = chunk_markdown(item.body);
 		const texts = chunks.map((c) => embed_text(item.title, c));
-		let vecs = [];
+		let vecs: Float32Array[] = [];
 		try {
 			vecs = texts.length ? await ml.embed_texts(texts) : [];
 		} catch (err) {
-			if (err.code === 'ML_UNAVAILABLE') return;
+			if ((err as Failure).code === 'ML_UNAVAILABLE') return;
 			throw err;
 		}
 		const { removed, chunks: rows } = store.replace_chunks(
@@ -234,7 +260,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		}
 	}
 
-	function retry(id) {
+	function retry(id: number) {
 		clearTimeout(timers.get(id));
 		timers.delete(id);
 		store.update_item(id, { attempts: 0, status: 'pending', error: null });
@@ -242,7 +268,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 		enqueue(id, { priority: 'high' });
 	}
 
-	function retry_failed() {
+	function retry_failed(): number {
 		const items = store.errored_items();
 		for (const item of items) retry(item.id);
 		return items.length;
@@ -251,9 +277,8 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 	/**
 	 * Items marked pending or processing that nobody here is working on — left by a
 	 * crash, or by another process on the same database — go back in the queue.
-	 * @param {{ olderThanMs?: number }} [opts]
 	 */
-	function requeue_stuck({ olderThanMs = 0 } = {}) {
+	function requeue_stuck({ olderThanMs = 0 }: { olderThanMs?: number } = {}): number {
 		const cutoff = Date.now() - olderThanMs;
 		let count = 0;
 		for (const item of store.unfinished_items()) {
@@ -270,7 +295,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 	/** Unfinished items this process is not handling — what a requeue would pick up. */
 	const stuck_count = () => store.unfinished_items().filter((i) => !active.has(i.id) && !queue.includes(i.id) && !timers.has(i.id)).length;
 
-	const idle = () => (active.size === 0 && queue.length === 0 ? Promise.resolve() : new Promise((resolve) => waiters.push(resolve)));
+	const idle = (): Promise<void> => (active.size === 0 && queue.length === 0 ? Promise.resolve() : new Promise((resolve) => waiters.push(resolve)));
 
 	return {
 		enqueue,

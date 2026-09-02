@@ -1,12 +1,12 @@
-<script>
+<script lang="ts">
 	import Button from '../components/Button.svelte';
 	import CaptureBox from '../components/CaptureBox.svelte';
 	import EmptyState from '../components/EmptyState.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-	import { data } from '../lib/data.svelte.js';
-	import { push } from '../lib/router.svelte.js';
-	import { focus } from '../lib/ui.svelte.js';
+	import { data } from '../lib/data.svelte.ts';
+	import { push } from '../lib/router.svelte.ts';
+	import { focus } from '../lib/ui.svelte.ts';
 
 	let page = $state(1);
 	const visible = $derived(data.items.slice(0, page * 50));

@@ -3,6 +3,8 @@
  * fill with the element's colour, which is why these are filled and not stroked.
  */
 
+import type { Kind } from './store.ts';
+
 const PATHS = {
 	inbox: 'M19 3H4.99c-1.11 0-1.98.89-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10z',
 	note: 'M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
@@ -41,9 +43,10 @@ const PATHS = {
 	dot: 'M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z'
 };
 
-/** @type {Record<keyof typeof PATHS, string>} */
+export type IconName = keyof typeof PATHS;
+
 export const ICONS = Object.fromEntries(
 	Object.entries(PATHS).map(([name, d]) => [name, `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#000" d="${d}"/></svg>`])
-);
+) as Record<IconName, string>;
 
-export const KIND_ICON = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
+export const KIND_ICON: Record<Kind, IconName> = { text: 'note', link: 'link', image: 'image', audio: 'audio' };

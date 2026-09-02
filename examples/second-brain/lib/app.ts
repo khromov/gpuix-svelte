@@ -1,41 +1,57 @@
 /**
- * Wires the data layer together. `main.js`, the tests and the UI all talk to the
+ * Wires the data layer together. `main.ts`, the tests and the UI all talk to the
  * object this returns, and a hot remount reuses it, so DB and worker outlive UI edits.
  */
 
 import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ask as ask_llm } from './ask.js';
-import { create_bus } from './bus.js';
-import { capabilities as get_capabilities } from './capabilities.js';
-import { read_image } from './clipboard.js';
-import { open_db } from './db.js';
-import { create_ingestor } from './ingest.js';
-import { install_exit_handlers } from './lifecycle.js';
-import { create_llm } from './llm.js';
-import { log, warn } from './log.js';
-import { create_media, derive_title, needs_display_copy } from './media.js';
-import { DIMS, MlClient } from './ml-client.js';
-import { MlStub } from './ml-stub.js';
-import { data_dirs, resources_dir, thumb_path } from './paths.js';
-import { normalize_url } from './scrape.js';
-import { create_search } from './search.js';
-import { create_settings } from './settings.js';
-import { create_store } from './store.js';
-import { VectorIndex } from './vectors.js';
-import { encode_wav } from './wav.js';
+import { ask as ask_llm, type AskOptions } from './ask.ts';
+import { create_bus } from './bus.ts';
+import { capabilities as get_capabilities } from './capabilities.ts';
+import { read_image } from './clipboard.ts';
+import { open_db } from './db.ts';
+import { create_ingestor } from './ingest.ts';
+import { install_exit_handlers } from './lifecycle.ts';
+import { create_llm } from './llm.ts';
+import { log, warn } from './log.ts';
+import { create_media, derive_title, needs_display_copy } from './media.ts';
+import { DIMS, MlClient, type MlLike, type MlStatus } from './ml-client.ts';
+import { MlStub } from './ml-stub.ts';
+import { data_dirs, resources_dir, thumb_path } from './paths.ts';
+import { normalize_url } from './scrape.ts';
+import { create_search, type SearchOptions } from './search.ts';
+import { create_settings } from './settings.ts';
+import { create_store, type Item, type ListOptions } from './store.ts';
+import type { Fetcher } from './types.ts';
+import { VectorIndex } from './vectors.ts';
+import { encode_wav } from './wav.ts';
+
+export type App = Awaited<ReturnType<typeof create_app>>;
+
+export type ImageSource =
+	| string
+	| { clipboard: true; bytes?: undefined; name?: undefined; ext?: undefined }
+	| { clipboard?: undefined; bytes: Uint8Array; name?: string; ext?: string };
+
+export interface AppOptions {
+	data_dir?: string | null;
+	ml?: MlLike | null;
+	fetch?: Fetcher;
+	autoload?: boolean;
+	seed?: boolean;
+}
 
 // From a checkout the worker sits beside its node_modules in ml/; a compiled .app
 // carries both in Contents/Resources/ml, since transformers.js cannot live in the binary.
-const ML_DIR = resources_dir() ? join(resources_dir(), 'ml') : fileURLToPath(new URL('../ml', import.meta.url));
-const WORKER = join(ML_DIR, 'worker.js');
+const ML_DIR = resources_dir() ? join(resources_dir()!, 'ml') : fileURLToPath(new URL('../ml', import.meta.url));
+// The compiled app bundles the worker to `worker.js`; a checkout runs the source.
+const WORKER = join(ML_DIR, resources_dir() ? 'worker.js' : 'worker.ts');
 const ML_INSTALLED = join(ML_DIR, 'node_modules', '@huggingface', 'transformers', 'package.json');
 
 export const ml_installed = () => existsSync(ML_INSTALLED);
 
-/** @param {{ models_dir: string, autoload?: boolean, on_status?: (s: any) => void }} opts */
-export function default_ml({ models_dir, autoload = true, on_status }) {
+export function default_ml({ models_dir, autoload = true, on_status }: { models_dir: string; autoload?: boolean; on_status?: (s: MlStatus) => void }): MlLike {
 	if (process.env.GPUIX_BRAIN_STUB === '1') return new MlStub({ on_status });
 	if (process.env.GPUIX_BRAIN_ML === 'off') return new MlStub({ available: false, reason: 'ML disabled by GPUIX_BRAIN_ML=off', on_status });
 	if (!ml_installed()) {
@@ -53,10 +69,7 @@ export function default_ml({ models_dir, autoload = true, on_status }) {
 const date_label = () =>
 	new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-/**
- * @param {{ data_dir?: string | null, ml?: any, fetch?: typeof fetch, autoload?: boolean, seed?: boolean }} [opts]
- */
-export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn = fetch, autoload = true, seed = false } = {}) {
+export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn = fetch, autoload = true, seed = false }: AppOptions = {}) {
 	install_exit_handlers();
 	const dirs = data_dirs(data_dir ?? undefined);
 	const db = open_db(dirs.db);
@@ -70,7 +83,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	images.load(store.all_image_vectors());
 
 	const media = create_media(dirs);
-	const on_status = (status) => bus.emit({ type: 'ml', status });
+	const on_status = (status: MlStatus) => bus.emit({ type: 'ml', status });
 	ml ??= default_ml({ models_dir: dirs.models, autoload: autoload && settings.get('ml.autoload') !== false, on_status });
 	ml.on_status = on_status;
 
@@ -101,7 +114,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	// minutes is taken over here.
 	const heal = setInterval(() => ingest.requeue_stuck({ olderThanMs: 10 * 60_000 }), 60_000);
 
-	const added = (item) => {
+	const added = (item: Item): Item => {
 		bus.emit({ type: 'item', id: item.id, status: item.status, added: true });
 		if (item.status === 'pending') ingest.enqueue(item.id, { priority: 'high' });
 		return item;
@@ -116,32 +129,25 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		images,
 		ml,
 		ingest,
-		search,
 		media,
 		bus,
 
-		/** @param {{ title?: string, body: string }} note */
-		add_note({ title = '', body }) {
+		add_note({ title = '', body }: { title?: string; body: string }): Item {
 			const text = body.trim();
 			return added(store.insert_item({ kind: 'text', title: title.trim() || derive_title(text), body: text, meta: { auto_title: !title.trim() } }));
 		},
 
-		/** @param {string} url @returns {Promise<{ item: import('./store.js').Item, existed: boolean }>} */
-		async add_link(url) {
+		async add_link(url: string): Promise<{ item: Item; existed: boolean }> {
 			const source_url = normalize_url(url);
 			const existing = store.get_item_by_url(source_url);
 			if (existing) return { item: existing, existed: true };
 			return { item: added(store.insert_item({ kind: 'link', title: '', source_url, meta: { auto_title: true } })), existed: false };
 		},
 
-		/**
-		 * @param {string | { clipboard: true } | { bytes: Uint8Array, name?: string, ext?: string }} src
-		 * @param {{ title?: string }} [opts]
-		 */
-		async add_image(src, { title = '' } = {}) {
-			let bytes = null;
-			let name;
-			let ext;
+		async add_image(src: ImageSource, { title = '' }: { title?: string } = {}): Promise<Item> {
+			let bytes: Uint8Array | null = null;
+			let name: string;
+			let ext: string | undefined;
 			if (typeof src === 'string') {
 				name = basename(src);
 			} else if (src.clipboard) {
@@ -156,7 +162,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			}
 			const item = store.insert_item({ kind: 'image', title: title || name, meta: { auto_title: !title, original_name: name } });
 			try {
-				const info = await media.import_image(typeof src === 'string' ? src : bytes, item.id, { ext });
+				const info = await media.import_image(typeof src === 'string' ? src : bytes!, item.id, { ext });
 				const thumb = await media.make_thumb(info.file_path, thumb_path(dirs, item.id));
 				store.update_item(item.id, {
 					file_path: info.file_path,
@@ -166,13 +172,12 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 					meta: { format: info.format, thumb_width: thumb.width, thumb_height: thumb.height, display_path: info.display_path }
 				});
 			} catch (err) {
-				store.set_status(item.id, 'error', { error: err.message });
+				store.set_status(item.id, 'error', { error: (err as Error).message });
 			}
-			return added(store.get_item(item.id));
+			return added(store.get_item(item.id)!);
 		},
 
-		/** @param {string} src @param {{ move?: boolean, title?: string }} [opts] */
-		async add_audio(src, { move = false, title = '' } = {}) {
+		async add_audio(src: string, { move = false, title = '' }: { move?: boolean; title?: string } = {}): Promise<Item> {
 			const name = basename(src);
 			const item = store.insert_item({
 				kind: 'audio',
@@ -183,14 +188,13 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 				const { file_path } = media.import_audio_file(src, item.id, { move });
 				store.update_item(item.id, { file_path });
 			} catch (err) {
-				store.set_status(item.id, 'error', { error: err.message });
+				store.set_status(item.id, 'error', { error: (err as Error).message });
 			}
-			return added(store.get_item(item.id));
+			return added(store.get_item(item.id)!);
 		},
 
-		/** @param {number} id @param {{ title?: string, body?: string }} patch */
-		update_note(id, { title, body }) {
-			const patch = {};
+		update_note(id: number, { title, body }: { title?: string; body?: string }): Item | null {
+			const patch: Partial<Item> = {};
 			if (title !== undefined) {
 				patch.title = title;
 				patch.meta = { auto_title: false };
@@ -206,7 +210,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			return store.get_item(id);
 		},
 
-		delete_item(id) {
+		delete_item(id: number): boolean {
 			const gone = store.delete_item(id);
 			if (!gone) return false;
 			vectors.remove(gone.chunk_ids);
@@ -217,7 +221,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		},
 
 		/** Replaces an image's body with a vision model's description. */
-		async describe_image(id) {
+		async describe_image(id: number): Promise<string> {
 			const config = settings.vision_config();
 			if (!config) throw new Error('set a vision model in Settings first');
 			const item = store.get_item(id);
@@ -228,7 +232,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			return description;
 		},
 
-		async summarize(id) {
+		async summarize(id: number): Promise<string> {
 			const config = settings.llm_config();
 			if (!config) throw new Error('set up an LLM in Settings first');
 			const item = store.get_item(id);
@@ -239,15 +243,15 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			return summary;
 		},
 
-		get_item: (id) => store.get_item(id),
-		list: (opts) => store.list_items(opts),
-		search: (query, opts) => search.search(query, opts),
-		related: (id, opts) => search.related(id, opts),
-		ask: (question, opts) => ask_llm({ search, settings }, question, opts),
-		retry: (id) => ingest.retry(id),
+		get_item: (id: number) => store.get_item(id),
+		list: (opts?: ListOptions) => store.list_items(opts),
+		search: (query: string, opts?: SearchOptions) => search.search(query, opts),
+		related: (id: number, opts?: { limit?: number }) => search.related(id, opts),
+		ask: (question: string, opts?: AskOptions) => ask_llm({ search, settings }, question, opts),
+		retry: (id: number) => ingest.retry(id),
 
 		/** Fetches a link again: body, title (when never edited) and preview image are replaced. */
-		rescrape(id) {
+		rescrape(id: number): boolean {
 			const item = store.get_item(id);
 			if (!item || item.kind !== 'link') return false;
 			store.update_item(id, { body: '', attempts: 0, status: 'pending', error: null });
@@ -280,7 +284,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 					store.update_item(item.id, { meta: { display_path } });
 					bus.emit({ type: 'item', id: item.id, status: item.status, updated: true });
 				})
-				.catch((err) => warn(`display copy for image ${item.id} failed:`, err.message));
+				.catch((err) => warn(`display copy for image ${item.id} failed:`, (err as Error).message));
 		}
 	}
 
@@ -289,14 +293,14 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			// The first image search should not wait for CLIP to load.
 			if (images.size > 0 && ml.load) ml.load('clip').catch(() => {});
 		})
-		.catch((err) => warn('ML worker failed to start:', err.message));
+		.catch((err) => warn('ML worker failed to start:', (err as Error).message));
 	ingest.resume();
 	log(`data dir ${dirs.root} · ${store.counts().total} items · ${vectors.size} vectors`);
 	return app;
 }
 
 /** A populated brain for screenshots and the smoke test; needs no models or network. */
-async function seed_demo(app) {
+async function seed_demo(app: App) {
 	app.add_note({
 		body: '# Compost notes\n\nTurn the heap every two weeks. Worms love coffee grounds but not citrus peel.\n\n- browns: cardboard, dry leaves\n- greens: kitchen scraps, grass'
 	});

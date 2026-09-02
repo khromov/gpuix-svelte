@@ -4,16 +4,33 @@
  * outgrows a brute-force scan — nothing outside this file knows vectors live in memory.
  */
 
+export interface VectorRow {
+	id: number;
+	group: number;
+	embedding: Uint8Array;
+}
+
+export interface VectorHit {
+	id: number;
+	group: number;
+	score: number;
+}
+
+export interface TopKOptions {
+	min_score?: number;
+	exclude_group?: number | null;
+	filter?: ((group: number) => boolean) | null;
+}
+
 export class VectorIndex {
-	#dim;
-	#data;
-	#ids;
-	#groups;
-	#rows = new Map();
+	#dim: number;
+	#data: Float32Array;
+	#ids: Int32Array;
+	#groups: Int32Array;
+	#rows = new Map<number, number>();
 	#size = 0;
 
-	/** @param {number} dim @param {number} [capacity] */
-	constructor(dim, capacity = 1024) {
+	constructor(dim: number, capacity = 1024) {
 		this.#dim = dim;
 		this.#data = new Float32Array(dim * capacity);
 		this.#ids = new Int32Array(capacity);
@@ -41,17 +58,16 @@ export class VectorIndex {
 		this.#groups = groups;
 	}
 
-	/** @param {Iterable<{ id: number, group: number, embedding: Uint8Array }>} rows */
-	load(rows) {
+	load(rows: Iterable<VectorRow>) {
 		for (const row of rows) this.add(row.id, row.group, from_blob(row.embedding, this.#dim));
 	}
 
-	has(id) {
+	has(id: number) {
 		return this.#rows.has(id);
 	}
 
-	/** Upsert. @param {number} id @param {number} group @param {Float32Array} vec unit length */
-	add(id, group, vec) {
+	/** Upsert; `vec` must be unit length. */
+	add(id: number, group: number, vec: Float32Array) {
 		if (vec.length !== this.#dim) throw new Error(`expected a ${this.#dim}-d vector, got ${vec.length}`);
 		let row = this.#rows.get(id);
 		if (row === undefined) {
@@ -64,8 +80,8 @@ export class VectorIndex {
 		this.#groups[row] = group;
 	}
 
-	/** Swap-remove, so every removal is O(dim). @param {Iterable<number>} ids */
-	remove(ids) {
+	/** Swap-remove, so every removal is O(dim). */
+	remove(ids: Iterable<number>) {
 		const dim = this.#dim;
 		for (const id of ids) {
 			const row = this.#rows.get(id);
@@ -82,22 +98,17 @@ export class VectorIndex {
 		}
 	}
 
-	remove_group(group) {
-		const ids = [];
+	remove_group(group: number) {
+		const ids: number[] = [];
 		for (let r = 0; r < this.#size; r++) if (this.#groups[r] === group) ids.push(this.#ids[r]);
 		this.remove(ids);
 	}
 
-	/**
-	 * @param {Float32Array} query unit length
-	 * @param {number} k
-	 * @param {{ min_score?: number, exclude_group?: number | null, filter?: ((group: number) => boolean) | null }} [opts]
-	 * @returns {Array<{ id: number, group: number, score: number }>}
-	 */
-	top_k(query, k, { min_score = -1, exclude_group = null, filter = null } = {}) {
+	/** `query` must be unit length. */
+	top_k(query: Float32Array, k: number, { min_score = -1, exclude_group = null, filter = null }: TopKOptions = {}): VectorHit[] {
 		const dim = this.#dim;
 		const data = this.#data;
-		const hits = [];
+		const hits: VectorHit[] = [];
 		for (let r = 0; r < this.#size; r++) {
 			const group = this.#groups[r];
 			if (group === exclude_group || (filter && !filter(group))) continue;
@@ -110,8 +121,8 @@ export class VectorIndex {
 		return hits.slice(0, k);
 	}
 
-	/** Mean of a group's rows, renormalised. @returns {Float32Array | null} */
-	centroid(group) {
+	/** Mean of a group's rows, renormalised. */
+	centroid(group: number): Float32Array | null {
 		const dim = this.#dim;
 		const sum = new Float32Array(dim);
 		let n = 0;
@@ -125,21 +136,19 @@ export class VectorIndex {
 	}
 }
 
-/** @param {Float32Array} vec */
-export function to_blob(vec) {
+export function to_blob(vec: Float32Array): Uint8Array {
 	return new Uint8Array(vec.buffer, vec.byteOffset, vec.byteLength);
 }
 
-/** @param {Uint8Array} u8 @param {number} dim */
-export function from_blob(u8, dim) {
+export function from_blob(u8: Uint8Array, dim: number): Float32Array {
 	if (u8.byteLength < dim * 4) throw new Error(`embedding blob too short for ${dim} floats`);
 	// A Float32Array view needs 4-byte alignment; a BLOB handed back by SQLite may not have it.
 	if (u8.byteOffset % 4 !== 0) u8 = u8.slice();
 	return new Float32Array(u8.buffer, u8.byteOffset, dim);
 }
 
-/** In place. @param {Float32Array} vec */
-export function normalize(vec) {
+/** In place. */
+export function normalize(vec: Float32Array): Float32Array {
 	let sum = 0;
 	for (let i = 0; i < vec.length; i++) sum += vec[i] * vec[i];
 	const norm = Math.sqrt(sum) || 1;

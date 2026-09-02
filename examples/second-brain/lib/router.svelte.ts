@@ -4,11 +4,17 @@
  * hot remount.
  */
 
-export const route = $state({ path: '/', params: {}, query: {} });
+export interface Route {
+	path: string;
+	params: Record<string, string>;
+	query: Record<string, string>;
+}
 
-const stack = $state([]);
+export const route = $state<Route>({ path: '/', params: {}, query: {} });
 
-function parse(href) {
+const stack = $state<string[]>([]);
+
+function parse(href: string): { path: string; query: Record<string, string> } {
 	const [path, qs = ''] = href.split('?');
 	return { path: path || '/', query: Object.fromEntries(new URLSearchParams(qs)) };
 }
@@ -18,19 +24,19 @@ const href_of = () => {
 	return qs ? `${route.path}?${qs}` : route.path;
 };
 
-function apply(href) {
+function apply(href: string) {
 	const { path, query } = parse(href);
 	route.path = path;
 	route.query = query;
 }
 
-export function push(href) {
+export function push(href: string) {
 	if (href === href_of()) return;
 	stack.push(href_of());
 	apply(href);
 }
 
-export function replace(href) {
+export function replace(href: string) {
 	apply(href);
 }
 
@@ -40,19 +46,13 @@ export function back() {
 
 export const can_back = () => stack.length > 0;
 
-/**
- * @template T
- * @param {Array<T & { path: string }>} routes
- * @param {string} path
- * @returns {{ route: T & { path: string }, params: Record<string, string> }}
- */
-export function resolve(routes, path) {
+export function resolve<T>(routes: Array<T & { path: string }>, path: string): { route: T & { path: string }; params: Record<string, string> } {
 	const segments = path.split('/').filter(Boolean);
 	for (const r of routes) {
 		if (r.path === '*') continue;
 		const pattern = r.path.split('/').filter(Boolean);
 		if (pattern.length !== segments.length) continue;
-		const params = {};
+		const params: Record<string, string> = {};
 		const ok = pattern.every((p, i) => {
 			if (p.startsWith(':')) {
 				params[p.slice(1)] = decodeURIComponent(segments[i]);

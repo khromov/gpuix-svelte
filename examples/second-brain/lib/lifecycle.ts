@@ -3,19 +3,23 @@
  * hook that always runs — and it only runs synchronous code.
  */
 
-const children = new Set();
-const hooks = new Set();
+interface Child {
+	exited?: Promise<number>;
+	kill: () => void;
+}
+
+const children = new Set<Child>();
+const hooks = new Set<() => void>();
 let installed = false;
 
-/** @template {{ exited?: Promise<number>, kill: () => void }} T @param {T} proc @returns {T} */
-export function track(proc) {
+export function track<T extends Child>(proc: T): T {
 	children.add(proc);
 	proc.exited?.then(() => children.delete(proc), () => children.delete(proc));
 	return proc;
 }
 
-/** @param {() => void} fn synchronous @returns {() => void} unregister */
-export function on_exit(fn) {
+/** `fn` must be synchronous; returns the unregister function. */
+export function on_exit(fn: () => void): () => void {
 	hooks.add(fn);
 	return () => hooks.delete(fn);
 }
@@ -38,7 +42,7 @@ export function install_exit_handlers() {
 	});
 
 	// A signal's default handling skips 'exit' entirely.
-	for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
+	for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]] as const) {
 		process.on(signal, () => process.exit(code));
 	}
 }

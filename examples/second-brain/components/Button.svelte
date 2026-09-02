@@ -1,7 +1,24 @@
-<script>
+<script lang="ts">
+	import type { IconName } from '../lib/icons.ts';
 	import Icon from './Icon.svelte';
 
-	let { label = '', icon = null, variant = 'secondary', disabled = false, small = false, onclick = null, testid = null } = $props();
+	let {
+		label = '',
+		icon = null,
+		variant = 'secondary',
+		disabled = false,
+		small = false,
+		onclick = null,
+		testid = null
+	}: {
+		label?: string;
+		icon?: IconName | null;
+		variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+		disabled?: boolean;
+		small?: boolean;
+		onclick?: (() => void) | null;
+		testid?: string | null;
+	} = $props();
 
 	const ICON_TONE = { primary: 'onAccent', secondary: 'ink', ghost: 'muted', danger: 'onDanger' };
 </script>

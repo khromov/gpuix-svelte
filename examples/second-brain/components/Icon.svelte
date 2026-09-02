@@ -1,9 +1,9 @@
-<script>
-	import { ICONS } from '../lib/icons.js';
+<script lang="ts">
+	import { ICONS, type IconName } from '../lib/icons.ts';
 
 	// GPUI tints an <svg> with its own `color` and inherits nothing, so the colour is
 	// picked here by tone rather than left to the parent.
-	let { name, size = 16, tone = 'muted' } = $props();
+	let { name, size = 16, tone = 'muted' }: { name: IconName; size?: number; tone?: string } = $props();
 
 </script>
 

@@ -1,24 +1,44 @@
-import { create_llm, LlmError } from './llm.js';
-import { clip_snippet } from './rank.js';
+import { create_llm, LlmError, type Message } from './llm.ts';
+import { clip_snippet } from './rank.ts';
+import type { Search } from './search.ts';
+import type { Settings } from './settings.ts';
+import type { Kind } from './store.ts';
 
 const SYSTEM = `You are Substrate, a personal second brain. Answer the question using only the numbered sources from the user's own notes, links, images and recordings. Cite a source as [n] right after the fact it supports. If the sources do not contain the answer, say so plainly rather than guessing. Be concise; use markdown.`;
 
-/**
- * @typedef {{ n: number, item_id: number, chunk_id: number, title: string, kind: string, snippet: string, date: string }} Source
- */
+export interface Source {
+	n: number;
+	item_id: number;
+	chunk_id: number;
+	title: string;
+	kind: Kind;
+	snippet: string;
+	date: string;
+}
 
-/**
- * @param {{ search: any, settings: any }} ctx
- * @param {string} question
- * @param {{ k?: number, max_chars?: number, history?: Array<{ role: string, content: string }>, signal?: AbortSignal,
- *   on_token?: (delta: string, full: string) => void }} [opts]
- * @returns {Promise<{ answer: string, sources: Source[], cited: number[] }>}
- */
-export async function ask({ search, settings }, question, { k = 8, max_chars = 12_000, history = [], signal, on_token } = {}) {
+export interface AskOptions {
+	k?: number;
+	max_chars?: number;
+	history?: Message[];
+	signal?: AbortSignal;
+	on_token?: (delta: string, full: string) => void;
+}
+
+export interface Answer {
+	answer: string;
+	sources: Source[];
+	cited: number[];
+}
+
+export async function ask(
+	{ search, settings }: { search: Search; settings: Settings },
+	question: string,
+	{ k = 8, max_chars = 12_000, history = [], signal, on_token }: AskOptions = {}
+): Promise<Answer> {
 	const config = settings.llm_config();
 	if (!config) throw new LlmError('no LLM configured — set a base URL and model in Settings', { code: 'NOT_CONFIGURED' });
 
-	const sources = [];
+	const sources: Array<Source & { text: string }> = [];
 	let used = 0;
 	for (const hit of await search.search_chunks(question, { k })) {
 		const text = hit.chunk.text;
@@ -39,7 +59,7 @@ export async function ask({ search, settings }, question, { k = 8, max_chars = 1
 	const context = sources.length
 		? `Sources:\n\n${sources.map((s) => `[${s.n}] ${s.title} (${s.kind}, ${s.date})\n${s.text}`).join('\n\n')}`
 		: 'Sources: nothing in the brain matched this question.';
-	const messages = [
+	const messages: Message[] = [
 		{ role: 'system', content: SYSTEM },
 		...history.slice(-6),
 		{ role: 'user', content: `${context}\n\nQuestion: ${question}` }

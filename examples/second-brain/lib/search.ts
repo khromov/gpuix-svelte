@@ -1,24 +1,64 @@
-import { warn } from './log.js';
-import { chunk_body, clip_snippet, fts_query, normalize_scores, parse_query, query_terms, rrf, snippet_around } from './rank.js';
-import { looks_like_url, normalize_url } from './scrape.js';
+import { warn } from './log.ts';
+import type { MlLike } from './ml-client.ts';
+import { chunk_body, clip_snippet, fts_query, normalize_scores, parse_query, query_terms, rrf, snippet_around } from './rank.ts';
+import { looks_like_url, normalize_url } from './scrape.ts';
+import type { ChunkDetail, Item, Kind, ListOptions, Store } from './store.ts';
+import type { VectorIndex } from './vectors.ts';
 
-/**
- * @typedef {{ item: import('./store.js').Item, score: number, signals: string[], snippet: string, chunk_id: number | null }} SearchHit
- */
+export interface SearchHit {
+	item: Item;
+	score: number;
+	signals: string[];
+	snippet: string;
+	chunk_id: number | null;
+	terms?: string[];
+}
 
-/**
- * @param {{ store: any, vectors: import('./vectors.js').VectorIndex, images: import('./vectors.js').VectorIndex, ml: any }} deps
- */
-export function create_search({ store, vectors, images, ml }) {
+export interface SearchOptions {
+	limit?: number;
+	kinds?: Kind[] | null;
+	signals?: string[];
+}
+
+export interface SearchResult {
+	hits: SearchHit[];
+	degraded: string[];
+	terms: string[];
+	kinds: Kind[] | null;
+	text: string;
+}
+
+export interface ChunkHit {
+	chunk: ChunkDetail;
+	item: Item;
+	score: number;
+	signals: string[];
+}
+
+export type Search = ReturnType<typeof create_search>;
+
+interface Ranked {
+	id: number;
+	score: number;
+	snippet?: string;
+}
+
+interface VectorRanked extends Ranked {
+	chunk_id: number;
+}
+
+type Rankings = { vector?: VectorRanked[]; fts?: Ranked[]; url?: Ranked[]; clip?: Ranked[] };
+
+export function create_search({ store, vectors, images, ml }: { store: Store; vectors: VectorIndex; images: VectorIndex; ml: MlLike }) {
 	// A worker that is up loads a model on demand, so an unloaded model is a slower
 	// first answer, not a missing signal; only a down worker degrades the search.
-	const usable = (model) => ml.available && (ml.status?.worker === 'up' || ml.status?.[model]?.state === 'ready');
-	const threshold = (key) => ml.thresholds?.[key] ?? 0;
+	const usable = (model: 'embed' | 'clip') => ml.available && (ml.status?.worker === 'up' || ml.status?.[model]?.state === 'ready');
+	const threshold = (key: keyof MlLike['thresholds']) => ml.thresholds?.[key] ?? 0;
 
 	/** best chunk per item, item ids as the ranking key */
-	async function vector_ranking(query, k) {
+	async function vector_ranking(query: string, k: number): Promise<VectorRanked[]> {
 		const vec = await ml.embed_query(query);
-		const best = new Map();
+		const best = new Map<number, VectorRanked>();
 		for (const hit of vectors.top_k(vec, k, { min_score: threshold('vector') })) {
 			if (!best.has(hit.group)) best.set(hit.group, { id: hit.group, chunk_id: hit.id, score: hit.score });
 		}
@@ -28,12 +68,8 @@ export function create_search({ store, vectors, images, ml }) {
 	/**
 	 * `kind:` in the query outranks the `kinds` option; a query that is only a kind
 	 * filter lists that kind, newest first.
-	 *
-	 * @param {string} query
-	 * @param {{ limit?: number, kinds?: string[] | null, signals?: string[] }} [opts]
-	 * @returns {Promise<{ hits: SearchHit[], degraded: string[], terms: string[], kinds: string[] | null, text: string }>}
 	 */
-	async function search(query, { limit = 20, kinds: kinds_opt = null, signals = ['vector', 'fts', 'clip'] } = {}) {
+	async function search(query: string, { limit = 20, kinds: kinds_opt = null, signals = ['vector', 'fts', 'clip'] }: SearchOptions = {}): Promise<SearchResult> {
 		const parsed = parse_query(query);
 		const kinds = parsed.kinds ?? kinds_opt;
 		const q = parsed.text;
@@ -43,12 +79,12 @@ export function create_search({ store, vectors, images, ml }) {
 				.flatMap((kind) => store.list_items({ kind, limit }))
 				.sort((a, b) => b.created_at - a.created_at)
 				.slice(0, limit)
-				.map((item) => ({ item, score: 1, signals: ['kind'], snippet: clip_snippet(item.body), chunk_id: null, terms: [] }));
+				.map((item): SearchHit => ({ item, score: 1, signals: ['kind'], snippet: clip_snippet(item.body), chunk_id: null, terms: [] }));
 			return { hits, degraded: [], terms: [], kinds, text: '' };
 		}
-		const degraded = [];
-		const rankings = {};
-		const tasks = [];
+		const degraded: string[] = [];
+		const rankings: Rankings = {};
+		const tasks: Promise<unknown>[] = [];
 
 		if (signals.includes('vector')) {
 			if (usable('embed')) {
@@ -56,7 +92,7 @@ export function create_search({ store, vectors, images, ml }) {
 					vector_ranking(q, limit * 4)
 						.then((r) => (rankings.vector = r))
 						.catch((err) => {
-							warn('semantic search failed:', err.message);
+							warn('semantic search failed:', (err as Error).message);
 							degraded.push('vector');
 						})
 				);
@@ -83,7 +119,7 @@ export function create_search({ store, vectors, images, ml }) {
 						.clip_text(q)
 						.then((vec) => (rankings.clip = images.top_k(vec, limit, { min_score: threshold('clip') }).map((h) => ({ id: h.group, score: h.score }))))
 						.catch((err) => {
-							warn('image search failed:', err.message);
+							warn('image search failed:', (err as Error).message);
 							degraded.push('clip');
 						})
 				);
@@ -95,7 +131,7 @@ export function create_search({ store, vectors, images, ml }) {
 		const fused = rrf(rankings);
 		const by_id = new Map(store.get_items(fused.map((f) => f.id)).map((item) => [item.id, item]));
 		const terms = query_terms(q);
-		const hits = [];
+		const hits: SearchHit[] = [];
 		for (const f of fused) {
 			const item = by_id.get(f.id);
 			if (!item || (kinds && !kinds.includes(item.kind))) continue;
@@ -111,21 +147,17 @@ export function create_search({ store, vectors, images, ml }) {
 		return { hits: normalize_scores(hits), degraded, terms, kinds, text: q };
 	}
 
-	/**
-	 * Chunk-level retrieval for RAG: several chunks of one item may all be relevant.
-	 * @param {string} query @param {{ k?: number }} [opts]
-	 * @returns {Promise<Array<{ chunk: any, item: import('./store.js').Item, score: number, signals: string[] }>>}
-	 */
-	async function search_chunks(query, { k = 12 } = {}) {
+	/** Chunk-level retrieval for RAG: several chunks of one item may all be relevant. */
+	async function search_chunks(query: string, { k = 12 }: { k?: number } = {}): Promise<ChunkHit[]> {
 		const q = query.trim();
 		if (!q) return [];
-		const rankings = {};
+		const rankings: { vector?: Ranked[]; fts?: Ranked[] } = {};
 		if (usable('embed')) {
 			try {
 				const vec = await ml.embed_query(q);
 				rankings.vector = vectors.top_k(vec, k * 2, { min_score: threshold('rag') }).map((h) => ({ id: h.id, score: h.score }));
 			} catch (err) {
-				warn('semantic retrieval failed:', err.message);
+				warn('semantic retrieval failed:', (err as Error).message);
 			}
 		}
 		const match = fts_query(q);
@@ -136,7 +168,7 @@ export function create_search({ store, vectors, images, ml }) {
 				if (first) rankings.fts.push({ id: first.id, score: -row.rank });
 			}
 		}
-		const out = [];
+		const out: ChunkHit[] = [];
 		for (const f of rrf(rankings)) {
 			const chunk = store.get_chunk(f.id);
 			if (!chunk) continue;
@@ -148,16 +180,12 @@ export function create_search({ store, vectors, images, ml }) {
 		return out;
 	}
 
-	/**
-	 * Neighbours by stored vectors only, so it needs no worker call.
-	 * @param {number} item_id @param {{ limit?: number }} [opts]
-	 * @returns {Promise<SearchHit[]>}
-	 */
-	async function related(item_id, { limit = 8 } = {}) {
-		const rankings = {};
+	/** Neighbours by stored vectors only, so it needs no worker call. */
+	async function related(item_id: number, { limit = 8 }: { limit?: number } = {}): Promise<SearchHit[]> {
+		const rankings: Rankings = {};
 		const centroid = vectors.centroid(item_id);
 		if (centroid) {
-			const best = new Map();
+			const best = new Map<number, VectorRanked>();
 			for (const hit of vectors.top_k(centroid, limit * 3, { exclude_group: item_id, min_score: threshold('related') })) {
 				if (!best.has(hit.group)) best.set(hit.group, { id: hit.group, chunk_id: hit.id, score: hit.score });
 			}
@@ -169,7 +197,7 @@ export function create_search({ store, vectors, images, ml }) {
 		}
 		const fused = rrf(rankings).slice(0, limit);
 		const by_id = new Map(store.get_items(fused.map((f) => f.id)).map((item) => [item.id, item]));
-		const hits = [];
+		const hits: SearchHit[] = [];
 		for (const f of fused) {
 			const item = by_id.get(f.id);
 			if (!item) continue;
@@ -180,5 +208,5 @@ export function create_search({ store, vectors, images, ml }) {
 		return normalize_scores(hits);
 	}
 
-	return { search, search_chunks, related, list: (opts) => store.list_items(opts) };
+	return { search, search_chunks, related, list: (opts?: ListOptions) => store.list_items(opts) };
 }

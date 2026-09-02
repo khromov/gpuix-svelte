@@ -7,10 +7,10 @@
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { wav_duration } from './audio.js';
-import { on_exit } from './lifecycle.js';
-import { warn } from './log.js';
-import { resources_dir } from './paths.js';
+import { wav_duration } from './audio.ts';
+import { on_exit } from './lifecycle.ts';
+import { warn } from './log.ts';
+import { resources_dir } from './paths.ts';
 
 const DIR = fileURLToPath(new URL('../native/', import.meta.url));
 const SRC = `${DIR}recorder-shim.m`;
@@ -19,18 +19,25 @@ const DYLIB = RESOURCES ? join(RESOURCES, 'native', 'recorder-shim.dylib') : `${
 
 export const CLANG_ARGS = ['-dynamiclib', '-fobjc-arc', '-framework', 'AVFoundation', '-framework', 'AudioToolbox', '-framework', 'Foundation'];
 
-const STATUS = ['notDetermined', 'authorized', 'denied', 'restricted'];
+export type AuthStatus = 'notDetermined' | 'authorized' | 'denied' | 'restricted';
+export type PermissionResult = 'authorized' | 'denied' | 'restricted' | 'timeout';
+
+const STATUS: AuthStatus[] = ['notDetermined', 'authorized', 'denied', 'restricted'];
 const HINT = 'allow your terminal under System Settings → Privacy & Security → Microphone, then relaunch';
 
-/**
- * @typedef {{ available: boolean, reason?: string,
- *   authStatus: () => 'notDetermined' | 'authorized' | 'denied' | 'restricted',
- *   requestPermission: (opts?: { timeoutMs?: number }) => Promise<'authorized' | 'denied' | 'restricted' | 'timeout'>,
- *   start: (path: string) => void, stop: () => Promise<number>, level: () => number,
- *   elapsed: () => number, isRecording: () => boolean }} Recorder
- */
+export interface Recorder {
+	available: boolean;
+	reason?: string;
+	authStatus: () => AuthStatus;
+	requestPermission: (opts?: { timeoutMs?: number }) => Promise<PermissionResult>;
+	start: (path: string) => void;
+	stop: () => Promise<number>;
+	level: () => number;
+	elapsed: () => number;
+	isRecording: () => boolean;
+}
 
-const unavailable = (reason) => ({
+const unavailable = (reason: string): Recorder => ({
 	available: false,
 	reason,
 	authStatus: () => 'restricted',
@@ -44,20 +51,20 @@ const unavailable = (reason) => ({
 	isRecording: () => false
 });
 
-let promise = null;
-let result = null;
+let promise: Promise<Recorder> | null = null;
+let result: Recorder | null = null;
 
 /** Memoized; never rejects — failure is `{ available: false, reason }`. */
-export function init_recorder() {
+export function init_recorder(): Promise<Recorder> {
 	return (promise ??= build().then((r) => (result = r)));
 }
 
-export function recorder_available() {
+export function recorder_available(): { ok: boolean; reason?: string } {
 	if (result) return result.available ? { ok: true } : { ok: false, reason: result.reason };
 	return { ok: false, reason: promise ? 'microphone shim still loading' : 'microphone shim not initialised' };
 }
 
-async function build() {
+async function build(): Promise<Recorder> {
 	if (process.platform !== 'darwin') return unavailable(`recording needs macOS (AVFoundation); not available on ${process.platform}`);
 	if (process.env.GPUIX_BRAIN_RECORDER === '0') return unavailable('microphone shim disabled by GPUIX_BRAIN_RECORDER=0');
 	if (!process.versions.bun) return unavailable('recording needs Bun (bun:ffi)');
@@ -84,7 +91,7 @@ async function build() {
 			substrate_rec_last_error: { args: [], returns: 'cstring' }
 		});
 		const s = lib.symbols;
-		let current = null;
+		let current: string | null = null;
 
 		on_exit(() => {
 			if (s.substrate_rec_is_recording()) s.substrate_rec_stop();
@@ -103,10 +110,10 @@ async function build() {
 					await new Promise((r) => setTimeout(r, 250));
 					status = s.substrate_rec_auth_status();
 				}
-				return status === 0 ? 'timeout' : STATUS[status];
+				return status === 0 ? 'timeout' : (STATUS[status] as PermissionResult);
 			},
 
-			start(path) {
+			start(path: string) {
 				const status = STATUS[s.substrate_rec_auth_status()];
 				if (status !== 'authorized') {
 					throw new Error(status === 'notDetermined' ? 'microphone permission not granted yet' : `microphone access ${status} — ${HINT}`);
@@ -134,7 +141,7 @@ async function build() {
 			isRecording: () => s.substrate_rec_is_recording() === 1
 		};
 	} catch (err) {
-		warn('recorder unavailable:', err.message);
-		return unavailable(err.message);
+		warn('recorder unavailable:', (err as Error).message);
+		return unavailable((err as Error).message);
 	}
 }

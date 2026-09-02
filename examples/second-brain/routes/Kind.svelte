@@ -1,14 +1,15 @@
-<script>
+<script lang="ts">
 	import EmptyState from '../components/EmptyState.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-	import { data, status_text } from '../lib/data.svelte.js';
-	import { push } from '../lib/router.svelte.js';
+	import { data, status_text } from '../lib/data.svelte.ts';
+	import { push } from '../lib/router.svelte.ts';
+	import type { Kind } from '../lib/store.ts';
 
-	let { kind } = $props();
+	let { kind }: { kind: Kind } = $props();
 
-	const COPY = {
+	const COPY: Record<Kind, [string, string]> = {
 		text: ['No notes yet', 'Type anything into the box on Everything and press Enter.'],
 		link: ['No links yet', 'Paste a URL into the box on Everything; the page is read and indexed for you.'],
 		image: ['No images yet', 'Use Add image… or Paste image on Everything. With a vision model configured, images get described too.'],

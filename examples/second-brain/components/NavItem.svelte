@@ -1,9 +1,10 @@
-<script>
-	import { push, route } from '../lib/router.svelte.js';
+<script lang="ts">
+	import { push, route } from '../lib/router.svelte.ts';
 	import { blur } from 'gpuix-svelte';
+	import type { IconName } from '../lib/icons.ts';
 	import Icon from './Icon.svelte';
 
-	let { label, icon, path, count = null } = $props();
+	let { label, icon, path, count = null }: { label: string; icon: IconName; path: string; count?: number | null } = $props();
 
 	const active = $derived(route.path === path);
 

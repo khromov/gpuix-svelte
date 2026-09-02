@@ -4,25 +4,31 @@
  */
 
 import { unlinkSync } from 'node:fs';
-import { data, get_app } from './data.svelte.js';
-import { choose_files } from './dialogs.js';
-import { warn } from './log.js';
-import { play, stop_all } from './player.js';
-import { init_recorder } from './recorder.js';
-import { looks_like_url } from './scrape.js';
-import { toast } from './ui.svelte.js';
+import { data, get_app } from './data.svelte.ts';
+import { choose_files } from './dialogs.ts';
+import { warn } from './log.ts';
+import { play, stop_all } from './player.ts';
+import { init_recorder } from './recorder.ts';
+import { looks_like_url } from './scrape.ts';
+import type { Item } from './store.ts';
+import { toast } from './ui.svelte.ts';
 
-export const capture = $state({
+export interface Recording {
+	path: string;
+	startedAt: number;
+	elapsed: number;
+	level: number;
+}
+
+export const capture = $state<{ text: string; recording: Recording | null; busy: boolean }>({
 	text: '',
-	/** @type {{ path: string, startedAt: number, elapsed: number, level: number } | null} */
 	recording: null,
 	busy: false
 });
 
-/** @type {{ id: number | null }} */
-export const playback = $state({ id: null });
+export const playback = $state<{ id: number | null }>({ id: null });
 
-let timer = null;
+let timer: ReturnType<typeof setInterval> | null = null;
 
 export async function submit() {
 	const text = capture.text.trim();
@@ -48,11 +54,11 @@ export async function add_link_from_text() {
 
 export async function pick_images() {
 	const app = get_app();
-	let paths;
+	let paths: string[];
 	try {
 		paths = await choose_files({ kinds: 'image', multiple: true, prompt: 'Add images to Substrate' });
 	} catch (err) {
-		toast(err.message, 'error');
+		toast((err as Error).message, 'error');
 		return;
 	}
 	for (const path of paths) await app.add_image(path);
@@ -64,18 +70,18 @@ export async function paste_image() {
 		await get_app().add_image({ clipboard: true });
 		toast('Image pasted', 'success');
 	} catch (err) {
-		toast(err.message, 'error');
+		toast((err as Error).message, 'error');
 	}
 }
 
 export async function pick_audio() {
 	const app = get_app();
 	const kinds = data.capabilities?.ffmpeg?.ok ? 'audio' : 'wav';
-	let paths;
+	let paths: string[];
 	try {
 		paths = await choose_files({ kinds, multiple: true, prompt: kinds === 'wav' ? 'Import WAV files (install ffmpeg for other formats)' : 'Import audio' });
 	} catch (err) {
-		toast(err.message, 'error');
+		toast((err as Error).message, 'error');
 		return;
 	}
 	for (const path of paths) await app.add_audio(path);
@@ -101,7 +107,7 @@ export async function start_recording() {
 	try {
 		rec.start(path);
 	} catch (err) {
-		toast(err.message, 'error');
+		toast((err as Error).message, 'error');
 		return;
 	}
 	capture.recording = { path, startedAt: Date.now(), elapsed: 0, level: 0 };
@@ -113,7 +119,7 @@ export async function start_recording() {
 }
 
 export async function stop_recording() {
-	clearInterval(timer);
+	clearInterval(timer!);
 	timer = null;
 	const recording = capture.recording;
 	capture.recording = null;
@@ -131,7 +137,7 @@ export async function stop_recording() {
 	toast('Recording saved — transcribing', 'success');
 }
 
-export function toggle_play(item) {
+export function toggle_play(item: Item) {
 	if (playback.id === item.id) {
 		stop_all();
 		playback.id = null;
@@ -146,7 +152,7 @@ export function toggle_play(item) {
 		});
 		playback.id = item.id;
 	} catch (err) {
-		warn('playback failed:', err.message);
-		toast(err.message, 'error');
+		warn('playback failed:', (err as Error).message);
+		toast((err as Error).message, 'error');
 	}
 }

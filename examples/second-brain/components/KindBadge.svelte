@@ -1,8 +1,9 @@
-<script>
+<script lang="ts">
+	import type { Kind } from '../lib/store.ts';
 
-	let { kind } = $props();
+	let { kind }: { kind: Kind } = $props();
 
-	const LABEL = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
+	const LABEL: Record<Kind, string> = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
 </script>
 
 <div class="badge {kind}">{LABEL[kind] ?? kind}</div>

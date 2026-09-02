@@ -5,15 +5,11 @@
  */
 
 import { basename } from 'node:path';
-import { DIMS, MODEL_IDS, MODEL_NAMES, MlError } from './ml-client.js';
-import { normalize } from './vectors.js';
+import { DIMS, MODEL_IDS, MODEL_NAMES, MlError } from './ml-client.ts';
+import type { MlLike, MlStatus, ModelName, ModelState, ModelStatus, Thresholds, TranscribeOptions, TranscribeResult, WorkerResults } from './ml-client.ts';
+import { normalize } from './vectors.ts';
 
-/**
- * @param {string} text
- * @param {number} dim
- * @returns {Float32Array}
- */
-export function hash_vec(text, dim) {
+export function hash_vec(text: string, dim: number): Float32Array {
 	let h = 2166136261;
 	for (let i = 0; i < text.length; i++) {
 		h ^= text.charCodeAt(i);
@@ -33,7 +29,7 @@ export function hash_vec(text, dim) {
 }
 
 /** Text embeddings share tokens, so similar sentences get similar vectors. */
-function bag_vec(text, dim) {
+function bag_vec(text: string, dim: number): Float32Array {
 	const words = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
 	if (!words.length) return hash_vec(text, dim);
 	const sum = new Float32Array(dim);
@@ -44,23 +40,26 @@ function bag_vec(text, dim) {
 	return normalize(sum);
 }
 
-const status_of = (state) => ({ state, progress: state === 'ready' ? 100 : null, file: null, error: null });
+const status_of = (state: ModelState): ModelStatus => ({ state, progress: state === 'ready' ? 100 : null, file: null, error: null });
 
-export class MlStub {
-	#failures = new Map();
-	#latency;
+export class MlStub implements MlLike {
+	#failures = new Map<string, { transient: boolean; message: string }>();
+	#latency: number;
 
-	status;
-	available;
-	reason;
+	status: MlStatus;
+	available: boolean;
+	reason: string | null;
 	dim = DIMS;
 	// Bag-of-words cosines run lower than a real model's.
-	thresholds = { vector: 0.3, rag: 0.3, related: 0.3, clip: 0.2, clip_related: 0.5 };
-	/** @type {(status: any) => void} */
-	on_status;
+	thresholds: Thresholds = { vector: 0.3, rag: 0.3, related: 0.3, clip: 0.2, clip_related: 0.5 };
+	on_status: (status: MlStatus) => void;
 
-	/** @param {{ available?: boolean, reason?: string | null, latency?: number, on_status?: (s: any) => void }} [opts] */
-	constructor({ available = true, reason = null, latency = 0, on_status = () => {} } = {}) {
+	constructor({
+		available = true,
+		reason = null,
+		latency = 0,
+		on_status = () => {}
+	}: { available?: boolean; reason?: string | null; latency?: number; on_status?: (s: MlStatus) => void } = {}) {
 		this.available = available;
 		this.reason = reason;
 		this.#latency = latency;
@@ -75,7 +74,7 @@ export class MlStub {
 		};
 	}
 
-	model_id(model) {
+	model_id(model: ModelName) {
 		return `${MODEL_IDS[model]}#stub`;
 	}
 
@@ -88,12 +87,11 @@ export class MlStub {
 		this.on_status?.(this.status);
 	}
 
-	/** @param {string} kind @param {{ transient?: boolean, message?: string }} [opts] */
-	fail_next(kind, { transient = false, message = `stub ${kind} failure` } = {}) {
+	fail_next(kind: string, { transient = false, message = `stub ${kind} failure` }: { transient?: boolean; message?: string } = {}) {
 		this.#failures.set(kind, { transient, message });
 	}
 
-	async #run(kind, fn) {
+	async #run<T>(kind: string, fn: () => T): Promise<T> {
 		if (!this.available) throw new MlError(this.reason ?? 'ML unavailable', { code: 'ML_UNAVAILABLE' });
 		const failure = this.#failures.get(kind);
 		if (failure) {
@@ -104,7 +102,7 @@ export class MlStub {
 		return fn();
 	}
 
-	load(model) {
+	load(model: ModelName): Promise<WorkerResults['load']> {
 		return this.#run('load', () => {
 			this.status[model] = status_of('ready');
 			this.on_status?.(this.status);
@@ -112,15 +110,15 @@ export class MlStub {
 		});
 	}
 
-	embed_texts(texts) {
+	embed_texts(texts: string[]) {
 		return this.#run('embed', () => texts.map((t) => bag_vec(t, DIMS.embed)));
 	}
 
-	embed_query(text) {
+	embed_query(text: string) {
 		return this.#run('embed', () => bag_vec(text, DIMS.embed));
 	}
 
-	transcribe(path, { on_progress } = {}) {
+	transcribe(path: string, { on_progress }: TranscribeOptions = {}): Promise<TranscribeResult> {
 		return this.#run('transcribe', () => {
 			const text = `Stub transcript of ${basename(path)}.`;
 			on_progress?.({ kind: 'transcribe', done_s: 1, total_s: 1, text });
@@ -128,12 +126,12 @@ export class MlStub {
 		});
 	}
 
-	clip_image(path) {
+	clip_image(path: string) {
 		return this.#run('clip', () => hash_vec(basename(path), DIMS.clip));
 	}
 
 	/** Hashes the whole query, so searching an image's file name finds it exactly. */
-	clip_text(text) {
+	clip_text(text: string) {
 		return this.#run('clip', () => hash_vec(text.trim(), DIMS.clip));
 	}
 }

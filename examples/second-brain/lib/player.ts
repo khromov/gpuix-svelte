@@ -1,8 +1,9 @@
-import { track } from './lifecycle.js';
+import type { Subprocess } from 'bun';
+import { track } from './lifecycle.ts';
 
-let current = null;
+let current: Subprocess<'ignore', 'ignore', 'ignore'> | null = null;
 
-function command(path) {
+function command(path: string): string[] | null {
 	if (process.platform === 'darwin') return ['afplay', path];
 	if (process.platform === 'linux') {
 		if (Bun.which('paplay')) return ['paplay', path];
@@ -12,16 +13,11 @@ function command(path) {
 	return null;
 }
 
-export function player_available() {
+export function player_available(): { ok: boolean; reason?: string } {
 	return command('x') ? { ok: true } : { ok: false, reason: `no audio player found on ${process.platform}` };
 }
 
-/**
- * @param {string} path
- * @param {{ onEnded?: (code: number) => void }} [opts]
- * @returns {{ path: string, ended: Promise<number>, stop: () => void }}
- */
-export function play(path, { onEnded } = {}) {
+export function play(path: string, { onEnded }: { onEnded?: (code: number) => void } = {}): { path: string; ended: Promise<number>; stop: () => void } {
 	stop_all();
 	const cmd = command(path);
 	if (!cmd) throw new Error(player_available().reason);

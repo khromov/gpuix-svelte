@@ -3,28 +3,174 @@
  * stay off the frame loop, and a native crash costs one job, not the window.
  */
 
+import type { Subprocess } from 'bun';
 import { dirname } from 'node:path';
-import { on_exit } from './lifecycle.js';
-import { log, warn } from './log.js';
+import { on_exit } from './lifecycle.ts';
+import { log, warn } from './log.ts';
 
-export const MODEL_IDS = {
+export type ModelName = 'embed' | 'whisper' | 'clip';
+
+export const MODEL_IDS: Record<ModelName, string> = {
 	embed: 'nomic-ai/nomic-embed-text-v1.5',
 	whisper: 'onnx-community/whisper-base',
 	clip: 'Xenova/clip-vit-base-patch32'
 };
 export const DIMS = { embed: 768, clip: 512 };
-export const MODEL_NAMES = ['embed', 'whisper', 'clip'];
+export const MODEL_NAMES: ModelName[] = ['embed', 'whisper', 'clip'];
+
+export interface Thresholds {
+	vector: number;
+	rag: number;
+	related: number;
+	clip: number;
+	clip_related: number;
+}
 
 // Measured on this pair of models: nomic scores unrelated text 0.37–0.55 and related
 // 0.68+; CLIP scores a matching caption 0.29+ and an unrelated one below 0.23.
-export const THRESHOLDS = { vector: 0.56, rag: 0.5, related: 0.6, clip: 0.25, clip_related: 0.75 };
+export const THRESHOLDS: Thresholds = { vector: 0.56, rag: 0.5, related: 0.6, clip: 0.25, clip_related: 0.75 };
 
-/** @typedef {'unloaded' | 'downloading' | 'loading' | 'ready' | 'error'} ModelState */
-/** @typedef {{ state: ModelState, progress: number | null, file: string | null, error: string | null }} ModelStatus */
+export type ModelState = 'unloaded' | 'downloading' | 'loading' | 'ready' | 'error';
+export interface ModelStatus {
+	state: ModelState;
+	progress: number | null;
+	file: string | null;
+	error: string | null;
+}
+export type WorkerState = 'down' | 'starting' | 'up' | 'restarting';
+export interface MlStatus {
+	embed: ModelStatus;
+	whisper: ModelStatus;
+	clip: ModelStatus;
+	worker: WorkerState;
+	error: string | null;
+	memory?: { rss: number; heap: number; at: number } | null;
+}
+
+export interface TranscribeSegment {
+	start: number;
+	end: number;
+	text: string;
+}
+export interface TranscribeResult {
+	text: string;
+	segments: TranscribeSegment[];
+	language: string | null;
+	duration: number;
+}
+export interface TranscribeProgress {
+	kind: 'transcribe';
+	done_s: number;
+	total_s: number;
+	text: string;
+}
+export interface EmbedProgress {
+	kind: 'embed';
+	done: number;
+}
+export type Progress = TranscribeProgress | EmbedProgress;
+export interface TranscribeOptions {
+	language?: string | null;
+	on_progress?: (p: TranscribeProgress) => void;
+	signal?: AbortSignal;
+}
+export interface EmbedOptions {
+	signal?: AbortSignal;
+	batch?: number;
+}
+
+export interface WorkerPayloads {
+	load: { model: ModelName };
+	unload: { model: ModelName };
+	embedTexts: { texts: string[] };
+	embedQuery: { text: string };
+	transcribe: { path: string; language: string | null };
+	clipImage: { path: string };
+	clipText: { text: string };
+}
+export type JobType = keyof WorkerPayloads;
+export type WorkerJob = { [T in JobType]: { id: number; type: T } & WorkerPayloads[T] }[JobType];
+/** Parent → worker. */
+export type WorkerRequest = WorkerJob | { type: 'shutdown' };
+
+export interface WorkerResults {
+	load: { model: ModelName; ms: number };
+	unload: { model: ModelName };
+	embedTexts: { dim: number; count: number; vectors: Float32Array };
+	embedQuery: { dim: number; vector: Float32Array };
+	transcribe: TranscribeResult;
+	clipImage: { dim: number; vector: Float32Array };
+	clipText: { dim: number; vector: Float32Array };
+}
+export type WorkerHandlers = {
+	[T in JobType]: (msg: Extract<WorkerJob, { type: T }>, id: number) => WorkerResults[T] | Promise<WorkerResults[T]>;
+};
+
+export interface WorkerError {
+	message: string;
+	stack?: string;
+	code?: string;
+	transient?: boolean;
+}
+export interface HelloMessage {
+	type: 'hello';
+	pid: number;
+	versions: { transformers?: string; bun?: string };
+	device: string;
+}
+export type ProgressMessage = { id: number; type: 'progress' } & (TranscribeProgress | EmbedProgress);
+
+/** Worker → parent; replies carry no `type`, so it is declared absent for narrowing. */
+export type WorkerMessage =
+	| HelloMessage
+	| { type: 'status'; model: ModelName; state: ModelState; progress?: number | null; file?: string | null; error?: string | null }
+	| { type: 'fatal'; error: WorkerError }
+	| { type: 'mem'; rss: number; heap: number }
+	| ProgressMessage
+	| { id: number; type?: undefined; ok: true; result: unknown }
+	| { id: number; type?: undefined; ok: false; error: WorkerError };
+
+/** What the data layer needs from an ML backend; MlClient and MlStub both provide it. */
+export interface MlLike {
+	status: MlStatus;
+	available: boolean;
+	dim: { embed: number; clip: number };
+	thresholds: Thresholds;
+	on_status: (status: MlStatus) => void;
+	model_id(model: ModelName): string;
+	start(): Promise<void>;
+	stop(): Promise<void>;
+	stop_sync(): void;
+	restart(): Promise<void>;
+	load(model: ModelName): Promise<WorkerResults['load']>;
+	embed_texts(texts: string[], opts?: EmbedOptions): Promise<Float32Array[]>;
+	embed_query(text: string): Promise<Float32Array>;
+	transcribe(path: string, opts?: TranscribeOptions): Promise<TranscribeResult>;
+	clip_image(path: string): Promise<Float32Array>;
+	clip_text(text: string): Promise<Float32Array>;
+}
+
+type Lane = 'interactive' | 'bulk';
+interface Job {
+	id: number;
+	msg: WorkerJob;
+	resolve(value: unknown): void;
+	reject(reason: Error): void;
+	on_progress?(p: Progress): void;
+	lane: Lane;
+	sent: boolean;
+}
+interface RequestOptions {
+	lane?: Lane;
+	on_progress?(p: Progress): void;
+	signal?: AbortSignal;
+}
+type WorkerProcess = Subprocess<'ignore', 'inherit', 'inherit'>;
 
 export class MlError extends Error {
-	/** @param {string} message @param {{ code?: string, transient?: boolean, cause?: unknown }} [extra] */
-	constructor(message, { code = 'INFERENCE', transient = false, cause } = {}) {
+	declare code: string;
+	declare transient: boolean;
+	constructor(message: string, { code = 'INFERENCE', transient = false, cause }: { code?: string; transient?: boolean; cause?: unknown } = {}) {
 		super(message);
 		this.name = 'MlError';
 		this.code = code;
@@ -33,37 +179,44 @@ export class MlError extends Error {
 	}
 }
 
-const initial_status = () => ({ state: 'unloaded', progress: null, file: null, error: null });
+const initial_status = (): ModelStatus => ({ state: 'unloaded', progress: null, file: null, error: null });
 
 // Identity today — typed arrays cross Bun IPC — but the one place to switch to base64.
-const unpack_vec = (flat, offset, dim) => flat.slice(offset, offset + dim);
+const unpack_vec = (flat: Float32Array, offset: number, dim: number) => flat.slice(offset, offset + dim);
 
-export class MlClient {
-	#worker_path;
-	#models_dir;
-	#device;
-	#autoload;
-	#proc = null;
+export class MlClient implements MlLike {
+	#worker_path: string;
+	#models_dir: string;
+	#device: string | null;
+	#autoload: boolean;
+	#proc: WorkerProcess | null = null;
 	#next_id = 1;
-	#pending = new Map();
-	#queue = { interactive: [], bulk: [] };
+	#pending = new Map<number, Job>();
+	#queue: Record<Lane, Job[]> = { interactive: [], bulk: [] };
 	#inflight = 0;
-	#exits = [];
+	#exits: number[] = [];
 	#stopping = false;
-	#hello = null;
+	#hello: { resolve: (msg: HelloMessage) => void; reject: (err: Error) => void } | null = null;
 
-	status = { embed: initial_status(), whisper: initial_status(), clip: initial_status(), worker: 'down', error: null, memory: null };
+	status: MlStatus = { embed: initial_status(), whisper: initial_status(), clip: initial_status(), worker: 'down', error: null, memory: null };
 	available = true;
 	dim = DIMS;
 	thresholds = THRESHOLDS;
-	/** @type {(status: MlClient['status']) => void} */
-	on_status;
+	on_status: (status: MlStatus) => void;
 
-	/**
-	 * @param {{ worker_path: string, models_dir: string, device?: string | null, autoload?: boolean,
-	 *   on_status?: (status: MlClient['status']) => void }} opts
-	 */
-	constructor({ worker_path, models_dir, device = null, autoload = true, on_status = () => {} }) {
+	constructor({
+		worker_path,
+		models_dir,
+		device = null,
+		autoload = true,
+		on_status = () => {}
+	}: {
+		worker_path: string;
+		models_dir: string;
+		device?: string | null;
+		autoload?: boolean;
+		on_status?: (status: MlStatus) => void;
+	}) {
 		this.#worker_path = worker_path;
 		this.#models_dir = models_dir;
 		this.#device = device;
@@ -72,7 +225,7 @@ export class MlClient {
 		on_exit(() => this.stop_sync());
 	}
 
-	model_id(model) {
+	model_id(model: ModelName) {
 		return MODEL_IDS[model];
 	}
 
@@ -82,7 +235,7 @@ export class MlClient {
 
 	async start() {
 		await this.#spawn();
-		if (this.#autoload) this.load('embed').catch((err) => warn('embedding model failed to load:', err.message));
+		if (this.#autoload) this.load('embed').catch((err: Error) => warn('embedding model failed to load:', err.message));
 	}
 
 	#spawn() {
@@ -101,16 +254,16 @@ export class MlClient {
 			stdin: 'ignore',
 			stdout: 'inherit',
 			stderr: 'inherit',
-			ipc: (msg) => this.#receive(msg),
+			ipc: (msg: WorkerMessage) => this.#receive(msg),
 			serialization: 'advanced',
 			onExit: (proc, code, signal) => this.#on_exit(proc, code, signal)
 		});
-		return new Promise((resolve, reject) => {
+		return new Promise<HelloMessage>((resolve, reject) => {
 			this.#hello = { resolve, reject };
 		});
 	}
 
-	#receive(msg) {
+	#receive(msg: WorkerMessage) {
 		if (msg.type === 'hello') {
 			this.status.worker = 'up';
 			this.status.error = null;
@@ -149,11 +302,11 @@ export class MlClient {
 		this.#pump();
 	}
 
-	#request(type, payload, { lane = 'bulk', on_progress, signal } = {}) {
-		return new Promise((resolve, reject) => {
+	#request<T extends JobType>(type: T, payload: WorkerPayloads[T], { lane = 'bulk', on_progress, signal }: RequestOptions = {}) {
+		return new Promise<WorkerResults[T]>((resolve, reject) => {
 			if (!this.available) return reject(new MlError(this.status.error ?? 'ML worker is down', { code: 'ML_UNAVAILABLE' }));
 			const id = this.#next_id++;
-			const job = { id, msg: { id, type, ...payload }, resolve, reject, on_progress, lane, sent: false };
+			const job: Job = { id, msg: { id, type, ...payload } as WorkerJob, resolve, reject, on_progress, lane, sent: false };
 			signal?.addEventListener(
 				'abort',
 				() => {
@@ -184,12 +337,12 @@ export class MlClient {
 			} catch (err) {
 				this.#pending.delete(job.id);
 				this.#inflight--;
-				job.reject(new MlError(err.message, { code: 'WORKER_CRASHED', transient: true, cause: err }));
+				job.reject(new MlError((err as Error).message, { code: 'WORKER_CRASHED', transient: true, cause: err }));
 			}
 		}
 	}
 
-	#on_exit(proc, code, signal) {
+	#on_exit(proc: WorkerProcess, code: number | null, signal: number | null) {
 		if (proc !== this.#proc) return;
 		this.#proc = null;
 		const message = `ML worker exited (${signal ?? `code ${code}`})`;
@@ -268,17 +421,12 @@ export class MlClient {
 		this.#proc?.kill();
 	}
 
-	load(model) {
+	load(model: ModelName) {
 		return this.#request('load', { model }, { lane: 'interactive' });
 	}
 
-	/**
-	 * @param {string[]} texts
-	 * @param {{ signal?: AbortSignal, batch?: number }} [opts]
-	 * @returns {Promise<Float32Array[]>}
-	 */
-	async embed_texts(texts, { signal, batch = 8 } = {}) {
-		const out = [];
+	async embed_texts(texts: string[], { signal, batch = 8 }: EmbedOptions = {}): Promise<Float32Array[]> {
+		const out: Float32Array[] = [];
 		for (let i = 0; i < texts.length; i += batch) {
 			const slice = texts.slice(i, i + batch);
 			const { dim, vectors } = await this.#request('embedTexts', { texts: slice }, { lane: 'bulk', signal });
@@ -287,26 +435,22 @@ export class MlClient {
 		return out;
 	}
 
-	async embed_query(text) {
+	async embed_query(text: string) {
 		const { dim, vector } = await this.#request('embedQuery', { text }, { lane: 'interactive' });
 		return unpack_vec(vector, 0, dim);
 	}
 
-	/**
-	 * @param {string} path 16 kHz mono WAV
-	 * @param {{ language?: string | null, on_progress?: (p: any) => void, signal?: AbortSignal }} [opts]
-	 * @returns {Promise<{ text: string, segments: Array<{ start: number, end: number, text: string }>, language: string | null, duration: number }>}
-	 */
-	transcribe(path, { language = null, on_progress, signal } = {}) {
+	/** `path` is a 16 kHz mono WAV. */
+	transcribe(path: string, { language = null, on_progress, signal }: TranscribeOptions = {}): Promise<TranscribeResult> {
 		return this.#request('transcribe', { path, language }, { lane: 'bulk', on_progress, signal });
 	}
 
-	async clip_image(path) {
+	async clip_image(path: string) {
 		const { dim, vector } = await this.#request('clipImage', { path }, { lane: 'bulk' });
 		return unpack_vec(vector, 0, dim);
 	}
 
-	async clip_text(text) {
+	async clip_text(text: string) {
 		const { dim, vector } = await this.#request('clipText', { text }, { lane: 'interactive' });
 		return unpack_vec(vector, 0, dim);
 	}

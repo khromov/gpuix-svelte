@@ -1,7 +1,27 @@
-<script>
+<script lang="ts">
 	import Button from './Button.svelte';
 
-	let { label = '', value = '', placeholder = '', hint = '', secret = false, readOnly = false, mono = false, onchange = null, onsubmit = null } = $props();
+	let {
+		label = '',
+		value = '',
+		placeholder = '',
+		hint = '',
+		secret = false,
+		readOnly = false,
+		mono = false,
+		onchange = null,
+		onsubmit = null
+	}: {
+		label?: string;
+		value?: string;
+		placeholder?: string;
+		hint?: string;
+		secret?: boolean;
+		readOnly?: boolean;
+		mono?: boolean;
+		onchange?: ((value: string) => void) | null;
+		onsubmit?: ((value: string) => void) | null;
+	} = $props();
 
 	let reveal = $state(false);
 	let focused = $state(false);

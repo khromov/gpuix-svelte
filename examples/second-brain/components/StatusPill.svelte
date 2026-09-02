@@ -1,15 +1,15 @@
-<script>
-	import { data } from '../lib/data.svelte.js';
-	import { push } from '../lib/router.svelte.js';
+<script lang="ts">
+	import { data } from '../lib/data.svelte.ts';
+	import { push } from '../lib/router.svelte.ts';
 	import Spinner from './Spinner.svelte';
 
 
 	const summary = $derived.by(() => {
 		const ml = data.ml;
-		const states = ['embed', 'whisper', 'clip'].map((m) => ml[m]?.state ?? 'unloaded');
+		const states = (['embed', 'whisper', 'clip'] as const).map((m) => ml[m]?.state ?? 'unloaded');
 		if (ml.worker === 'down' && ml.error) return { tone: 'error', text: 'models off', busy: false };
 		if (ml.worker === 'restarting') return { tone: 'warn', text: 'worker restarting', busy: true };
-		const downloading = ['embed', 'whisper', 'clip'].filter((m) => ml[m]?.state === 'downloading');
+		const downloading = (['embed', 'whisper', 'clip'] as const).filter((m) => ml[m]?.state === 'downloading');
 		if (downloading.length) {
 			const pct = Math.round(ml[downloading[0]].progress ?? 0);
 			return { tone: 'warn', text: `downloading ${downloading[0]} ${pct}%`, busy: true };
