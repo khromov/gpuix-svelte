@@ -8,7 +8,7 @@
 <div class="badge {kind}">{LABEL[kind] ?? kind}</div>
 
 <style>
-	.badge { padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px; font-weight: 600; pointer-events: none; user-select: none; }
+	.badge { padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px; font-weight: 600; user-select: none; }
 	.badge.text { background-color: var(--ochreSoft); color: var(--ochreInk); }
 	.badge.link { background-color: var(--infoSoft); color: var(--info); }
 	.badge.image { background-color: var(--plumSoft); color: var(--plum); }

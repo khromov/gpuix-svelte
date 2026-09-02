@@ -31,6 +31,12 @@ const UNIVERSAL_PROPS = new Set(['autoFocus', 'tabIndex', 'testId', 'motion', 'h
 /** Attributes that feed `setStyle` rather than a custom prop — `class` via the component's `<style>` rules. */
 const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
 
+/** Attributes the renderer consumes itself; never forwarded as props. */
+const RENDERER_ATTRS = new Set(['hitbox']);
+
+/** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
+const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
+
 /** Svelte lowercases some attributes; GPUI wants them camelCased. */
 const PROP_ALIASES = new Map([
 	['autofocus', 'autoFocus'],
@@ -48,6 +54,9 @@ let queue = [];
 let by_id = new Map();
 
 let pending_destroy = new Set();
+
+/** `<svg>`s painting their nearest ancestor's `color`, restyled when that ancestor is. */
+let inheriting_svgs = new Set();
 
 /**
  * Monotonic across remounts on purpose: `render_hot` builds a fresh tree while the old
@@ -189,11 +198,70 @@ function class_rules(el) {
 	return matched ?? NO_RULES;
 }
 
+function hitbox_root(el) {
+	for (let p = el.parent; p; p = p.parent) {
+		if (p.kind === 'element' && p.attrs.hitbox === 'self') return p;
+	}
+	return null;
+}
+
+function descends(n, ancestor) {
+	for (let p = n.parent; p; p = p.parent) if (p === ancestor) return true;
+	return false;
+}
+
+/**
+ * Under a `hitbox="self"` ancestor, anything that neither listens, takes input nor
+ * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
+ */
+function shielded(el, style) {
+	if (el.listeners.size > 0 || INTERACTIVE_TAGS.has(el.name)) return false;
+	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
+	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
+	return hitbox_root(el) !== null;
+}
+
+/** `<svg>` takes no `color` from its parent natively, so the nearest ancestor's is copied in. */
+function inherit_color(el, style) {
+	for (let p = el.parent; p; p = p.parent) {
+		if (p.kind !== 'element') continue;
+		const color = build_style(p.attrs, class_rules(p)).color;
+		if (used_css_vars()) el.uses_vars = true;
+		if (color !== undefined) {
+			style.color = color;
+			return;
+		}
+	}
+}
+
 function apply_style(el) {
 	if (el.nativeId === null) return;
 	const style = build_style(el.attrs, class_rules(el));
 	el.uses_vars = used_css_vars();
+
+	if (style.pointerEvents === undefined && shielded(el, style)) style.pointerEvents = 'none';
+
+	if (el.name === 'svg') {
+		if (style.color === undefined) {
+			inherit_color(el, style);
+			inheriting_svgs.add(el);
+		} else {
+			inheriting_svgs.delete(el);
+		}
+	} else if (inheriting_svgs.size > 0) {
+		for (const svg of inheriting_svgs) {
+			if (svg.nativeId !== null && descends(svg, el)) apply_style(svg);
+		}
+	}
+
 	emit(['setStyle', el.nativeId, style]);
+}
+
+function restyle_subtree(el) {
+	for (let c = el.first; c; c = c.next) {
+		if (c.kind === 'element' && c.nativeId !== null) apply_style(c);
+		restyle_subtree(c);
+	}
 }
 
 const prop_name = (key) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
@@ -232,12 +300,10 @@ function materialize(n) {
 		by_id.set(n.nativeId, n);
 		emit(['createElement', n.nativeId, map_tag(n.name)]);
 
-		if (Object.keys(n.attrs).length > 0) {
-			apply_style(n);
-			for (const key of Object.keys(n.attrs)) {
-				if (STYLE_ATTRS.has(key)) continue;
-				apply_prop(n, key, n.attrs[key]);
-			}
+		if (Object.keys(n.attrs).length > 0 || hitbox_root(n) !== null) apply_style(n);
+		for (const key of Object.keys(n.attrs)) {
+			if (STYLE_ATTRS.has(key) || RENDERER_ATTRS.has(key)) continue;
+			apply_prop(n, key, n.attrs[key]);
 		}
 
 		for (const type of n.listeners.keys()) {
@@ -304,6 +370,7 @@ const renderer = createRenderer({
 		el.attrs[key] = value;
 
 		if (STYLE_ATTRS.has(key)) apply_style(el);
+		else if (RENDERER_ATTRS.has(key)) restyle_subtree(el);
 		else apply_prop(el, key, value);
 	},
 
@@ -312,6 +379,7 @@ const renderer = createRenderer({
 		delete el.attrs[name];
 
 		if (STYLE_ATTRS.has(name)) apply_style(el);
+		else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
 		else apply_prop(el, name, null);
 	},
 
@@ -402,6 +470,8 @@ const renderer = createRenderer({
 		// GPUI stores a bare "has listener" flag, so only the 0->1 edge matters.
 		if (handlers.length === 1 && target.nativeId !== null) {
 			emit(['setEventListener', target.nativeId, event, true]);
+			// A listener earns the element its hitbox back under a `hitbox="self"` ancestor.
+			if (hitbox_root(target) !== null) apply_style(target);
 		}
 	},
 
@@ -419,6 +489,7 @@ const renderer = createRenderer({
 			target.listeners.delete(event);
 			if (target.nativeId !== null) {
 				emit(['setEventListener', target.nativeId, event, false]);
+				if (hitbox_root(target) !== null) apply_style(target);
 			}
 		}
 	}
@@ -451,6 +522,7 @@ export function set_native(instance) {
 	queue = [];
 	by_id = new Map();
 	pending_destroy = new Set();
+	inheriting_svgs = new Set();
 	dirty = false;
 	commit_scheduled = false;
 }
@@ -511,6 +583,7 @@ export function commit() {
 		if (n) {
 			n.nativeId = null;
 			n.attached = false;
+			if (n.name === 'svg') inheriting_svgs.delete(n);
 		}
 		by_id.delete(id);
 	}

@@ -10,6 +10,7 @@
 	class="btn {variant}"
 	class:small
 	class:disabled
+	hitbox="self"
 	onclick={() => {
 		if (!disabled) onclick?.();
 	}}
@@ -23,7 +24,6 @@
 	.btn { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; border-radius: 6px; border-width: 1px; font-size: 13px; line-height: 18px; font-weight: 500; cursor: pointer; user-select: none; white-space: nowrap; }
 	.btn.small { padding: 4px 9px; font-size: 12px; line-height: 16px; }
 	.btn.disabled { opacity: 0.45; cursor: default; }
-	.label { pointer-events: none; }
 
 	.btn.primary { background-color: var(--accent); border-color: var(--accent); color: var(--accentInk); }
 	.btn.primary:hover { background-color: var(--accentHover); border-color: var(--accentHover); }

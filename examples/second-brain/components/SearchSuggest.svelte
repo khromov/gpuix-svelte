@@ -8,7 +8,7 @@
 	<div class="menu" style="left: {s.left}px; top: {s.top}px; width: {s.width}px" testId="suggest">
 		<div class="title">Filters</div>
 		{#each s.items as item, i (item.label)}
-			<div class="row" class:active={i === s.active} onclick={item.apply} testId="suggest-{item.label}">
+			<div class="row" class:active={i === s.active} hitbox="self" onclick={item.apply} testId="suggest-{item.label}">
 				<div class="label">{item.label}</div>
 				<div class="hint">{item.hint}</div>
 			</div>
@@ -23,7 +23,7 @@
 	.row { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
 	.row:hover { background-color: var(--hoverStrong); }
 	.row.active { background-color: var(--accentSoft); }
-	.label { font-family: Lilex; font-size: 12px; line-height: 16px; pointer-events: none; }
-	.hint { font-size: 12px; line-height: 16px; pointer-events: none; color: var(--inkMuted); }
+	.label { font-family: Lilex; font-size: 12px; line-height: 16px; }
+	.hint { font-size: 12px; line-height: 16px; color: var(--inkMuted); }
 	.foot { padding: 4px 8px 2px 8px; font-size: 10px; line-height: 14px; color: var(--inkFaint); }
 </style>

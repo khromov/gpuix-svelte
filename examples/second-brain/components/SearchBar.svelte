@@ -144,5 +144,5 @@
 	.search { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; padding: 6px 8px 6px 12px; border-radius: 8px; border-width: 1px; background-color: var(--surface); border-color: var(--border); color: var(--inkFaint); }
 	.search.focused { border-color: var(--accent); background-color: var(--focusSurface); }
 	.input { flex-grow: 1; min-width: 0; font-size: 13px; line-height: 18px; color: var(--ink); }
-	.hint { padding: 1px 6px; border-radius: 4px; border-width: 1px; font-size: 10px; line-height: 14px; font-family: Lilex; pointer-events: none; user-select: none; border-color: var(--border); color: var(--inkFaint); }
+	.hint { padding: 1px 6px; border-radius: 4px; border-width: 1px; font-size: 10px; line-height: 14px; font-family: Lilex; user-select: none; border-color: var(--border); color: var(--inkFaint); }
 </style>

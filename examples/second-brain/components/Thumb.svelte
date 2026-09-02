@@ -15,8 +15,8 @@
 {/if}
 
 <style>
-	.thumb { border-radius: 8px; pointer-events: none; }
-	.tile { display: flex; align-items: center; justify-content: center; border-radius: 8px; pointer-events: none; }
+	.thumb { border-radius: 8px; }
+	.tile { display: flex; align-items: center; justify-content: center; border-radius: 8px; }
 	.tile.text { background-color: var(--ochreSoft); color: var(--ochre); }
 	.tile.link { background-color: var(--infoSoft); color: var(--info); }
 	.tile.image { background-color: var(--plumSoft); color: var(--plum); }

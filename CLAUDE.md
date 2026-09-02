@@ -339,9 +339,10 @@ the two stay in sync. Unknown events are dropped silently.
   `display: none` have the same problems in a class rule as inline (see the styling playground).
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning. `<img src>` is a
-  filesystem path or a `data:` URL, never http. `<svg source>` inherits **no** `color` from its
-  parent — set one on the element (Substrate's `Icon.svelte` does it with tone classes) or it
-  paints a default grey.
+  filesystem path or a `data:` URL, never http. `<svg source>` inherits **no** `color` natively,
+  so the renderer copies the nearest ancestor's (from its class rules or inline style) onto any
+  `<svg>` without one and re-copies it whenever that ancestor restyles; a parent's `:hover` colour
+  does not reach it, since hover is native. Substrate's `Icon.svelte` still sets tones explicitly.
 - Prefer `<style>` blocks to inline `style="..."`: shape and colour as class rules, colours as
   `var(--token)` with the palette handed to `set_css_vars({ token: '#fff' })` once from the root
   (Substrate does it in an `$effect` over its `LIGHT`/`DARK` objects — a theme switch is one
@@ -353,7 +354,12 @@ the two stay in sync. Unknown events are dropped silently.
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child with a
   `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
-  give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
+  put `hitbox="self"` on the clickable element and the renderer ships `pointer-events: none` for
+  every descendant that has no listener of its own, is not an `<input>`/`<textarea>`/other
+  input-taking native type, is not focusable (`tabindex`/`autofocus`) and does not scroll;
+  `<img>` and `<svg>` are covered, a nested button keeps its hitbox (and shields its own
+  decoration), and adding or removing a listener later restyles that element. An explicit
+  `pointer-events` on the descendant wins. GPUI also doesn't capture the pointer on
   mousedown: for drags, put `mousemove`/`mouseup` on the surfaces the cursor may cross (or show a
   window-sized `position: absolute` overlay for the drag's duration, as the styling playground's
   scrollbar does) and treat a move with `pressedButton == null` as the release (see the sliders in

@@ -9,5 +9,5 @@
 <div class="spinner" style="font-size: {size}px; line-height: {size + 2}px">{spinner_frame()}</div>
 
 <style>
-	.spinner { font-family: Lilex; pointer-events: none; user-select: none; }
+	.spinner { font-family: Lilex; user-select: none; }
 </style>

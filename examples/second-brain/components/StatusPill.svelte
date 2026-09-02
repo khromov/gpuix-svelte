@@ -24,7 +24,7 @@
 	});
 </script>
 
-<div class="pill" onclick={() => push('/settings')}>
+<div class="pill" hitbox="self" onclick={() => push('/settings')}>
 	{#if summary.busy}
 		<Spinner size={11} />
 	{:else}
@@ -39,11 +39,11 @@
 <style>
 	.pill { display: flex; flex-direction: row; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; border-width: 1px; font-size: 11px; line-height: 14px; cursor: pointer; user-select: none; border-color: var(--border); color: var(--inkMuted); }
 	.pill:hover { background-color: var(--hover); }
-	.text { pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.dot { width: 8px; height: 8px; border-radius: 4px; pointer-events: none; }
+	.text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.dot { width: 8px; height: 8px; border-radius: 4px; }
 	.dot.ok { background-color: var(--accent); }
 	.dot.warn { background-color: var(--ochre); }
 	.dot.error { background-color: var(--danger); }
 	.dot.muted { background-color: var(--borderStrong); }
-	.count { padding: 0 6px; border-radius: 999px; font-size: 10px; line-height: 14px; font-weight: 600; pointer-events: none; background-color: var(--well); color: var(--ink); }
+	.count { padding: 0 6px; border-radius: 999px; font-size: 10px; line-height: 14px; font-weight: 600; background-color: var(--well); color: var(--ink); }
 </style>

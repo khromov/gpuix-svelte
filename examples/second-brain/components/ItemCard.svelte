@@ -28,7 +28,7 @@
 	const text_mark = $derived(mark(text));
 </script>
 
-<div class="card" class:failed class:compact onclick={onopen} testId="item-{item.id}">
+<div class="card" class:failed class:compact hitbox="self" onclick={onopen} testId="item-{item.id}">
 	<Thumb {item} size={compact ? 40 : 52} />
 	<div class="body">
 		{#if title_mark}
@@ -72,13 +72,12 @@
 	.card.compact { padding: 8px 10px; gap: 10px; align-items: center; }
 	.card:hover { background-color: var(--raised); border-color: var(--borderStrong); }
 	.card.failed { border-color: var(--dangerBorder); }
-	.body { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 0; pointer-events: none; }
+	.body { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 0; }
 	.title { font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.snippet { font-size: 13px; line-height: 18px; line-clamp: 3; color: var(--inkMuted); }
 	.meta { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 11px; line-height: 16px; color: var(--inkFaint); }
 	.error { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--danger); }
 	.signal { display: flex; flex-direction: row; align-items: center; gap: 4px; padding: 0 6px; border-width: 1px; border-radius: 4px; border-color: var(--border); color: var(--inkMuted); }
 	.signal.clip { background-color: var(--plumSoft); border-color: var(--plumBorder); color: var(--plum); font-weight: 600; }
-	.signal-text { pointer-events: none; }
 	.actions { display: flex; flex-direction: row; align-items: center; }
 </style>

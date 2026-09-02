@@ -59,11 +59,11 @@
 	.actions { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; user-select: none; }
 	.sep { width: 1px; height: 18px; margin: 0 4px; background-color: var(--border); }
 	.grow { flex-grow: 1; }
-	.note { display: flex; flex-direction: row; align-items: center; gap: 5px; font-size: 11px; line-height: 14px; pointer-events: none; color: var(--inkFaint); }
+	.note { display: flex; flex-direction: row; align-items: center; gap: 5px; font-size: 11px; line-height: 14px; color: var(--inkFaint); }
 	.note-text { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.rec { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; user-select: none; background-color: var(--dangerSoft); color: var(--danger); }
-	.dot { width: 10px; height: 10px; border-radius: 5px; pointer-events: none; background-color: var(--danger); }
-	.rec-label { font-size: 12px; line-height: 16px; font-weight: 600; font-family: Lilex; pointer-events: none; }
-	.meter { position: relative; flex-grow: 1; height: 6px; border-radius: 3px; overflow: hidden; pointer-events: none; background-color: var(--dangerWash); }
+	.dot { width: 10px; height: 10px; border-radius: 5px; background-color: var(--danger); }
+	.rec-label { font-size: 12px; line-height: 16px; font-weight: 600; font-family: Lilex; }
+	.meter { position: relative; flex-grow: 1; height: 6px; border-radius: 3px; overflow: hidden; background-color: var(--dangerWash); }
 	.level { position: absolute; top: 0; left: 0; height: 6px; border-radius: 3px; background-color: var(--danger); }
 </style>

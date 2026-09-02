@@ -28,7 +28,7 @@
 		{:else if kind === 'image'}
 			<div class="grid">
 				{#each items as item (item.id)}
-					<div class="tile" onclick={() => push(`/item/${item.id}`)}>
+					<div class="tile" hitbox="self" onclick={() => push(`/item/${item.id}`)}>
 						{#if item.thumb_path}
 							<img src={item.thumb_path} objectFit="cover" class="pic" />
 						{:else}
@@ -53,8 +53,8 @@
 	.grid { display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; }
 	.tile { display: flex; flex-direction: column; gap: 6px; width: 172px; padding: 8px; border-radius: 10px; border-width: 1px; cursor: pointer; user-select: none; background-color: var(--surface); border-color: var(--border); }
 	.tile:hover { background-color: var(--raised); border-color: var(--borderStrong); }
-	.pic { width: 156px; height: 120px; border-radius: 6px; pointer-events: none; }
+	.pic { width: 156px; height: 120px; border-radius: 6px; }
 	.pic.missing { background-color: var(--plumSoft); }
-	.caption { font-size: 12px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-	.state { font-size: 11px; line-height: 14px; pointer-events: none; color: var(--inkFaint); }
+	.caption { font-size: 12px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.state { font-size: 11px; line-height: 14px; color: var(--inkFaint); }
 </style>

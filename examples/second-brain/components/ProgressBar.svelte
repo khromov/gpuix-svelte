@@ -15,7 +15,7 @@
 </div>
 
 <style>
-	.track { position: relative; width: 100%; overflow: hidden; pointer-events: none; background-color: var(--well); }
+	.track { position: relative; width: 100%; overflow: hidden; background-color: var(--well); }
 	.fill { position: absolute; top: 0; left: 0; background-color: var(--accent); }
 	.fill.indeterminate { opacity: 0.7; }
 </style>

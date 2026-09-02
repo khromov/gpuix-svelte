@@ -11,6 +11,7 @@
 	class:danger
 	class:disabled
 	style="width: {size}px; height: {size}px"
+	hitbox="self"
 	onclick={() => {
 		if (!disabled) onclick?.();
 	}}

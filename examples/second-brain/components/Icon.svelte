@@ -10,7 +10,6 @@
 <svg source={ICONS[name] ?? ICONS.dot} class="icon {tone}" style="width: {size}px; height: {size}px"></svg>
 
 <style>
-	.icon { pointer-events: none; }
 	.icon.ink { color: var(--ink); }
 	.icon.muted { color: var(--inkMuted); }
 	.icon.faint { color: var(--inkFaint); }
