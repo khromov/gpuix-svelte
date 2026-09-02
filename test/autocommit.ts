@@ -7,7 +7,7 @@ import { TestGpuixRenderer } from '@gpuix/native';
 import { set_native, create_root, set_auto_commit } from 'gpuix-svelte';
 import { mount_headless, check, finish } from 'gpuix-svelte/test';
 
-async function mount_and_wait(auto) {
+async function mount_and_wait(auto: boolean) {
 	// Before the mount, so the component's first timer already runs under it.
 	set_auto_commit(auto);
 	const AutoCommit = (await import('./AutoCommit.svelte')).default;

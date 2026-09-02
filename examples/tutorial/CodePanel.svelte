@@ -1,5 +1,7 @@
-<script>
-	let { label, language, source, theme } = $props();
+<script lang="ts">
+	import type { THEME } from './theme.ts';
+
+	let { label, language, source, theme }: { label: string; language: string; source: string; theme: typeof THEME } = $props();
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 6px">

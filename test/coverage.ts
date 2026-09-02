@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { mount, flushSync } from 'svelte';
-import renderer, { set_native, create_root, commit } from '../src/renderer.js';
+import renderer, { set_native, create_root, commit } from '../src/renderer.ts';
 
 const SOURCE = process.env.SVELTE_SAMPLES_DIR;
 if (!SOURCE || !existsSync(SOURCE)) {
@@ -28,7 +28,12 @@ cpSync(SOURCE, SAMPLES, { recursive: true });
 const native = new TestGpuixRenderer();
 set_native(native);
 
-const results = { ok: [], expected_compile_error: [], compile_error: [], runtime_error: [] };
+const results: Record<'ok' | 'expected_compile_error' | 'compile_error' | 'runtime_error', string[]> = {
+	ok: [],
+	expected_compile_error: [],
+	compile_error: [],
+	runtime_error: []
+};
 
 for (const name of readdirSync(SAMPLES).sort()) {
 	const dir = join(SAMPLES, name);
@@ -48,7 +53,7 @@ for (const name of readdirSync(SAMPLES).sort()) {
 		commit();
 		results.ok.push(name);
 	} catch (err) {
-		const message = String(err.message ?? err).split('\n')[0];
+		const message = String((err as Error).message ?? err).split('\n')[0];
 		if (expects_compile_error) results.expected_compile_error.push(name);
 		else if (/Unrecognised|not compatible|compile|svelte_options/i.test(message))
 			results.compile_error.push(`${name}: ${message}`);
@@ -70,7 +75,7 @@ console.log(`runtime errors             ${results.runtime_error.length}`);
 for (const [label, list] of [
 	['UNEXPECTED COMPILE', results.compile_error],
 	['RUNTIME', results.runtime_error]
-]) {
+] as const) {
 	if (list.length) {
 		console.log(`\n--- ${label} ---`);
 		for (const line of list) console.log('  ' + line);

@@ -4,20 +4,20 @@
  * on top — the shadow node stays put and only the native node moves to the root.
  */
 
-import { mount_headless, tree, find_test_id, click_test_id, click_at, all_text, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, tree, find_test_id, click_test_id, click_at, all_text, check, finish, type TreeNode } from 'gpuix-svelte/test';
 
 const Fixture = (await import('./PortalFixture.svelte')).default;
 const { native } = mount_headless(Fixture, { width: 400, height: 300 });
 
 const hits = () => all_text().find((t) => /^\d+-\d+-\d+$/.test(t));
-const last_root_child = () => tree().children.at(-1);
-const holds = (node, id) => JSON.stringify(node).includes(`"testId":"${id}"`);
+const last_root_child = () => tree().children!.at(-1)!;
+const holds = (node: TreeNode | null, id: string) => JSON.stringify(node).includes(`"testId":"${id}"`);
 
 check("the portal's content is the root's last native child", holds(last_root_child(), 'over'), true);
 check('and no longer sits under its shadow parent natively', holds(find_test_id('inner'), 'over'), false);
 // Windows ignores the requested headless size, so the window is whatever native says it is.
 const { width, height } = native.getWindowSize();
-check('the wrapper covers the window without a hitbox', [last_root_child().style.pointerEvents, native.getElementBounds(last_root_child().id)], ['none', [0, 0, width, height]]);
+check('the wrapper covers the window without a hitbox', [last_root_child().style!.pointerEvents, native.getElementBounds(last_root_child().id)], ['none', [0, 0, width, height]]);
 
 click_test_id('over');
 check('a click where both overlap reaches the portal, not the later sibling', hits(), '0-1-0');

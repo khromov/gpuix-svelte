@@ -11,7 +11,7 @@ const PR = 18511;
 const root = fileURLToPath(new URL('..', import.meta.url));
 const vendor = join(root, 'vendor');
 
-const { head } = await get(`https://api.github.com/repos/sveltejs/svelte/pulls/${PR}`).then((r) => r.json());
+const { head } = (await get(`https://api.github.com/repos/sveltejs/svelte/pulls/${PR}`).then((r) => r.json())) as { head: { sha: string } };
 const sha = head.sha;
 const short = sha.slice(0, 7);
 
@@ -21,9 +21,9 @@ if (current) {
 	process.exit(0);
 }
 
-const { version } = await get(
+const { version } = (await get(
 	`https://raw.githubusercontent.com/sveltejs/svelte/${sha}/packages/svelte/package.json`
-).then((r) => r.json());
+).then((r) => r.json())) as { version: string };
 const tarball = await get(`https://pkg.svelte.dev/svelte/c/${sha}`).then((r) => r.arrayBuffer());
 
 for (const f of readdirSync(vendor)) {
@@ -40,7 +40,7 @@ execSync('npm install', { cwd: root, stdio: 'inherit' });
 
 console.log(`\nsvelte ${version} @ ${sha} -> vendor/${name}\nnow run: npm test && npm run bun:test`);
 
-async function get(url) {
+async function get(url: string) {
 	const res = await fetch(url);
 	if (!res.ok) throw new Error(`${url} -> ${res.status} ${res.statusText}`);
 	return res;

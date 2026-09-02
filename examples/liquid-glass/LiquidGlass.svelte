@@ -1,11 +1,13 @@
-<script>
+<script lang="ts">
+	import type { GpuixEvent } from 'gpuix-svelte';
+
 	let {
 		glass = false,
 		scrim = 'rgba(22, 22, 34, 0.42)',
 		backing = 'GPUI window blur behind the panel',
 		// Room for the traffic lights the transparent titlebar draws over.
 		padTop = 44
-	} = $props();
+	}: { glass?: boolean; scrim?: string; backing?: string; padTop?: number } = $props();
 
 	let wifi = $state(true);
 	let bluetooth = $state(true);
@@ -32,23 +34,23 @@
 	// GPUI captures no pointer for us, so a drag is: mousedown on the track,
 	// then mousemove/mouseup handled by the surfaces above it (track, card, root).
 	const HOST = Symbol.for('gpuix.svelte.host');
-	let drag = $state(null);
+	let drag = $state<{ key: 'brightness' | 'volume'; trackId: number } | null>(null);
 
-	function slide(e) {
-		const native = globalThis[HOST]?.native;
-		const bounds = native?.getElementBounds(drag.trackId);
+	function slide(e: GpuixEvent) {
+		const native = (globalThis as Record<symbol, any>)[HOST]?.native;
+		const bounds: number[] | null = native?.getElementBounds(drag!.trackId);
 		if (!bounds) return;
-		const value = Math.min(1, Math.max(0, (e.x - bounds[0]) / bounds[2]));
-		if (drag.key === 'brightness') brightness = value;
+		const value = Math.min(1, Math.max(0, (e.x! - bounds[0]) / bounds[2]));
+		if (drag!.key === 'brightness') brightness = value;
 		else volume = value;
 	}
 
-	function press(key, e) {
-		drag = { key, trackId: e.target.nativeId };
+	function press(key: 'brightness' | 'volume', e: GpuixEvent) {
+		drag = { key, trackId: e.target.nativeId! };
 		slide(e);
 	}
 
-	function move(e) {
+	function move(e: GpuixEvent) {
 		if (!drag) return;
 		// a mouseUp that lands on a surface without our listener never arrives;
 		// the payload's button state is the truth, so a buttonless move ends the drag

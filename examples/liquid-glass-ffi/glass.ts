@@ -19,7 +19,7 @@ export async function init_glass() {
 			execFileSync('clang', ['-dynamiclib', '-fobjc-arc', '-framework', 'AppKit', '-o', DYLIB, SRC]);
 		}
 
-		let available, attach;
+		let available: () => number, attach: (radius: number) => number;
 		if (process.versions.bun) {
 			const { dlopen } = await import('bun:ffi');
 			const lib = dlopen(DYLIB, {
@@ -27,7 +27,7 @@ export async function init_glass() {
 				gpuix_glass_attach: { args: ['f64'], returns: 'i64' }
 			});
 			available = () => lib.symbols.gpuix_glass_available();
-			attach = (radius) => Number(lib.symbols.gpuix_glass_attach(radius));
+			attach = (radius: number) => Number(lib.symbols.gpuix_glass_attach(radius));
 		} else {
 			const { dlopen } = await import('node:ffi');
 			const { functions } = dlopen(DYLIB, {
@@ -35,13 +35,13 @@ export async function init_glass() {
 				gpuix_glass_attach: { arguments: ['float64'], return: 'int64' }
 			});
 			available = () => functions.gpuix_glass_available();
-			attach = (radius) => Number(functions.gpuix_glass_attach(radius));
+			attach = (radius: number) => Number(functions.gpuix_glass_attach(radius));
 		}
 
 		if (!available()) return null;
 		return { attach };
 	} catch (err) {
-		console.warn('[liquid-glass] real glass unavailable, using window blur:', err.message);
+		console.warn('[liquid-glass] real glass unavailable, using window blur:', (err as Error).message);
 		return null;
 	}
 }

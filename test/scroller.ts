@@ -12,23 +12,23 @@ let { native } = mount_headless(Tall, { width: 400, height: 300 });
 // The thumb is measured on a 250 ms timer, since bounds exist only after a paint.
 await wait(300);
 
-const column = () => find_test_id('list');
-const thumb = () => find_test_id('list-thumb');
+const column = () => find_test_id('list')!;
+const thumb = () => find_test_id('list-thumb')!;
 const offset = () => native.getScrollOffset(column().id)?.[1] ?? 0;
 
-const [cx, cy, cw, ch] = bounds(column());
+const [cx, cy, cw, ch] = bounds(column())!;
 check('the column clips to its viewport', Math.round(ch), 200);
-const t0 = bounds(thumb());
+const t0 = bounds(thumb())!;
 check('the thumb is shorter than the viewport', t0[3] > 0 && t0[3] < ch, true);
 check('and starts at the top', Math.round(t0[1] - cy), 0);
-check('with the package colour, nothing having set --scroller-thumb', thumb().style.backgroundColor, '#585b70');
+check('with the package colour, nothing having set --scroller-thumb', thumb().style!.backgroundColor, '#585b70');
 
 native.simulateScrollWheel(cx + cw / 2, cy + ch / 2, 0, -120);
 drain();
 // The offset moves after the wheel event returns; the thumb follows a beat later.
 await wait(40);
 check('a wheel scrolls the column', offset() < 0, true);
-const t1 = bounds(thumb());
+const t1 = bounds(thumb())!;
 check('and the thumb moves down', t1[1] > t0[1], true);
 
 const [tx, ty, tw, th] = t1;
@@ -52,7 +52,7 @@ check('follow pins the bottom while content grows', Math.round(offset()), 200 - 
 
 ({ native } = mount_headless(Tall, { props: { scroll: false }, width: 400, height: 300 }));
 await wait(300);
-check('scroll={false} clips instead', column().style.overflowY, 'hidden');
-check('and draws no thumb', Math.round(bounds(thumb())[3]), 0);
+check('scroll={false} clips instead', column().style!.overflowY, 'hidden');
+check('and draws no thumb', Math.round(bounds(thumb())![3]), 0);
 
 finish('scroller');

@@ -5,24 +5,53 @@
  */
 
 import { TestGpuixRenderer, hasTestGpuixRenderer } from '@gpuix/native';
-import { mount, unmount, flushSync } from 'svelte';
-import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.js';
+import { mount, unmount, flushSync, type Component } from 'svelte';
+import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.ts';
+import type { GpuiStyle, ShadowNode } from './types.ts';
 
 /** The headless viewport can be any width, but never taller than this; Windows ignores the size altogether. */
 export const MAX_HEADLESS_HEIGHT = 538;
 
-function native() {
-	const instance = get_native();
-	if (!instance) throw new Error('[gpuix-svelte/test] nothing is mounted — call mount_headless() first');
-	return instance;
+/** One node of `getTreeJson()`: what GPUI holds, with the ids the shadow tree assigned. */
+export interface TreeNode {
+	id: number;
+	type: string;
+	text?: string;
+	testId?: string;
+	events?: string[];
+	style?: GpuiStyle;
+	children?: TreeNode[];
 }
 
-/**
- * @param {any} Component a compiled `.svelte` component
- * @param {{ props?: Record<string, any>, width?: number, height?: number,
- *           rootStyle?: Record<string, any> }} [options]
- */
-export function mount_headless(Component, { props = {}, width, height, rootStyle } = {}) {
+/** A tree node, a shadow node or a bare native id. */
+export type Target = number | { id?: number; nativeId?: number | null };
+
+export interface FindOptions {
+	last?: boolean;
+}
+
+export interface ClickOptions extends FindOptions {
+	button?: number;
+	modifiers?: string;
+}
+
+export interface MountHeadlessOptions {
+	props?: Record<string, any>;
+	width?: number;
+	height?: number;
+	rootStyle?: GpuiStyle;
+}
+
+function native(): TestGpuixRenderer {
+	const instance = get_native();
+	if (!instance) throw new Error('[gpuix-svelte/test] nothing is mounted — call mount_headless() first');
+	return instance as TestGpuixRenderer;
+}
+
+export function mount_headless<Exports extends Record<string, any> = Record<string, any>>(
+	Component: Component<any, Exports, any>,
+	{ props = {}, width, height, rootStyle }: MountHeadlessOptions = {}
+) {
 	if (typeof hasTestGpuixRenderer === 'function' && !hasTestGpuixRenderer()) {
 		throw new Error('[gpuix-svelte/test] this @gpuix/native build has no TestGpuixRenderer (the Linux prebuild ships without one)');
 	}
@@ -40,13 +69,13 @@ export function mount_headless(Component, { props = {}, width, height, rootStyle
 	return { native: instance, root, anchor, component, unmount: () => unmount(component) };
 }
 
-let focused = null;
+let focused: number | null = null;
 
 /**
  * Focuses an element through native and stands in for the `focus`/`blur` events the
  * headless renderer never emits (a window does), so `editing` and `onfocus` follow.
  */
-export function focus(target) {
+export function focus(target: Target) {
 	const id = id_of(target);
 	unfocus();
 	native().focusElement(id);
@@ -78,44 +107,45 @@ export async function wait(ms = 30) {
 	settle();
 }
 
-export const tree = () => JSON.parse(native().getTreeJson());
+export const tree = (): TreeNode => JSON.parse(native().getTreeJson());
 
-function walk(node, visit, parent = null) {
+type Visit = (node: TreeNode, parent: TreeNode | null) => void;
+
+function walk(node: TreeNode | null | undefined, visit: Visit, parent: TreeNode | null = null) {
 	if (!node) return;
 	visit(node, parent);
 	for (const child of node.children ?? []) walk(child, visit, node);
 }
 
-/** @param {(node: any, parent: any) => boolean} pred */
-export function find_all(pred) {
-	const hits = [];
+export function find_all(pred: (node: TreeNode, parent: TreeNode | null) => boolean): TreeNode[] {
+	const hits: TreeNode[] = [];
 	walk(tree(), (node, parent) => {
 		if (pred(node, parent)) hits.push(node);
 	});
 	return hits;
 }
 
-export function find(pred, { last = false } = {}) {
+export function find(pred: (node: TreeNode, parent: TreeNode | null) => boolean, { last = false }: FindOptions = {}): TreeNode | null {
 	const all = find_all(pred);
 	return (last ? all.at(-1) : all[0]) ?? null;
 }
 
-export const find_text = (text, opts) => find((n) => n.type === 'text' && n.text === text, opts);
-export const find_test_id = (id, opts) => find((n) => n.testId === id, opts);
+export const find_text = (text: string, opts?: FindOptions) => find((n) => n.type === 'text' && n.text === text, opts);
+export const find_test_id = (id: string, opts?: FindOptions) => find((n) => n.testId === id, opts);
 
 /** The element around the text node with this content, as GPUI holds it. */
-export function element_of(text, { last = false } = {}) {
-	const parents = [];
+export function element_of(text: string, { last = false }: FindOptions = {}): TreeNode | null {
+	const parents: Array<TreeNode | null> = [];
 	walk(tree(), (node, parent) => {
 		if (node.type === 'text' && node.text === text) parents.push(parent);
 	});
 	return (last ? parents.at(-1) : parents[0]) ?? null;
 }
 
-const id_of = (target) => (typeof target === 'number' ? target : (target?.id ?? target?.nativeId));
+const id_of = (target: Target): number => (typeof target === 'number' ? target : (target?.id ?? target?.nativeId)) as number;
 
 /** `[x, y, width, height]` in logical px, from a tree node, a shadow node or an id. */
-export const bounds = (target) => native().getElementBounds(id_of(target));
+export const bounds = (target: Target) => native().getElementBounds(id_of(target));
 
 /** Hands every event native queued to the renderer, as the window's callback would. */
 export function drain() {
@@ -126,7 +156,7 @@ export function drain() {
  * A click at the element's centre through GPUI's own hit testing, occlusion included.
  * `dispatch()` straight at an element skips that, and can pass while the window fails.
  */
-export function click(target, { button, modifiers } = {}) {
+export function click(target: Target, { button, modifiers }: ClickOptions = {}) {
 	const box = bounds(target);
 	if (!box) throw new Error(`[gpuix-svelte/test] element ${id_of(target)} has no painted bounds`);
 
@@ -144,33 +174,33 @@ export function click(target, { button, modifiers } = {}) {
 }
 
 /** A click at window coordinates, through the same hit testing. */
-export function click_at(x, y, { button, modifiers } = {}) {
+export function click_at(x: number, y: number, { button, modifiers }: ClickOptions = {}) {
 	native().simulateClick(x, y, button, modifiers);
 	drain();
 	settle();
 }
 
-export function click_text(text, opts) {
+export function click_text(text: string, opts?: ClickOptions) {
 	const node = find_text(text, opts);
 	if (!node) throw new Error(`[gpuix-svelte/test] no text "${text}" in the tree`);
 	click(node, opts);
 }
 
-export function click_test_id(id, opts) {
+export function click_test_id(id: string, opts?: ClickOptions) {
 	const node = find_test_id(id, opts);
 	if (!node) throw new Error(`[gpuix-svelte/test] no testId "${id}" in the tree`);
 	click(node, opts);
 }
 
 /** One key in GPUI's keystroke syntax — `'escape'`, `'cmd-k'`, `'shift-tab'`. */
-export function press(keystroke, { held = false } = {}) {
+export function press(keystroke: string, { held = false }: { held?: boolean } = {}) {
 	native().simulateKeyDown(keystroke, held);
 	drain();
 	settle();
 }
 
 /** Space-separated keystrokes through the focused element's input pipeline. */
-export function type(keystrokes) {
+export function type(keystrokes: string) {
 	native().simulateKeystrokes(keystrokes);
 	drain();
 	settle();
@@ -179,7 +209,7 @@ export function type(keystrokes) {
 export const painted = () => native().getPaintedText().join('\n');
 export const all_text = () => native().getAllText();
 
-export function screenshot(path) {
+export function screenshot(path: string) {
 	native().captureScreenshot(path);
 	return path;
 }
@@ -188,7 +218,7 @@ export function screenshot(path) {
 
 let failures = 0;
 
-export function check(label, actual, expected = true) {
+export function check(label: string, actual: unknown, expected: unknown = true): boolean {
 	const ok = JSON.stringify(actual) === JSON.stringify(expected);
 	if (!ok) failures++;
 	console.log(
@@ -200,7 +230,7 @@ export function check(label, actual, expected = true) {
 export const failed = () => failures;
 
 /** Prints the verdict and exits, so nothing left on a timer keeps the process alive. */
-export function finish(name) {
+export function finish(name: string): never {
 	if (failures > 0) {
 		console.error(`\n${failures} failure(s)`);
 		process.exit(1);
@@ -208,3 +238,5 @@ export function finish(name) {
 	console.log(`\n${name} ok`);
 	process.exit(0);
 }
+
+export type { ShadowNode };

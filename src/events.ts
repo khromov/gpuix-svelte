@@ -3,7 +3,7 @@
  * Svelte emits, which the compiler has already lowercased.
  */
 
-export const GPUI_EVENTS = [
+export const GPUI_EVENTS: string[] = [
 	// custom elements (<diff>, <markdown>, <input>, <textarea>)
 	'toggleFile',
 	'showMore',
@@ -29,14 +29,14 @@ export const GPUI_EVENTS = [
 ];
 
 /** Not element events: they arrive on the id handed to `setWindowKeyEvents` (see `on_window_key`). */
-export const WINDOW_KEY_EVENTS = { keydown: 'windowKeyDown', keyup: 'windowKeyUp' };
+export const WINDOW_KEY_EVENTS: Partial<Record<string, 'windowKeyDown' | 'windowKeyUp'>> = {
+	keydown: 'windowKeyDown',
+	keyup: 'windowKeyUp'
+};
 
 const BY_LOWERCASE = new Map(GPUI_EVENTS.map((name) => [name.toLowerCase(), name]));
 
-/**
- * @param {string} type an event name as Svelte spells it, e.g. `mouseenter`
- * @returns {string | null} the GPUI spelling, or null if GPUI has no such event
- */
-export function to_gpui_event(type) {
+/** The GPUI spelling of an event name as Svelte spells it (`mouseenter`), or null if GPUI has no such event. */
+export function to_gpui_event(type: string): string | null {
 	return BY_LOWERCASE.get(type.toLowerCase()) ?? null;
 }

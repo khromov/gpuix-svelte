@@ -1,18 +1,34 @@
 /**
- * Installed via `node --import gpuix-svelte/register` so the hook is in place
- * before the entry module resolves.
+ * Installed via `node --import tsx --import gpuix-svelte/register` so the hook is
+ * in place before the entry module resolves.
  */
 
-import { registerHooks } from 'node:module';
+import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { compile_module, compile_svelte } from './compile.js';
+import { compile_module, compile_svelte } from './compile.ts';
 
-export { RENDERER_MODULE } from './compile.js';
+export { RENDERER_MODULE } from './compile.ts';
+
+const decode = (source: string | ArrayBuffer | NodeJS.TypedArray) =>
+	typeof source === 'string' ? source : new TextDecoder().decode(source);
 
 registerHooks({
 	load(url, context, nextLoad) {
-		if (/\.svelte\.js(\?|$)/.test(url)) {
-			return { format: 'module', shortCircuit: true, source: compile_module(fileURLToPath(new URL(url))) };
+		if (/\.svelte\.[jt]s(\?|$)/.test(url)) {
+			const file = new URL(url);
+			file.search = '';
+			const path = fileURLToPath(file);
+
+			let source: string | undefined;
+			if (path.endsWith('.ts')) {
+				// `compileModule` does not strip types, so the next loader (tsx, which the bin
+				// registers ahead of this hook) does; a bare `--import gpuix-svelte/register`
+				// gets Node's raw TypeScript back instead.
+				const loaded = nextLoad(url, context);
+				source = decode(loaded.source ?? '');
+				if (loaded.format === 'module-typescript') source = stripTypeScriptTypes(source);
+			}
+			return { format: 'module', shortCircuit: true, source: compile_module(path, source) };
 		}
 
 		if (!/\.svelte(\?|$)/.test(url)) return nextLoad(url, context);

@@ -7,8 +7,8 @@
 import { watch } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { GpuixRenderer } from '@gpuix/native';
-import { mount, unmount, flushSync } from 'svelte';
+import { GpuixRenderer, type EventPayload } from '@gpuix/native';
+import { mount, unmount, flushSync, type Component } from 'svelte';
 import renderer, {
 	set_native,
 	create_root,
@@ -18,7 +18,8 @@ import renderer, {
 	set_auto_commit,
 	queue_destroy,
 	on_window_key
-} from './renderer.js';
+} from './renderer.ts';
+import type { RenderOptions, ShadowNode } from './types.ts';
 
 /**
  * ~125fps, above any common refresh rate. `setImmediate` instead of a paced
@@ -28,15 +29,24 @@ const FRAME_MS = 8;
 
 const SLOT = Symbol.for('gpuix.svelte.host');
 
-function host() {
-	return (globalThis[SLOT] ??= { native: null, root: null, component: null, loop: null, keys: [] });
+interface Host {
+	native: GpuixRenderer | null;
+	root: ShadowNode | null;
+	component: Record<string, any> | null;
+	loop: { stop(): void } | null;
+	keys: Array<() => void>;
+}
+
+function host(): Host {
+	const slots = globalThis as unknown as Record<symbol, Host | undefined>;
+	return (slots[SLOT] ??= { native: null, root: null, component: null, loop: null, keys: [] });
 }
 
 /**
  * A throwing handler must not escape into the native callback, and must not
  * cost the host its own `onEvent`.
  */
-export function handle_event(event, onEvent) {
+export function handle_event(event: EventPayload, onEvent?: (event: EventPayload) => void) {
 	try {
 		dispatch(event);
 		// Run Svelte's effects now rather than on the next microtask, so the
@@ -49,7 +59,7 @@ export function handle_event(event, onEvent) {
 	onEvent?.(event);
 }
 
-export function start_frame_loop(native) {
+export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 'tick'>): { stop(): void } {
 	if (!native.requiresTick()) {
 		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop
 		// to poll `is_dirty()` and commits have to schedule themselves.
@@ -62,7 +72,7 @@ export function start_frame_loop(native) {
 	}
 
 	let stopped = false;
-	let timer = null;
+	let timer: ReturnType<typeof setTimeout> | null = null;
 
 	const loop = () => {
 		if (stopped) return;
@@ -94,14 +104,8 @@ export function start_frame_loop(native) {
 	};
 }
 
-/**
- * @param {any} Component a compiled `.svelte` component
- * @param {{ title?: string, width?: number, height?: number, props?: Record<string, any>,
- *           rootStyle?: Record<string, any>, onEvent?: (e: any) => void,
- *           onKeyDown?: (e: any) => void, onKeyUp?: (e: any) => void }} [options]
- *   `onKeyDown`/`onKeyUp` are `on_window_key` handlers kept across remounts.
- */
-export function render(Component, options = {}) {
+/** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
+export function render(Component: Component<any, any, any>, options: RenderOptions = {}): Record<string, any> {
 	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, ...window_options } = options;
 	const slot = host();
 	const remount = slot.component != null;
@@ -135,7 +139,7 @@ export function render(Component, options = {}) {
 
 	// Native ids are monotonic, so a missed teardown here can never collide with
 	// the tree built next.
-	let retiring = null;
+	let retiring: number | null = null;
 	if (slot.root && slot.root.nativeId !== null) {
 		commit();
 		retiring = slot.root.nativeId;
@@ -157,7 +161,8 @@ export function render(Component, options = {}) {
 	renderer.insert(root, anchor, null);
 
 	slot.root = root;
-	slot.component = mount(Component, { renderer, target: root, anchor, props });
+	const component = mount(Component, { renderer, target: root, anchor, props });
+	slot.component = component;
 
 	flushSync();
 	commit();
@@ -168,29 +173,28 @@ export function render(Component, options = {}) {
 	// reloads on write, so this doubles as a live view.
 	const shot = process.env.GPUIX_SCREENSHOT;
 	if (shot) {
+		const native = slot.native;
 		setTimeout(() => {
 			try {
-				slot.native.captureScreenshot(shot);
+				native.captureScreenshot(shot);
 				console.log(`[gpuix-svelte] screenshot -> ${shot}`);
 			} catch (err) {
-				console.error('[gpuix-svelte] screenshot failed:', err.message);
+				console.error('[gpuix-svelte] screenshot failed:', (err as Error).message);
 			}
 		}, 600);
 	}
 
 	console.log(remount ? '[gpuix-svelte] remount complete' : '[gpuix-svelte] mount complete');
-	return slot.component;
+	return component;
 }
-
 
 /**
  * Watching here rather than leaning on `bun --hot` keeps one Svelte runtime for
  * the life of the process, so the old tree unmounts properly.
  *
- * @param {string | URL} entry path to the root `.svelte` component
- * @param {Parameters<typeof render>[1]} [options]
+ * `entry` is the path to the root `.svelte` component.
  */
-export async function render_hot(entry, options = {}) {
+export async function render_hot(entry: string | URL, options: RenderOptions = {}): Promise<void> {
 	// A bare Windows path is not a valid import specifier ("D:" parses as a URL
 	// scheme), so the cache-buster is appended to a file:// URL instead.
 	const url = entry instanceof URL ? entry : pathToFileURL(entry);
@@ -201,14 +205,14 @@ export async function render_hot(entry, options = {}) {
 
 	render(await load(), options);
 
-	let timer = null;
-	const stale = new Set();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const stale = new Set<string>();
 	watch(dirname(path), { recursive: true }, (_event, file) => {
 		if (!file) return;
 
-		// JS modules (`.svelte.js` state included) load once per process, which is what
+		// Modules (`.svelte.ts` state included) load once per process, which is what
 		// lets their state outlive a remount — so an edit there needs a restart, not a reload.
-		if (file.endsWith('.js') && !file.includes('node_modules')) {
+		if (/\.[jt]s$/.test(file) && !file.includes('node_modules')) {
 			if (!stale.has(file)) {
 				stale.add(file);
 				console.warn(`[gpuix-svelte] ${file} changed — modules load once per process, restart to pick it up`);
@@ -223,7 +227,7 @@ export async function render_hot(entry, options = {}) {
 			try {
 				render(await load(), options);
 			} catch (err) {
-				console.error('[gpuix-svelte] reload failed:', err.message);
+				console.error('[gpuix-svelte] reload failed:', (err as Error).message);
 			}
 		}, 60);
 	});

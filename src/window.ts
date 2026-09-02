@@ -4,17 +4,20 @@
  * no-op there rather than a guard in every component.
  */
 
-import { get_native } from './renderer.js';
+import { get_native } from './renderer.ts';
+import type { WindowNative } from './types.ts';
 
-export const set_window_title = (title) => get_native()?.setWindowTitle?.(title);
+const win = () => get_native() as WindowNative | null;
+
+export const set_window_title = (title: string) => win()?.setWindowTitle?.(title);
 
 /** Brings a window opened with `show: false` or `focus: false` forward. */
-export const activate_window = () => get_native()?.activateWindow?.();
+export const activate_window = () => win()?.activateWindow?.();
 
 /** Gives focus back from an `<input>` / `<textarea>` to the window. */
-export const blur = () => get_native()?.blur?.();
+export const blur = () => win()?.blur?.();
 
-/** @param {any} node a shadow node, from `{@attach}` or `use:` */
-export function focus_element(node) {
-	if (node?.nativeId != null) get_native()?.focusElement?.(node.nativeId);
+/** `node` is a shadow node, from `{@attach}` or `use:`. */
+export function focus_element(node: { nativeId?: number | null } | null | undefined) {
+	if (node?.nativeId != null) win()?.focusElement?.(node.nativeId);
 }

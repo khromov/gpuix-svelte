@@ -1,17 +1,18 @@
 /**
- * A `<style>` block never reaches GPUI as CSS: compile.js turns its class rules
+ * A `<style>` block never reaches GPUI as CSS: compile.ts turns its class rules
  * into a sheet the renderer merges on every `class` change, weakest rule first
  * and inline `style` last. This checks both halves against a real tree.
  */
 
 import { fileURLToPath } from 'node:url';
-import { compile_svelte } from '../src/compile.js';
+import { compile_svelte } from '../src/compile.ts';
+import type { GpuiStyle } from 'gpuix-svelte';
 import { mount_headless, element_of, click_text, check, finish } from 'gpuix-svelte/test';
 
 const FIXTURE = fileURLToPath(new URL('./Styled.svelte', import.meta.url));
 
 // --- compile half ------------------------------------------------------------
-const warnings = [];
+const warnings: string[] = [];
 const warn = console.warn;
 console.warn = (message) => warnings.push(String(message));
 const code = compile_svelte(FIXTURE);
@@ -32,26 +33,26 @@ check('nothing in the appended code got busted', busted.includes('renderer?v='),
 const Styled = (await import('./Styled.svelte')).default;
 mount_headless(Styled);
 
-const pick = (style, ...keys) => keys.map((k) => style[k] ?? null);
+const pick = (style: GpuiStyle | undefined, ...keys: string[]) => keys.map((k) => style![k] ?? null);
 
 check(
 	'a class rule lands, shorthand expanded, and the tag rule stacks under it',
-	pick(element_of('toggle').style, 'color', 'paddingTop', 'paddingRight', 'gap', 'backgroundColor'),
+	pick(element_of('toggle')!.style!, 'color', 'paddingTop', 'paddingRight', 'gap', 'backgroundColor'),
 	['red', 4, 8, 4, null]
 );
-check(':hover becomes the native hover style', element_of('toggle').style.hover?.color, 'blue');
-check('inline style wins over the class', pick(element_of('inline').style, 'color', 'paddingTop'), ['#000000', 4]);
-check('the hover attribute wins over :hover', element_of('attr').style.hover?.color, '#ffffff');
-check('a compound selector beats a single class whatever the source order', element_of('compound').style.color, 'green');
-check('a dynamic class matches', element_of('dynamic').style.opacity, 0.5);
-check('the refused rule never applies', element_of('nested').style.fontSize ?? null, null);
+check(':hover becomes the native hover style', element_of('toggle')!.style!.hover?.color, 'blue');
+check('inline style wins over the class', pick(element_of('inline')!.style!, 'color', 'paddingTop'), ['#000000', 4]);
+check('the hover attribute wins over :hover', element_of('attr')!.style!.hover?.color, '#ffffff');
+check('a compound selector beats a single class whatever the source order', element_of('compound')!.style!.color, 'green');
+check('a dynamic class matches', element_of('dynamic')!.style!.opacity, 0.5);
+check('the refused rule never applies', element_of('nested')!.style!.fontSize ?? null, null);
 
 click_text('toggle');
-check('class:on toggling on restyles', element_of('toggle').style.backgroundColor, '#333333');
+check('class:on toggling on restyles', element_of('toggle')!.style!.backgroundColor, '#333333');
 click_text('toggle');
-check('class:on toggling off restyles', element_of('toggle').style.backgroundColor ?? null, null);
+check('class:on toggling off restyles', element_of('toggle')!.style!.backgroundColor ?? null, null);
 
 click_text('dynamic');
-check('swapping the class string restyles', element_of('dynamic').style.opacity, 1);
+check('swapping the class string restyles', element_of('dynamic')!.style!.opacity, 1);
 
 finish('css');

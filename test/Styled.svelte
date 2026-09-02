@@ -1,5 +1,5 @@
-<script>
-	// The selectors below cover what compile.js accepts, plus one it must refuse.
+<script lang="ts">
+	// The selectors below cover what compile.ts accepts, plus one it must refuse.
 	let on = $state(false);
 	let kind = $state('a');
 </script>

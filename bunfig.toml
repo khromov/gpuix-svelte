@@ -1,3 +1,3 @@
-# For ad-hoc `bun file.js` runs; the package scripts go through bin/gpuix-svelte.js,
-# which passes the same preload itself (and `--import ./src/register.js` on Node).
-preload = ["./src/plugin.js"]
+# For ad-hoc `bun file.ts` runs; the package scripts go through bin/gpuix-svelte.js,
+# which passes the same preload itself (and `--import tsx --import ./src/register.ts` on Node).
+preload = ["./src/plugin.ts"]

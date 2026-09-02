@@ -5,8 +5,8 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit } from '../src/renderer.js';
-import { handle_event, start_frame_loop } from '../src/render.js';
+import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit } from '../src/renderer.ts';
+import { handle_event, start_frame_loop } from '../src/render.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 // --- a throwing commit must not kill the frame loop -----------------------
@@ -48,13 +48,13 @@ import { check, finish } from 'gpuix-svelte/test';
 	commit();
 	native.flush();
 
-	let seen = null;
-	let escaped = null;
+	let seen: string | null = null;
+	let escaped: string | null = null;
 	console.log('-- the next line should report one failed handler --');
 	try {
-		handle_event({ elementId: button.nativeId, eventType: 'click' }, (e) => (seen = e.eventType));
+		handle_event({ elementId: button.nativeId!, eventType: 'click' }, (e) => (seen = e.eventType));
 	} catch (error) {
-		escaped = error.message;
+		escaped = (error as Error).message;
 	}
 
 	check('the exception does not reach the caller', escaped, null);
@@ -75,7 +75,7 @@ import { check, finish } from 'gpuix-svelte/test';
 	native.applyBatch = (json) => (batches++, applyBatch(json));
 
 	// What `render()` does on a remount, in the same order.
-	const retiring = first.nativeId;
+	const retiring = first.nativeId!;
 	set_native(native);
 	const second = create_root();
 	queue_destroy(retiring);

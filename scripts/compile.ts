@@ -8,9 +8,10 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { BunPlugin } from 'bun';
 
 if (!process.versions.bun) {
-	console.error('[compile] needs Bun — `npm run compile` runs `bun scripts/compile.js`');
+	console.error('[compile] needs Bun — `npm run compile` runs `bun scripts/compile.ts`');
 	process.exit(1);
 }
 
@@ -72,15 +73,15 @@ const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
 `;
 
 // Imported after the guard: a static import would hoist `bun` above it.
-const { load_module, load_svelte } = await import('../src/plugin.js');
+const { load_module, load_svelte } = await import('../src/plugin.ts');
 
 // `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
 // no plugin silently becomes a file asset, so count what actually went through it.
 let components = 0;
-const svelte_plugin = {
+const svelte_plugin: BunPlugin = {
 	name: 'gpuix-svelte',
 	setup(build) {
-		build.onLoad({ filter: /\.svelte\.js$/ }, load_module);
+		build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 		build.onLoad({ filter: /\.svelte$/ }, (args) => {
 			components++;
 			return load_svelte(args);
@@ -93,7 +94,7 @@ rmSync(bundle, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 
 const result = await Bun.build({
-	entrypoints: [join(root, 'examples/tic-tac-toe/standalone.js')],
+	entrypoints: [join(root, 'examples/tic-tac-toe/standalone.ts')],
 	target: 'bun',
 	// Bun implies `development` unless NODE_ENV is production at build time, and
 	// esm-env lists it first, so both are needed for Svelte's production runtime.
@@ -162,25 +163,25 @@ if (!notary) {
 	notarize(bundle);
 }
 
-function mb(bytes) {
+function mb(bytes: number) {
 	return (bytes / 1048576).toFixed(1);
 }
 
-function sign(target) {
+function sign(target: string) {
 	const entitlements = join(dist, 'entitlements.plist');
 	writeFileSync(entitlements, ENTITLEMENTS);
-	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity, target]);
+	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity!, target]);
 	run('codesign', ['--verify', '--strict', target]);
 	console.log(`[compile] signed ${relative(root, target)} as ${identity}`);
 }
 
 // Stapling only works on a bundle, and the ticket has to be stapled before the
 // zip that ships is made, so the submission zip is rebuilt afterwards.
-function notarize(target) {
+function notarize(target: string) {
 	const zip = join(dist, 'Tic-tac-toe.zip');
 	run('ditto', ['-c', '-k', '--keepParent', target, zip]);
 	console.log('[compile] notarizing (Apple usually takes a few minutes)');
-	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', notary, '--wait']);
+	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', notary!, '--wait']);
 	if (!/status: Accepted/.test(output)) {
 		console.error(`[compile] notarization was not accepted; see \`xcrun notarytool log\` for the submission below\n${output}`);
 		process.exit(1);
@@ -193,7 +194,7 @@ function notarize(target) {
 
 // iconutil only reads an .iconset directory holding the ten standard sizes,
 // which sips cuts from the 1024px source; both ship with macOS.
-function write_icns(png, out) {
+function write_icns(png: string, out: string) {
 	const iconset = join(dist, 'AppIcon.iconset');
 	rmSync(iconset, { recursive: true, force: true });
 	mkdirSync(iconset);
@@ -205,7 +206,7 @@ function write_icns(png, out) {
 	rmSync(iconset, { recursive: true, force: true });
 }
 
-function run(command, args) {
+function run(command: string, args: string[]) {
 	const { status, stdout, stderr } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 	if (status !== 0) {
 		console.error(`[compile] ${command} ${args.join(' ')} failed:\n${stderr || stdout}`);

@@ -4,9 +4,22 @@
  * offscreen constantly and eager creation would leak a Rust node per abandoned render.
  */
 
+import type { EventPayload } from '@gpuix/native';
 import { createRenderer } from 'svelte/renderer';
-import { build_style, define_css_vars, used_css_vars } from './style.js';
-import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.js';
+import { build_style, define_css_vars, used_css_vars } from './style.ts';
+import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
+import type {
+	ClassRule,
+	EventHandler,
+	GpuiStyle,
+	GpuixEvent,
+	Mutation,
+	Native,
+	NativeSink,
+	NodeKind,
+	ShadowNode,
+	WindowKeyType
+} from './types.ts';
 
 /** Anything not listed here degrades to `div`. */
 const GPUI_TAGS = new Set([
@@ -50,37 +63,37 @@ const PROP_ALIASES = new Map([
 	['testid', 'testId']
 ]);
 
-/** @type {any} the live GpuixRenderer (or TestGpuixRenderer) */
-let native = null;
+/** The live GpuixRenderer (or TestGpuixRenderer). */
+let native: NativeSink | null = null;
 
 /** Queued mutation tuples, flushed as one `applyBatch` call. */
-let queue = [];
+let queue: Mutation[] = [];
 
 /** nativeId -> shadow node, for event dispatch and destroy bookkeeping. */
-let by_id = new Map();
+let by_id = new Map<number, ShadowNode>();
 
-let pending_destroy = new Set();
+let pending_destroy = new Set<ShadowNode>();
 
 /** `<svg>`s painting their nearest ancestor's `color`, restyled when that ancestor is. */
-let inheriting_svgs = new Set();
+let inheriting_svgs = new Set<ShadowNode>();
 
 /** The text field with focus, if any — what `editing` on a window key event reports. */
-let focused_input = null;
+let focused_input: ShadowNode | null = null;
 
 /** The node `create_root` made, where `portal` elements go natively. */
-let root_node = null;
+let root_node: ShadowNode | null = null;
 
 /**
  * `portal` nodes stay where Svelte put them in the shadow tree but hang off the root
  * natively, so paint order (document order in GPUI) puts them on top; an ancestor's
  * destroy never reaches them, so `commit` retires them itself.
  */
-let portals = new Set();
+let portals = new Set<ShadowNode>();
 
 /** Portals met while materialising a subtree, appended once that subtree is attached. */
-let pending_portals = [];
+let pending_portals: ShadowNode[] = [];
 
-const is_portal = (n) => 'portal' in n.attrs;
+const is_portal = (n: ShadowNode) => 'portal' in n.attrs;
 
 /**
  * Monotonic across remounts on purpose: `render_hot` builds a fresh tree while the old
@@ -91,17 +104,17 @@ let dirty = false;
 let auto_commit = false;
 let commit_scheduled = false;
 
-const warned_tags = new Set();
+const warned_tags = new Set<string>();
 
 /**
  * Window-level key events arrive on whatever id `setWindowKeyEvents` was given, so
  * one pseudo node, never materialised, holds their listeners under that id.
  */
-const window_node = node('window', 'window', '');
+const window_node = node('window' as NodeKind, 'window', '');
 
-/** scope class -> that component's `<style>` rules, weakest first (see compile.js). */
-const stylesheets = new Map();
-const NO_RULES = [];
+/** scope class -> that component's `<style>` rules, weakest first (see compile.ts). */
+const stylesheets = new Map<string, ClassRule[]>();
+const NO_RULES: readonly ClassRule[] = [];
 
 /** Removals queue no op of their own, so they have to raise the flag themselves. */
 function mark_dirty() {
@@ -122,24 +135,21 @@ function mark_dirty() {
 	});
 }
 
-function emit(op) {
+function emit(op: Mutation) {
 	queue.push(op);
 	mark_dirty();
 }
 
-function node(kind, name, data) {
+function node(kind: NodeKind, name: string, data: string): ShadowNode {
 	return {
 		kind,
 		name,
 		data,
-		attrs: /** @type {Record<string, any>} */ ({}),
-		listeners: /** @type {Map<string, any[]>} */ (new Map()),
-		nativeId: /** @type {number | null} */ (null),
-		/** its style read a `var()`, so `set_css_vars` has to restyle it */
+		attrs: {},
+		listeners: new Map(),
+		nativeId: null,
 		uses_vars: false,
-		/** reachable from the designated GPUI root */
 		live: false,
-		/** currently appended to its native parent */
 		attached: false,
 		parent: null,
 		first: null,
@@ -149,7 +159,7 @@ function node(kind, name, data) {
 	};
 }
 
-function link(parent, child, anchor) {
+function link(parent: ShadowNode, child: ShadowNode, anchor: ShadowNode | null) {
 	child.parent = parent;
 
 	if (anchor == null) {
@@ -167,7 +177,7 @@ function link(parent, child, anchor) {
 	}
 }
 
-function unlink(child) {
+function unlink(child: ShadowNode) {
 	const parent = child.parent;
 	if (!parent) return;
 
@@ -182,23 +192,23 @@ function unlink(child) {
 	child.next = null;
 }
 
-const is_blank = (s) => s == null || s.trim() === '';
+const is_blank = (s: string | null | undefined) => s == null || s.trim() === '';
 
 /**
  * Fragments are never children (every insert splats them), so a fragment parent
  * means "not attached to anything native yet".
  */
-const native_parent_of = (parent) => (parent && parent.kind === 'element' ? parent : null);
+const native_parent_of = (parent: ShadowNode | null) => (parent && parent.kind === 'element' ? parent : null);
 
 /** Siblings only: a native node can never hide beneath a virtual one. A portal is not in this parent's native list. */
-function first_native_after(cursor) {
+function first_native_after(cursor: ShadowNode | null) {
 	for (let n = cursor; n !== null; n = n.next) {
 		if (n.nativeId !== null && n.attached && !is_portal(n)) return n;
 	}
 	return null;
 }
 
-function map_tag(name) {
+function map_tag(name: string) {
 	if (GPUI_TAGS.has(name)) return name;
 	if (!warned_tags.has(name)) {
 		warned_tags.add(name);
@@ -211,12 +221,12 @@ function map_tag(name) {
  * The scope class the compiler stamps on every matched element doubles as the
  * sheet's key, so an element without one never pays for a lookup.
  */
-function class_rules(el) {
+function class_rules(el: ShadowNode): readonly ClassRule[] {
 	const value = el.attrs.class;
 	if (typeof value !== 'string' || value === '') return NO_RULES;
 
 	const names = value.split(/\s+/);
-	let matched = null;
+	let matched: ClassRule[] | null = null;
 	for (const name of names) {
 		const sheet = stylesheets.get(name);
 		if (!sheet) continue;
@@ -228,14 +238,14 @@ function class_rules(el) {
 	return matched ?? NO_RULES;
 }
 
-function hitbox_root(el) {
+function hitbox_root(el: ShadowNode) {
 	for (let p = el.parent; p; p = p.parent) {
 		if (p.kind === 'element' && p.attrs.hitbox === 'self') return p;
 	}
 	return null;
 }
 
-function descends(n, ancestor) {
+function descends(n: ShadowNode, ancestor: ShadowNode) {
 	for (let p = n.parent; p; p = p.parent) if (p === ancestor) return true;
 	return false;
 }
@@ -244,7 +254,7 @@ function descends(n, ancestor) {
  * Under a `hitbox="self"` ancestor, anything that neither listens, takes input nor
  * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
  */
-function shielded(el, style) {
+function shielded(el: ShadowNode, style: GpuiStyle) {
 	if (el.listeners.size > 0 || INTERACTIVE_TAGS.has(el.name)) return false;
 	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
 	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
@@ -252,7 +262,7 @@ function shielded(el, style) {
 }
 
 /** `<svg>` takes no `color` from its parent natively, so the nearest ancestor's is copied in. */
-function inherit_color(el, style) {
+function inherit_color(el: ShadowNode, style: GpuiStyle) {
 	for (let p = el.parent; p; p = p.parent) {
 		if (p.kind !== 'element') continue;
 		const color = build_style(p.attrs, class_rules(p)).color;
@@ -264,7 +274,7 @@ function inherit_color(el, style) {
 	}
 }
 
-function apply_style(el) {
+function apply_style(el: ShadowNode) {
 	if (el.nativeId === null) return;
 	const style = build_style(el.attrs, class_rules(el));
 	el.uses_vars = used_css_vars();
@@ -287,7 +297,7 @@ function apply_style(el) {
 	emit(['setStyle', el.nativeId, style]);
 }
 
-function restyle_subtree(el) {
+function restyle_subtree(el: ShadowNode) {
 	for (let c = el.first; c; c = c.next) {
 		if (c.kind === 'element' && c.nativeId !== null) apply_style(c);
 		restyle_subtree(c);
@@ -295,21 +305,21 @@ function restyle_subtree(el) {
 }
 
 /** `portal` toggled on a live node: GPUI reparents on the next appendChild/insertBefore. */
-function reparent(el) {
+function reparent(el: ShadowNode) {
 	if (el.nativeId === null || !el.attached || !el.live) return;
 	attach(el);
 	attach_portals();
 }
 
-const prop_name = (key) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
+const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 
-function normalize_prop(name, value) {
+function normalize_prop(name: string, value: unknown) {
 	if (name === 'autoFocus') return value !== false && value !== 'false';
 	if (name === 'tabIndex') return Number(value);
 	return value;
 }
 
-function apply_prop(el, key, value) {
+function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	const name = prop_name(key);
 	if (BUILT_IN_TAGS.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
 	if (el.nativeId === null) return;
@@ -317,7 +327,7 @@ function apply_prop(el, key, value) {
 }
 
 /** Idempotent. */
-function materialize(n) {
+function materialize(n: ShadowNode) {
 	if (n.kind === 'comment' || n.kind === 'fragment') return;
 
 	if (n.nativeId === null) {
@@ -359,7 +369,7 @@ function materialize(n) {
 	}
 }
 
-function attach(n) {
+function attach(n: ShadowNode) {
 	if (n.nativeId === null) return;
 
 	if (is_portal(n)) {
@@ -373,7 +383,7 @@ function attach(n) {
 	const before = first_native_after(n.next);
 	emit(
 		before
-			? ['insertBefore', np.nativeId, n.nativeId, before.nativeId]
+			? ['insertBefore', np.nativeId, n.nativeId, before.nativeId!]
 			: ['appendChild', np.nativeId, n.nativeId]
 	);
 	n.attached = true;
@@ -393,13 +403,16 @@ function attach_portals() {
 	pending_portals = [];
 }
 
-function set_live(n, value) {
+function set_live(n: ShadowNode, value: boolean) {
 	if (n.live === value) return;
 	n.live = value;
 	for (let c = n.first; c; c = c.next) set_live(c, value);
 }
 
-const renderer = createRenderer({
+type Nodes = { fragment: ShadowNode; element: ShadowNode; text: ShadowNode; comment: ShadowNode };
+type GpuixSvelteRenderer = ReturnType<typeof createRenderer<Nodes>>;
+
+const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	createFragment: () => node('fragment', '', ''),
 	createElement: (name) => node('element', name, ''),
 	createTextNode: (data) => node('text', '', data),
@@ -492,7 +505,7 @@ const renderer = createRenderer({
 	insert(parent, n, anchor) {
 		// Fragments are never nested, so this recurses at most one level.
 		if (n.kind === 'fragment') {
-			for (let c = n.first, next; c; c = next) {
+			for (let c = n.first, next: ShadowNode | null; c; c = next) {
 				next = c.next;
 				renderer.insert(parent, c, anchor);
 			}
@@ -528,7 +541,7 @@ const renderer = createRenderer({
 		mark_dirty();
 	},
 
-	addEventListener(target, type, handler) {
+	addEventListener(target, type, handler: EventHandler) {
 		const event = to_gpui_event(type);
 		if (event === null) return;
 
@@ -547,7 +560,7 @@ const renderer = createRenderer({
 		}
 	},
 
-	removeEventListener(target, type, handler) {
+	removeEventListener(target, type, handler: EventHandler) {
 		const event = to_gpui_event(type);
 		if (event === null) return;
 
@@ -571,8 +584,8 @@ const renderer = createRenderer({
 
 export default renderer;
 
-/** Runs at import time, from the call compile.js appends to every component with a `<style>`. */
-export function define_styles(scope, rules) {
+/** Runs at import time, from the call compile.ts appends to every component with a `<style>`. */
+export function define_styles(scope: string, rules: ClassRule[]) {
 	stylesheets.set(scope, rules);
 }
 
@@ -580,18 +593,18 @@ export function define_styles(scope, rules) {
  * A theme is one call: every live element whose style read a `var()` is restyled,
  * and the whole sweep ships in the next batch like any other frame.
  *
- * @param {Record<string, string | number | null>} vars `{ surface: '#fff' }` for `var(--surface)`
+ * `vars` is `{ surface: '#fff' }` for `var(--surface)`.
  */
-export function set_css_vars(vars) {
+export function set_css_vars(vars: Record<string, string | number | null>) {
 	define_css_vars(vars);
 	for (const n of by_id.values()) {
 		if (n.uses_vars) apply_style(n);
 	}
 }
 
-// Host wiring — used by `render.js`, not by compiled components.
+// Host wiring — used by `render.ts`, not by compiled components.
 
-export function set_native(instance) {
+export function set_native(instance: NativeSink) {
 	native = instance;
 	queue = [];
 	by_id = new Map();
@@ -623,11 +636,9 @@ function sync_window_keys() {
 /**
  * A key handler that fires whatever has focus — the ⌘K kind — without a focused
  * root `div` to hold on to; `event.editing` says a text field is getting the same key.
- *
- * @param {'keydown' | 'keyup'} type
- * @param {(event: any) => void} handler
+ * Returns the unsubscribe.
  */
-export function on_window_key(type, handler) {
+export function on_window_key(type: WindowKeyType, handler: (event: GpuixEvent) => void): () => void {
 	const event = WINDOW_KEY_EVENTS[type.toLowerCase()];
 	if (!event) throw new Error(`[gpuix-svelte] on_window_key: unknown type "${type}" (keydown or keyup)`);
 
@@ -648,10 +659,10 @@ export function on_window_key(type, handler) {
 }
 
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
-export const get_native = () => native;
+export const get_native = (): Native | null => native as Native | null;
 
 /** `position: relative`, so a portal's `inset: 0` means the window. */
-export function create_root(style = { display: 'flex', width: '100%', height: '100%', position: 'relative' }) {
+export function create_root(style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' }): ShadowNode {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
 	root.live = true;
@@ -669,12 +680,12 @@ export function create_root(style = { display: 'flex', width: '100%', height: '1
 export const is_dirty = () => dirty;
 
 /** Lets a remount retire the previous root inside the new tree's batch. */
-export function queue_destroy(nativeId) {
+export function queue_destroy(nativeId: number) {
 	emit(['destroyElement', nativeId]);
 }
 
 /** Where no frame loop polls `is_dirty()`, mutations have to drain themselves. */
-export function set_auto_commit(enabled) {
+export function set_auto_commit(enabled: boolean) {
 	auto_commit = enabled;
 }
 
@@ -703,7 +714,7 @@ export function commit() {
 
 	// Rust destroys whole subtrees, so the returned ids are how we learn which
 	// descendants to purge from the id map.
-	const destroyed = native.applyBatch(json);
+	const destroyed = native!.applyBatch(json);
 	for (const id of destroyed) {
 		const n = by_id.get(id);
 		if (n) {
@@ -717,10 +728,10 @@ export function commit() {
 	}
 
 	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
-	native.commitMutations?.();
+	native!.commitMutations?.();
 }
 
-export function dispatch(payload) {
+export function dispatch(payload: EventPayload) {
 	const target = by_id.get(payload.elementId);
 	if (!target) return;
 
@@ -732,7 +743,7 @@ export function dispatch(payload) {
 	const handlers = target.listeners.get(payload.eventType);
 	if (!handlers || handlers.length === 0) return;
 
-	const event = {
+	const event: GpuixEvent = {
 		...payload,
 		type: payload.eventType,
 		target,

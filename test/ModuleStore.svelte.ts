@@ -1,5 +1,9 @@
-export const store = $state({ count: 0 });
+export interface Store {
+	count: number;
+}
 
-export function bump() {
+export const store: Store = $state({ count: 0 });
+
+export function bump(): void {
 	store.count++;
 }

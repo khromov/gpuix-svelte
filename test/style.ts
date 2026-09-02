@@ -102,16 +102,16 @@ const label = renderer.createElement('text');
 renderer.setText(label, 'X');
 renderer.insert(box, label, null);
 
-let threw = null;
+let threw: Error | null = null;
 try {
 	commit();
 } catch (error) {
-	threw = error;
+	threw = error as Error;
 }
 check('commit survives a shorthand-heavy style', threw && threw.message, null);
 
 native.flush();
-const box_bounds = native.getElementBounds(label.nativeId);
+const box_bounds = native.getElementBounds(label.nativeId!);
 check('padding actually applied (x, y)', box_bounds && box_bounds.slice(0, 2).map(Math.round), [24, 12]);
 
 finish('style');

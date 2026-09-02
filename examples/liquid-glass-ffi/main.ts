@@ -1,5 +1,5 @@
 import { render_hot } from 'gpuix-svelte';
-import { init_glass } from './glass.js';
+import { init_glass } from './glass.ts';
 
 // Same control center as ../liquid-glass, but on Apple's actual Liquid Glass:
 // an NSGlassEffectView (macOS 26+) slid under GPUI's Metal view over FFI.

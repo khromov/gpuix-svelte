@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
-	import { blur, on_window_key } from 'gpuix-svelte';
-	import { CHAPTERS, STEPS as RAW_STEPS } from './steps.js';
-	import { THEME } from './theme.js';
+	import type { Component } from 'svelte';
+	import { blur, on_window_key, type GpuixEvent } from 'gpuix-svelte';
+	import { CHAPTERS, STEPS as RAW_STEPS, type LiveKey, type Step } from './steps.ts';
+	import { THEME } from './theme.ts';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import CodePanel from './CodePanel.svelte';
 	import Diagram from './Diagram.svelte';
@@ -17,21 +18,22 @@
 	import Native from './samples/Native.svelte';
 	import Motion from './samples/Motion.svelte';
 
-	const LIVE = { hello: Hello, counter: Counter, styled: Styled, scroll: Scroll, list: List, hittest: HitTest, native: Native, motion: Motion };
+	const LIVE: Record<LiveKey, Component<any, any, any>> = { hello: Hello, counter: Counter, styled: Styled, scroll: Scroll, list: List, hittest: HitTest, native: Native, motion: Motion };
 
-	// Read here rather than in steps.js: a hot reload re-evaluates this module but
+	// Read here rather than in steps.ts: a hot reload re-evaluates this module but
 	// not plain JS, so a saved sample shows its new source.
-	const read = (file) => readFileSync(new URL(file, import.meta.url), 'utf8');
-	const STEPS = RAW_STEPS.map((step) => ({
+	const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
+	const STEPS: Step[] = RAW_STEPS.map((step) => ({
 		...step,
 		prose: read(step.prose),
 		code: step.code.map((c) => (c.file ? { ...c, source: read(c.file).trimEnd() } : c))
 	}));
 
-	// The slot outlives a remount (render.js keeps the window the same way), so the
+	// The slot outlives a remount (render.ts keeps the window the same way), so the
 	// edit-and-save exercise stays on its step. GPUIX_TUTORIAL_STEP=7 seeds it once:
-	// steps.js and content/ do not hot-reload, so restarts are common while writing them.
-	const persisted = (globalThis[Symbol.for('gpuix.svelte.tutorial')] ??= {
+	// steps.ts and content/ do not hot-reload, so restarts are common while writing them.
+	type Persisted = { index: number; answers: Record<string, number> };
+	const persisted: Persisted = ((globalThis as Record<symbol, Persisted | undefined>)[Symbol.for('gpuix.svelte.tutorial')] ??= {
 		index: Number(process.env.GPUIX_TUTORIAL_STEP) - 1 || 0,
 		answers: {}
 	});
@@ -45,21 +47,21 @@
 	});
 
 	const step = $derived(STEPS[index]);
-	const Live = $derived(LIVE[step.live] ?? null);
+	const Live = $derived(LIVE[step.live as LiveKey] ?? null);
 	const answered = $derived(Object.keys(answers).length);
 	const correct = $derived(STEPS.filter((s) => answers[s.id] === s.quiz.answer).length);
 
 	const CHAPTER_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#cba6f7'];
 	const BUTTON = 'padding: 8px 16px; border-radius: 6px; background-color: #313244; color: #cdd6f4; font-size: 13px';
 
-	function go(to) {
+	function go(to: number) {
 		index = Math.max(0, Math.min(STEPS.length - 1, to));
 		// The <input> on the native-elements step keeps focus across steps otherwise.
 		blur();
 	}
 
 	// Window-level, so no element has to hold focus; a focused <input> keeps its arrows.
-	function onkey(e) {
+	function onkey(e: GpuixEvent) {
 		if (e.editing) return;
 		if (e.key === 'left' || e.key === 'ArrowLeft') go(index - 1);
 		else if (e.key === 'right' || e.key === 'ArrowRight') go(index + 1);
@@ -67,13 +69,13 @@
 
 	$effect(() => on_window_key('keydown', onkey));
 
-	function dot_color(s, i) {
+	function dot_color(s: Step, i: number) {
 		if (i === index) return '#89b4fa';
 		if (answers[s.id] === undefined) return '#45475a';
 		return answers[s.id] === s.quiz.answer ? '#a6e3a1' : '#f38ba8';
 	}
 
-	function open(url) {
+	function open(url: string) {
 		const cmd =
 			process.platform === 'darwin' ? ['open', url]
 			: process.platform === 'win32' ? ['cmd', '/c', 'start', '', url]

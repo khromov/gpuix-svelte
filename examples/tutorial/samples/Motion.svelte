@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	let on = $state(false);
 </script>
 

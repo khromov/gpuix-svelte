@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	// {#if} and keyed {#each} both leave anchor nodes in Svelte's tree that GPUI
 	// cannot represent, which is the part of this demo worth watching.
 	let count = $state(0);

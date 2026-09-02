@@ -12,7 +12,7 @@ const bin = fileURLToPath(new URL('../bin/gpuix-svelte.js', import.meta.url));
 const flags = process.argv.includes('--bun') ? ['--bun'] : [];
 
 const children = EXAMPLES.map((name) =>
-	spawn(process.execPath, [bin, ...flags, fileURLToPath(new URL(`../examples/${name}/main.js`, import.meta.url))], {
+	spawn(process.execPath, [bin, ...flags, fileURLToPath(new URL(`../examples/${name}/main.ts`, import.meta.url))], {
 		stdio: 'inherit'
 	})
 );

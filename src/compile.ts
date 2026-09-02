@@ -5,9 +5,10 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { Parser } from 'acorn';
-import { compile, compileModule } from 'svelte/compiler';
-import { parse_css_text } from './style.js';
+import { Parser, type Node as AcornNode } from 'acorn';
+import { compile, compileModule, type AST } from 'svelte/compiler';
+import { parse_css_text } from './style.ts';
+import type { ClassRule, Pseudo } from './types.ts';
 
 /**
  * The compiler bakes this into every component's `import $renderer from '...'`,
@@ -24,31 +25,28 @@ const SPECIFIER_NODES = new Set([
 	'ExportNamedDeclaration'
 ]);
 
-/**
- * @param {string} code compiled component JS
- * @param {string} query the `?v=N` cache-buster to append
- * @returns {string} the same code, with every child `.svelte` specifier busted
- */
-function bust_child_specifiers(code, query) {
-	/** @type {number[]} */
-	const closing_quotes = [];
+type SpecifierNode = AcornNode & { source?: (AcornNode & { type: string; value: unknown }) | null };
 
-	/** @param {any} node */
-	function scan(node) {
+/** The same compiled component JS, with every child `.svelte` specifier carrying the `?v=N` cache-buster. */
+function bust_child_specifiers(code: string, query: string): string {
+	const closing_quotes: number[] = [];
+
+	function scan(node: AcornNode) {
 		// A computed `import(expr)` has no literal to rewrite, and never had one.
-		if (SPECIFIER_NODES.has(node.type) && node.source?.type === 'Literal') {
-			const value = String(node.source.value);
+		const source = SPECIFIER_NODES.has(node.type) ? (node as SpecifierNode).source : undefined;
+		if (source?.type === 'Literal') {
+			const value = String(source.value);
 			// A bare specifier can't carry a query (Node refuses `pkg/x.svelte?v=1`), and a
 			// package component is not what is being edited anyway.
-			if (value.endsWith('.svelte') && /^(\.|\/|file:)/.test(value)) closing_quotes.push(node.source.end - 1);
+			if (value.endsWith('.svelte') && /^(\.|\/|file:)/.test(value)) closing_quotes.push(source.end - 1);
 		}
 
 		for (const key in node) {
-			const child = node[key];
+			const child = (node as unknown as Record<string, unknown>)[key];
 			if (Array.isArray(child)) {
-				for (const item of child) if (item?.type) scan(item);
-			} else if (child?.type) {
-				scan(child);
+				for (const item of child) if ((item as AcornNode | null)?.type) scan(item as AcornNode);
+			} else if ((child as AcornNode | null)?.type) {
+				scan(child as AcornNode);
 			}
 		}
 	}
@@ -63,20 +61,18 @@ function bust_child_specifiers(code, query) {
 	return out;
 }
 
+type Selector = Pick<ClassRule, 'classes' | 'tag' | 'pseudo'>;
+
 /**
  * One compound selector: classes, at most one tag, and `:hover`/`:active`, which
  * map onto GPUI's native pseudo styles. There is no runtime to match anything else.
- *
- * @param {any} complex a `ComplexSelector` node
- * @returns {{ classes: string[], tag: string | null, pseudo: string | null } | null}
  */
-function compile_selector(complex) {
+function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
 	if (complex.children.length !== 1 || complex.children[0].combinator) return null;
 
-	/** @type {string[]} */
-	const classes = [];
-	let tag = null;
-	let pseudo = null;
+	const classes: string[] = [];
+	let tag: string | null = null;
+	let pseudo: Pseudo = null;
 
 	for (const s of complex.children[0].selectors) {
 		if (s.type === 'ClassSelector') {
@@ -96,14 +92,10 @@ function compile_selector(complex) {
 /**
  * Weakest first, so the renderer can apply them in order and let later ones win:
  * classes over tags, as CSS specificity has it, then source order.
- *
- * @param {any} css the `<style>` block's AST
- * @param {string} source
- * @param {string} path
  */
-function extract_rules(css, source, path) {
-	const rules = [];
-	const refuse = (text) =>
+function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string): ClassRule[] {
+	const rules: ClassRule[] = [];
+	const refuse = (text: string) =>
 		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — only class and tag selectors, plus :hover/:active, reach GPUI`);
 
 	for (const node of css.children) {
@@ -112,7 +104,7 @@ function extract_rules(css, source, path) {
 			continue;
 		}
 
-		const declarations = [];
+		const declarations: string[] = [];
 		for (const child of node.block.children) {
 			if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
 			else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
@@ -131,16 +123,12 @@ function extract_rules(css, source, path) {
 	return rules.sort((a, b) => weight(a) - weight(b));
 }
 
-const weight = (rule) => rule.classes.length * 2 + (rule.tag === null ? 0 : 1);
+const weight = (rule: ClassRule) => rule.classes.length * 2 + (rule.tag === null ? 0 : 1);
 
-/**
- * @param {string} path absolute path to a `.svelte` file
- * @param {string} [query] the `?v=N` cache-buster `render_hot` appends, if any
- * @returns {string} compiled client-side JS
- */
-export function compile_svelte(path, query) {
+/** Compiles the `.svelte` file at `path` to client JS; `query` is the `?v=N` cache-buster `render_hot` appends, if any. */
+export function compile_svelte(path: string, query?: string): string {
 	const source = readFileSync(path, 'utf8');
-	let scope = null;
+	let scope = null as string | null;
 
 	const { js, warnings, ast } = compile(source, {
 		filename: path,
@@ -159,7 +147,7 @@ export function compile_svelte(path, query) {
 
 	let code = js.code;
 	if (scope !== null && ast.css) {
-		const rules = extract_rules(ast.css, source, path);
+		const rules = extract_rules(ast.css as AST.CSS.StyleSheet, source, path);
 		if (rules.length > 0) {
 			code += `\nimport { define_styles as $define_styles } from ${JSON.stringify(RENDERER_MODULE)};\n`;
 			code += `$define_styles(${JSON.stringify(scope)}, ${JSON.stringify(rules)});\n`;
@@ -172,15 +160,13 @@ export function compile_svelte(path, query) {
 }
 
 /**
- * A `.svelte.js` module has runes but no template, so it needs neither the renderer
+ * A `.svelte.ts` module has runes but no template, so it needs neither the renderer
  * import nor a cache-buster: it is loaded once and shared, which is what lets its
- * state outlive a hot remount.
- *
- * @param {string} path absolute path to a `.svelte.js` file
- * @returns {string} compiled JS
+ * state outlive a hot remount. `source` is passed in when a loader has already
+ * stripped the types, since `compileModule` does not.
  */
-export function compile_module(path) {
-	const { js, warnings } = compileModule(readFileSync(path, 'utf8'), { filename: path, generate: 'client' });
+export function compile_module(path: string, source: string = readFileSync(path, 'utf8')): string {
+	const { js, warnings } = compileModule(source, { filename: path, generate: 'client' });
 
 	for (const warning of warnings) {
 		console.warn(`[gpuix-svelte] ${path}: ${warning.message}`);

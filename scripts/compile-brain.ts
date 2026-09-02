@@ -10,9 +10,10 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { BunPlugin } from 'bun';
 
 if (!process.versions.bun) {
-	console.error('[compile-brain] needs Bun — `npm run brain:compile` runs `bun scripts/compile-brain.js`');
+	console.error('[compile-brain] needs Bun — `npm run brain:compile` runs `bun scripts/compile-brain.ts`');
 	process.exit(1);
 }
 if (process.platform !== 'darwin') {
@@ -89,14 +90,14 @@ const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
 `;
 
 // Imported after the guard: a static import would hoist `bun` above it.
-const { load_module, load_svelte } = await import('../src/plugin.js');
-const { CLANG_ARGS } = await import('../examples/second-brain/lib/recorder.js');
+const { load_module, load_svelte } = await import('../src/plugin.ts');
+const { CLANG_ARGS } = await import('../examples/second-brain/lib/recorder.ts');
 
 let components = 0;
-const svelte_plugin = {
+const svelte_plugin: BunPlugin = {
 	name: 'gpuix-svelte',
 	setup(build) {
-		build.onLoad({ filter: /\.svelte\.js$/ }, load_module);
+		build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 		build.onLoad({ filter: /\.svelte$/ }, (args) => {
 			components++;
 			return load_svelte(args);
@@ -109,7 +110,7 @@ rmSync(bundle, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 
 const result = await Bun.build({
-	entrypoints: [join(brain, 'standalone.js')],
+	entrypoints: [join(brain, 'standalone.ts')],
 	target: 'bun',
 	// Bun implies `development` unless NODE_ENV is production at build time, and
 	// esm-env lists it first, so both are needed for Svelte's production runtime.
@@ -154,7 +155,7 @@ write_icns(join(brain, 'icon.png'), join(resources, 'AppIcon.icns'));
 // The worker is bundled to one file (its shared lib/wav.js inlined) and keeps its
 // real node_modules beside it: onnxruntime and sharp load from there as usual.
 const worker = await Bun.build({
-	entrypoints: [join(brain, 'ml/worker.js')],
+	entrypoints: [join(brain, 'ml/worker.ts')],
 	target: 'bun',
 	external: ['@huggingface/transformers'],
 	naming: 'worker.js',
@@ -187,13 +188,13 @@ if (!notary) {
 	notarize(bundle);
 }
 
-function mb(bytes) {
+function mb(bytes: number) {
 	return (bytes / 1048576).toFixed(1);
 }
 
-function dir_size(path) {
+function dir_size(path: string) {
 	let total = 0;
-	(function walk(p) {
+	(function walk(p: string) {
 		const st = statSync(p);
 		if (st.isDirectory()) for (const name of readdirSync(p)) walk(join(p, name));
 		else total += st.size;
@@ -207,7 +208,7 @@ function sign_bundle() {
 	const entitlements = join(dist, 'entitlements.plist');
 	writeFileSync(entitlements, ENTITLEMENTS);
 	const nested = [];
-	(function walk(p) {
+	(function walk(p: string) {
 		for (const name of readdirSync(p)) {
 			const full = join(p, name);
 			if (statSync(full).isDirectory()) walk(full);
@@ -215,19 +216,19 @@ function sign_bundle() {
 		}
 	})(resources);
 	for (const target of nested) {
-		run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--sign', identity, target]);
+		run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--sign', identity!, target]);
 	}
-	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity, join(macos, 'substrate')]);
-	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity, bundle]);
+	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity!, join(macos, 'substrate')]);
+	run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--entitlements', entitlements, '--sign', identity!, bundle]);
 	run('codesign', ['--verify', '--strict', bundle]);
 	console.log(`[compile-brain] signed ${relative(root, bundle)} (${nested.length} nested binaries) as ${identity}`);
 }
 
-function notarize(target) {
+function notarize(target: string) {
 	const zip = join(dist, 'Substrate.zip');
 	run('ditto', ['-c', '-k', '--keepParent', target, zip]);
 	console.log('[compile-brain] notarizing (Apple usually takes a few minutes)');
-	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', notary, '--wait']);
+	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', notary!, '--wait']);
 	if (!/status: Accepted/.test(output)) {
 		console.error(`[compile-brain] notarization was not accepted; see \`xcrun notarytool log\` for the submission below\n${output}`);
 		process.exit(1);
@@ -240,7 +241,7 @@ function notarize(target) {
 
 // iconutil only reads an .iconset directory holding the ten standard sizes,
 // which sips cuts from the 1024px source; both ship with macOS.
-function write_icns(png, out) {
+function write_icns(png: string, out: string) {
 	const iconset = join(dist, 'AppIcon.iconset');
 	rmSync(iconset, { recursive: true, force: true });
 	mkdirSync(iconset);
@@ -252,7 +253,7 @@ function write_icns(png, out) {
 	rmSync(iconset, { recursive: true, force: true });
 }
 
-function run(command, args) {
+function run(command: string, args: string[]) {
 	const { status, stdout, stderr } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 	if (status !== 0) {
 		console.error(`[compile-brain] ${command} ${args.join(' ')} failed:\n${stderr || stdout}`);

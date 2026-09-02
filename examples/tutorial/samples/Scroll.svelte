@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	const rows = Array.from({ length: 40 }, (_, i) => `row ${i + 1}`);
 </script>
 

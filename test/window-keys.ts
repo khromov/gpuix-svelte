@@ -15,11 +15,11 @@ const seen = () => all_text().find((t) => t.includes('|'));
 press('cmd-k');
 check('a window key reaches the handler with nothing focused', seen(), 'cmd-k|0');
 
-focus(find_test_id('field'));
+focus(find_test_id('field')!);
 press('escape');
 check('it still fires while an input has focus, flagged editing, and the input gets its own keyDown', seen(), 'cmd-k escape*|1');
 
-focus(find_test_id('other'));
+focus(find_test_id('other')!);
 press('a');
 check('focus moving to a plain focusable clears the flag', seen(), 'cmd-k escape* a|1');
 

@@ -4,11 +4,63 @@
  * saved sample reload (see the comment there).
  */
 
+export type LiveKey = 'hello' | 'counter' | 'styled' | 'scroll' | 'list' | 'hittest' | 'native' | 'motion';
+
+export interface TreeSpec {
+	label: string;
+	note?: string;
+	virtual?: boolean;
+	children?: TreeSpec[];
+}
+
+export interface DiagramNode {
+	label: string;
+	caption?: string;
+	color?: string;
+}
+
+export interface DiagramTree {
+	title: string;
+	color?: string;
+	tree: TreeSpec;
+}
+
+export type Diagram =
+	| { kind: 'pipeline'; title: string; direction?: 'row' | 'column'; legend?: string; nodes: DiagramNode[] }
+	| { kind: 'compare'; title: string; direction?: 'row' | 'column'; legend?: string; left: DiagramTree; right: DiagramTree };
+
+/** `file` is read relative to Tutorial.svelte at load time and becomes `source`. */
+export interface CodeSample {
+	label: string;
+	language: string;
+	file?: string;
+	source?: string;
+}
+
+export interface Quiz {
+	question: string;
+	options: string[];
+	answer: number;
+	explanation: string;
+}
+
+export interface Step {
+	id: string;
+	chapter: number;
+	title: string;
+	prose: string;
+	diagram: Diagram;
+	code: CodeSample[];
+	live: LiveKey | null;
+	previewFill?: boolean;
+	quiz: Quiz;
+}
+
 export const CHAPTERS = ['Foundations', 'Building blocks', 'The GPUI side', 'Workflow'];
 
 const CONDITIONS = '--conditions custom-renderer --conditions development';
 
-export const STEPS = [
+export const STEPS: Step[] = [
 	{
 		id: 'what-is',
 		chapter: 0,
@@ -20,12 +72,12 @@ export const STEPS = [
 			nodes: [
 				{ label: 'App.svelte', caption: 'your component' },
 				{ label: 'svelte/compiler', caption: 'customRenderer option' },
-				{ label: 'renderer.js', caption: 'JS shadow tree' },
+				{ label: 'renderer.ts', caption: 'JS shadow tree' },
 				{ label: '@gpuix/native', caption: 'one applyBatch per frame' },
 				{ label: 'GPUI window', caption: 'Metal / DirectX / Vulkan', color: '#a6e3a1' }
 			]
 		},
-		code: [{ label: 'examples/tutorial/main.js — what opened this window', language: 'javascript', file: 'main.js' }],
+		code: [{ label: 'examples/tutorial/main.ts — what opened this window', language: 'typescript', file: 'main.ts' }],
 		live: null,
 		quiz: {
 			question: 'Where does a gpuix-svelte component end up?',
@@ -48,7 +100,7 @@ export const STEPS = [
 			kind: 'pipeline',
 			title: 'How a .svelte import becomes a module',
 			nodes: [
-				{ label: '--import gpuix-svelte/register', caption: 'before the entry resolves' },
+				{ label: '--import tsx --import gpuix-svelte/register', caption: 'before the entry resolves' },
 				{ label: 'module.registerHooks', caption: 'intercepts *.svelte' },
 				{ label: 'compile_svelte()', caption: 'svelte/compiler, customRenderer' },
 				{ label: 'ES module', caption: 'imports gpuix-svelte/renderer' },
@@ -63,14 +115,14 @@ export const STEPS = [
 					'npm install github:khromov/gpuix-svelte',
 					'npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511',
 					'',
-					'npx gpuix-svelte app.js          # Node',
-					'npx gpuix-svelte --bun app.js    # Bun',
+					'npx gpuix-svelte app.ts          # Node',
+					'npx gpuix-svelte --bun app.ts    # Bun',
 					'',
 					'# which is short for (both --conditions flags and the loader are required)',
 					`node ${CONDITIONS} \\`,
-					'     --import gpuix-svelte/register app.js',
+					'     --import tsx --import gpuix-svelte/register app.ts',
 					`bun ${CONDITIONS} \\`,
-					'     --preload gpuix-svelte/plugin app.js'
+					'     --preload gpuix-svelte/plugin app.ts'
 				].join('\n')
 			},
 			{ label: 'bunfig.toml', language: 'toml', source: 'preload = ["gpuix-svelte/plugin"]' },
@@ -80,8 +132,8 @@ export const STEPS = [
 				source: JSON.stringify(
 					{
 						scripts: {
-							start: 'gpuix-svelte app.js',
-							'bun:start': 'gpuix-svelte --bun app.js'
+							start: 'gpuix-svelte app.ts',
+							'bun:start': 'gpuix-svelte --bun app.ts'
 						}
 					},
 					null,
@@ -91,7 +143,7 @@ export const STEPS = [
 		],
 		live: null,
 		quiz: {
-			question: 'You run `node app.js` without the two --conditions flags. What happens?',
+			question: 'You run `node app.ts` without the two --conditions flags. What happens?',
 			options: [
 				'Nothing changes; the flags only make startup faster',
 				'svelte resolves to its server build, mount() is missing and the app fails before a window opens',

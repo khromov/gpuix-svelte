@@ -4,6 +4,8 @@
  * know, handed a string it can't parse, throws out of `applyBatch`.
  */
 
+import type { GpuiStyle, ShadowAttrs, StyleRule, StyleValue } from './types.ts';
+
 const PX = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)px$/i;
 const NUM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
 const PERCENT = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)%$/;
@@ -56,7 +58,7 @@ const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth
 const NEVER = new Set(['boxShadow']);
 
 /** GPUI has no `inset` field, so that one expands even when it holds one value. */
-const BOX = {
+const BOX: Record<string, string[] | undefined> = {
 	padding: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
 	margin: ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'],
 	borderWidth: ['borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'],
@@ -73,15 +75,15 @@ const BOX = {
  * GPUI reads a longhand over its shorthand whatever the order, so a later
  * `padding: 20px` has to clear the longhands an earlier `padding: 12px 24px` left.
  */
-const SUPERSEDES = { ...BOX, gap: ['rowGap', 'columnGap'] };
+const SUPERSEDES: Record<string, string[] | undefined> = { ...BOX, gap: ['rowGap', 'columnGap'] };
 
-function put(out, key, value) {
+function put(out: GpuiStyle, key: string, value: GpuiStyle[string]) {
 	const longhands = SUPERSEDES[key];
 	if (longhands) for (const l of longhands) delete out[l];
 	out[key] = value;
 }
 
-function merge(target, source) {
+function merge(target: GpuiStyle, source: GpuiStyle): GpuiStyle {
 	for (const key in source) put(target, key, source[key]);
 	return target;
 }
@@ -94,16 +96,16 @@ const FILL = [
 	[0, 1, 2, 3]
 ];
 
-const warned = new Set();
+const warned = new Set<string>();
 
 /** `var(--name)` values, set from JS; every rule or inline style that reads one re-resolves on change. */
-const css_vars = new Map();
+const css_vars = new Map<string, string>();
 let vars_generation = 0;
 let vars_read = false;
-const warned_vars = new Set();
+const warned_vars = new Set<string>();
 
-/** @param {Record<string, string | number | null>} vars keys with or without the `--` */
-export function define_css_vars(vars) {
+/** Keys with or without the `--`. */
+export function define_css_vars(vars: Record<string, string | number | null>) {
 	for (const [key, value] of Object.entries(vars)) {
 		const name = key.startsWith('--') ? key.slice(2) : key;
 		if (value == null) css_vars.delete(name);
@@ -119,7 +121,7 @@ export const used_css_vars = () => vars_read;
  * Replaces each `var(--name[, fallback])` in a value. Null means a variable was
  * undefined with no fallback, and the declaration has to be dropped.
  */
-function substitute_vars(value) {
+function substitute_vars(value: string): string | null {
 	let out = '';
 	let at = 0;
 
@@ -144,7 +146,7 @@ function substitute_vars(value) {
 		const name = (comma === -1 ? inner : inner.slice(0, comma)).trim().replace(/^--/, '');
 		vars_read = true;
 
-		let resolved = css_vars.get(name);
+		let resolved: string | null | undefined = css_vars.get(name);
 		if (resolved === undefined) {
 			if (comma === -1) {
 				if (!warned_vars.has(name)) {
@@ -162,17 +164,17 @@ function substitute_vars(value) {
 	}
 }
 
-function camel(key) {
-	return key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+function camel(key: string) {
+	return key.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
 /** `12px` must become `12`, while `50%`, `auto` and `#1e1e2e` stay strings. */
-function coerce(value) {
+function coerce(value: string): StyleValue {
 	if (PX.test(value) || NUM.test(value)) return parseFloat(value);
 	return value;
 }
 
-function accepts(key, value) {
+function accepts(key: string, value: StyleValue) {
 	if (NEVER.has(key)) return false;
 	if (NUMBER_ONLY.has(key)) return typeof value === 'number';
 	if (DIMENSION.has(key)) {
@@ -188,7 +190,7 @@ function accepts(key, value) {
  * pixel-only key) throws out of `applyBatch` and takes the whole frame with it,
  * so drop it and say so once per property.
  */
-function assign(out, key, value) {
+function assign(out: GpuiStyle, key: string, value: string) {
 	const coerced = coerce(value);
 
 	if (!accepts(key, coerced)) {
@@ -202,7 +204,7 @@ function assign(out, key, value) {
 	put(out, key, coerced);
 }
 
-function expand(out, key, value) {
+function expand(out: GpuiStyle, key: string, value: string) {
 	const parts = value.split(/\s+/);
 
 	if (key === 'gap' && parts.length === 2) {
@@ -219,13 +221,8 @@ function expand(out, key, value) {
 	return true;
 }
 
-/**
- * @param {string | null | undefined} css
- * @returns {Record<string, any>}
- */
-export function parse_css_text(css) {
-	/** @type {Record<string, any>} */
-	const out = {};
+export function parse_css_text(css: string | null | undefined): GpuiStyle {
+	const out: GpuiStyle = {};
 	if (!css) return out;
 
 	for (const decl of css.split(';')) {
@@ -246,7 +243,7 @@ export function parse_css_text(css) {
 }
 
 /** A rule that reads a variable ships as CSS text and is parsed here, once per change. */
-function rule_style(rule) {
+function rule_style(rule: StyleRule): GpuiStyle {
 	if (rule.css === undefined) return rule.style;
 
 	if (rule.generation !== vars_generation) {
@@ -254,7 +251,7 @@ function rule_style(rule) {
 		rule.resolved = parse_css_text(rule.css);
 	}
 	vars_read = true;
-	return rule.resolved;
+	return rule.resolved!;
 }
 
 /**
@@ -262,15 +259,14 @@ function rule_style(rule) {
  * nested objects, which CSS text can't express, so they arrive as their own
  * attributes (or as `:hover`/`:active` rules) and get folded back in here.
  *
- * @param {Record<string, any>} attrs raw attribute strings off the shadow node
- * @param {{ pseudo: string | null, style?: Record<string, any>, css?: string }[]} [rules] the
- *   element's matching `<style>` rules, weakest first
+ * `attrs` are the raw attribute strings off the shadow node; `rules` the element's
+ * matching `<style>` rules, weakest first.
  */
-export function build_style(attrs, rules = []) {
+export function build_style(attrs: ShadowAttrs, rules: readonly StyleRule[] = []): GpuiStyle {
 	vars_read = false;
-	const style = {};
-	let hover = null;
-	let active = null;
+	const style: GpuiStyle = {};
+	let hover: GpuiStyle | null = null;
+	let active: GpuiStyle | null = null;
 
 	for (const rule of rules) {
 		const declared = rule_style(rule);
@@ -280,9 +276,9 @@ export function build_style(attrs, rules = []) {
 	}
 
 	// Inline wins over a class, as in CSS.
-	merge(style, parse_css_text(attrs.style));
-	if (hover || attrs.hover) style.hover = merge(hover ?? {}, parse_css_text(attrs.hover));
-	if (active || attrs.active) style.active = merge(active ?? {}, parse_css_text(attrs.active));
+	merge(style, parse_css_text(attrs.style as string | undefined));
+	if (hover || attrs.hover) style.hover = merge(hover ?? {}, parse_css_text(attrs.hover as string | undefined));
+	if (active || attrs.active) style.active = merge(active ?? {}, parse_css_text(attrs.active as string | undefined));
 
 	return style;
 }

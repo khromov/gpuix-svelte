@@ -1,17 +1,28 @@
-<script>
-	import { get_native } from 'gpuix-svelte';
+<script lang="ts">
+	import type { Snippet } from 'svelte';
+	import { get_native, type GpuixEvent, type Native, type ShadowNode } from 'gpuix-svelte';
 
 	// GPUI paints no scrollbars, so the column draws a thumb sized from its painted
 	// bounds and moved by its scroll offset, and drags it on a panel-sized overlay.
-	let { children, gap = 8, pad = '0', grow = 1, scroll = true, follow = false, testid = null } = $props();
+	let {
+		children,
+		gap = 8,
+		pad = '0',
+		grow = 1,
+		scroll = true,
+		follow = false,
+		testid = null
+	}: { children: Snippet; gap?: number; pad?: string; grow?: number; scroll?: boolean; follow?: boolean; testid?: string | null } = $props();
 
-	let column = null;
-	let content = null;
+	let column: ShadowNode | null = null;
+	let content: ShadowNode | null = null;
 	let thumb = $state({ top: 0, height: 0 });
-	let drag = $state(null);
+	let drag = $state<{ y: number; offset: number } | null>(null);
 	let last_total = 0;
 
-	function metrics() {
+	type Metrics = { native: Native; viewport: number; total: number; offset: number };
+
+	function metrics(): Metrics | null {
 		const native = get_native();
 		if (!native || !column?.nativeId || !content?.nativeId) return null;
 
@@ -22,7 +33,7 @@
 		return { native, viewport, total, offset: native.getScrollOffset(column.nativeId)?.[1] ?? 0 };
 	}
 
-	function place(m, offset) {
+	function place(m: Metrics, offset: number) {
 		let top = 0;
 		let height = 0;
 		if (scroll && m.total > m.viewport) {
@@ -39,7 +50,7 @@
 		if (!m) return;
 		if (follow && m.total !== last_total && m.total > m.viewport) {
 			const bottom = m.viewport - m.total;
-			m.native.scrollTo(column.nativeId, 0, bottom);
+			m.native.scrollTo(column!.nativeId!, 0, bottom);
 			place(m, bottom);
 		} else {
 			place(m, m.offset);
@@ -47,7 +58,7 @@
 		last_total = m.total;
 	}
 
-	function grab(e) {
+	function grab(e: GpuixEvent) {
 		if (e.button !== 0) return;
 		const m = metrics();
 		if (m) drag = { y: e.y, offset: m.offset };
@@ -55,7 +66,7 @@
 
 	// GPUI does not capture the pointer, so the drag runs on a panel-sized overlay
 	// and a move with no button held is a release that landed elsewhere.
-	function drag_to(e) {
+	function drag_to(e: GpuixEvent) {
 		if (drag === null) return;
 		if (e.pressedButton == null) {
 			drag = null;
@@ -65,9 +76,9 @@
 		if (!m || m.total <= m.viewport) return;
 
 		const travel = m.viewport - thumb.height;
-		const wanted = drag.offset - ((e.y - drag.y) / travel) * (m.total - m.viewport);
+		const wanted = drag.offset - ((e.y! - drag.y) / travel) * (m.total - m.viewport);
 		const offset = Math.max(m.viewport - m.total, Math.min(0, wanted));
-		m.native.scrollTo(column.nativeId, 0, offset);
+		m.native.scrollTo(column!.nativeId!, 0, offset);
 		place(m, offset);
 	}
 
@@ -83,8 +94,8 @@
 </script>
 
 <div class="wrap" style="flex-grow: {grow}">
-	<div {@attach (node) => (column = node)} onscroll={refresh} class="column" class:fixed={!scroll} testId={testid}>
-		<div {@attach (node) => (content = node)} class="content" class:fixed={!scroll} style="gap: {gap}px; padding: {pad}">
+	<div {@attach (node: ShadowNode) => (column = node)} onscroll={refresh} class="column" class:fixed={!scroll} testId={testid}>
+		<div {@attach (node: ShadowNode) => (content = node)} class="content" class:fixed={!scroll} style="gap: {gap}px; padding: {pad}">
 			{@render children()}
 		</div>
 	</div>

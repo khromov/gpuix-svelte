@@ -6,11 +6,11 @@
 
 import { TestGpuixRenderer } from '@gpuix/native';
 import { flushSync } from 'svelte';
-import { renderer, set_native, create_root, commit, is_dirty, dispatch } from 'gpuix-svelte';
+import { renderer, set_native, create_root, commit, is_dirty, dispatch, type ShadowNode } from 'gpuix-svelte';
 import { mount_headless, settle, all_text, check, finish } from 'gpuix-svelte/test';
 
 /** A root with no component in it, for trees built by hand. */
-function fresh(width, height) {
+function fresh(width?: number, height?: number) {
 	const native = new TestGpuixRenderer(width, height);
 	set_native(native);
 	const root = create_root();
@@ -57,7 +57,7 @@ function fresh(width, height) {
 	});
 
 	settle();
-	const x = (n) => Math.round(native.getElementBounds(n.nativeId)[0]);
+	const x = (n: ShadowNode) => Math.round(native.getElementBounds(n.nativeId!)![0]);
 	const b_before = x(texts[1]);
 	const c_before = x(texts[2]);
 	check('row laid out left to right', b_before < c_before, true);
@@ -85,7 +85,7 @@ function fresh(width, height) {
 	renderer.addEventListener(button, 'click', () => clicks++);
 	renderer.insert(root, button, anchor);
 	settle();
-	check('listener registered while live', native.hasEventListener(button.nativeId, 'click'), true);
+	check('listener registered while live', native.hasEventListener(button.nativeId!, 'click'), true);
 
 	renderer.remove(button);
 	settle();
@@ -94,10 +94,10 @@ function fresh(width, height) {
 	renderer.insert(root, button, anchor);
 	settle();
 	check('re-inserted node is native again', button.nativeId !== null, true);
-	check('and its listener was re-emitted', native.hasEventListener(button.nativeId, 'click'), true);
+	check('and its listener was re-emitted', native.hasEventListener(button.nativeId!, 'click'), true);
 
 	// Straight at the node on purpose: the listener's survival is what is under test.
-	dispatch({ elementId: button.nativeId, eventType: 'click' });
+	dispatch({ elementId: button.nativeId!, eventType: 'click' });
 	check('so the handler still fires', clicks, 1);
 }
 

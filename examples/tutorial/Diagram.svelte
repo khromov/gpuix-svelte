@@ -1,7 +1,11 @@
-<script>
-	let { spec } = $props();
+<script lang="ts">
+	import type { Diagram, TreeSpec } from './steps.ts';
 
-	function flatten(tree, depth = 0, out = []) {
+	let { spec }: { spec: Diagram } = $props();
+
+	type Flat = { label: string; note?: string; depth: number; virtual: boolean };
+
+	function flatten(tree: TreeSpec, depth = 0, out: Flat[] = []) {
 		out.push({ label: tree.label, note: tree.note, depth, virtual: tree.virtual === true });
 		for (const child of tree.children ?? []) flatten(child, depth + 1, out);
 		return out;

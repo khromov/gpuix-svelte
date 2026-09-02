@@ -1,5 +1,5 @@
-<script>
-	import { store, bump } from './ModuleStore.svelte.js';
+<script lang="ts">
+	import { store, bump } from './ModuleStore.svelte.ts';
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 8px; color: #cdd6f4">

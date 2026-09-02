@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 
-	let { rows = 30, follow = false, scroll = true } = $props();
+	let { rows = 30, follow = false, scroll = true }: { rows?: number; follow?: boolean; scroll?: boolean } = $props();
 	const items = $derived(Array.from({ length: rows }, (_, i) => i));
 </script>
 

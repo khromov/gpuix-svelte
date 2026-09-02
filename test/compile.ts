@@ -5,15 +5,15 @@
  */
 
 import { fileURLToPath } from 'node:url';
-import { compile_svelte } from '../src/compile.js';
+import { compile_svelte } from '../src/compile.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 const FIXTURE = fileURLToPath(new URL('./HotImports.svelte', import.meta.url));
 
 const code = compile_svelte(FIXTURE, '?v=7');
 
-const busted = (name) => code.includes(`${name}.svelte?v=7`);
-const bare = (name) => new RegExp(`${name}\\.svelte(?!\\?)`).test(code);
+const busted = (name: string) => code.includes(`${name}.svelte?v=7`);
+const bare = (name: string) => new RegExp(`${name}\\.svelte(?!\\?)`).test(code);
 
 check('static `from` import is busted', busted('HotChild'), true);
 check('side-effect import is busted', busted('HotSideEffect'), true);

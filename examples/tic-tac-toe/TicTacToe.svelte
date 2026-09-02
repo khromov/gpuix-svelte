@@ -1,7 +1,9 @@
-<script>
-	let board = $state(Array(9).fill(null));
+<script lang="ts">
+	type Mark = 'X' | 'O';
+
+	let board = $state<(Mark | null)[]>(Array(9).fill(null));
 	let xIsNext = $state(true);
-	let scores = $state({ X: 0, O: 0, draws: 0 });
+	let scores = $state<Record<Mark | 'draws', number>>({ X: 0, O: 0, draws: 0 });
 	let counted = $state(false);
 
 	const LINES = [
@@ -28,7 +30,7 @@
 		}
 	});
 
-	function play(i) {
+	function play(i: number) {
 		if (board[i] || winner) return;
 		board[i] = xIsNext ? 'X' : 'O';
 		xIsNext = !xIsNext;
@@ -45,7 +47,7 @@
 		scores = { X: 0, O: 0, draws: 0 };
 	}
 
-	function cellColor(i) {
+	function cellColor(i: number) {
 		if (winningLine?.includes(i)) return '#a6e3a1';
 		return board[i] === 'X' ? '#89b4fa' : '#f38ba8';
 	}

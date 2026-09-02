@@ -8,9 +8,9 @@ import { mount_headless, settle, all_text, check, finish } from 'gpuix-svelte/te
 const Reorder = (await import('./Reorder.svelte')).default;
 const { component } = mount_headless(Reorder);
 
-const around = (items) => ['head', 'IF', ...items.map(String), 'tail'];
+const around = (items: number[]) => ['head', 'IF', ...items.map(String), 'tail'];
 
-function order(label, expected) {
+function order(label: string, expected: string[]) {
 	settle();
 	check(label, all_text(), expected);
 }
