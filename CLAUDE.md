@@ -11,10 +11,13 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 
 ## Commands
 
-Everything goes through the package scripts. They embed
-`node --conditions custom-renderer --conditions development --import ./src/register.js`. The
-conditions are **mandatory** — without them `svelte` resolves to its server build and `mount()`
-does not exist — and `--import` installs the `.svelte` loader.
+Everything goes through the package scripts, and those go through `bin/gpuix-svelte.js`
+(`node bin/gpuix-svelte.js [--bun] [runtime flags] <entry> [args]`, published as the `gpuix-svelte`
+bin). It runs `node --conditions custom-renderer --conditions development --import ./src/register.js
+<entry>` — the conditions are **mandatory**, without them `svelte` resolves to its server build and
+`mount()` does not exist, and `--import` installs the `.svelte` loader — or, under `--bun` / when
+invoked by Bun, `bun` with the same conditions and `--preload ./src/plugin.js`. Flags before the
+entry are forwarded to the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
 ```bash
 npm install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
@@ -37,9 +40,9 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
                            # examples/tutorial/content/*.md, the registry is steps.js, samples/
                            # hot-reload; GPUIX_TUTORIAL_STEP=7 starts at step 7. The only user
                            # of GPUI's <code>/<markdown> elements. `bun run tutorial` runs it on
-                           # Bun: scripts/run-example.js picks the runtime from --bun or
-                           # npm_config_user_agent (Bun's script runner executes `node ...` on
-                           # real Node otherwise). NOT part of `npm run demo`
+                           # Bun: the bin picks the runtime from --bun or npm_config_user_agent
+                           # (Bun's script runner executes `node ...` on real Node otherwise).
+                           # NOT part of `npm run demo`
 npm run brain              # Substrate, the "second brain" example (examples/second-brain): notes, links
                            # (scraped with HTMLRewriter), images, voice memos; hybrid search
                            # (nomic embeddings + FTS5 + CLIP, fused with RRF); RAG chat over any
@@ -87,9 +90,11 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
-running the same entry point through Bun, which takes the loader from `bunfig.toml` rather than
-`--import`. Deps come from `npm install` either way. Adding a script means adding both halves —
-except the Bun-only ones (`compile`, `brain*`, `test:brain`), whose `bun:` twin is an alias.
+running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`), which takes the
+loader as a `--preload` rather than an `--import`; `bunfig.toml` carries the same preload for
+ad-hoc `bun file.js` runs. Deps come from `npm install` either way. Adding a script means adding
+both halves — except the Bun-only ones (`compile`, `brain:*` other than `brain`), whose `bun:`
+twin is an alias.
 
 To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
 GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
@@ -203,9 +208,9 @@ attribute winning.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
-be installed before the entry module resolves — Node via `--import ./src/register.js` in every
-`node` script, Bun via `bunfig.toml`'s `preload`. Tests rely on that registration rather than
-importing a loader themselves. Both also compile `.svelte.js` runes modules through
+be installed before the entry module resolves — Node via `--import ./src/register.js`, Bun via
+`--preload ./src/plugin.js` (or `bunfig.toml`'s `preload`), both supplied by `bin/gpuix-svelte.js`.
+Tests rely on that registration rather than importing a loader themselves. Both also compile `.svelte.js` runes modules through
 `compile_module()` (`compileModule` from `svelte/compiler`, no renderer option). Those are
 deliberately **not** cache-busted: a module is one instance per process, so state kept in one
 survives a hot remount (that is how Substrate keeps its route and theme), and editing one needs a

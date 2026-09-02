@@ -63,12 +63,14 @@ export const STEPS = [
 					'npm install github:khromov/gpuix-svelte',
 					'npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511',
 					'',
-					'# Node: both --conditions flags and the --import are required',
+					'npx gpuix-svelte app.js          # Node',
+					'npx gpuix-svelte --bun app.js    # Bun',
+					'',
+					'# which is short for (both --conditions flags and the loader are required)',
 					`node ${CONDITIONS} \\`,
 					'     --import gpuix-svelte/register app.js',
-					'',
-					'# Bun: the loader comes from bunfig.toml instead',
-					`bun ${CONDITIONS} app.js`
+					`bun ${CONDITIONS} \\`,
+					'     --preload gpuix-svelte/plugin app.js'
 				].join('\n')
 			},
 			{ label: 'bunfig.toml', language: 'toml', source: 'preload = ["gpuix-svelte/plugin"]' },
@@ -78,8 +80,8 @@ export const STEPS = [
 				source: JSON.stringify(
 					{
 						scripts: {
-							start: `node ${CONDITIONS} --import gpuix-svelte/register app.js`,
-							'bun:start': `bun ${CONDITIONS} app.js`
+							start: 'gpuix-svelte app.js',
+							'bun:start': 'gpuix-svelte --bun app.js'
 						}
 					},
 					null,

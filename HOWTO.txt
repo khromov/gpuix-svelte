@@ -32,7 +32,7 @@ Needs Node.js 26.1 or newer, or Bun 1.4.0 or newer.
     npm run tutorial         # interactive onboarding guide: 12 steps, each with an
                              # explanation, a diagram, highlighted source, the same
                              # component running live, and a quiz. `bun run tutorial`
-                             # runs it on Bun (scripts/run-example.js picks the
+                             # runs it on Bun (bin/gpuix-svelte.js picks the
                              # runtime from how it was invoked, since Bun's script
                              # runner executes a `node ...` body on real Node).
                              # GPUIX_TUTORIAL_STEP=7 starts at step 7
@@ -52,10 +52,12 @@ Success looks like:
 
 Notes
 -----
-- The `--conditions custom-renderer --conditions development` flags baked into
-  every package script are mandatory. Without them svelte's exports resolve to
-  its server build and mount() doesn't exist. So is `--import ./src/register.js`,
-  which installs the .svelte loader. Always go through `npm run ...`.
+- Every package script runs through bin/gpuix-svelte.js, which adds the
+  mandatory `--conditions custom-renderer --conditions development` flags
+  (without them svelte's exports resolve to its server build and mount()
+  doesn't exist) and installs the .svelte loader (`--import ./src/register.js`
+  on Node, `--preload ./src/plugin.js` on Bun). Always go through `npm run ...`
+  or the bin; flags before the entry are passed on to the runtime.
 - GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
@@ -70,8 +72,8 @@ Notes
   head.
 - Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
   npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
-  Same entry points, run through Bun, which preloads src/plugin.js via
-  bunfig.toml instead of taking --import. Dependencies still come from
+  Same entry points, run through Bun, which preloads src/plugin.js
+  (`--preload`, or bunfig.toml) instead of taking --import. Dependencies still come from
   npm install either way; CI runs both runtimes.
 - npm run compile bundles the tic-tac-toe example into dist/tictactoe
   (dist\tictactoe.exe on Windows) with Bun.build({ compile }); npm run

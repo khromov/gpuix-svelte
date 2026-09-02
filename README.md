@@ -49,7 +49,7 @@ small component and that component running live, and ends with a quiz.
 
 Every command has a [Bun](https://bun.com) twin under a `bun:` prefix — `npm run bun:test`,
 `npm run bun:demo`, `npm run bun:demo:counter`, and so on. They run the same entry points through
-Bun, which picks the `.svelte` loader up from `bunfig.toml` instead of `--import`. Dependencies
+Bun, which gets the `.svelte` loader as a `--preload` instead of an `--import`. Dependencies
 still come from `npm install` either way; there is one lockfile, and CI runs both runtimes.
 
 The one exception is Substrate (`npm run brain`), which is built on Bun's own APIs — `bun:sqlite`,
@@ -115,13 +115,6 @@ npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511    # latest build o
 `svelte` has to be Svelte's unreleased custom-renderer branch; pkg.svelte.dev serves its latest
 build (this repo pins one specific commit under `vendor/` instead, see `CLAUDE.md`).
 
-The `.svelte` loader has to be registered before your entry module resolves. On Node that is
-`--import gpuix-svelte/register`; on Bun it is a `bunfig.toml` preload:
-
-```toml
-preload = ["gpuix-svelte/plugin"]
-```
-
 ```js
 // app.js
 import { render_hot } from "gpuix-svelte";
@@ -133,12 +126,25 @@ render_hot(new URL("./App.svelte", import.meta.url), {
 });
 ```
 
-Run with both conditions flags — they are **required** (without them Svelte resolves to its server
-build and `mount()` doesn't exist):
+Run it through the package's bin:
+
+```bash
+npx gpuix-svelte app.js          # Node
+npx gpuix-svelte --bun app.js    # Bun
+```
+
+Two things have to be true before your entry module resolves, and the bin does both: Svelte must
+be resolved with the `custom-renderer` condition (without it `svelte` is its server build and
+`mount()` doesn't exist), and the `.svelte` loader must be installed. Spelled out, the bin runs
 
 ```bash
 node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.js
+bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin  app.js
 ```
+
+which you can run by hand instead (on Bun, `preload = ["gpuix-svelte/plugin"]` in a `bunfig.toml`
+replaces the `--preload`). Flags before the entry go to the runtime (`gpuix-svelte
+--experimental-ffi app.js`); arguments after it go to your script.
 
 See [HOWTO.txt](HOWTO.txt) for a few more details and troubleshooting notes.
 

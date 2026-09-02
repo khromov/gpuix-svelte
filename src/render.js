@@ -194,8 +194,20 @@ export async function render_hot(entry, options = {}) {
 	render(await load(), options);
 
 	let timer = null;
+	const stale = new Set();
 	watch(dirname(path), { recursive: true }, (_event, file) => {
-		if (!file || !file.endsWith('.svelte')) return;
+		if (!file) return;
+
+		// JS modules (`.svelte.js` state included) load once per process, which is what
+		// lets their state outlive a remount — so an edit there needs a restart, not a reload.
+		if (file.endsWith('.js') && !file.includes('node_modules')) {
+			if (!stale.has(file)) {
+				stale.add(file);
+				console.warn(`[gpuix-svelte] ${file} changed — modules load once per process, restart to pick it up`);
+			}
+			return;
+		}
+		if (!file.endsWith('.svelte')) return;
 
 		// Editors write in bursts; coalesce them.
 		clearTimeout(timer);

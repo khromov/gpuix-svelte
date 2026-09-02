@@ -4,27 +4,18 @@
  */
 
 import { spawn } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const EXAMPLES = ['counter', 'tic-tac-toe', 'hacker-news', 'liquid-glass'];
 
-const bun = process.argv.includes('--bun');
-const root = new URL('../', import.meta.url);
-const conditions = ['--conditions', 'custom-renderer', '--conditions', 'development'];
+const bin = fileURLToPath(new URL('../bin/gpuix-svelte.js', import.meta.url));
+const flags = process.argv.includes('--bun') ? ['--bun'] : [];
 
-const children = EXAMPLES.map((name) => {
-	const entry = fileURLToPath(new URL(`examples/${name}/main.js`, root));
-	const args = bun
-		? [...conditions, entry]
-		: [...conditions, '--import', pathToFileURL(fileURLToPath(new URL('src/register.js', root))).href, entry];
-
-	return spawn(bun ? 'bun' : process.execPath, args, {
-		cwd: fileURLToPath(root),
-		stdio: 'inherit',
-		// Bun is a shim on PATH rather than a resolvable executable on Windows.
-		shell: bun && process.platform === 'win32'
-	});
-});
+const children = EXAMPLES.map((name) =>
+	spawn(process.execPath, [bin, ...flags, fileURLToPath(new URL(`../examples/${name}/main.js`, import.meta.url))], {
+		stdio: 'inherit'
+	})
+);
 
 const stop = () => {
 	for (const child of children) child.kill();
