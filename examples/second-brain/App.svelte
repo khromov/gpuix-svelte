@@ -1,5 +1,5 @@
 <script>
-	import { set_css_vars, set_window_title } from 'gpuix-svelte';
+	import { on_window_key, set_css_vars, set_window_title } from 'gpuix-svelte';
 	import { untrack } from 'svelte';
 	import Modal from './components/Modal.svelte';
 	import SearchSuggest from './components/SearchSuggest.svelte';
@@ -9,7 +9,7 @@
 	import { bind_app } from './lib/data.svelte.js';
 	import { back, push, route } from './lib/router.svelte.js';
 	import { bind_theme, start_system_poll, tokens } from './lib/theme.svelte.js';
-	import { close_modal, focus, register, ui } from './lib/ui.svelte.js';
+	import { close_modal, focus, ui } from './lib/ui.svelte.js';
 	import RouteView from './RouteView.svelte';
 
 	let { app } = $props();
@@ -51,12 +51,16 @@
 		if (cmd && e.key === ',') return push('/settings');
 		if (e.key === 'escape') {
 			if (ui.modal) return close_modal(false);
+			// A focused text field gets the same key and handles it itself (the search box clears).
+			if (e.editing) return;
 			if (route.path !== '/') back();
 		}
 	}
+
+	$effect(() => on_window_key('keydown', onkey));
 </script>
 
-<div {@attach (node) => register('root', node)} autofocus tabindex="0" onkeydown={onkey} class="root" testId="root">
+<div class="root" testId="root">
 	<Sidebar />
 	<div class="main">
 		<TopBar />

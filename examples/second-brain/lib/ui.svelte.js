@@ -41,7 +41,6 @@ export function close_modal(ok = false) {
 	const modal = ui.modal;
 	ui.modal = null;
 	modal?.resolve(ok);
-	focus('root');
 }
 
 /** @param {string} text @param {'info' | 'error' | 'success'} [kind] */

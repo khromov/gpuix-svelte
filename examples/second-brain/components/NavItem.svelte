@@ -1,6 +1,6 @@
 <script>
 	import { push, route } from '../lib/router.svelte.js';
-	import { focus } from '../lib/ui.svelte.js';
+	import { blur } from 'gpuix-svelte';
 	import Icon from './Icon.svelte';
 
 	let { label, icon, path, count = null } = $props();
@@ -9,7 +9,7 @@
 
 	function go() {
 		if (!active) push(path);
-		focus('root');
+		blur();
 	}
 </script>
 

@@ -349,7 +349,15 @@ the two stay in sync. Unknown events are dropped silently.
   call), `style:` only for measured values. Shared reactive state goes in `.svelte.js` modules
   (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
-  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
+  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus. For
+  shortcuts use `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s
+  `onKeyDown`/`onKeyUp` options are the same thing kept across remounts) — it fires whatever has
+  focus, so no root `div` needs to hold it, and `e.editing` says a text field has focus and is
+  getting the same key. The renderer tracks that itself by always listening for `focus`/`blur`
+  on `<input>`/`<textarea>`; the window emits them (programmatic `focusElement` and `blur()`
+  included) but the headless renderer never does, which is what `gpuix-svelte/test`'s
+  `focus()`/`unfocus()` stand in for. `blur()` from the package hands focus back from a field;
+  `focus_element(node)` focuses one.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child with a

@@ -10,7 +10,8 @@
 	import { ago, data, format_duration, get_app, status_text } from '../lib/data.svelte.js';
 	import { back, push } from '../lib/router.svelte.js';
 	import { open_url, reveal } from '../lib/shell.js';
-	import { confirm, focus, toast } from '../lib/ui.svelte.js';
+	import { blur } from 'gpuix-svelte';
+	import { confirm, toast } from '../lib/ui.svelte.js';
 
 	let { params } = $props();
 
@@ -57,7 +58,7 @@
 	function done() {
 		save();
 		editing = false;
-		focus('root');
+		blur();
 	}
 
 	async function remove() {

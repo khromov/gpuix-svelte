@@ -34,9 +34,35 @@ export function mount_headless(Component, { props = {}, width, height, rootStyle
 	const anchor = renderer.createComment('');
 	renderer.insert(root, anchor, null);
 	const component = mount(Component, { renderer, target: root, anchor, props });
+	focused = null;
 	settle();
 
 	return { native: instance, root, anchor, component, unmount: () => unmount(component) };
+}
+
+let focused = null;
+
+/**
+ * Focuses an element through native and stands in for the `focus`/`blur` events the
+ * headless renderer never emits (a window does), so `editing` and `onfocus` follow.
+ */
+export function focus(target) {
+	const id = id_of(target);
+	unfocus();
+	native().focusElement(id);
+	native().flush();
+	drain();
+	dispatch({ elementId: id, eventType: 'focus' });
+	focused = id;
+	settle();
+}
+
+/** The counterpart of `blur()`, which the test renderer lacks: reports the blur to the tree. */
+export function unfocus() {
+	if (focused === null) return;
+	dispatch({ elementId: focused, eventType: 'blur' });
+	focused = null;
+	settle();
 }
 
 /** Runs Svelte's effects, ships the batch, and lets GPUI lay out and paint. */

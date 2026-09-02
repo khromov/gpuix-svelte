@@ -6,7 +6,7 @@
 
 import { createRenderer } from 'svelte/renderer';
 import { build_style, define_css_vars, used_css_vars } from './style.js';
-import { to_gpui_event } from './events.js';
+import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.js';
 
 /** Anything not listed here degrades to `div`. */
 const GPUI_TAGS = new Set([
@@ -37,6 +37,9 @@ const RENDERER_ATTRS = new Set(['hitbox']);
 /** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
 const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
 
+/** Always listen for focus/blur on these, so window key handlers can tell typing from a shortcut. */
+const TEXT_INPUTS = new Set(['input', 'textarea']);
+
 /** Svelte lowercases some attributes; GPUI wants them camelCased. */
 const PROP_ALIASES = new Map([
 	['autofocus', 'autoFocus'],
@@ -58,6 +61,9 @@ let pending_destroy = new Set();
 /** `<svg>`s painting their nearest ancestor's `color`, restyled when that ancestor is. */
 let inheriting_svgs = new Set();
 
+/** The text field with focus, if any — what `editing` on a window key event reports. */
+let focused_input = null;
+
 /**
  * Monotonic across remounts on purpose: `render_hot` builds a fresh tree while the old
  * GPUI nodes may still exist, and reused ids would collide with them.
@@ -68,6 +74,12 @@ let auto_commit = false;
 let commit_scheduled = false;
 
 const warned_tags = new Set();
+
+/**
+ * Window-level key events arrive on whatever id `setWindowKeyEvents` was given, so
+ * one pseudo node, never materialised, holds their listeners under that id.
+ */
+const window_node = node('window', 'window', '');
 
 /** scope class -> that component's `<style>` rules, weakest first (see compile.js). */
 const stylesheets = new Map();
@@ -309,6 +321,11 @@ function materialize(n) {
 		for (const type of n.listeners.keys()) {
 			emit(['setEventListener', n.nativeId, type, true]);
 		}
+		if (TEXT_INPUTS.has(n.name)) {
+			for (const type of ['focus', 'blur']) {
+				if (!n.listeners.has(type)) emit(['setEventListener', n.nativeId, type, true]);
+			}
+		}
 	}
 
 	for (let c = n.first; c; c = c.next) {
@@ -487,8 +504,10 @@ const renderer = createRenderer({
 
 		if (handlers.length === 0) {
 			target.listeners.delete(event);
+			// A text field keeps reporting focus and blur: `focused_input` depends on it.
+			const tracked = TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur');
 			if (target.nativeId !== null) {
-				emit(['setEventListener', target.nativeId, event, false]);
+				if (!tracked) emit(['setEventListener', target.nativeId, event, false]);
 				if (hitbox_root(target) !== null) apply_style(target);
 			}
 		}
@@ -523,8 +542,52 @@ export function set_native(instance) {
 	by_id = new Map();
 	pending_destroy = new Set();
 	inheriting_svgs = new Set();
+	focused_input = null;
 	dirty = false;
 	commit_scheduled = false;
+
+	// The id map is new, so the window key listeners need a fresh registration.
+	window_node.nativeId = null;
+	if (window_node.listeners.size > 0) sync_window_keys();
+}
+
+function sync_window_keys() {
+	if (typeof native?.setWindowKeyEvents !== 'function') return;
+	if (window_node.nativeId === null) window_node.nativeId = ++next_id;
+	by_id.set(window_node.nativeId, window_node);
+	native.setWindowKeyEvents(
+		window_node.listeners.has('windowKeyDown'),
+		window_node.listeners.has('windowKeyUp'),
+		window_node.nativeId
+	);
+}
+
+/**
+ * A key handler that fires whatever has focus — the ⌘K kind — without a focused
+ * root `div` to hold on to. `event.editing` says whether a text field has focus,
+ * since the field gets the same key. Returns the unsubscribe.
+ *
+ * @param {'keydown' | 'keyup'} type
+ * @param {(event: any) => void} handler
+ */
+export function on_window_key(type, handler) {
+	const event = WINDOW_KEY_EVENTS[type.toLowerCase()];
+	if (!event) throw new Error(`[gpuix-svelte] on_window_key: unknown type "${type}" (keydown or keyup)`);
+
+	let handlers = window_node.listeners.get(event);
+	if (!handlers) {
+		handlers = [];
+		window_node.listeners.set(event, handlers);
+	}
+	handlers.push(handler);
+	sync_window_keys();
+
+	return () => {
+		const index = handlers.indexOf(handler);
+		if (index !== -1) handlers.splice(index, 1);
+		if (handlers.length === 0) window_node.listeners.delete(event);
+		sync_window_keys();
+	};
 }
 
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
@@ -584,6 +647,7 @@ export function commit() {
 			n.nativeId = null;
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
+			if (n === focused_input) focused_input = null;
 		}
 		by_id.delete(id);
 	}
@@ -596,6 +660,11 @@ export function dispatch(payload) {
 	const target = by_id.get(payload.elementId);
 	if (!target) return;
 
+	if (TEXT_INPUTS.has(target.name)) {
+		if (payload.eventType === 'focus') focused_input = target;
+		else if (payload.eventType === 'blur' && focused_input === target) focused_input = null;
+	}
+
 	const handlers = target.listeners.get(payload.eventType);
 	if (!handlers || handlers.length === 0) return;
 
@@ -604,6 +673,7 @@ export function dispatch(payload) {
 		type: payload.eventType,
 		target,
 		currentTarget: target,
+		editing: focused_input !== null,
 		defaultPrevented: false,
 		cancelBubble: false,
 		preventDefault() {

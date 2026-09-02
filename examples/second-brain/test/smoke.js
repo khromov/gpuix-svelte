@@ -18,7 +18,8 @@ import { dispatch } from 'gpuix-svelte';
 import {
 	mount_headless,
 	wait,
-	drain,
+	focus,
+	unfocus,
 	find,
 	find_test_id,
 	click_text,
@@ -92,10 +93,7 @@ check('brand click goes home', route.path, '/');
 
 // Typing `k` into the search box offers `kind:`; picking a kind completes and searches.
 const search_input = find((n) => n.type === 'input');
-native.focusElement(search_input.id);
-native.flush();
-drain();
-dispatch({ elementId: search_input.id, eventType: 'focus' });
+focus(search_input);
 dispatch({ elementId: search_input.id, eventType: 'change', value: 'k' });
 await wait();
 check('typing k suggests kind:', ui.suggest?.items.map((i) => i.label).join(','), 'kind:');
@@ -106,14 +104,17 @@ await tap('kind:image');
 await wait(250);
 check('completion searches by kind', route.path === '/search' && route.query.q, 'kind:image');
 check('kind listing paints the image', painted().includes('Tic-tac-toe icon'));
-// A key reaches the focused box and every focusable ancestor above it, so one
-// escape clears the box and, through the root's handler, leaves the search too.
-native.focusElement(search_input.id);
-native.flush();
+// Escape in the box clears it; the window handler sees `editing` and leaves the route
+// alone. blur() is a no-op headlessly, so unfocus() stands in for the box letting go.
+focus(search_input);
+press('escape');
+await wait();
+check('escape clears the search box', route.path, '/search');
+unfocus();
 press('escape');
 await wait();
 await wait();
-check('escape clears the search box and leaves search', route.path, '/');
+check('escape from the window leaves search', route.path, '/');
 
 await tap('Buy compost for the raised beds');
 await wait();

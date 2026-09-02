@@ -28,6 +28,9 @@ export const GPUI_EVENTS = [
 	'highlight'
 ];
 
+/** Not element events: they arrive on the id handed to `setWindowKeyEvents` (see `on_window_key`). */
+export const WINDOW_KEY_EVENTS = { keydown: 'windowKeyDown', keyup: 'windowKeyUp' };
+
 const BY_LOWERCASE = new Map(GPUI_EVENTS.map((name) => [name.toLowerCase(), name]));
 
 /**

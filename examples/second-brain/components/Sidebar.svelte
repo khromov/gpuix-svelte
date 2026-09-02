@@ -2,7 +2,7 @@
 	import { data } from '../lib/data.svelte.js';
 	import { push, route } from '../lib/router.svelte.js';
 	import { set_mode, theme } from '../lib/theme.svelte.js';
-	import { focus } from '../lib/ui.svelte.js';
+	import { blur } from 'gpuix-svelte';
 	import Icon from './Icon.svelte';
 	import NavItem from './NavItem.svelte';
 	import Segmented from './Segmented.svelte';
@@ -11,7 +11,7 @@
 
 	function home() {
 		if (route.path !== '/') push('/');
-		focus('root');
+		blur();
 	}
 
 	const THEMES = [

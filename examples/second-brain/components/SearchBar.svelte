@@ -1,5 +1,5 @@
 <script>
-	import { get_native } from 'gpuix-svelte';
+	import { blur, get_native } from 'gpuix-svelte';
 	import { push, replace, route } from '../lib/router.svelte.js';
 	import { focus, register, ui } from '../lib/ui.svelte.js';
 	import Icon from './Icon.svelte';
@@ -88,7 +88,7 @@
 		clearTimeout(timer);
 		value = '';
 		ui.suggest = null;
-		focus('root');
+		blur();
 	}
 
 	// Arrows move through the completions and Tab takes one; Enter still searches.

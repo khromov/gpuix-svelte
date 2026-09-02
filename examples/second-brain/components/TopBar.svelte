@@ -1,6 +1,7 @@
 <script>
 	import { back, can_back } from '../lib/router.svelte.js';
-	import { focus, ui } from '../lib/ui.svelte.js';
+	import { blur } from 'gpuix-svelte';
+	import { ui } from '../lib/ui.svelte.js';
 	import IconButton from './IconButton.svelte';
 	import SearchBar from './SearchBar.svelte';
 
@@ -13,7 +14,7 @@
 			size={30}
 			onclick={() => {
 				back();
-				focus('root');
+				blur();
 			}}
 			testid="back"
 		/>
