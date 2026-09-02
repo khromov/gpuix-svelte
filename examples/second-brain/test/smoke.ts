@@ -44,7 +44,7 @@ await app.ingest.idle();
 
 const App = (await import('../App.svelte')).default;
 // 538 is the headless height cap; anything laid out below it cannot be hit.
-const { native } = mount_headless(App, { props: { app }, width: 1100, height: 538 });
+mount_headless(App, { props: { app }, width: 1100, height: 538 });
 
 /** A click, then the timers and dynamic imports a route change runs through. */
 async function tap(text: string, opts?: ClickOptions) {

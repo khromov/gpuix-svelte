@@ -67,5 +67,5 @@ export async function ask(
 
 	const answer = await create_llm(config).chat(messages, { stream: true, signal, onDelta: on_token });
 	const cited = [...new Set([...answer.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])).filter((n) => n >= 1 && n <= sources.length))];
-	return { answer, sources: sources.map(({ text, ...rest }) => rest), cited };
+	return { answer, sources: sources.map(({ text: _text, ...rest }) => rest), cited };
 }

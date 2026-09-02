@@ -49,7 +49,7 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 	const queue: number[] = [];
 	const active = new Set<number>();
 	const timers = new Map<number, ReturnType<typeof setTimeout>>();
-	let waiters: Array<() => void> = [];
+	const waiters: Array<() => void> = [];
 	let done = 0;
 	let failed = 0;
 

@@ -48,6 +48,7 @@ jobs:
           node-version: 26
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: node -e "const n = require('@gpuix/native'); if (typeof n.GpuixRenderer !== 'function') { console.error('GpuixRenderer missing from the linux prebuild'); process.exit(1) } console.log('binding ok')"
 
   # Build-only: a runner has no display. It checks that the bundle resolves with the
