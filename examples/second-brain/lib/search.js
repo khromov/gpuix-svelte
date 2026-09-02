@@ -108,7 +108,7 @@ export function create_search({ store, vectors, images, ml }) {
 			hits.push({ item, score: f.score, signals: f.signals, snippet, chunk_id: chunk?.id ?? null, terms });
 			if (hits.length >= limit) break;
 		}
-		return { hits: normalize_scores(hits), degraded, terms };
+		return { hits: normalize_scores(hits), degraded, terms, kinds, text: q };
 	}
 
 	/**

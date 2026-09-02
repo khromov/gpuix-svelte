@@ -11,6 +11,10 @@
 
 	let { query } = $props();
 
+	// Primitives, so a same-valued `data.ml` / `data.counts` reassignment does not re-run the search.
+	const model_states = $derived(`${data.ml.embed?.state}/${data.ml.clip?.state}`);
+	const total = $derived(data.counts.total);
+
 	const FILTERS = [
 		{ value: 'all', label: 'All' },
 		{ value: 'text', label: 'Notes' },
@@ -40,9 +44,8 @@
 		const text = q;
 		const kinds = filter === 'all' ? null : [filter];
 		// Re-run once the embedding model comes up, so keyword-only results upgrade.
-		void data.ml.embed?.state;
-		void data.ml.clip?.state;
-		void data.counts.total;
+		void model_states;
+		void total;
 		const gen = ++generation;
 		if (!text) {
 			result = { hits: [], degraded: [], terms: [], kinds: null, text: '' };

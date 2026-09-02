@@ -11,7 +11,7 @@ export const SETTINGS = {
 	'index.embedModel': { default: null, internal: true }
 };
 
-const mask = (value) => (value ? `${'•'.repeat(Math.min(12, String(value).length - 4))}${String(value).slice(-4)}` : '');
+const mask = (value) => (value ? `${'•'.repeat(Math.max(0, Math.min(12, String(value).length - 4)))}${String(value).slice(-4)}` : '');
 
 /**
  * @param {import('./store.js').Item extends infer _ ? ReturnType<typeof import('./store.js').create_store> : never} store

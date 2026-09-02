@@ -23,13 +23,14 @@
 	}
 
 	function place(m, offset) {
-		if (!scroll || m.total <= m.viewport) {
-			thumb = { top: 0, height: 0 };
-			return;
+		let top = 0;
+		let height = 0;
+		if (scroll && m.total > m.viewport) {
+			const h = Math.max(24, (m.viewport / m.total) * m.viewport);
+			height = Math.round(h);
+			top = Math.round((-offset / (m.total - m.viewport)) * (m.viewport - h));
 		}
-		const height = Math.max(24, (m.viewport / m.total) * m.viewport);
-		const top = (-offset / (m.total - m.viewport)) * (m.viewport - height);
-		thumb = { top: Math.round(top), height: Math.round(height) };
+		if (top !== thumb.top || height !== thumb.height) thumb = { top, height };
 	}
 
 	// `follow` keeps the bottom in view while content grows (a streaming reply).
@@ -75,6 +76,7 @@
 	const refresh = () => setTimeout(update, 16);
 
 	$effect(() => {
+		if (!scroll && !follow) return;
 		const timer = setInterval(update, follow ? 100 : 250);
 		return () => clearInterval(timer);
 	});

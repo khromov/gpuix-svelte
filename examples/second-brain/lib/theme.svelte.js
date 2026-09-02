@@ -1,4 +1,4 @@
-import { system_appearance, watch_appearance } from './appearance.js';
+import { forced, system_appearance, watch_appearance } from './appearance.js';
 import { DARK, LIGHT, MD_THEME } from './theme.js';
 
 /** @type {{ mode: 'system' | 'light' | 'dark', system: 'light' | 'dark' }} */
@@ -15,8 +15,7 @@ let stop = null;
 
 /** @param {{ settings: { get: (k: string) => any, set: (k: string, v: any) => void } }} app */
 export function bind_theme(app) {
-	const forced = process.env.GPUIX_BRAIN_THEME;
-	theme.mode = forced === 'dark' || forced === 'light' ? forced : (app.settings.get('theme.mode') ?? 'system');
+	theme.mode = forced() ?? app.settings.get('theme.mode') ?? 'system';
 	persist = (mode) => app.settings.set('theme.mode', mode);
 }
 

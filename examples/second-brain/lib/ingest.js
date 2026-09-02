@@ -168,7 +168,13 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 
 	async function clip_step(item) {
 		if (!ml.available || ml.status.worker === 'down') return;
-		const vec = await ml.clip_image(item.meta.display_path ?? item.file_path);
+		let vec;
+		try {
+			vec = await ml.clip_image(item.meta.display_path ?? item.file_path);
+		} catch (err) {
+			if (err.code === 'ML_UNAVAILABLE') return;
+			throw err;
+		}
 		store.set_image_embedding(item.id, ml.model_id('clip'), vec);
 		images.add(item.id, item.id, vec);
 	}

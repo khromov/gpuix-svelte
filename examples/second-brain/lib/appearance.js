@@ -22,7 +22,7 @@ export function parse_appearance(platform, exitCode, stdout) {
 	return 'dark';
 }
 
-const forced = () => {
+export const forced = () => {
 	const mode = process.env.GPUIX_BRAIN_THEME;
 	return mode === 'dark' || mode === 'light' ? mode : null;
 };

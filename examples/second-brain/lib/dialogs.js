@@ -57,7 +57,7 @@ async function choose_linux({ kinds, multiple, prompt }) {
 		if (multiple) cmd.push('--multiple', '--separator=\n');
 		if (LINUX_FILTERS[kinds]) cmd.push(`--file-filter=${LINUX_FILTERS[kinds]}`);
 	} else if (Bun.which('kdialog')) {
-		cmd = ['kdialog', multiple ? '--getopenfilename' : '--getopenfilename', '.', '--title', prompt];
+		cmd = ['kdialog', '--getopenfilename', ...(multiple ? ['--multiple', '--separate-output'] : []), '.', '--title', prompt];
 	} else {
 		throw new Error(picker_available().reason);
 	}

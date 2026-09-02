@@ -6,7 +6,7 @@
 
 export const route = $state({ path: '/', params: {}, query: {} });
 
-const stack = [];
+const stack = $state([]);
 
 function parse(href) {
 	const [path, qs = ''] = href.split('?');

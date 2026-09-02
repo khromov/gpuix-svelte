@@ -34,6 +34,9 @@ const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
 /** Attributes the renderer consumes itself; never forwarded as props. */
 const RENDERER_ATTRS = new Set(['hitbox', 'portal']);
 
+// Focusability decides `hitbox="self"` shielding, so a change must restyle.
+const FOCUS_ATTRS = new Set(['tabIndex', 'tabindex', 'autoFocus', 'autofocus']);
+
 /** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
 const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
 
@@ -430,7 +433,10 @@ const renderer = createRenderer({
 		if (STYLE_ATTRS.has(key)) apply_style(el);
 		else if (key === 'portal') reparent(el);
 		else if (RENDERER_ATTRS.has(key)) restyle_subtree(el);
-		else apply_prop(el, key, value);
+		else {
+			apply_prop(el, key, value);
+			if (FOCUS_ATTRS.has(key) && hitbox_root(el) !== null) apply_style(el);
+		}
 	},
 
 	removeAttribute(el, name) {
@@ -442,7 +448,10 @@ const renderer = createRenderer({
 			portals.delete(el);
 			reparent(el);
 		} else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
-		else apply_prop(el, name, null);
+		else {
+			apply_prop(el, name, null);
+			if (FOCUS_ATTRS.has(name) && hitbox_root(el) !== null) apply_style(el);
+		}
 	},
 
 	hasAttribute: (el, name) => name in el.attrs,
@@ -613,8 +622,7 @@ function sync_window_keys() {
 
 /**
  * A key handler that fires whatever has focus — the ⌘K kind — without a focused
- * root `div` to hold on to. `event.editing` says whether a text field has focus,
- * since the field gets the same key. Returns the unsubscribe.
+ * root `div` to hold on to; `event.editing` says a text field is getting the same key.
  *
  * @param {'keydown' | 'keyup'} type
  * @param {(event: any) => void} handler
@@ -678,12 +686,11 @@ export function commit() {
 		// otherwise keep painting in their old spot.
 		if (!n.live && n.nativeId !== null) emit(['destroyElement', n.nativeId]);
 	}
-	pending_destroy.clear();
-
 	// Not under their shadow ancestors natively, so that ancestor's destroy misses them.
 	for (const p of portals) {
-		if (!p.live && p.nativeId !== null) emit(['destroyElement', p.nativeId]);
+		if (!p.live && p.nativeId !== null && !pending_destroy.has(p)) emit(['destroyElement', p.nativeId]);
 	}
+	pending_destroy.clear();
 
 	if (queue.length === 0) {
 		dirty = false;

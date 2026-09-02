@@ -22,7 +22,7 @@
 	// Leaving the search route clears the box; typing on any route opens it.
 	$effect(() => {
 		if (route.path !== '/search') value = '';
-		else if (route.query.q !== undefined && route.query.q !== value) value = route.query.q;
+		else if (route.query.q !== undefined && route.query.q !== value.trim()) value = route.query.q;
 	});
 
 	function navigate(q) {
