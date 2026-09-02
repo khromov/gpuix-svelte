@@ -16,5 +16,5 @@
 		"skipLibCheck": true
 	},
 	"include": ["types", "src", "bin", "scripts", "test", "examples"],
-	"exclude": ["**/node_modules", "test/.samples-tmp", "examples/second-brain/.data", "vendor", "dist"]
+	"exclude": ["**/node_modules", "test/.samples-tmp", "examples/second-brain/.data", "vendor", "dist", "starter"]
 }

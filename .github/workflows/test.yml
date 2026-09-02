@@ -11,14 +11,33 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-14, windows-latest]
+        node-version: [24, 26]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 26
+          node-version: ${{ matrix.node-version }}
       - run: npm ci
       - run: npm test
+
+  # The consumer path: pack the tarball, install it into a copy of starter/ with npm and
+  # with Bun, then typecheck and run the starter's headless test through the installed bin.
+  consume:
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [24, 26]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run consume
+      - uses: oven-sh/setup-bun@v2
+      - run: npm run bun:consume
 
   bun:
     strategy:

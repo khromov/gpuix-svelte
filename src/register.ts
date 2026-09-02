@@ -5,7 +5,7 @@
 
 import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { compile_module, compile_svelte } from './compile.ts';
+import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
 
 export { RENDERER_MODULE } from './compile.ts';
 
@@ -13,6 +13,13 @@ const decode = (source: string | ArrayBuffer | NodeJS.TypedArray) =>
 	typeof source === 'string' ? source : new TextDecoder().decode(source);
 
 registerHooks({
+	// svelte is bundled inside this package, so a consumer's compiled component (and any
+	// copy hoisted next to it) must resolve `svelte` from here, or two runtimes would meet.
+	resolve(specifier, context, nextResolve) {
+		if (!/^svelte(\/|$)/.test(specifier)) return nextResolve(specifier, context);
+		return nextResolve(specifier, { ...context, parentURL: import.meta.url });
+	},
+
 	load(url, context, nextLoad) {
 		if (/\.svelte\.[jt]s(\?|$)/.test(url)) {
 			const file = new URL(url);
@@ -48,3 +55,9 @@ registerHooks({
 		};
 	}
 });
+
+try {
+	import.meta.resolve('svelte/renderer');
+} catch {
+	throw new Error(WRONG_SVELTE);
+}

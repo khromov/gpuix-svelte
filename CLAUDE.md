@@ -93,6 +93,13 @@ npm run test:brain         # Bun-only, chained into bun:test not test — exampl
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
+npm run pack -- <dir>      # the npm tarball, with svelte bundled and the published spec —
+                           # scripts/publish.ts wraps `npm pack`; `publish:npm` wraps
+                           # `npm publish` the same way (the release workflow's last step)
+npm run consume            # the consumer path: pack, install the tarball into a copy of
+                           # starter/ under $TMPDIR, `tsc --noEmit`, run its headless test
+                           # through the installed bin. bun:consume installs and runs with
+                           # Bun; consume:open / bun:consume:open open the window instead
 npm run compile            # tic-tac-toe → dist/tictactoe (.exe on Windows) via Bun.build({ compile });
                            # Bun-only, so no twin — it refuses to run under Node
 npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its icon (macOS only)
@@ -103,8 +110,9 @@ running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`),
 loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
 `bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `npm install`
 either way. Adding a script means adding both halves — except the Bun-only ones (`compile`,
-`brain:*` other than `brain`) and `typecheck`, whose `bun:` twin is an alias. Repo-local scripts
-that run on plain `node` (`demo`, `vendor`) take `--import tsx` themselves.
+`brain:*` other than `brain`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
+`bun:` twin is an alias. Repo-local scripts that run on plain `node` (`demo`, `vendor`, `pack`,
+`consume`) take `--import tsx` themselves.
 
 Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
@@ -177,15 +185,31 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
   script bodies are outside the gate too — the compiler strips their types, svelte-check never
   runs — so an annotation there is documentation, not a check. Consumers typechecking against
   the package need `allowImportingTsExtensions` (hence `noEmit`) and `@types/node`, as README says.
-- **Node >= 26.1** (the glass-ffi demo loads its ObjC shim with the experimental `node:ffi`;
-  everything else only needs 24's `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in
-  CI; keep runtime-specific code confined to `register.ts` / `plugin.ts`.
+- **Node >= 24** (`engines`; the package needs `module.registerHooks` and
+  `stripTypeScriptTypes`, nothing newer — only the glass-ffi demo needs 26.1's experimental
+  `node:ffi`) or **Bun >= 1.4.0**. CI tests Node 24 and 26 and Bun; keep runtime-specific code
+  confined to `register.ts` / `plugin.ts`.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
-- **`svelte` is vendored**: `devDependencies.svelte` is `file:vendor/svelte-<version>-<sha7>.tgz`,
+- **`svelte` is vendored and bundled**: `dependencies.svelte` is `file:vendor/svelte-<version>-<sha7>.tgz`,
   a build of sveltejs/svelte at that commit of the custom-renderer PR stack (#18042 → #18405 →
-  #18461 → #18511, whose `custom-condition` branch is the tip). It can't be a URL: upstream
+  #18461 → #18511, whose `custom-condition` branch is the tip), and `bundleDependencies` lists
+  it, so the npm tarball carries that build (and its transitive deps, ~5 MB unpacked) under
+  `node_modules/svelte` and a consumer never installs svelte. It has to be in `dependencies`
+  (npm-packlist skips dev and peer deps when bundling) and there is no `peerDependencies`
+  (npm 7+ would auto-install the registry's `svelte@5.57.0`, the same version string as the PR
+  build, with no `mount()`). The bundled copy is nested, so both loaders pin every `svelte` /
+  `svelte/*` import to it — `register.ts` with a `resolve` hook that swaps `parentURL` for its
+  own URL, `plugin.ts` with one `build.module()` virtual module per svelte export (Bun's
+  runtime `onResolve` never sees a bare specifier) — and both throw `WRONG_SVELTE` when
+  `svelte/renderer` fails to resolve, which is how a non-PR build is caught. The *published*
+  manifest cannot carry the `file:` spec: Bun resolves a bundled dep's spec before honouring the
+  bundle and fails on `file:vendor/…`, and npm `overrides` cannot diverge from a direct dep
+  (`EOVERRIDE`) — so `scripts/publish.ts` rewrites it to `>=5.56.0` for the duration of
+  `npm pack` / `npm publish` and restores it in `finally` (not `prepack`/`postpack`:
+  `npm publish` re-reads the manifest after `postpack`). `starter/tsconfig.json` shows the
+  `paths` a consumer's `tsc` needs to see the nested copy. It can't be a URL: upstream
   replaced pkg.pr.new with pkg.svelte.dev on 2026-07-24 (#18253), and pkg.svelte.dev drops a build
   once a force-push removes its commit from the branch — and this PR is rebased on every update —
   so a `https://pkg.svelte.dev/svelte/c/<sha>` pin 404s as soon as the PR is pushed again
@@ -194,7 +218,8 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
   swaps the tarball, repoints `package.json` and runs `npm install`. Then run `npm test` and
   `npm run bun:test`. For a commit pkg.svelte.dev no longer has, `pnpm build && pnpm pack` in a
   svelte checkout's `packages/svelte` and drop the tarball in by hand under the same name. `.gitignore` un-ignores
-  `vendor/*.tgz` for this; `files` keeps it out of the npm package.
+  `vendor/*.tgz` for this; `files` keeps it out of the npm package (the bundled `node_modules`
+  copy is what ships).
 - **`@gpuix/native` range is `>=0.7.0 <=0.8.0`** (installs 0.7.0) and the renderer speaks its
   mutation contract: applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes
   that leave the live tree are destroyed at commit and re-materialize if shown again),
@@ -437,6 +462,25 @@ the two stay in sync. Unknown events are dropped silently.
   offset moves after the wheel event returns.
 - Examples import the package by name (`import { render_hot } from 'gpuix-svelte'`) via the
   self-reference in `exports`.
+
+## Releasing
+
+`.github/workflows/release.yml` runs release-please on every push to `main`: it keeps a release
+PR open from the conventional commits since the last release (`release-please-config.json`:
+`release-type: node`, `bump-minor-pre-major` so a pre-1.0 breaking change bumps the minor,
+`include-component-in-tag: false` for `vX.Y.Z` tags; `.release-please-manifest.json` is the last
+released version), and merging that PR tags, creates the GitHub release, runs `npm test` +
+`npm run consume` on macOS, then `npm run publish:npm` on Linux with npm trusted publishing
+(OIDC, `id-token: write`; provenance is automatic, no token). The trusted publisher on
+npmjs.com is `khromov/gpuix-svelte`, workflow file `release.yml`. **PR titles must be
+conventional commits** (`feat:`, `fix:`, `docs:`, `chore:` …) — squash merges make the title the
+commit, and release-please ignores anything else. With the default `GITHUB_TOKEN` the release PR
+does not trigger `test.yml`; a `RELEASE_PLEASE_TOKEN` PAT secret fixes that.
+
+`starter/` is the consumer package `npm run consume` installs the packed tarball into (a copy under
+`$TMPDIR`, so the checked-in one stays pristine). It depends on `gpuix-svelte` by version, has its
+own tsconfig with the `paths` for the nested svelte, and is excluded from the root `tsconfig`,
+eslint and `files`.
 
 ## Runtime
 

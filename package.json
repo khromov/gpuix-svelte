@@ -23,7 +23,7 @@
 		"bin"
 	],
 	"engines": {
-		"node": ">=26.1.0",
+		"node": ">=24.0.0",
 		"bun": ">=1.4.0"
 	},
 	"repository": {
@@ -73,9 +73,15 @@
 		"test:style": "node bin/gpuix-svelte.js test/style.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
 		"vendor": "node --import tsx scripts/vendor-svelte.ts",
+		"pack": "node --import tsx scripts/publish.ts pack",
+		"publish:npm": "node --import tsx scripts/publish.ts publish",
+		"consume": "node --import tsx scripts/consume.ts",
+		"consume:open": "node --import tsx scripts/consume.ts --open",
 		"compile": "bun scripts/compile.ts",
 		"compile:app": "bun scripts/compile.ts --app",
 		"bun:typecheck": "npm run typecheck",
+		"bun:consume": "node --import tsx scripts/consume.ts --bun",
+		"bun:consume:open": "node --import tsx scripts/consume.ts --bun --open",
 		"bun:demo": "node --import tsx scripts/demo-all.ts --bun",
 		"bun:demo:counter": "node bin/gpuix-svelte.js --bun examples/counter/main.ts",
 		"bun:demo:tictactoe": "node bin/gpuix-svelte.js --bun examples/tic-tac-toe/main.ts",
@@ -106,11 +112,12 @@
 	"dependencies": {
 		"@gpuix/native": ">=0.7.0 <=0.8.0",
 		"acorn": "^8.18.0",
+		"svelte": "file:vendor/svelte-5.57.0-6be4ab9.tgz",
 		"tsx": "^4.23.13"
 	},
-	"peerDependencies": {
-		"svelte": ">=5.56.0"
-	},
+	"bundleDependencies": [
+		"svelte"
+	],
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@types/bun": "^1.4.0",
@@ -118,7 +125,6 @@
 		"eslint": "^10.9.1",
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.12.0",
-		"svelte": "file:vendor/svelte-5.57.0-6be4ab9.tgz",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.69.0"
 	},

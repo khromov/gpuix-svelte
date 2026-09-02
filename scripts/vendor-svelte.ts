@@ -34,7 +34,7 @@ writeFileSync(join(vendor, name), Buffer.from(tarball));
 
 const manifest = join(root, 'package.json');
 const json = JSON.parse(readFileSync(manifest, 'utf8'));
-json.devDependencies.svelte = `file:vendor/${name}`;
+json.dependencies.svelte = `file:vendor/${name}`;
 writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
 execSync('npm install', { cwd: root, stdio: 'inherit' });
 
