@@ -33,9 +33,13 @@
 	let thumb = $state({ top: 0, height: 0 });
 	let drag = $state<{ y: number; offset: number } | null>(null);
 	let last_total = 0;
-	// Rows GPUI last reported in view: a virtual list has no content to measure, so
-	// the thumb works in rows, scaled by the average painted row height.
+	// A virtual list has no content to measure, so the thumb works in rows, scaled by
+	// the average painted row height. GPUI reports one row more or less in view from
+	// event to event, so the scale is a running mean of the reports, seeded with
+	// `estimate` at the weight of PRIOR reports so the first few barely move it.
 	let in_view = 0;
+	let reports = 0;
+	const PRIOR = 8;
 
 	type Metrics = { native: Native; viewport: number; total: number; offset: number; per: number };
 
@@ -53,7 +57,7 @@
 			const top = native.getListScrollTop(column.nativeId);
 			const count = rows();
 			if (!top || !top[2] || count === 0) return null;
-			const per = in_view > 0 ? top[2] / in_view : estimate;
+			const per = top[2] / ((PRIOR * (top[2] / estimate) + in_view) / (PRIOR + reports));
 			return { native, viewport: top[2], total: count * per, offset: -(top[0] * per + top[1]), per };
 		}
 
@@ -136,7 +140,11 @@
 	}
 
 	function on_range(e: GpuixEvent) {
-		in_view = (e.endIndex ?? 0) - (e.startIndex ?? 0);
+		const rows = (e.endIndex ?? 0) - (e.startIndex ?? 0);
+		if (rows > 0) {
+			in_view += rows;
+			reports++;
+		}
 		refresh();
 	}
 

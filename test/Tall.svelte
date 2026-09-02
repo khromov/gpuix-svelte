@@ -8,7 +8,7 @@
 <div style="display: flex; flex-direction: row; width: 300px; height: 200px">
 	<Scroller testid="list" gap={0} {follow} {scroll} {virtual} estimate={40}>
 		{#each items as i (i)}
-			<div style="height: 40px; min-height: 40px">row {i}</div>
+			<div style="height: {virtual ? (i % 2 ? 90 : 30) : 40}px; min-height: {virtual ? (i % 2 ? 90 : 30) : 40}px; width: 100%">row {i}</div>
 		{/each}
 	</Scroller>
 </div>

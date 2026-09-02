@@ -71,15 +71,26 @@ await wait(120);
 check('a wheel scrolls the list', native.getListScrollTop(column().id)![0] > 0, true);
 const v1 = bounds(thumb())!;
 check('and the thumb moves down', v1[1] > v0[1], true);
-native.simulateMouseDown(v1[0] + v1[2] / 2, v1[1] + v1[3] / 2);
+// Rows alternate 30/90 px, so GPUI reports 3 to 5 rows in view as the list moves; the
+// thumb's length must not follow that report around (it swung by 40% before).
+const lengths: number[] = [];
+for (let i = 0; i < 12; i++) {
+	native.simulateScrollWheel(vx + vw / 2, vy + vh / 2, 0, -(15 + (i % 4) * 10));
+	drain();
+	await wait(60);
+	lengths.push(bounds(thumb())![3]);
+}
+check('the thumb keeps its length while the rows in view vary', Math.max(...lengths) - Math.min(...lengths) <= 5, true);
+const v1b = bounds(thumb())!;
+native.simulateMouseDown(v1b[0] + v1b[2] / 2, v1b[1] + v1b[3] / 2);
 drain();
 settle();
 const before_index = native.getListScrollTop(column().id)![0];
-native.simulateMouseMove(v1[0] + v1[2] / 2, v1[1] + v1[3] / 2 + 60, 0);
+native.simulateMouseMove(v1b[0] + v1b[2] / 2, v1b[1] + v1b[3] / 2 + 60, 0);
 drain();
 settle();
 check('dragging the thumb scrolls by row', native.getListScrollTop(column().id)![0] > before_index, true);
-native.simulateMouseUp(v1[0] + v1[2] / 2, v1[1] + v1[3] / 2 + 60);
+native.simulateMouseUp(v1b[0] + v1b[2] / 2, v1b[1] + v1b[3] / 2 + 60);
 drain();
 settle();
 check('and the rows it left are no longer painted', painted().includes('row 0'), false);
