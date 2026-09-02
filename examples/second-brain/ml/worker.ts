@@ -7,7 +7,18 @@ import type { ModelName, ModelState, WorkerHandlers, WorkerJob, WorkerMessage, W
 import type { Failure } from '../lib/types.ts';
 import { decode_wav } from '../lib/wav.ts';
 
-type Loaded = Record<string, any>;
+type Tf = typeof import('@huggingface/transformers');
+interface LoadedOf {
+	embed: { extractor: Tf['FeatureExtractionPipeline']['prototype'] };
+	whisper: { asr: Tf['AutomaticSpeechRecognitionPipeline']['prototype'] };
+	clip: {
+		processor: Tf['Processor']['prototype'];
+		vision: Tf['CLIPVisionModelWithProjection']['prototype'];
+		tokenizer: Tf['PreTrainedTokenizer']['prototype'];
+		text: Tf['CLIPTextModelWithProjection']['prototype'];
+	};
+}
+type Loaded = LoadedOf[ModelName];
 interface TfProgress {
 	status: string;
 	file?: string;
@@ -43,7 +54,7 @@ const device = process.env.GPUIX_BRAIN_ML === 'wasm' ? 'wasm' : undefined;
 if (device === 'wasm' && env.backends?.onnx?.wasm) env.backends.onnx.wasm.numThreads = 1;
 const threads = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
 
-const loaded: Partial<Record<ModelName, Loaded>> = {};
+const loaded: Partial<LoadedOf> = {};
 const loading: Partial<Record<ModelName, Promise<Loaded> | null>> = {};
 const last_used: Partial<Record<ModelName, number>> = {};
 const IDLE_UNLOAD_MS = 15 * 60_000;
@@ -66,6 +77,7 @@ function progress_for(model: ModelName) {
 	};
 }
 
+async function load<M extends ModelName>(model: M): Promise<LoadedOf[M]>;
 async function load(model: ModelName): Promise<Loaded> {
 	const progress_callback = progress_for(model);
 	// No memory arena: ORT would otherwise keep the largest batch's working set forever.
@@ -84,14 +96,15 @@ async function load(model: ModelName): Promise<Loaded> {
 	throw new Error(`unknown model ${model}`);
 }
 
-function ensure(model: ModelName): Promise<Loaded> {
+function ensure<M extends ModelName>(model: M): Promise<LoadedOf[M]> {
 	last_used[model] = Date.now();
-	if (loaded[model]) return Promise.resolve(loaded[model]);
+	const ready = loaded[model];
+	if (ready) return Promise.resolve(ready);
 	if (!loading[model]) {
 		status(model, 'loading');
 		loading[model] = load(model).then(
 			(m) => {
-				loaded[model] = m;
+				(loaded as Record<ModelName, Loaded>)[model] = m;
 				status(model, 'ready', { progress: 100 });
 				return m;
 			},
@@ -102,7 +115,7 @@ function ensure(model: ModelName): Promise<Loaded> {
 			}
 		);
 	}
-	return loading[model];
+	return loading[model] as Promise<LoadedOf[M]>;
 }
 
 const unit = (data: ArrayLike<number>) => {

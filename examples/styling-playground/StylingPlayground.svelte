@@ -149,13 +149,13 @@
 </script>
 
 <div style="display: flex; flex-direction: row; gap: 16px; width: 100%; height: 100%; background-color: #11111b; padding: 16px">
-	{#each SECTIONS as section}
+	{#each SECTIONS as section (section.title)}
 		<Scroller gap={8}>
 			<div style="font-size: 14px; font-weight: bold" style:color={section.color}>
 				{section.title}
 			</div>
 
-			{#each section.cases as c}
+			{#each section.cases as c (c)}
 				<div
 					style="display: flex; flex-direction: column; gap: 6px; padding: 10px;
 					       background-color: #1e1e2e; border-radius: 8px"
@@ -173,7 +173,7 @@
 							active={c.active}
 						>
 							{#if c.kind === 'children'}
-								{#each BLOCKS as color}
+								{#each BLOCKS as color (color)}
 									<div style="width: 28px; height: 20px; border-radius: 3px" style:background-color={color}></div>
 								{/each}
 							{:else if c.kind === 'lines'}

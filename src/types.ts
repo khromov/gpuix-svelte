@@ -4,6 +4,11 @@
  */
 
 import type { EventPayload, GpuixRenderer, TestGpuixRenderer, WindowOptions } from '@gpuix/native';
+import type { Component } from 'svelte';
+
+/** Any component at all: a `Component<{ a: 1 }>` is not a `Component<{}>`, so a mixed set has no other common type. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyComponent = Component<any, any, any>;
 
 export type NodeKind = 'fragment' | 'element' | 'text' | 'comment';
 
@@ -102,7 +107,7 @@ export type Native = GpuixRenderer | TestGpuixRenderer;
 export type WindowNative = Partial<Pick<GpuixRenderer, 'setWindowTitle' | 'activateWindow' | 'blur' | 'focusElement'>>;
 
 export interface RenderOptions extends WindowOptions {
-	props?: Record<string, any>;
+	props?: Record<string, unknown>;
 	rootStyle?: GpuiStyle;
 	onEvent?: (event: EventPayload) => void;
 	/** `on_window_key` handlers kept across remounts. */

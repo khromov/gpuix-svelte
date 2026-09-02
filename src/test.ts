@@ -36,7 +36,7 @@ export interface ClickOptions extends FindOptions {
 }
 
 export interface MountHeadlessOptions {
-	props?: Record<string, any>;
+	props?: Record<string, unknown>;
 	width?: number;
 	height?: number;
 	rootStyle?: GpuiStyle;
@@ -48,7 +48,8 @@ function native(): TestGpuixRenderer {
 	return instance as TestGpuixRenderer;
 }
 
-export function mount_headless<Exports extends Record<string, any> = Record<string, any>>(
+export function mount_headless<Exports extends Record<string, unknown> = Record<string, unknown>>(
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see AnyComponent
 	Component: Component<any, Exports, any>,
 	{ props = {}, width, height, rootStyle }: MountHeadlessOptions = {}
 ) {

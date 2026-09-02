@@ -113,7 +113,7 @@ function host_of(url: string): string {
 
 export function friendly_http_error(status: number, body: string, { url, baseUrl, model }: { url: string; baseUrl: string; model: string }): LlmError {
 	const host = host_of(url);
-	let detail = '';
+	let detail: string;
 	try {
 		detail = JSON.parse(body)?.error?.message ?? '';
 	} catch {
@@ -167,6 +167,11 @@ export function create_llm(config: LlmConfig) {
 		return res;
 	};
 
+	interface ChatResponse {
+		error?: { message?: string };
+		choices?: Array<{ message?: { content?: string }; delta?: { content?: string } }>;
+	}
+
 	async function chat(messages: Message[], { stream = true, signal, onDelta, temperature = 0.2, maxTokens }: ChatOptions = {}): Promise<string> {
 		const body: Record<string, unknown> = { model: config.model, messages, stream, temperature };
 		if (maxTokens) body.max_tokens = maxTokens;
@@ -174,7 +179,7 @@ export function create_llm(config: LlmConfig) {
 
 		const type = (res.headers.get('content-type') ?? '').toLowerCase();
 		if (!stream || type.includes('application/json')) {
-			const json: any = await res.json();
+			const json = (await res.json()) as ChatResponse;
 			if (json.error) throw new LlmError(json.error.message ?? String(json.error));
 			const text = json.choices?.[0]?.message?.content ?? '';
 			onDelta?.(text, text);
@@ -184,7 +189,7 @@ export function create_llm(config: LlmConfig) {
 		let full = '';
 		for await (const payload of parse_sse(res.body!)) {
 			if (payload === '[DONE]') break;
-			let obj;
+			let obj: ChatResponse;
 			try {
 				obj = JSON.parse(payload);
 			} catch {
@@ -201,9 +206,9 @@ export function create_llm(config: LlmConfig) {
 
 	async function models(): Promise<string[]> {
 		const res = await request('/models', { method: 'GET' });
-		const json: any = await res.json();
-		const list: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : [];
-		return list.map((m) => m.id ?? m.name).filter(Boolean).sort();
+		const json = (await res.json()) as { data?: unknown; models?: unknown };
+		const list = (Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : []) as Array<{ id?: string; name?: string }>;
+		return list.map((m) => m.id ?? m.name ?? '').filter(Boolean).sort();
 	}
 
 	async function test() {

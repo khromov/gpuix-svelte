@@ -71,7 +71,7 @@ export function decode_entities(s: string): string {
 const tidy = (s: string) =>
 	s
 		.replace(/\r/g, '')
-		.replace(/[ \t\f\v ]+/g, ' ')
+		.replace(/[ \t\f\v\u00a0]+/g, ' ')
 		.replace(/ *\n */g, '\n')
 		// Table rows: empty cells collapse, and a row that was only cells goes away.
 		.replace(/(?: ?\|){2,}/g, ' |')
@@ -250,10 +250,7 @@ export function extract(html: string, { baseUrl = 'http://localhost/', maxChars 
 	const text = truncate(tidy((winner ? out.slice(winner.start, winner.end) : out).join('')), maxChars);
 
 	const base = resolve(meta.base, baseUrl) ?? baseUrl;
-	let hostname = '';
-	try {
-		hostname = new URL(baseUrl).hostname.replace(/^www\./, '');
-	} catch {}
+	const hostname = URL.parse(baseUrl)?.hostname.replace(/^www\./, '') ?? '';
 
 	const siteName = decode_entities(meta.og.site_name || hostname);
 	const headline = headings
@@ -318,10 +315,7 @@ export function looks_like_url(text: string): boolean {
 }
 
 export function friendly_fetch_error(err: unknown, url: string): Failure {
-	let host = url;
-	try {
-		host = new URL(url).host;
-	} catch {}
+	const host = URL.parse(url)?.host ?? url;
 	const message = String((err as Failure)?.message ?? err);
 	const name = (err as Failure)?.name ?? '';
 	let friendly: string;
@@ -416,10 +410,12 @@ export async function scrape(
 		return { ...empty_page(finalUrl), text: truncate(tidy(body), maxChars), url: finalUrl, contentType: type, truncated };
 	}
 	if (type === 'application/json') {
-		let text = body;
+		let text: string;
 		try {
 			text = JSON.stringify(JSON.parse(body), null, 2);
-		} catch {}
+		} catch {
+			text = body;
+		}
 		return { ...empty_page(finalUrl), text: '```\n' + truncate(text, maxChars) + '\n```', url: finalUrl, contentType: type, truncated };
 	}
 	if (type && type !== 'text/html' && type !== 'application/xhtml+xml') {
@@ -431,10 +427,7 @@ export async function scrape(
 }
 
 function empty_page(url: string): PageData {
-	let hostname = '';
-	try {
-		hostname = new URL(url).hostname.replace(/^www\./, '');
-	} catch {}
+	const hostname = URL.parse(url)?.hostname.replace(/^www\./, '') ?? '';
 	return { title: '', siteName: hostname, description: '', imageUrl: null, canonical: url, lang: '', text: '', candidates: [] };
 }
 

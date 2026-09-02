@@ -31,7 +31,7 @@
 			style:flex-wrap={column ? 'nowrap' : 'wrap'}
 			style:align-items={column ? 'flex-start' : 'center'}
 		>
-			{#each spec.nodes as node, i}
+			{#each spec.nodes as node, i (node)}
 				{#if i > 0}
 					<div style="color: #6c7086; font-size: 16px; pointer-events: none" style:padding-left={column ? '14px' : '0px'}>
 						{column ? '↓' : '→'}
@@ -47,12 +47,12 @@
 		</div>
 	{:else if spec.kind === 'compare'}
 		<div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 16px">
-			{#each [spec.left, spec.right] as side}
+			{#each [spec.left, spec.right] as side (side)}
 				<div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1; flex-basis: 200px; min-width: 0">
 					<div style="font-size: 12px; font-weight: bold; margin-bottom: 2px" style:color={side.color ?? '#a6adc8'}>
 						{side.title}
 					</div>
-					{#each flatten(side.tree) as row}
+					{#each flatten(side.tree) as row (row)}
 						<div
 							style="display: flex; flex-direction: column; gap: 3px; pointer-events: none"
 							style:padding-left="{row.depth * 16}px"

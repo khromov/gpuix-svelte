@@ -1,5 +1,34 @@
 import type { Database } from 'bun:sqlite';
+import type { TranscribeSegment } from './ml-client.ts';
 import { to_blob } from './vectors.ts';
+
+/** The JSON `meta` column; every key is optional because each pipeline step adds its own. */
+export interface ItemMeta {
+	auto_title?: boolean;
+	original_name?: string;
+	format?: string | null;
+	thumb_width?: number;
+	thumb_height?: number;
+	display_path?: string | null;
+	described_by?: string;
+	describe_error?: string | null;
+	summary?: string;
+	summarized_by?: string;
+	site_name?: string;
+	canonical_url?: string | null;
+	excerpt?: string;
+	lang?: string;
+	og_image?: string | null;
+	final_url?: string;
+	fetched_at?: number;
+	truncated?: boolean;
+	empty?: boolean;
+	pcm_path?: string;
+	segments?: TranscribeSegment[];
+	language?: string | null;
+	embed_model?: string;
+	embedded_at?: number;
+}
 
 export type Kind = 'text' | 'link' | 'image' | 'audio';
 export type Status = 'pending' | 'processing' | 'ready' | 'error';
@@ -18,7 +47,7 @@ export type Item = {
 	status: Status;
 	error: string | null;
 	attempts: number;
-	meta: Record<string, any>;
+	meta: ItemMeta;
 	created_at: number;
 	updated_at: number;
 };
@@ -64,7 +93,7 @@ const ITEM_COLS =
 	'id, kind, title, body, source_url, file_path, thumb_path, width, height, duration, status, error, attempts, meta, created_at, updated_at';
 const PATCHABLE = new Set(['kind', 'title', 'body', 'source_url', 'file_path', 'thumb_path', 'width', 'height', 'duration', 'status', 'error', 'attempts']);
 
-const parse_meta = (s: string): Record<string, any> => {
+const parse_meta = (s: string): ItemMeta => {
 	try {
 		return JSON.parse(s) ?? {};
 	} catch {
@@ -187,7 +216,7 @@ export function create_store(db: Database) {
 		unfinished_items: (): Item[] => unfinished_stmt.all().map(to_item) as Item[],
 		errored_items: (): Item[] => errored_stmt.all().map(to_item) as Item[],
 
-		delete_item: db.transaction((id: number): { chunk_ids: number[]; file_path: string | null; thumb_path: string | null; meta: Record<string, any> } | null => {
+		delete_item: db.transaction((id: number): { chunk_ids: number[]; file_path: string | null; thumb_path: string | null; meta: ItemMeta } | null => {
 			const item = store.get_item(id);
 			if (!item) return null;
 			const chunk_ids = chunk_ids_stmt.all({ item_id: id }).map((r) => r.id);
@@ -265,7 +294,9 @@ export function create_store(db: Database) {
 			for (const row of settings_all_stmt.all()) {
 				try {
 					out[row.key] = JSON.parse(row.value);
-				} catch {}
+				} catch {
+					// A row an older build wrote by hand; skipping it beats failing every setting.
+				}
 			}
 			return out;
 		},

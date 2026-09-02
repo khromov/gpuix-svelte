@@ -6,7 +6,7 @@
 
 import { TestGpuixRenderer } from '@gpuix/native';
 import { flushSync } from 'svelte';
-import { renderer, set_native, create_root, commit, is_dirty, dispatch, type ShadowNode } from 'gpuix-svelte';
+import { renderer, set_native, create_root, is_dirty, dispatch, type ShadowNode } from 'gpuix-svelte';
 import { mount_headless, settle, all_text, check, finish } from 'gpuix-svelte/test';
 
 /** A root with no component in it, for trees built by hand. */

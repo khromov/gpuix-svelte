@@ -409,7 +409,9 @@ export class MlClient implements MlLike {
 		if (!proc) return;
 		try {
 			proc.send({ type: 'shutdown' });
-		} catch {}
+		} catch {
+			// The channel closes with the worker; the kill below covers it.
+		}
 		setTimeout(() => proc.kill(), 500);
 		await proc.exited;
 		this.status.worker = 'down';

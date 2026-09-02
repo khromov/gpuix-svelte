@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { GpuixEvent } from 'gpuix-svelte';
+	import { get_native, type GpuixEvent } from 'gpuix-svelte';
 
 	let {
 		glass = false,
@@ -33,12 +33,10 @@
 
 	// GPUI captures no pointer for us, so a drag is: mousedown on the track,
 	// then mousemove/mouseup handled by the surfaces above it (track, card, root).
-	const HOST = Symbol.for('gpuix.svelte.host');
 	let drag = $state<{ key: 'brightness' | 'volume'; trackId: number } | null>(null);
 
 	function slide(e: GpuixEvent) {
-		const native = (globalThis as Record<symbol, any>)[HOST]?.native;
-		const bounds: number[] | null = native?.getElementBounds(drag!.trackId);
+		const bounds = get_native()?.getElementBounds(drag!.trackId);
 		if (!bounds) return;
 		const value = Math.min(1, Math.max(0, (e.x! - bounds[0]) / bounds[2]));
 		if (drag!.key === 'brightness') brightness = value;

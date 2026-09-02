@@ -38,12 +38,14 @@ export async function ask(
 	const config = settings.llm_config();
 	if (!config) throw new LlmError('no LLM configured — set a base URL and model in Settings', { code: 'NOT_CONFIGURED' });
 
-	const sources: Array<Source & { text: string }> = [];
+	const sources: Source[] = [];
+	const texts: string[] = [];
 	let used = 0;
 	for (const hit of await search.search_chunks(question, { k })) {
 		const text = hit.chunk.text;
 		if (sources.length && used + text.length > max_chars) break;
 		used += text.length;
+		texts.push(text);
 		sources.push({
 			n: sources.length + 1,
 			item_id: hit.item.id,
@@ -51,13 +53,12 @@ export async function ask(
 			title: hit.item.title || 'Untitled',
 			kind: hit.item.kind,
 			snippet: clip_snippet(text, 160),
-			date: new Date(hit.item.created_at).toISOString().slice(0, 10),
-			text
+			date: new Date(hit.item.created_at).toISOString().slice(0, 10)
 		});
 	}
 
 	const context = sources.length
-		? `Sources:\n\n${sources.map((s) => `[${s.n}] ${s.title} (${s.kind}, ${s.date})\n${s.text}`).join('\n\n')}`
+		? `Sources:\n\n${sources.map((s, i) => `[${s.n}] ${s.title} (${s.kind}, ${s.date})\n${texts[i]}`).join('\n\n')}`
 		: 'Sources: nothing in the brain matched this question.';
 	const messages: Message[] = [
 		{ role: 'system', content: SYSTEM },
@@ -67,5 +68,5 @@ export async function ask(
 
 	const answer = await create_llm(config).chat(messages, { stream: true, signal, onDelta: on_token });
 	const cited = [...new Set([...answer.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])).filter((n) => n >= 1 && n <= sources.length))];
-	return { answer, sources: sources.map(({ text, ...rest }) => rest), cited };
+	return { answer, sources, cited };
 }

@@ -8,7 +8,7 @@ import { on_window_key, set_window_title, activate_window, blur } from 'gpuix-sv
 import { mount_headless, find_test_id, focus, press, drain, settle, all_text, check, finish } from 'gpuix-svelte/test';
 
 const Keys = (await import('./WindowKeys.svelte')).default;
-let { native, unmount } = mount_headless(Keys);
+const { native, unmount } = mount_headless(Keys);
 
 const seen = () => all_text().find((t) => t.includes('|'));
 
@@ -43,7 +43,7 @@ off_up();
 let outer = 0;
 const off_outer = on_window_key('keydown', () => outer++);
 unmount();
-({ native, unmount } = mount_headless(Keys));
+mount_headless(Keys);
 press('c');
 check('a handler registered outside the tree survives a remount', outer, 1);
 check('and the remounted component hears it too', seen(), 'c|0');

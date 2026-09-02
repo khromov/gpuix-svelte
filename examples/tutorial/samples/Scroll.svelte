@@ -6,7 +6,7 @@
 	style="display: flex; flex-direction: column; flex-grow: 1; min-height: 0;
 	       gap: 6px; overflow-y: scroll; padding-right: 8px"
 >
-	{#each rows as row}
+	{#each rows as row (row)}
 		<div
 			style="padding: 8px 12px; border-radius: 6px; background-color: #313244;
 			       color: #cdd6f4; font-size: 13px"

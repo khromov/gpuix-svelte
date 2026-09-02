@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
-	import type { Component } from 'svelte';
-	import { blur, on_window_key, type GpuixEvent } from 'gpuix-svelte';
+	import { blur, on_window_key, type AnyComponent, type GpuixEvent } from 'gpuix-svelte';
 	import { CHAPTERS, STEPS as RAW_STEPS, type LiveKey, type Step } from './steps.ts';
 	import { THEME } from './theme.ts';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
@@ -18,7 +17,7 @@
 	import Native from './samples/Native.svelte';
 	import Motion from './samples/Motion.svelte';
 
-	const LIVE: Record<LiveKey, Component<any, any, any>> = { hello: Hello, counter: Counter, styled: Styled, scroll: Scroll, list: List, hittest: HitTest, native: Native, motion: Motion };
+	const LIVE: Record<LiveKey, AnyComponent> = { hello: Hello, counter: Counter, styled: Styled, scroll: Scroll, list: List, hittest: HitTest, native: Native, motion: Motion };
 
 	// Read here rather than in steps.ts: a hot reload re-evaluates this module but
 	// not plain JS, so a saved sample shows its new source.

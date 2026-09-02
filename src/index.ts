@@ -28,5 +28,6 @@ export type {
 	NativeSink,
 	Native,
 	RenderOptions,
-	WindowKeyType
+	WindowKeyType,
+	AnyComponent
 } from './types.ts';

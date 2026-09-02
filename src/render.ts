@@ -8,7 +8,7 @@ import { watch } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GpuixRenderer, type EventPayload } from '@gpuix/native';
-import { mount, unmount, flushSync, type Component } from 'svelte';
+import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
 	set_native,
 	create_root,
@@ -19,7 +19,7 @@ import renderer, {
 	queue_destroy,
 	on_window_key
 } from './renderer.ts';
-import type { RenderOptions, ShadowNode } from './types.ts';
+import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 
 /**
  * ~125fps, above any common refresh rate. `setImmediate` instead of a paced
@@ -32,7 +32,7 @@ const SLOT = Symbol.for('gpuix.svelte.host');
 interface Host {
 	native: GpuixRenderer | null;
 	root: ShadowNode | null;
-	component: Record<string, any> | null;
+	component: Record<string, unknown> | null;
 	loop: { stop(): void } | null;
 	keys: Array<() => void>;
 }
@@ -105,7 +105,7 @@ export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 't
 }
 
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
-export function render(Component: Component<any, any, any>, options: RenderOptions = {}): Record<string, any> {
+export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
 	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, ...window_options } = options;
 	const slot = host();
 	const remount = slot.component != null;
