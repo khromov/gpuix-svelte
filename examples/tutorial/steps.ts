@@ -143,7 +143,7 @@ export const STEPS: Step[] = [
 		],
 		live: null,
 		quiz: {
-			question: 'You run `node app.ts` without the two --conditions flags. What happens?',
+			question: 'You run `node --import tsx app.ts` without the two --conditions flags. What happens?',
 			options: [
 				'Nothing changes; the flags only make startup faster',
 				'svelte resolves to its server build, mount() is missing and the app fails before a window opens',
@@ -229,7 +229,7 @@ export const STEPS: Step[] = [
 			],
 			answer: 1,
 			explanation:
-				'render.js runs a paced setTimeout loop around native.tick(); each iteration calls commit() if anything was queued. Where there is no loop the renderer drains on a microtask instead.'
+				'render.ts runs a paced setTimeout loop around native.tick(); each iteration calls commit() if anything was queued. Where there is no loop the renderer drains on a microtask instead.'
 		}
 	},
 	{
@@ -481,8 +481,8 @@ export const STEPS: Step[] = [
 		},
 		code: [
 			{
-				label: 'src/render.js — render_hot, condensed',
-				language: 'javascript',
+				label: 'src/render.ts — render_hot, condensed',
+				language: 'typescript',
 				source: [
 					'export async function render_hot(entry, options = {}) {',
 					'\tconst url = entry instanceof URL ? entry : pathToFileURL(entry);',
@@ -504,15 +504,15 @@ export const STEPS: Step[] = [
 		],
 		live: 'hello',
 		quiz: {
-			question: 'You edit steps.js while the tutorial is running. What happens?',
+			question: 'You edit steps.ts while the tutorial is running. What happens?',
 			options: [
 				'The window reloads with the new content',
-				'Nothing: only .svelte writes trigger a reload, and plain JS modules stay cached until a restart',
+				'Nothing: only .svelte writes trigger a reload, and plain .ts modules stay cached until a restart',
 				'The window closes'
 			],
 			answer: 1,
 			explanation:
-				'The watcher filters on the .svelte extension and the ?v=N cache-buster is only spliced into .svelte specifiers, so JS modules keep their first evaluation.'
+				'The watcher filters on the .svelte extension and the ?v=N cache-buster is only spliced into .svelte specifiers, so plain modules keep their first evaluation.'
 		}
 	},
 	{
@@ -534,8 +534,8 @@ export const STEPS: Step[] = [
 		},
 		code: [
 			{
-				label: 'test/counter.js — a complete headless test',
-				language: 'javascript',
+				label: 'test/counter.ts — a complete headless test',
+				language: 'typescript',
 				source: [
 					"import { mount_headless, click_test_id, all_text, check, finish } from 'gpuix-svelte/test';",
 					"import Counter from '../examples/tutorial/samples/Counter.svelte';",

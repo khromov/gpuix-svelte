@@ -147,9 +147,19 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
 
 which you can run by hand instead (on Bun, `preload = ["gpuix-svelte/plugin"]` in a `bunfig.toml`
 replaces the `--preload`; `tsx` has to come before `gpuix-svelte/register`, or it falls back to
-off-thread hooks the `.svelte` loader can't chain with). Flags before the entry go to the runtime
-(`gpuix-svelte --experimental-ffi app.ts`); arguments after it go to your script. Plain JavaScript
-entries work too; `.ts` is what the examples use.
+off-thread hooks the `.svelte` loader can't chain with, and a bare `--import tsx` only resolves
+where your package manager hoists it — the bin resolves its own copy). Flags before the entry go
+to the runtime (`gpuix-svelte --experimental-ffi app.ts`); arguments after it go to your script.
+Plain JavaScript entries work too; `.ts` is what the examples use.
+
+The package ships TypeScript sources, not declaration files, so to typecheck your own code against
+it `tsc` needs `"allowImportingTsExtensions": true` (which implies `"noEmit": true` — a tsx or
+bundler workflow) and `@types/node`:
+
+```jsonc
+// tsconfig.json
+{ "compilerOptions": { "module": "nodenext", "strict": true, "noEmit": true, "allowImportingTsExtensions": true, "types": ["node"] } }
+```
 
 See [HOWTO.txt](HOWTO.txt) for a few more details and troubleshooting notes.
 

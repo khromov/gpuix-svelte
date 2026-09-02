@@ -4,10 +4,21 @@
  * hot remount.
  */
 
+import type { Component } from 'svelte';
+
+/** The current location. */
 export interface Route {
 	path: string;
 	params: Record<string, string>;
 	query: Record<string, string>;
+}
+
+/** One entry of the route table `RouteView` resolves against. */
+export interface RouteEntry {
+	path: string;
+	load: () => Promise<{ default: Component<any, any, any> }>;
+	props?: Record<string, unknown>;
+	title: string;
 }
 
 export const route = $state<Route>({ path: '/', params: {}, query: {} });

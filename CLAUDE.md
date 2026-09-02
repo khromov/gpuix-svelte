@@ -171,8 +171,12 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
   `tsc --noEmit` (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`, explicit `./x.ts`
   specifiers) gates `npm test`, `npm run bun:test` and CI over src, bin, scripts, test and every
   example; `types/*.d.ts` hold the ambient shims (`*.svelte` modules, `node:ffi`'s missing names).
-  Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The one `.js` is
-  `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it cannot need it.
+  Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The one `.js` in
+  the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
+  cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `.svelte`
+  script bodies are outside the gate too — the compiler strips their types, svelte-check never
+  runs — so an annotation there is documentation, not a check. Consumers typechecking against
+  the package need `allowImportingTsExtensions` (hence `noEmit`) and `@types/node`, as README says.
 - **Node >= 26.1** (the glass-ffi demo loads its ObjC shim with the experimental `node:ffi`;
   everything else only needs 24's `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in
   CI; keep runtime-specific code confined to `register.ts` / `plugin.ts`.
@@ -260,12 +264,12 @@ also honours shorthands: a later `padding: 20px` clears the longhands an earlier
 `padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
-`module.register()` is a silent no-op. Both are ~30 lines around `compile_svelte()`, and both must
+`module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both must
 be installed before the entry module resolves — Node via `--import tsx --import ./src/register.ts`,
 Bun via `--preload ./src/plugin.ts` (or `bunfig.toml`'s `preload`), both supplied by
 `bin/gpuix-svelte.js`. On Node, tsx must be registered *first*: a `.ts` `--import` ahead of it flips
 tsx onto async off-thread hooks, and sync hooks (LIFO, so `register.ts`'s runs first) can't chain
-into those. Tests rely on that registration rather than importing a loader themselves. Both also
+into those; a `.ts` `--import` in `NODE_OPTIONS` has the same effect, whatever the bin does. Tests rely on that registration rather than importing a loader themselves. Both also
 compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
 `svelte/compiler`, no renderer option) — which does **not** strip types, so the loaders do it
 first: `register.ts` hands the URL to `nextLoad` (tsx returns JS; without tsx, Node's
@@ -307,7 +311,7 @@ resolved `fetch`, a timer) would sit in the queue until the next click. Native e
 directory and re-imports with a `?v=N` cache-buster; `compile.ts` propagates that query to child
 `.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
-`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
+`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native` and tsx) and
 splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
 comment is left alone and the rest of the output stays byte-identical. Only relative, absolute and
 `file:` specifiers are busted: Node refuses a bare one with a query

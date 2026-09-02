@@ -3,7 +3,7 @@
  * Svelte emits, which the compiler has already lowercased.
  */
 
-export const GPUI_EVENTS: string[] = [
+export const GPUI_EVENTS: readonly string[] = [
 	// custom elements (<diff>, <markdown>, <input>, <textarea>)
 	'toggleFile',
 	'showMore',

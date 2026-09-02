@@ -1,7 +1,7 @@
 /**
  * Bun is the compiler — `Bun.build({ compile })` bundles the entry, the Svelte
  * runtime and the GPUI addon into one executable — so this is the one script
- * outside src/plugin.js that needs Bun.
+ * outside src/plugin.ts that needs Bun.
  */
 
 import { spawnSync } from 'node:child_process';

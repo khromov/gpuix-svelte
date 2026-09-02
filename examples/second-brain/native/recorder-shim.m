@@ -2,7 +2,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <string.h>
 
-// Compiled on demand by lib/recorder.js, or ahead of time by scripts/compile-brain.js.
+// Compiled on demand by lib/recorder.ts, or ahead of time by scripts/compile-brain.ts.
 
 static AVAudioRecorder *recorder = nil;
 static char last_error[512] = "";

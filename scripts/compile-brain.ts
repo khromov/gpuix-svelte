@@ -152,7 +152,7 @@ chmodSync(join(macos, 'substrate'), 0o755);
 writeFileSync(join(bundle, 'Contents', 'Info.plist'), PLIST);
 write_icns(join(brain, 'icon.png'), join(resources, 'AppIcon.icns'));
 
-// The worker is bundled to one file (its shared lib/wav.js inlined) and keeps its
+// The worker is bundled to one file (its shared lib/wav.ts inlined) and keeps its
 // real node_modules beside it: onnxruntime and sharp load from there as usual.
 const worker = await Bun.build({
 	entrypoints: [join(brain, 'ml/worker.ts')],

@@ -3,7 +3,7 @@
  * URL becomes a link item, scraped and embedded through the normal pipeline. Doubles
  * as a scrape smoke test across whatever sites are on the front page today.
  *
- *   bun examples/second-brain/scripts/import-hn.js [count]
+ *   bun examples/second-brain/scripts/import-hn.ts [count]
  */
 
 import type { Item } from '../lib/store.ts';

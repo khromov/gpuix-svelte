@@ -11,7 +11,7 @@
 	import { back, push } from '../lib/router.svelte.ts';
 	import { open_url, reveal } from '../lib/shell.ts';
 	import { blur } from 'gpuix-svelte';
-	import type { Item } from '../lib/store.ts';
+	import type { SearchHit } from '../lib/search.ts';
 	import { toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
 
@@ -34,7 +34,7 @@
 	let editing = $state(false);
 	let draft = $state({ title: '', body: '' });
 	let saved_at = $state<number | null>(null);
-	let related = $state<Item[]>([]);
+	let related = $state<SearchHit[]>([]);
 	let working = $state<string | null>(null);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 

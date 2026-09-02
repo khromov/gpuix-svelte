@@ -7,7 +7,7 @@
 	import TopBar from './components/TopBar.svelte';
 	import type { App } from './lib/app.ts';
 	import { bind_app } from './lib/data.svelte.ts';
-	import { back, push, route, type Route } from './lib/router.svelte.ts';
+	import { back, push, route, type RouteEntry } from './lib/router.svelte.ts';
 	import { bind_theme, start_system_poll, tokens } from './lib/theme.svelte.ts';
 	import { focus, ui } from './lib/ui.svelte.ts';
 	import RouteView from './RouteView.svelte';
@@ -20,7 +20,7 @@
 		bind_theme(app);
 	});
 
-	const ROUTES: Route[] = [
+	const ROUTES: RouteEntry[] = [
 		{ path: '/', load: () => import('./routes/Everything.svelte'), title: 'Everything' },
 		{ path: '/notes', load: () => import('./routes/Kind.svelte'), props: { kind: 'text' }, title: 'Notes' },
 		{ path: '/links', load: () => import('./routes/Kind.svelte'), props: { kind: 'link' }, title: 'Links' },
