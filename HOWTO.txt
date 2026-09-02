@@ -1,13 +1,18 @@
 HOWTO: run from a fresh clone (macOS Apple Silicon, Windows x64, Linux x64)
 ==========================================================================
 
-Needs Node.js 26.1 or newer, or Bun 1.4.0 or newer.
+Needs Node.js 24 or newer (26.1 for demo:glass-ffi), or Bun 1.4.0 or newer.
 
     npm install     # that's the whole setup.
                     #   @gpuix/native arrives prebuilt from npm (no Rust, no
                     #   submodules, no Metal toolchain, nothing to compile);
                     #   svelte comes from vendor/svelte-<version>-<sha>.tgz, a
                     #   build of the unreleased custom-renderer PR (see CLAUDE.md)
+                    #   that the npm package ships inside itself
+    npm run consume # the consumer path: packs the tarball, installs it into a
+                    # copy of starter/ (npm run bun:consume: with Bun), typechecks
+                    # and runs the starter's headless test through the installed
+                    # bin. `npm run consume:open` opens the starter's window instead
     npm test        # headless: TestGpuixRenderer drives the real Metal
                     # pipeline without opening a window
     npm run demo    # opens all four demo windows at once
@@ -71,7 +76,9 @@ Notes
 - svelte is a vendored tarball (vendor/svelte-<version>-<sha>.tgz): pkg.pr.new
   stopped building the PR in July 2026, and pkg.svelte.dev drops a build once a
   force-push removes its commit. `npm run vendor` moves it to the current PR
-  head.
+  head. It is a bundled dependency, so `npm run pack` / the release workflow
+  ship it inside the package and consumers never install svelte themselves;
+  the loaders resolve every `svelte` import to that copy.
 - Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
   npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
   Same entry points, run through Bun, which preloads src/plugin.ts

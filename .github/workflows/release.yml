@@ -1,0 +1,51 @@
+name: release
+
+# release-please keeps a release PR open from the conventional commits on main; merging it
+# tags and publishes. The workflow filename is what npm's trusted-publisher settings name.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          # A PAT lets the release PR trigger test.yml; GITHUB_TOKEN's events never start workflows.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+  verify:
+    needs: release
+    if: ${{ needs.release.outputs.release_created }}
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm test
+      - run: npm run consume
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm ci
+      # OIDC trusted publishing: no token, and provenance is generated automatically.
+      - run: npm run publish:npm

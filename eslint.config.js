@@ -9,5 +9,5 @@ export default ts.config(
 	...svelte.configs.recommended,
 	{ files: ['**/*.svelte', '**/*.svelte.ts'], languageOptions: { parserOptions: { parser: ts.parser } } },
 	{ languageOptions: { globals: { ...globals.node, Bun: 'readonly' } } },
-	{ ignores: ['**/node_modules', 'dist', 'vendor', 'test/.samples-tmp', 'examples/second-brain/.data'] }
+	{ ignores: ['**/node_modules', 'dist', 'vendor', 'starter', 'test/.samples-tmp', 'examples/second-brain/.data'] }
 );

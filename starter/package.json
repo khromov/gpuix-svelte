@@ -1,0 +1,18 @@
+{
+	"name": "gpuix-svelte-starter",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"scripts": {
+		"start": "gpuix-svelte app.ts",
+		"test": "gpuix-svelte test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"gpuix-svelte": "^0.1.0"
+	},
+	"devDependencies": {
+		"@types/node": "^26.4.1",
+		"typescript": "^5.9.3"
+	}
+}

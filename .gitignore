@@ -16,6 +16,10 @@ examples/second-brain/native/.recorder-shim.dylib
 # the second-brain example's database, files and model cache
 examples/second-brain/.data
 
+# starter/ is installed in place only by hand; `npm run consume` works on a copy
+starter/package-lock.json
+starter/bun.lock
+
 # output
 out
 dist

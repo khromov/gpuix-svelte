@@ -4,8 +4,8 @@
 > [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Tested on macOS / Windows, also compatible with Linux.
 
 > [!IMPORTANT]
-> Needs **Node.js >= 26.1** — the liquid-glass FFI demo drives its ObjC shim through the built-in
-> `node:ffi`, which landed in 26.1 — or **Bun >= 1.4.0**, which uses `bun:ffi` instead.
+> Needs **Node.js >= 24** or **Bun >= 1.4.0**. The liquid-glass FFI demo alone needs **Node 26.1**,
+> which is where the built-in `node:ffi` it drives its ObjC shim through landed (Bun uses `bun:ffi`).
 
 Svelte custom renderer for [GPUI](https://www.gpui.rs/) (Zed's GPU-accelerated UI framework), via
 [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native). Native desktop windows from ordinary
@@ -109,12 +109,17 @@ If Apple rejects a submission the script prints the submission output and exits;
 ## Use in your own project
 
 ```bash
-npm install github:khromov/gpuix-svelte     # until it's on npm
-npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511    # latest build of the custom-renderer PR
+npm install gpuix-svelte
 ```
 
-`svelte` has to be Svelte's unreleased custom-renderer branch; pkg.svelte.dev serves its latest
-build (this repo pins one specific commit under `vendor/` instead, see `CLAUDE.md`).
+That is the whole install. The renderer only works with one specific build of Svelte's unreleased
+custom-renderer branch, so the package ships that build inside itself (as a bundled dependency,
+under `node_modules/gpuix-svelte/node_modules/svelte`) and its loaders resolve every `svelte`
+import to that copy — from your `.svelte` files, your `.ts` files and the package alike. **Do not
+add `svelte` to your own dependencies**: the registry's `svelte` has the same version number and
+none of the API, and the package would ignore it anyway. Bun and pnpm work the same way.
+
+[`starter/`](starter) is the smallest complete project — copy it and `npm install`.
 
 ```ts
 // app.ts
@@ -154,11 +159,22 @@ Plain JavaScript entries work too; `.ts` is what the examples use.
 
 The package ships TypeScript sources, not declaration files, so to typecheck your own code against
 it `tsc` needs `"allowImportingTsExtensions": true` (which implies `"noEmit": true` — a tsx or
-bundler workflow) and `@types/node`:
+bundler workflow), `@types/node`, a `paths` entry pointing at the bundled Svelte (it is nested
+inside the package, where `tsc` would not look from your files) and a `*.svelte` module
+declaration — `starter/tsconfig.json` and `starter/svelte.d.ts` are the copy-and-paste versions:
 
 ```jsonc
 // tsconfig.json
-{ "compilerOptions": { "module": "nodenext", "strict": true, "noEmit": true, "allowImportingTsExtensions": true, "types": ["node"] } }
+{
+  "compilerOptions": {
+    "module": "nodenext", "strict": true, "noEmit": true, "allowImportingTsExtensions": true,
+    "customConditions": ["custom-renderer", "development"], "types": ["node"],
+    "paths": {
+      "svelte": ["./node_modules/gpuix-svelte/node_modules/svelte"],
+      "svelte/*": ["./node_modules/gpuix-svelte/node_modules/svelte/*"]
+    }
+  }
+}
 ```
 
 See [HOWTO.txt](HOWTO.txt) for a few more details and troubleshooting notes.
