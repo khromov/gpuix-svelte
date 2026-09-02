@@ -1,5 +1,5 @@
 import { warn } from './log.js';
-import { chunk_body, clip_snippet, fts_query, normalize_scores, query_terms, rrf, snippet_around } from './rank.js';
+import { chunk_body, clip_snippet, fts_query, normalize_scores, parse_query, query_terms, rrf, snippet_around } from './rank.js';
 import { looks_like_url, normalize_url } from './scrape.js';
 
 /**
@@ -10,7 +10,9 @@ import { looks_like_url, normalize_url } from './scrape.js';
  * @param {{ store: any, vectors: import('./vectors.js').VectorIndex, images: import('./vectors.js').VectorIndex, ml: any }} deps
  */
 export function create_search({ store, vectors, images, ml }) {
-	const ready = (model) => ml.available && ml.status?.[model]?.state === 'ready';
+	// A worker that is up loads a model on demand, so an unloaded model is a slower
+	// first answer, not a missing signal; only a down worker degrades the search.
+	const usable = (model) => ml.available && (ml.status?.worker === 'up' || ml.status?.[model]?.state === 'ready');
 	const threshold = (key) => ml.thresholds?.[key] ?? 0;
 
 	/** best chunk per item, item ids as the ranking key */
@@ -24,19 +26,32 @@ export function create_search({ store, vectors, images, ml }) {
 	}
 
 	/**
+	 * `kind:` in the query outranks the `kinds` option; a query that is only a kind
+	 * filter lists that kind, newest first.
+	 *
 	 * @param {string} query
 	 * @param {{ limit?: number, kinds?: string[] | null, signals?: string[] }} [opts]
-	 * @returns {Promise<{ hits: SearchHit[], degraded: string[] }>}
+	 * @returns {Promise<{ hits: SearchHit[], degraded: string[], terms: string[], kinds: string[] | null, text: string }>}
 	 */
-	async function search(query, { limit = 20, kinds = null, signals = ['vector', 'fts', 'clip'] } = {}) {
-		const q = query.trim();
-		if (!q) return { hits: [], degraded: [] };
+	async function search(query, { limit = 20, kinds: kinds_opt = null, signals = ['vector', 'fts', 'clip'] } = {}) {
+		const parsed = parse_query(query);
+		const kinds = parsed.kinds ?? kinds_opt;
+		const q = parsed.text;
+		if (!q) {
+			if (!kinds) return { hits: [], degraded: [], terms: [], kinds: null, text: '' };
+			const hits = kinds
+				.flatMap((kind) => store.list_items({ kind, limit }))
+				.sort((a, b) => b.created_at - a.created_at)
+				.slice(0, limit)
+				.map((item) => ({ item, score: 1, signals: ['kind'], snippet: clip_snippet(item.body), chunk_id: null, terms: [] }));
+			return { hits, degraded: [], terms: [], kinds, text: '' };
+		}
 		const degraded = [];
 		const rankings = {};
 		const tasks = [];
 
 		if (signals.includes('vector')) {
-			if (ready('embed')) {
+			if (usable('embed')) {
 				tasks.push(
 					vector_ranking(q, limit * 4)
 						.then((r) => (rankings.vector = r))
@@ -62,7 +77,7 @@ export function create_search({ store, vectors, images, ml }) {
 		}
 
 		if (signals.includes('clip') && (!kinds || kinds.includes('image')) && images.size > 0) {
-			if (ready('clip')) {
+			if (usable('clip')) {
 				tasks.push(
 					ml
 						.clip_text(q)
@@ -105,7 +120,7 @@ export function create_search({ store, vectors, images, ml }) {
 		const q = query.trim();
 		if (!q) return [];
 		const rankings = {};
-		if (ready('embed')) {
+		if (usable('embed')) {
 			try {
 				const vec = await ml.embed_query(q);
 				rankings.vector = vectors.top_k(vec, k * 2, { min_score: threshold('rag') }).map((h) => ({ id: h.id, score: h.score }));

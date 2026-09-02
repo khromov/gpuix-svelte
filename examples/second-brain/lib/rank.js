@@ -34,6 +34,35 @@ export function clip_snippet(text, max = 200) {
 	return t.slice(0, max - 1).replace(/\s\S*$/, '') + '…';
 }
 
+const KIND_ALIASES = {
+	note: 'text', notes: 'text', text: 'text',
+	link: 'link', links: 'link', url: 'link', urls: 'link',
+	image: 'image', images: 'image', img: 'image', photo: 'image', photos: 'image', picture: 'image', pictures: 'image',
+	audio: 'audio', recording: 'audio', recordings: 'audio', voice: 'audio', memo: 'audio'
+};
+
+/**
+ * `kind:link`, `kind:image,audio` and `is:note` narrow a query; the rest is the text.
+ * @param {string} query
+ * @returns {{ text: string, kinds: string[] | null, unknown: string[] }}
+ */
+export function parse_query(query) {
+	const kinds = new Set();
+	const unknown = [];
+	const text = (query ?? '')
+		.replace(/(?:^|\s)(?:kind|is|type):([\w,]*)/gi, (_, list) => {
+			for (const word of list.split(',').filter(Boolean)) {
+				const kind = KIND_ALIASES[word.toLowerCase()];
+				if (kind) kinds.add(kind);
+				else unknown.push(word);
+			}
+			return ' ';
+		})
+		.replace(/\s+/g, ' ')
+		.trim();
+	return { text, kinds: kinds.size ? [...kinds] : null, unknown };
+}
+
 /** The query's words, longest first, without FTS syntax. */
 export function query_terms(query) {
 	return [...new Set((query ?? '').toLowerCase().replace(/["*]/g, ' ').split(/\s+/).filter((t) => t.length >= 2))].sort((a, b) => b.length - a.length);
@@ -69,6 +98,33 @@ export function snippet_around(text, terms, max = 200) {
 		if (space > start + max / 2) end = space;
 	}
 	return (start > 0 ? '…' : '') + flat.slice(start, end) + (end < flat.length ? '…' : '');
+}
+
+/**
+ * Character ranges of every term occurrence, for GPUI's `highlight={{ ranges }}`.
+ * @param {string} text @param {string[]} terms lowercase
+ * @returns {Array<[number, number]>} sorted, non-overlapping
+ */
+export function match_ranges(text, terms) {
+	const lower = (text ?? '').toLowerCase();
+	const ranges = [];
+	for (const term of terms) {
+		let from = 0;
+		for (;;) {
+			const at = lower.indexOf(term, from);
+			if (at === -1) break;
+			ranges.push([at, at + term.length]);
+			from = at + term.length;
+		}
+	}
+	ranges.sort((a, b) => a[0] - b[0]);
+	const out = [];
+	for (const r of ranges) {
+		const last = out[out.length - 1];
+		if (last && r[0] < last[1]) last[1] = Math.max(last[1], r[1]);
+		else out.push([r[0], r[1]]);
+	}
+	return out;
 }
 
 /** A chunk opens with its heading path; next to the item's title that line says nothing new. */

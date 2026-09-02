@@ -15,7 +15,7 @@ import { create_ingestor } from './ingest.js';
 import { install_exit_handlers } from './lifecycle.js';
 import { create_llm } from './llm.js';
 import { log, warn } from './log.js';
-import { create_media, derive_title } from './media.js';
+import { create_media, derive_title, needs_display_copy } from './media.js';
 import { DIMS, MlClient } from './ml-client.js';
 import { MlStub } from './ml-stub.js';
 import { data_dirs, resources_dir, thumb_path } from './paths.js';
@@ -86,6 +86,17 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		embed_ready = ready;
 	});
 
+	// Configuring a vision model later still describes the images already here.
+	bus.subscribe((e) => {
+		if (e.type !== 'settings' || !e.key.startsWith('llm.') || !settings.vision_config()) return;
+		for (const item of store.list_items({ kind: 'image', limit: 10_000 })) {
+			if (!item.body && item.file_path && item.status !== 'processing') {
+				store.set_status(item.id, 'pending');
+				ingest.enqueue(item.id);
+			}
+		}
+	});
+
 	// Self-heal: a job another process (or a crashed one) left unfinished for ten
 	// minutes is taken over here.
 	const heal = setInterval(() => ingest.requeue_stuck({ olderThanMs: 10 * 60_000 }), 60_000);
@@ -152,7 +163,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 					width: info.width,
 					height: info.height,
 					thumb_path: thumb.path,
-					meta: { format: info.format, thumb_width: thumb.width, thumb_height: thumb.height }
+					meta: { format: info.format, thumb_width: thumb.width, thumb_height: thumb.height, display_path: info.display_path }
 				});
 			} catch (err) {
 				store.set_status(item.id, 'error', { error: err.message });
@@ -200,7 +211,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			if (!gone) return false;
 			vectors.remove(gone.chunk_ids);
 			images.remove([id]);
-			media.remove_files([gone.file_path, gone.thumb_path, gone.meta?.pcm_path]);
+			media.remove_files([gone.file_path, gone.thumb_path, gone.meta?.pcm_path, gone.meta?.display_path]);
 			bus.emit({ type: 'item', id, status: 'deleted' });
 			return true;
 		},
@@ -260,7 +271,25 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 
 	if (seed && store.counts().total === 0) await seed_demo(app);
 
-	ml.start().catch((err) => warn('ML worker failed to start:', err.message));
+	// Images imported before AVIF/HEIC got a paintable copy.
+	for (const item of store.list_items({ kind: 'image', limit: 10_000 })) {
+		if (item.file_path && needs_display_copy(item.meta.format) && !item.meta.display_path) {
+			media
+				.make_display(item.file_path, item.id)
+				.then((display_path) => {
+					store.update_item(item.id, { meta: { display_path } });
+					bus.emit({ type: 'item', id: item.id, status: item.status, updated: true });
+				})
+				.catch((err) => warn(`display copy for image ${item.id} failed:`, err.message));
+		}
+	}
+
+	ml.start()
+		.then(() => {
+			// The first image search should not wait for CLIP to load.
+			if (images.size > 0 && ml.load) ml.load('clip').catch(() => {});
+		})
+		.catch((err) => warn('ML worker failed to start:', err.message));
 	ingest.resume();
 	log(`data dir ${dirs.root} · ${store.counts().total} items · ${vectors.size} vectors`);
 	return app;

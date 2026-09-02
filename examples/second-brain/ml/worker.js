@@ -30,7 +30,7 @@ const threads = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrenc
 const loaded = {};
 const loading = {};
 const last_used = {};
-const IDLE_UNLOAD_MS = 5 * 60_000;
+const IDLE_UNLOAD_MS = 15 * 60_000;
 
 function progress_for(model) {
 	const files = new Map();

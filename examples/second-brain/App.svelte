@@ -2,6 +2,7 @@
 	import { get_native } from 'gpuix-svelte';
 	import { untrack } from 'svelte';
 	import Modal from './components/Modal.svelte';
+	import SearchSuggest from './components/SearchSuggest.svelte';
 	import Sidebar from './components/Sidebar.svelte';
 	import Toasts from './components/Toasts.svelte';
 	import TopBar from './components/TopBar.svelte';
@@ -64,6 +65,7 @@
 			<RouteView routes={ROUTES} />
 		</div>
 	</div>
+	<SearchSuggest />
 	<Toasts />
 	<Modal />
 </div>

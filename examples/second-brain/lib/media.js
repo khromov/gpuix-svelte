@@ -7,6 +7,11 @@ import { decode_wav, encode_wav } from './wav.js';
 
 const EXT_BY_FORMAT = { jpeg: 'jpg', png: 'png', webp: 'webp', gif: 'gif', bmp: 'bmp', tiff: 'tiff', heic: 'heic', avif: 'avif' };
 
+// GPUI's image crate has no AVIF or HEIC decoder; Bun.Image (ImageIO) does, so those
+// get a WebP copy for the window while the original stays on disk.
+const GPUI_CAN_PAINT = new Set(['jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff']);
+export const needs_display_copy = (format) => !!format && !GPUI_CAN_PAINT.has(format);
+
 /** @param {import('./paths.js').DataDirs} dirs */
 export function create_media(dirs) {
 	return {
@@ -16,7 +21,7 @@ export function create_media(dirs) {
 		 * @param {string | Uint8Array} src a path or PNG bytes
 		 * @param {number} id
 		 * @param {{ ext?: string }} [opts]
-		 * @returns {Promise<{ file_path: string, width: number, height: number, format: string }>}
+		 * @returns {Promise<{ file_path: string, width: number, height: number, format: string, display_path: string | null }>}
 		 */
 		async import_image(src, id, { ext } = {}) {
 			const bytes = typeof src === 'string' ? await Bun.file(src).bytes() : src;
@@ -24,7 +29,15 @@ export function create_media(dirs) {
 			const extension = EXT_BY_FORMAT[format] ?? ext ?? (typeof src === 'string' ? extname(src).slice(1) : 'png') ?? 'png';
 			const file = file_path(dirs, id, extension || 'png');
 			await Bun.write(file, bytes);
-			return { file_path: file, width, height, format };
+			const display_path = needs_display_copy(format) ? await this.make_display(file, id) : null;
+			return { file_path: file, width, height, format, display_path };
+		},
+
+		/** A WebP the window can paint, at most 2048 px on a side. */
+		async make_display(file, id) {
+			const path = file_path(dirs, `${id}.display`, 'webp');
+			await new Bun.Image(file).resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 88 }).write(path);
+			return path;
 		},
 
 		/**

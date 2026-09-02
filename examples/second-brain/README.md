@@ -32,7 +32,11 @@ to run.
   text query finds images by their content.
 - **Hybrid search**: semantic (cosine over the chunk embeddings), keyword (SQLite FTS5 with
   `bm25()`) and CLIP image hits, fused with reciprocal rank fusion. Each result shows which
-  signals found it. Every item also gets a "Related" list from its stored vectors.
+  signals found it — an image the picture itself matched carries a "visual match" badge — with
+  the query terms highlighted in a window around the first match. `kind:note`, `kind:link`,
+  `kind:image` and `kind:audio` narrow a query or, alone, list a kind; the search box completes
+  them as you type (arrows choose, Tab completes, Enter searches). A pasted URL finds its item.
+  Every item also gets a "Related" list from its stored vectors.
 - **Ask**: retrieval-augmented chat over the corpus with any OpenAI-compatible endpoint (Ollama,
   LM Studio, OpenAI, OpenRouter). Answers stream in as markdown; `[n]` citations become chips that
   open the item. A vision model, when configured, describes images on import.
@@ -123,6 +127,8 @@ All optional, all `GPUIX_BRAIN_*`:
 | system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
 | decoding audio | a hand-written WAV parser (`lib/wav.js`); anything else through ffmpeg when installed |
 | readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.js`) that scores candidate containers |
+| AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) writes a WebP display copy next to the original |
+| search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
 
 ## About client-side routers
 

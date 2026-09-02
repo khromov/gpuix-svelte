@@ -103,6 +103,7 @@
 				<Button label="Edit" icon="edit" small onclick={start_edit} testid="edit" />
 				{#if item.kind === 'link' && item.source_url}
 					<Button label="Open" icon="external" small onclick={() => open_url(item.source_url)} />
+					<Button label="Re-read page" icon="refresh" small disabled={busy} onclick={() => { get_app().rescrape(id); toast('Reading the page again'); }} />
 				{/if}
 				{#if item.kind === 'audio' && item.file_path}
 					<Button label={playback.id === item.id ? 'Stop' : 'Play'} icon={playback.id === item.id ? 'stop' : 'play'} small onclick={() => toggle_play(item)} />
@@ -160,7 +161,7 @@
 				</div>
 
 				{#if item.kind === 'image' && item.file_path}
-					<img src={item.file_path} objectFit="contain" class="hero {mode}" />
+					<img src={item.meta.display_path ?? item.file_path} objectFit="contain" class="hero {mode}" />
 				{/if}
 				{#if item.kind === 'link' && item.thumb_path}
 					<img src={item.thumb_path} objectFit="cover" class="og {mode}" />
@@ -177,7 +178,13 @@
 					<div class="body"><Markdown source={body_view} /></div>
 				{:else if !busy}
 					<div class="placeholder {mode}">
-						{item.kind === 'image' ? 'No description yet. Configure a vision model in Settings to describe images, or edit to add your own notes.' : 'Nothing here yet.'}
+						{#if item.kind === 'image'}
+							{vision
+								? 'No description yet — press Describe with LLM above.'
+								: 'Indexed for visual search: a text search finds this image by what is in it. A written description needs a vision model — set Base URL, Model and Vision model in Settings and images are described automatically — or press Edit to add your own notes.'}
+						{:else}
+							Nothing here yet.
+						{/if}
 					</div>
 				{/if}
 

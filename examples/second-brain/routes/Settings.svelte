@@ -136,7 +136,7 @@
 			{/each}
 			<div class="row">
 				<div class="hint {mode}">
-					Worker: {data.ml.worker}{data.ml.memory ? ` · ${format_bytes(data.ml.memory.rss)}` : ''} · App: {format_bytes(data.memory)}. Whisper and image models unload after five idle minutes.
+					Worker: {data.ml.worker}{data.ml.memory ? ` · ${format_bytes(data.ml.memory.rss)}` : ''} · App: {format_bytes(data.memory)}. Whisper and image models unload after fifteen idle minutes and reload on demand.
 				</div>
 				<div class="grow"></div>
 				<Button label="Restart worker" icon="refresh" small onclick={() => app.ml.restart?.().catch((err) => toast(err.message, 'error'))} />

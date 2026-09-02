@@ -112,6 +112,32 @@ await click_text('Substrate');
 await settle();
 check('brand click goes home', route.path, '/');
 
+// Typing `k` into the search box offers `kind:`; picking a kind completes and searches.
+const search_input = find((n) => n.type === 'input');
+native.focusElement(search_input.id);
+native.flush();
+for (const e of native.drainEvents()) dispatch(e);
+dispatch({ elementId: search_input.id, eventType: 'focus' });
+dispatch({ elementId: search_input.id, eventType: 'change', value: 'k' });
+await settle();
+check('typing k suggests kind:', ui.suggest?.items.map((i) => i.label).join(','), 'kind:');
+check('suggestion painted', painted().includes('filter by kind — note, link, image or audio'));
+await click_text('kind:');
+await settle();
+check('picking kind: suggests the kinds', ui.suggest?.items.map((i) => i.label).join(','), 'kind:note,kind:link,kind:image,kind:audio');
+await click_text('kind:image');
+await settle(250);
+await settle();
+check('completion searches by kind', route.path === '/search' && route.query.q, 'kind:image');
+check('kind listing paints the image', painted().includes('Tic-tac-toe icon'));
+dispatch({ elementId: search_input.id, eventType: 'keyDown', key: 'escape', modifiers: {} });
+await settle();
+check('escape clears the search box', route.path, '/search');
+dispatch({ elementId: root_node.id, eventType: 'keyDown', key: 'escape', modifiers: {} });
+await settle();
+await settle();
+check('escape from the root leaves search', route.path, '/');
+
 await click_text('Buy compost for the raised beds');
 await settle();
 await settle();

@@ -6,7 +6,8 @@
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
 	import { data, get_app } from '../lib/data.svelte.js';
-	import { push } from '../lib/router.svelte.js';
+	import { parse_query } from '../lib/rank.js';
+	import { push, replace } from '../lib/router.svelte.js';
 	import { resolved } from '../lib/theme.svelte.js';
 
 	let { query } = $props();
@@ -18,12 +19,24 @@
 		{ value: 'image', label: 'Images' },
 		{ value: 'audio', label: 'Audio' }
 	];
+	const KIND_WORD = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
 	const mode = $derived(resolved());
 	const q = $derived((query?.q ?? '').trim());
+	const parsed = $derived(parse_query(q));
 	let filter = $state('all');
-	let result = $state({ hits: [], degraded: [] });
+	// A kind: in the query is the filter; the segmented control mirrors it.
+	const active = $derived(parsed.kinds ? (parsed.kinds.length === 1 ? parsed.kinds[0] : 'all') : filter);
+	let result = $state({ hits: [], degraded: [], terms: [], kinds: null, text: '' });
 	let loading = $state(false);
 	let generation = 0;
+
+	function choose(value) {
+		if (parsed.kinds) {
+			const text = value === 'all' ? parsed.text : `${parsed.text} kind:${KIND_WORD[value]}`.trim();
+			replace(`/search?q=${encodeURIComponent(text)}`);
+		}
+		filter = value;
+	}
 
 	$effect(() => {
 		const text = q;
@@ -34,7 +47,7 @@
 		void data.counts.total;
 		const gen = ++generation;
 		if (!text) {
-			result = { hits: [], degraded: [] };
+			result = { hits: [], degraded: [], terms: [], kinds: null, text: '' };
 			return;
 		}
 		loading = true;
@@ -49,14 +62,22 @@
 				if (gen === generation) loading = false;
 			});
 	});
+
+	const summary = $derived.by(() => {
+		if (!q) return '';
+		const n = result.hits.length;
+		const what = result.text ? ` for “${result.text}”` : '';
+		const kinds = result.kinds ? ` in ${result.kinds.map((k) => `${KIND_WORD[k]}s`).join(', ')}` : '';
+		return `${n} result${n === 1 ? '' : 's'}${what}${kinds}`;
+	});
 </script>
 
 <div class="route">
 	<div class="head">
-		<Segmented options={FILTERS} value={filter} onchange={(v) => (filter = v)} small />
+		<Segmented options={FILTERS} value={active} onchange={choose} small />
 		<div class="grow"></div>
 		{#if loading}<Spinner size={12} />{/if}
-		<div class="summary {mode}">{q ? `${result.hits.length} result${result.hits.length === 1 ? '' : 's'} for “${q}”` : ''}</div>
+		<div class="summary {mode}">{summary}</div>
 	</div>
 	{#if result.degraded.includes('vector')}
 		<div class="notice {mode}">
@@ -64,14 +85,24 @@
 			<div>Semantic search is not ready yet — showing keyword matches only.</div>
 		</div>
 	{/if}
+	{#if parsed.unknown.length}
+		<div class="notice {mode}">
+			<Icon name="alert" size={13} tone="text" />
+			<div>Unknown kind “{parsed.unknown[0]}” — try kind:note, kind:link, kind:image or kind:audio.</div>
+		</div>
+	{/if}
 	<Scroller pad="0 20px 20px 20px" gap={8} testid="results">
 		{#if !q}
-			<EmptyState icon="search" title="Search your brain" body="Meaning, keywords and image content are searched together." />
+			<EmptyState
+				icon="search"
+				title="Search your brain"
+				body="Meaning, keywords and image content are searched together. Narrow with kind:note, kind:link, kind:image or kind:audio — alone or with words."
+			/>
 		{:else if !loading && result.hits.length === 0}
 			<EmptyState icon="search" title="No matches" body="Try different words — or add what you were looking for." />
 		{:else}
 			{#each result.hits as hit (hit.item.id)}
-				<ItemCard item={hit.item} snippet={hit.snippet} signals={hit.signals} onopen={() => push(`/item/${hit.item.id}`)} />
+				<ItemCard item={hit.item} snippet={hit.snippet} signals={hit.signals} terms={result.terms} onopen={() => push(`/item/${hit.item.id}`)} />
 			{/each}
 		{/if}
 	</Scroller>

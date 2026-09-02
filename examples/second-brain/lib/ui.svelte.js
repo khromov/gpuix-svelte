@@ -10,6 +10,9 @@ export const ui = $state({
 	modal: null,
 	/** @type {Array<{ id: number, text: string, kind: 'info' | 'error' | 'success' }>} */
 	toasts: [],
+	/** Completions under the search box, painted from the root so the page cannot cover them. */
+	/** @type {{ items: Array<{ label: string, hint: string, apply: () => void }>, active: number, left: number, top: number, width: number } | null} */
+	suggest: null,
 	tick: 0
 });
 

@@ -325,8 +325,11 @@ the two stay in sync. Unknown events are dropped silently.
 - `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
   `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
   example.
-- `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion` as props; other attributes
-  are dropped for built-ins and forwarded for custom element types.
+- `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight` as props;
+  other attributes are dropped for built-ins and forwarded for custom element types.
+  `highlight={{ query } | { ranges: [[start, end], …], color, radius }}` paints GPUI's native
+  search highlight behind the matching text (character offsets into the element's text) and
+  fires `onhighlight` with `e.matchCount`; Substrate's search results use it.
 - `bind:` is refused by the compiler under `customRenderer`. To get hold of an element use
   `{@attach (node) => ...}` (or `use:`); the node is the renderer's shadow node, and `node.nativeId`
   is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()` (`[x, y, w, h]`,

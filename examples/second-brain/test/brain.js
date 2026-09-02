@@ -18,9 +18,9 @@ import { chunk_markdown } from '../lib/chunk.js';
 import { normalize_base_url, parse_sse } from '../lib/llm.js';
 import { MlClient } from '../lib/ml-client.js';
 import { MlStub } from '../lib/ml-stub.js';
-import { chunk_body, fts_query, rrf } from '../lib/rank.js';
+import { chunk_body, fts_query, match_ranges, parse_query, query_terms, rrf, snippet_around } from '../lib/rank.js';
 import { init_recorder } from '../lib/recorder.js';
-import { decode_entities, extract, normalize_url } from '../lib/scrape.js';
+import { decode_entities, extract, normalize_url, pick_title } from '../lib/scrape.js';
 import { VectorIndex, from_blob, to_blob } from '../lib/vectors.js';
 import { decode_wav, encode_wav, wav_header } from '../lib/wav.js';
 
@@ -172,6 +172,25 @@ function check(label, actual, expected = true) {
 	check('fts_query empty', fts_query('  '), null);
 	check('chunk_body strips heading path', chunk_body('Title › Section\n\nBody here', 'Title'), 'Body here');
 
+	check('parse_query strips kind:', JSON.stringify(parse_query('compost kind:note')), '{"text":"compost","kinds":["text"],"unknown":[]}');
+	check('parse_query several kinds and aliases', parse_query('kind:links,img is:voice foo').kinds.join(','), 'link,image,audio');
+	check('parse_query unknown kind reported', parse_query('kind:bogus x').unknown.join(','), 'bogus');
+	check('parse_query kind only', JSON.stringify(parse_query('kind:image')), '{"text":"","kinds":["image"],"unknown":[]}');
+
+	const terms = query_terms('Compost "worms"*');
+	check('query_terms longest first, no fts syntax', terms.join(','), 'compost,worms');
+	const long = `${'filler '.repeat(80)}the compost heap needs turning ${'more '.repeat(80)}`;
+	const around = snippet_around(long, terms, 120);
+	check('snippet windows around the first term', around.includes('compost heap') && around.startsWith('…') && around.endsWith('…'));
+	check('snippet is null without a match', snippet_around('nothing here', terms), null);
+	check('match_ranges finds every occurrence', JSON.stringify(match_ranges('Compost, worms, compost.', terms)), '[[0,7],[9,14],[16,23]]');
+
+	const site = { siteName: 'Newsonaut', hostname: 'newsonaut.com' };
+	check('pick_title: headline beats a site-wide <title>', pick_title({ og: '', tag: 'Newsonaut: Turning inner space into outer space', headline: 'Hang on to your Firefox!', ...site }), 'Hang on to your Firefox!');
+	check('pick_title: og:title wins', pick_title({ og: 'Real title', tag: 'Real title | Newsonaut', headline: 'Something', ...site }), 'Real title');
+	check('pick_title: site suffix stripped', pick_title({ og: '', tag: 'Real title | Newsonaut', headline: 'Real title', ...site }), 'Real title');
+	check('pick_title: og equal to site name is ignored', pick_title({ og: 'Newsonaut', tag: 'Post about soil | Newsonaut', headline: undefined, ...site }), 'Post about soil');
+
 	const md = `# Title\n\nIntro para. Second sentence here.\n\n## Section\n\n${'word '.repeat(1200)}\n\n\`\`\`js\nconst a = 1;\n\nconst b = 2;\n\`\`\`\n\nTail.`;
 	const chunks = chunk_markdown(md);
 	check('chunks respect max words', chunks.every((c) => c.words <= 500));
@@ -240,7 +259,13 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('search reports both signals', r.hits[0]?.signals.sort().join('+'), 'fts+vector');
 	check('nothing degraded with the stub', r.degraded.length, 0);
 	check('kind filter excludes', (await app.search('compost', { kinds: ['link'] })).hits.some((h) => h.item.id === note.id), false);
+	check('kind: in the query filters', (await app.search('compost kind:link')).hits.some((h) => h.item.id === note.id), false);
+	check('kind: alone lists that kind', (await app.search('kind:image')).hits.map((h) => h.item.id).join(','), String(image.id));
+	check('kind: outranks the option', (await app.search('compost kind:note', { kinds: ['link'] })).hits[0]?.item.id, note.id);
 	check('image search by name (stub hashes the query)', (await app.search('3.png', { kinds: ['image'] })).hits[0]?.item.id, image.id);
+	ml.status.clip.state = 'unloaded';
+	check('an unloaded model is still asked while the worker is up', (await app.search('3.png', { kinds: ['image'] })).hits[0]?.signals.join(','), 'clip');
+	ml.status.clip.state = 'ready';
 
 	app.update_note(note.id, { body: 'Turn the compost weekly. Snails hate copper tape.' });
 	await app.ingest.idle();
