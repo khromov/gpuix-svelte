@@ -6,7 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 import { Parser } from 'acorn';
-import { compile } from 'svelte/compiler';
+import { compile, compileModule } from 'svelte/compiler';
 import { parse_css_text } from './style.js';
 
 /**
@@ -37,7 +37,10 @@ function bust_child_specifiers(code, query) {
 	function scan(node) {
 		// A computed `import(expr)` has no literal to rewrite, and never had one.
 		if (SPECIFIER_NODES.has(node.type) && node.source?.type === 'Literal') {
-			if (String(node.source.value).endsWith('.svelte')) closing_quotes.push(node.source.end - 1);
+			const value = String(node.source.value);
+			// A bare specifier can't carry a query (Node refuses `pkg/x.svelte?v=1`), and a
+			// package component is not what is being edited anyway.
+			if (value.endsWith('.svelte') && /^(\.|\/|file:)/.test(value)) closing_quotes.push(node.source.end - 1);
 		}
 
 		for (const key in node) {
@@ -114,12 +117,14 @@ function extract_rules(css, source, path) {
 			if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
 			else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
 		}
-		const style = parse_css_text(declarations.join('; '));
+		const css = declarations.join('; ');
+		// A `var()` only resolves at runtime, so a block that reads one ships as text.
+		const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
 
 		for (const complex of node.prelude.children) {
 			const selector = compile_selector(complex);
 			if (selector === null) refuse(source.slice(complex.start, complex.end));
-			else rules.push({ ...selector, style });
+			else rules.push({ ...selector, ...body });
 		}
 	}
 
@@ -164,4 +169,22 @@ export function compile_svelte(path, query) {
 	// Propagate the cache-buster to child components, or a reload would
 	// re-instantiate the root against stale children.
 	return query ? bust_child_specifiers(code, query) : code;
+}
+
+/**
+ * A `.svelte.js` module has runes but no template, so it needs neither the renderer
+ * import nor a cache-buster: it is loaded once and shared, which is what lets its
+ * state outlive a hot remount.
+ *
+ * @param {string} path absolute path to a `.svelte.js` file
+ * @returns {string} compiled JS
+ */
+export function compile_module(path) {
+	const { js, warnings } = compileModule(readFileSync(path, 'utf8'), { filename: path, generate: 'client' });
+
+	for (const warning of warnings) {
+		console.warn(`[gpuix-svelte] ${path}: ${warning.message}`);
+	}
+
+	return js.code;
 }

@@ -5,16 +5,8 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import { parse_css_text } from '../src/style.js';
-import renderer, { set_native, create_root, commit } from '../src/renderer.js';
-
-let failures = 0;
-
-function check(label, actual, expected) {
-	const ok = JSON.stringify(actual) === JSON.stringify(expected);
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`);
-}
+import { renderer, parse_css_text, build_style, set_native, create_root, commit } from 'gpuix-svelte';
+import { check, finish } from 'gpuix-svelte/test';
 
 check('padding expands to four longhands', parse_css_text('padding: 12px 24px'), {
 	paddingTop: 12,
@@ -65,6 +57,14 @@ check('keywords, percents and colors stay strings', parse_css_text('width: 50%; 
 	backgroundColor: '#1e1e2e'
 });
 check('negative lengths survive', parse_css_text('margin-top: -4px'), { marginTop: -4 });
+// GPUI reads longhands over the shorthand, so the later shorthand has to clear them.
+check('a later shorthand clears the earlier longhands', parse_css_text('padding: 12px 24px; padding: 20px'), { padding: 20 });
+check(
+	'across rules and inline style too',
+	build_style({ style: 'gap: 3px' }, [{ pseudo: null, style: parse_css_text('padding: 12px 24px; gap: 1px 2px') }, { pseudo: null, style: { padding: 20 } }]),
+	{ padding: 20, gap: 3 }
+);
+check('while a later longhand still refines the shorthand', parse_css_text('padding: 20px; padding-top: 4px'), { padding: 20, paddingTop: 4 });
 
 console.log('\n-- the next lines should each warn once --');
 check('unsupported unit is dropped, not shipped', parse_css_text('font-size: 1rem'), {});
@@ -111,11 +111,7 @@ try {
 check('commit survives a shorthand-heavy style', threw && threw.message, null);
 
 native.flush();
-const bounds = native.getElementBounds(label.nativeId);
-check('padding actually applied (x, y)', bounds && bounds.slice(0, 2).map(Math.round), [24, 12]);
+const box_bounds = native.getElementBounds(label.nativeId);
+check('padding actually applied (x, y)', box_bounds && box_bounds.slice(0, 2).map(Math.round), [24, 12]);
 
-if (failures > 0) {
-	console.error(`\n${failures} failure(s)`);
-	process.exit(1);
-}
-console.log('\nstyle ok');
+finish('style');

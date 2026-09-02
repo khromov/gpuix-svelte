@@ -5,7 +5,7 @@
  */
 
 import { plugin } from 'bun';
-import { compile_svelte } from './compile.js';
+import { compile_module, compile_svelte } from './compile.js';
 
 export { RENDERER_MODULE } from './compile.js';
 
@@ -18,9 +18,14 @@ export function load_svelte(args) {
 	return { contents: compile_svelte(path, query), loader: 'js' };
 }
 
+export function load_module(args) {
+	return { contents: compile_module(args.path.replace(/\?.*$/, '')), loader: 'js' };
+}
+
 plugin({
 	name: 'gpuix-svelte',
 	setup(build) {
+		build.onLoad({ filter: /\.svelte\.js(\?.*)?$/ }, load_module);
 		build.onLoad({ filter: /\.svelte(\?.*)?$/ }, load_svelte);
 	}
 });

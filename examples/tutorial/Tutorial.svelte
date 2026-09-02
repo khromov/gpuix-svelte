@@ -1,10 +1,10 @@
 <script>
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
-	import { get_native } from 'gpuix-svelte';
+	import { blur, on_window_key } from 'gpuix-svelte';
 	import { CHAPTERS, STEPS as RAW_STEPS } from './steps.js';
 	import { THEME } from './theme.js';
-	import Scroller from './Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import CodePanel from './CodePanel.svelte';
 	import Diagram from './Diagram.svelte';
 	import Quiz from './Quiz.svelte';
@@ -52,18 +52,20 @@
 	const CHAPTER_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#cba6f7'];
 	const BUTTON = 'padding: 8px 16px; border-radius: 6px; background-color: #313244; color: #cdd6f4; font-size: 13px';
 
-	let root = null;
-
 	function go(to) {
 		index = Math.max(0, Math.min(STEPS.length - 1, to));
-		// The <input> on the native-elements step takes focus on mousedown and nothing gives it back.
-		if (root?.nativeId) get_native()?.focusElement(root.nativeId);
+		// The <input> on the native-elements step keeps focus across steps otherwise.
+		blur();
 	}
 
+	// Window-level, so no element has to hold focus; a focused <input> keeps its arrows.
 	function onkey(e) {
+		if (e.editing) return;
 		if (e.key === 'left' || e.key === 'ArrowLeft') go(index - 1);
 		else if (e.key === 'right' || e.key === 'ArrowRight') go(index + 1);
 	}
+
+	$effect(() => on_window_key('keydown', onkey));
 
 	function dot_color(s, i) {
 		if (i === index) return '#89b4fa';
@@ -82,13 +84,7 @@
 	}
 </script>
 
-<div
-	{@attach (node) => (root = node)}
-	autofocus
-	tabindex="0"
-	onkeydown={onkey}
-	style="display: flex; flex-direction: column; width: 100%; height: 100%; background-color: #11111b"
->
+<div style="display: flex; flex-direction: column; width: 100%; height: 100%; background-color: #11111b">
 	<div
 		style="display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 12px 16px;
 		       background-color: #1e1e2e; user-select: none"
@@ -114,7 +110,7 @@
 
 	<div style="display: flex; flex-direction: row; flex-grow: 1; min-height: 0; gap: 12px; padding: 12px">
 		{#key step.id}
-			<Scroller testid="left-panel">
+			<Scroller gap={12} testid="left-panel">
 				<div style="color: #cdd6f4; font-size: 22px; font-weight: bold">{step.title}</div>
 				<markdown source={step.prose} theme={THEME} onlinkclick={(e) => open(e.value)}></markdown>
 				{#if step.diagram}
@@ -123,7 +119,7 @@
 				<Quiz {...step.quiz} picked={answers[step.id] ?? null} onpick={(i) => (answers[step.id] = i)} />
 			</Scroller>
 
-			<Scroller scroll={!step.previewFill} grow={1.25} testid="right-panel">
+			<Scroller scroll={!step.previewFill} grow={1.25} gap={12} testid="right-panel">
 				{#each step.code as c (c.label)}
 					<CodePanel {...c} theme={THEME} />
 				{/each}

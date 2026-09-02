@@ -63,12 +63,14 @@ export const STEPS = [
 					'npm install github:khromov/gpuix-svelte',
 					'npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511',
 					'',
-					'# Node: both --conditions flags and the --import are required',
+					'npx gpuix-svelte app.js          # Node',
+					'npx gpuix-svelte --bun app.js    # Bun',
+					'',
+					'# which is short for (both --conditions flags and the loader are required)',
 					`node ${CONDITIONS} \\`,
 					'     --import gpuix-svelte/register app.js',
-					'',
-					'# Bun: the loader comes from bunfig.toml instead',
-					`bun ${CONDITIONS} app.js`
+					`bun ${CONDITIONS} \\`,
+					'     --preload gpuix-svelte/plugin app.js'
 				].join('\n')
 			},
 			{ label: 'bunfig.toml', language: 'toml', source: 'preload = ["gpuix-svelte/plugin"]' },
@@ -78,8 +80,8 @@ export const STEPS = [
 				source: JSON.stringify(
 					{
 						scripts: {
-							start: `node ${CONDITIONS} --import gpuix-svelte/register app.js`,
-							'bun:start': `bun ${CONDITIONS} app.js`
+							start: 'gpuix-svelte app.js',
+							'bun:start': 'gpuix-svelte --bun app.js'
 						}
 					},
 					null,
@@ -333,7 +335,7 @@ export const STEPS = [
 					label: 'div  onclick  background-color',
 					children: [
 						{ label: '"Save"' },
-						{ label: 'div  badge  pointer-events: none', note: 'the click falls through to the button' }
+						{ label: 'div  hitbox="self"  →  badge', note: 'the renderer shields the badge; the click falls through to the button' }
 					]
 				}
 			}
@@ -349,7 +351,7 @@ export const STEPS = [
 			],
 			answer: 1,
 			explanation:
-				'An element that paints a background, a border, or is positioned blocks hits behind it. Give decorative children pointer-events: none.'
+				'An element that paints a background, a border, or is positioned blocks hits behind it. Put hitbox="self" on the clickable element (or give decorative children pointer-events: none yourself).'
 		}
 	},
 	{
@@ -483,44 +485,20 @@ export const STEPS = [
 				label: 'test/counter.js — a complete headless test',
 				language: 'javascript',
 				source: [
-					"import { TestGpuixRenderer } from '@gpuix/native';",
-					"import { mount, flushSync } from 'svelte';",
-					"import { renderer, set_native, create_root, commit, dispatch } from 'gpuix-svelte';",
+					"import { mount_headless, click_test_id, all_text, check, finish } from 'gpuix-svelte/test';",
 					"import Counter from '../examples/tutorial/samples/Counter.svelte';",
 					'',
-					'const native = new TestGpuixRenderer(400, 300);',
-					'set_native(native);',
+					'// set_native(new TestGpuixRenderer(400, 300)), create_root(), a comment',
+					'// anchor, mount(), and a first settle() — flushSync → commit → native.flush',
+					'mount_headless(Counter, { width: 400, height: 300 });',
 					'',
-					'const root = create_root();',
-					"const anchor = renderer.createComment('');",
-					'renderer.insert(root, anchor, null);',
-					'mount(Counter, { renderer, target: root, anchor, props: {} });',
+					"// GPUI's own hit testing: getElementBounds → simulateClick → drainEvents → dispatch → settle",
+					"click_test_id('plus');",
 					'',
-					'const settle = () => {',
-					'\tflushSync();',
-					'\tcommit();',
-					'\tnative.flush();',
-					'};',
-					'settle();',
+					"check('the click reached the counter', all_text().join('\\n').includes('doubled: 2'));",
 					'',
-					'function by_test_id(id, node = JSON.parse(native.getTreeJson())) {',
-					'\tif (node.testId === id) return node;',
-					'\tfor (const child of node.children ?? []) {',
-					'\t\tconst hit = by_test_id(id, child);',
-					'\t\tif (hit) return hit;',
-					'\t}',
-					'\treturn null;',
-					'}',
-					'',
-					"const [x, y, w, h] = native.getElementBounds(by_test_id('plus').id);",
-					'native.simulateClick(x + w / 2, y + h / 2);',
-					'for (const event of native.drainEvents()) dispatch(event);',
-					'settle();',
-					'',
-					"if (!native.getAllText().join('\\n').includes('doubled: 2')) {",
-					"\tconsole.error('FAIL: the click did not reach the counter');",
-					'\tprocess.exit(1);',
-					'}'
+					'// prints the verdict and exits 1 on any failed check',
+					"finish('counter');"
 				].join('\n')
 			}
 		],

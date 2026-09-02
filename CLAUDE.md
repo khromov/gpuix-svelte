@@ -11,10 +11,13 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 
 ## Commands
 
-Everything goes through the package scripts. They embed
-`node --conditions custom-renderer --conditions development --import ./src/register.js`. The
-conditions are **mandatory** — without them `svelte` resolves to its server build and `mount()`
-does not exist — and `--import` installs the `.svelte` loader.
+Everything goes through the package scripts, and those go through `bin/gpuix-svelte.js`
+(`node bin/gpuix-svelte.js [--bun] [runtime flags] <entry> [args]`, published as the `gpuix-svelte`
+bin). It runs `node --conditions custom-renderer --conditions development --import ./src/register.js
+<entry>` — the conditions are **mandatory**, without them `svelte` resolves to its server build and
+`mount()` does not exist, and `--import` installs the `.svelte` loader — or, under `--bun` / when
+invoked by Bun, `bun` with the same conditions and `--preload ./src/plugin.js`. Flags before the
+entry are forwarded to the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
 ```bash
 npm install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
@@ -37,12 +40,34 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
                            # examples/tutorial/content/*.md, the registry is steps.js, samples/
                            # hot-reload; GPUIX_TUTORIAL_STEP=7 starts at step 7. The only user
                            # of GPUI's <code>/<markdown> elements. `bun run tutorial` runs it on
-                           # Bun: scripts/run-example.js picks the runtime from --bun or
-                           # npm_config_user_agent (Bun's script runner executes `node ...` on
-                           # real Node otherwise). NOT part of `npm run demo`
+                           # Bun: the bin picks the runtime from --bun or npm_config_user_agent
+                           # (Bun's script runner executes `node ...` on real Node otherwise).
+                           # NOT part of `npm run demo`
+npm run brain              # Substrate, the "second brain" example (examples/second-brain): notes, links
+                           # (scraped with HTMLRewriter), images, voice memos; hybrid search
+                           # (nomic embeddings + FTS5 + CLIP, fused with RRF); RAG chat over any
+                           # OpenAI-compatible endpoint; light/dark. BUN ONLY (bun:sqlite,
+                           # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
+                           # is the same script. Models run in a child process (ml/worker.js).
+                           # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
+                           # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
+                           # _RECORDER=0, _FFMPEG, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
+npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
+                           # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
+                           # in that nested package so the root and CI stay lean
+npm run brain:doctor       # feasibility spike: loads all three models under Bun and runs one
+                           # inference each; first run downloads ~380 MB into .data/models
+npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/compile-brain.js (macOS
+                           # only). transformers.js can't be compiled into a Bun binary
+                           # (huggingface/transformers.js#1672), so the worker ships as source with
+                           # its node_modules in Contents/Resources and the app runs it on its own
+                           # embedded Bun (BUN_BE_BUN=1). Data goes to ~/Library/Application
+                           # Support/Substrate. CODESIGN_IDENTITY / NOTARY_PROFILE as for compile.
+npm run brain:import-hn    # pours the Hacker News front page into the real brain (scrape smoke test)
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
-                           # test:teardown, test:lifecycle, test:compile, test:css
+                           # test:teardown, test:lifecycle, test:compile, test:css, test:module,
+                           # test:vars, test:scroller, test:hitbox, test:window-keys, test:portal
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -51,6 +76,17 @@ npm run test:teardown      # single test — removal marks dirty, blank text dem
 npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
+npm run test:module        # single test — a .svelte.js runes module compiles and is one shared instance
+npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in one batch
+npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}
+npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
+npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
+npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
+npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.js
+                           # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
+                           # pipeline with a stub worker, real IPC client vs a fake worker incl. a crash)
+                           # and test/smoke.js (headless mount; capture, open, Esc, delete via real hit
+                           # testing). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
@@ -60,19 +96,31 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
-running the same entry point through Bun, which takes the loader from `bunfig.toml` rather than
-`--import`. Deps come from `npm install` either way. Adding a script means adding both halves.
+running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`), which takes the
+loader as a `--preload` rather than an `--import`; `bunfig.toml` carries the same preload for
+ad-hoc `bun file.js` runs. Deps come from `npm install` either way. Adding a script means adding
+both halves — except the Bun-only ones (`compile`, `brain:*` other than `brain`), whose `bun:`
+twin is an alias.
 
-To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
-GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
-through `dispatch()`. Calling `dispatch()` directly injects events at an element and *bypasses* hit
-testing, so it can pass while the real window fails. The headless viewport width follows
-`new TestGpuixRenderer(width, height)`, but its height caps at 538 logical px — elements laid
-out below that can't be hit (shift the layout up inside an absolute wrapper to reach them).
+Headless tests go through `gpuix-svelte/test` (`src/test.js`): `mount_headless(Component, { props,
+width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
+`tree()` over `getTreeJson()` (nodes carry `testId` and `events`), and `click_text` /
+`click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)`, which run GPUI's real hit
+testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`; `drain()` alone is the
+last two). Prefer those over calling `dispatch()` directly, which injects an event at an element
+and *bypasses* hit testing, so it can pass while the real window fails — the renderer's own tests
+do it only where the batching itself is under test. The headless viewport width follows
+`mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px — elements laid
+out below that can't be hit (`click` throws; shift the layout up inside an absolute wrapper to reach
+them) — and Windows ignores the request and opens a 1024×749 viewport, so never assert against the
+size you asked for; read `native.getWindowSize()` (`test/portal.js` does).
+`src/window.js` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
+renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
 
-Tests are plain scripts that assert and `process.exit(1)` — no test runner.
-Adding one means adding a `test:*` script and chaining it into `test`. CI (`.github/workflows/test.yml`)
-runs `npm test` and `npm run bun:test` as two macOS jobs.
+Tests are plain scripts: `check(label, actual, expected)` and `finish(name)` from the same module,
+exit 1 on any failure — no test runner. Adding one means adding a `test:*` script and chaining it
+into `test`. CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two macOS
+jobs.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -152,7 +200,27 @@ renderer.js  shadow tree → GPUI projection   ├─ style.js / events.js are i
 compile.js   .svelte → JS, runtime-agnostic  ─┘
   register.js  Node loader (module.registerHooks)   ─ the default
   plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.js
+  test.js      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
+  window.js    title / activate / blur / focus helpers  ─ no-ops headlessly
+  components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
+
+`src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
+`import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
+`Scroller` (props `gap`, `pad`, `grow`, `scroll`, `follow`, `testid`) is the scroll column with a
+drawn thumb that the tutorial, the styling playground and Substrate all use — GPUI paints no
+scrollbar and captures no pointer, so it measures `getElementBounds`/`getScrollOffset` on a timer
+and drags on a panel-sized overlay. Its colours are `var(--scroller-thumb, …)` /
+`var(--scroller-thumb-hover, …)`, so a palette sets them and the fallbacks are the Catppuccin
+greys. `Portal` is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
+renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
+teardown walk, anchors and `{#if}` blocks are untouched) and only the **native** node hangs off
+the root — appended after the subtree it sits in has attached (`pending_portals`), so it paints
+last, and later portals over earlier ones. `first_native_after` skips portal nodes, since they
+are not in their shadow parent's native child list, and `commit()` destroys any portal that is no
+longer `live`, because its ancestor's `destroyElement` never reaches it. Substrate's `Modal`
+renders through it from whichever component needs a dialog (no `ui.confirm()` promise store), and
+so do its toasts and search completions.
 
 **`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
@@ -171,13 +239,24 @@ emitted weakest first (tags under classes, then source order), and the renderer'
 `class_rules()` picks the ones whose classes the element carries on every `class` change, so
 `class:` directives and dynamic class strings restyle for free. `build_style` then lays the
 inline `style` on top; `:hover` rules become GPUI's native `hover` object with the `hover=`
-attribute winning.
+attribute winning. A block that reads a `var(--name[, fallback])` is emitted as `css` text
+instead of a parsed `style`, because the map it resolves against lives at runtime: `style.js`
+substitutes on every `parse_css_text` (inline `style=` included), memoises each such rule per
+`set_css_vars()` generation, and the renderer flags nodes whose style read a variable so
+`set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch. An
+undefined variable without a fallback drops that declaration with a one-time warning. Merging
+also honours shorthands: a later `padding: 20px` clears the longhands an earlier
+`padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
-be installed before the entry module resolves — Node via `--import ./src/register.js` in every
-`node` script, Bun via `bunfig.toml`'s `preload`. Tests rely on that registration rather than
-importing a loader themselves.
+be installed before the entry module resolves — Node via `--import ./src/register.js`, Bun via
+`--preload ./src/plugin.js` (or `bunfig.toml`'s `preload`), both supplied by `bin/gpuix-svelte.js`.
+Tests rely on that registration rather than importing a loader themselves. Both also compile `.svelte.js` runes modules through
+`compile_module()` (`compileModule` from `svelte/compiler`, no renderer option). Those are
+deliberately **not** cache-busted: a module is one instance per process, so state kept in one
+survives a hot remount (that is how Substrate keeps its route and theme), and editing one needs a
+restart.
 
 **`renderer.js`** is where the real work is. Svelte's renderer contract is DOM-shaped (fragments,
 comments, sibling walking); GPUI's tree is flat, id-based and knows only `div`/`text` plus a few
@@ -214,7 +293,10 @@ directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates tha
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
 `acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
 splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
-comment is left alone and the rest of the output stays byte-identical. The re-import goes through a `file://` URL, since
+comment is left alone and the rest of the output stays byte-identical. Only relative, absolute and
+`file:` specifiers are busted: Node refuses a bare one with a query
+(`gpuix-svelte/components/Scroller.svelte?v=2` is `ERR_PACKAGE_PATH_NOT_EXPORTED`), and a
+package component is not what is being edited. The re-import goes through a `file://` URL, since
 a bare Windows path parses as a URL scheme.
 
 **`style.js`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
@@ -272,12 +354,36 @@ the two stay in sync. Unknown events are dropped silently.
   time with a warning. `flex: 1`, `border: 1px solid ...`, unitless `line-height` and
   `display: none` have the same problems in a class rule as inline (see the styling playground).
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
-  `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
+  `virtual-list`, ...); anything else degrades to `div` with a one-time warning. `<img src>` is a
+  filesystem path or a `data:` URL, never http. `<svg source>` inherits **no** `color` natively,
+  so the renderer copies the nearest ancestor's (from its class rules or inline style) onto any
+  `<svg>` without one and re-copies it whenever that ancestor restyles; a parent's `:hover` colour
+  does not reach it, since hover is native. Substrate's `Icon.svelte` still sets tones explicitly.
+- Prefer `<style>` blocks to inline `style="..."`: shape and colour as class rules, colours as
+  `var(--token)` with the palette handed to `set_css_vars({ token: '#fff' })` once from the root
+  (Substrate does it in an `$effect` over its `LIGHT`/`DARK` objects — a theme switch is one
+  call), `style:` only for measured values. Shared reactive state goes in `.svelte.js` modules
+  (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
-  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
-- **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a
+  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus. For
+  shortcuts use `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s
+  `onKeyDown`/`onKeyUp` options are the same thing kept across remounts) — it fires whatever has
+  focus, so no root `div` needs to hold it, and `e.editing` says a text field has focus and is
+  getting the same key. The renderer tracks that itself by always listening for `focus`/`blur`
+  on `<input>`/`<textarea>`; the window emits them (programmatic `focusElement` and `blur()`
+  included) but the headless renderer never does, which is what `gpuix-svelte/test`'s
+  `focus()`/`unfocus()` stand in for. `blur()` from the package hands focus back from a field;
+  `focus_element(node)` focuses one.
+- **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
+  the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
+  listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child with a
   `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
-  give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
+  put `hitbox="self"` on the clickable element and the renderer ships `pointer-events: none` for
+  every descendant that has no listener of its own, is not an `<input>`/`<textarea>`/other
+  input-taking native type, is not focusable (`tabindex`/`autofocus`) and does not scroll;
+  `<img>` and `<svg>` are covered, a nested button keeps its hitbox (and shields its own
+  decoration), and adding or removing a listener later restyles that element. An explicit
+  `pointer-events` on the descendant wins. GPUI also doesn't capture the pointer on
   mousedown: for drags, put `mousemove`/`mouseup` on the surfaces the cursor may cross (or show a
   window-sized `position: absolute` overlay for the drag's duration, as the styling playground's
   scrollbar does) and treat a move with `pressedButton == null` as the release (see the sliders in
@@ -287,8 +393,16 @@ the two stay in sync. Unknown events are dropped silently.
 - `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
   `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
   example.
-- `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion` as props; other attributes
-  are dropped for built-ins and forwarded for custom element types.
+- Paint order is document order, so anything that must sit on top (a modal, a toast, a popover)
+  goes inside `<Portal>` from `gpuix-svelte/components/Portal.svelte`, rendered from wherever
+  it is needed; its children position against the window. The native `<anchored>` element is
+  the popover primitive when the content should sit beside a trigger instead (README lists its
+  props); its child sizes to content, so it is no use for a scrim.
+- `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight` as props;
+  other attributes are dropped for built-ins and forwarded for custom element types.
+  `highlight={{ query } | { ranges: [[start, end], …], color, radius }}` paints GPUI's native
+  search highlight behind the matching text (character offsets into the element's text) and
+  fires `onhighlight` with `e.matchCount`; Substrate's search results use it.
 - `bind:` is refused by the compiler under `customRenderer`. To get hold of an element use
   `{@attach (node) => ...}` (or `use:`); the node is the renderer's shadow node, and `node.nativeId`
   is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()` (`[x, y, w, h]`,

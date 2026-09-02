@@ -3,38 +3,19 @@
  * which is the one place the projection can silently produce the wrong native order.
  */
 
-import { TestGpuixRenderer } from '@gpuix/native';
-import { mount, flushSync } from 'svelte';
-import renderer, { set_native, create_root, commit } from '../src/renderer.js';
-
-const native = new TestGpuixRenderer();
-set_native(native);
-
-const root = create_root();
-const anchor = renderer.createComment('');
-renderer.insert(root, anchor, null);
+import { mount_headless, settle, all_text, check, finish } from 'gpuix-svelte/test';
 
 const Reorder = (await import('./Reorder.svelte')).default;
-const component = mount(Reorder, { renderer, target: root, anchor, props: {} });
-flushSync();
-commit();
-native.flush();
-
-let failures = 0;
-
-function check(label, expected) {
-	flushSync();
-	commit();
-	native.flush();
-	const actual = native.getAllText();
-	const ok = JSON.stringify(actual) === JSON.stringify(expected);
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`);
-}
+const { component } = mount_headless(Reorder);
 
 const around = (items) => ['head', 'IF', ...items.map(String), 'tail'];
 
-check('initial', around([1, 2, 3, 4, 5]));
+function order(label, expected) {
+	settle();
+	check(label, all_text(), expected);
+}
+
+order('initial', around([1, 2, 3, 4, 5]));
 
 const cases = [
 	[5, 4, 3, 2, 1],
@@ -52,19 +33,18 @@ const cases = [
 
 for (const next of cases) {
 	component.set(next);
-	check(`set ${JSON.stringify(next)}`, around(next));
+	order(`set ${JSON.stringify(next)}`, around(next));
 }
 
 // the {#if} sits between "head" and the each-block: toggling it must not
 // disturb the surrounding native order
 component.toggle(false);
-check('hide {#if}', ['head', '2', '4', 'tail']);
+order('hide {#if}', ['head', '2', '4', 'tail']);
 
 component.set([1, 2, 3]);
-check('reorder while {#if} hidden', ['head', '1', '2', '3', 'tail']);
+order('reorder while {#if} hidden', ['head', '1', '2', '3', 'tail']);
 
 component.toggle(true);
-check('show {#if} again', ['head', 'IF', '1', '2', '3', 'tail']);
+order('show {#if} again', ['head', 'IF', '1', '2', '3', 'tail']);
 
-console.log(failures === 0 ? '\nall reorder cases passed' : `\n${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+finish('reorder');

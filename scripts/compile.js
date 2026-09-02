@@ -72,7 +72,7 @@ const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
 `;
 
 // Imported after the guard: a static import would hoist `bun` above it.
-const { load_svelte } = await import('../src/plugin.js');
+const { load_module, load_svelte } = await import('../src/plugin.js');
 
 // `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
 // no plugin silently becomes a file asset, so count what actually went through it.
@@ -80,6 +80,7 @@ let components = 0;
 const svelte_plugin = {
 	name: 'gpuix-svelte',
 	setup(build) {
+		build.onLoad({ filter: /\.svelte\.js$/ }, load_module);
 		build.onLoad({ filter: /\.svelte$/ }, (args) => {
 			components++;
 			return load_svelte(args);

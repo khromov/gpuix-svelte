@@ -1,0 +1,9 @@
+{
+	"name": "substrate-ml",
+	"private": true,
+	"description": "ML dependencies for examples/second-brain, kept out of the root package: transformers.js drags in ~150 MB of onnxruntime and sharp prebuilds.",
+	"type": "module",
+	"dependencies": {
+		"@huggingface/transformers": "^4.2.0"
+	}
+}

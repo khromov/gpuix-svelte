@@ -16,7 +16,8 @@ import renderer, {
 	is_dirty,
 	dispatch,
 	set_auto_commit,
-	queue_destroy
+	queue_destroy,
+	on_window_key
 } from './renderer.js';
 
 /**
@@ -28,7 +29,7 @@ const FRAME_MS = 8;
 const SLOT = Symbol.for('gpuix.svelte.host');
 
 function host() {
-	return (globalThis[SLOT] ??= { native: null, root: null, component: null, loop: null });
+	return (globalThis[SLOT] ??= { native: null, root: null, component: null, loop: null, keys: [] });
 }
 
 /**
@@ -96,10 +97,12 @@ export function start_frame_loop(native) {
 /**
  * @param {any} Component a compiled `.svelte` component
  * @param {{ title?: string, width?: number, height?: number, props?: Record<string, any>,
- *           rootStyle?: Record<string, any>, onEvent?: (e: any) => void }} [options]
+ *           rootStyle?: Record<string, any>, onEvent?: (e: any) => void,
+ *           onKeyDown?: (e: any) => void, onKeyUp?: (e: any) => void }} [options]
+ *   `onKeyDown`/`onKeyUp` are `on_window_key` handlers kept across remounts.
  */
 export function render(Component, options = {}) {
-	const { props = {}, rootStyle, onEvent, ...window_options } = options;
+	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, ...window_options } = options;
 	const slot = host();
 	const remount = slot.component != null;
 
@@ -139,6 +142,11 @@ export function render(Component, options = {}) {
 	}
 
 	set_native(slot.native);
+
+	for (const off of slot.keys) off();
+	slot.keys = [];
+	if (onKeyDown) slot.keys.push(on_window_key('keydown', onKeyDown));
+	if (onKeyUp) slot.keys.push(on_window_key('keyup', onKeyUp));
 
 	const root = create_root(rootStyle);
 	// Queued after `setRoot`, so the tree is never rootless mid-batch — on
@@ -194,8 +202,20 @@ export async function render_hot(entry, options = {}) {
 	render(await load(), options);
 
 	let timer = null;
+	const stale = new Set();
 	watch(dirname(path), { recursive: true }, (_event, file) => {
-		if (!file || !file.endsWith('.svelte')) return;
+		if (!file) return;
+
+		// JS modules (`.svelte.js` state included) load once per process, which is what
+		// lets their state outlive a remount — so an edit there needs a restart, not a reload.
+		if (file.endsWith('.js') && !file.includes('node_modules')) {
+			if (!stale.has(file)) {
+				stale.add(file);
+				console.warn(`[gpuix-svelte] ${file} changed — modules load once per process, restart to pick it up`);
+			}
+			return;
+		}
+		if (!file.endsWith('.svelte')) return;
 
 		// Editors write in bursts; coalesce them.
 		clearTimeout(timer);
