@@ -69,6 +69,23 @@ const BOX = {
 	inset: ['top', 'right', 'bottom', 'left']
 };
 
+/**
+ * GPUI reads a longhand over its shorthand whatever the order, so a later
+ * `padding: 20px` has to clear the longhands an earlier `padding: 12px 24px` left.
+ */
+const SUPERSEDES = { ...BOX, gap: ['rowGap', 'columnGap'] };
+
+function put(out, key, value) {
+	const longhands = SUPERSEDES[key];
+	if (longhands) for (const l of longhands) delete out[l];
+	out[key] = value;
+}
+
+function merge(target, source) {
+	for (const key in source) put(target, key, source[key]);
+	return target;
+}
+
 // The CSS 1-4 value rules; corners happen to fill in the same order as sides.
 const FILL = [
 	[0, 0, 0, 0],
@@ -78,6 +95,72 @@ const FILL = [
 ];
 
 const warned = new Set();
+
+/** `var(--name)` values, set from JS; every rule or inline style that reads one re-resolves on change. */
+const css_vars = new Map();
+let vars_generation = 0;
+let vars_read = false;
+const warned_vars = new Set();
+
+/** @param {Record<string, string | number | null>} vars keys with or without the `--` */
+export function define_css_vars(vars) {
+	for (const [key, value] of Object.entries(vars)) {
+		const name = key.startsWith('--') ? key.slice(2) : key;
+		if (value == null) css_vars.delete(name);
+		else css_vars.set(name, String(value));
+	}
+	vars_generation++;
+}
+
+/** Whether the last `build_style` read a variable, so the renderer knows what to restyle. */
+export const used_css_vars = () => vars_read;
+
+/**
+ * Replaces each `var(--name[, fallback])` in a value. Null means a variable was
+ * undefined with no fallback, and the declaration has to be dropped.
+ */
+function substitute_vars(value) {
+	let out = '';
+	let at = 0;
+
+	for (;;) {
+		const start = value.indexOf('var(', at);
+		if (start === -1) return out + value.slice(at);
+
+		// Balanced parens, since a fallback may be `rgba(...)`.
+		let depth = 0;
+		let end = -1;
+		for (let i = start + 3; i < value.length; i++) {
+			if (value[i] === '(') depth++;
+			else if (value[i] === ')' && --depth === 0) {
+				end = i;
+				break;
+			}
+		}
+		if (end === -1) return out + value.slice(at);
+
+		const inner = value.slice(start + 4, end);
+		const comma = inner.indexOf(',');
+		const name = (comma === -1 ? inner : inner.slice(0, comma)).trim().replace(/^--/, '');
+		vars_read = true;
+
+		let resolved = css_vars.get(name);
+		if (resolved === undefined) {
+			if (comma === -1) {
+				if (!warned_vars.has(name)) {
+					warned_vars.add(name);
+					console.warn(`[gpuix-svelte] \`var(--${name})\` is not defined — set it with set_css_vars() or give it a fallback`);
+				}
+				return null;
+			}
+			resolved = substitute_vars(inner.slice(comma + 1).trim());
+			if (resolved === null) return null;
+		}
+
+		out += value.slice(at, start) + resolved;
+		at = end + 1;
+	}
+}
 
 function camel(key) {
 	return key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -116,7 +199,7 @@ function assign(out, key, value) {
 		return;
 	}
 
-	out[key] = coerced;
+	put(out, key, coerced);
 }
 
 function expand(out, key, value) {
@@ -150,13 +233,28 @@ export function parse_css_text(css) {
 		if (colon === -1) continue;
 
 		const key = camel(decl.slice(0, colon).trim());
-		const value = decl.slice(colon + 1).trim();
-		if (key === '' || value === '') continue;
+		const raw = decl.slice(colon + 1).trim();
+		if (key === '' || raw === '') continue;
+
+		const value = raw.includes('var(') ? substitute_vars(raw) : raw;
+		if (value === null) continue;
 
 		if (!expand(out, key, value)) assign(out, key, value);
 	}
 
 	return out;
+}
+
+/** A rule that reads a variable ships as CSS text and is parsed here, once per change. */
+function rule_style(rule) {
+	if (rule.css === undefined) return rule.style;
+
+	if (rule.generation !== vars_generation) {
+		rule.generation = vars_generation;
+		rule.resolved = parse_css_text(rule.css);
+	}
+	vars_read = true;
+	return rule.resolved;
 }
 
 /**
@@ -165,24 +263,26 @@ export function parse_css_text(css) {
  * attributes (or as `:hover`/`:active` rules) and get folded back in here.
  *
  * @param {Record<string, any>} attrs raw attribute strings off the shadow node
- * @param {{ pseudo: string | null, style: Record<string, any> }[]} [rules] the
+ * @param {{ pseudo: string | null, style?: Record<string, any>, css?: string }[]} [rules] the
  *   element's matching `<style>` rules, weakest first
  */
 export function build_style(attrs, rules = []) {
+	vars_read = false;
 	const style = {};
 	let hover = null;
 	let active = null;
 
 	for (const rule of rules) {
-		if (rule.pseudo === 'hover') hover = Object.assign(hover ?? {}, rule.style);
-		else if (rule.pseudo === 'active') active = Object.assign(active ?? {}, rule.style);
-		else Object.assign(style, rule.style);
+		const declared = rule_style(rule);
+		if (rule.pseudo === 'hover') hover = merge(hover ?? {}, declared);
+		else if (rule.pseudo === 'active') active = merge(active ?? {}, declared);
+		else merge(style, declared);
 	}
 
 	// Inline wins over a class, as in CSS.
-	Object.assign(style, parse_css_text(attrs.style));
-	if (hover || attrs.hover) style.hover = Object.assign(hover ?? {}, parse_css_text(attrs.hover));
-	if (active || attrs.active) style.active = Object.assign(active ?? {}, parse_css_text(attrs.active));
+	merge(style, parse_css_text(attrs.style));
+	if (hover || attrs.hover) style.hover = merge(hover ?? {}, parse_css_text(attrs.hover));
+	if (active || attrs.active) style.active = merge(active ?? {}, parse_css_text(attrs.active));
 
 	return style;
 }

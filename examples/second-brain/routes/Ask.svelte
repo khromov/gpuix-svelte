@@ -6,9 +6,7 @@
 	import { chat, clear, send, stop } from '../lib/chat.svelte.js';
 	import { data } from '../lib/data.svelte.js';
 	import { push } from '../lib/router.svelte.js';
-	import { resolved } from '../lib/theme.svelte.js';
 
-	const mode = $derived(resolved());
 	const configured = $derived(data.capabilities?.llm?.ok ?? false);
 	let focused = $state(false);
 </script>
@@ -33,15 +31,15 @@
 		{/if}
 	</Scroller>
 
-	<div class="composer {mode}">
-		<div class="input-wrap {mode}" class:focused>
+	<div class="composer">
+		<div class="input-wrap" class:focused>
 			<textarea
 				value={chat.draft}
 				minRows={1}
 				maxRows={6}
 				placeholder={configured ? 'Ask something… Enter sends, Shift+Enter for a new line' : 'Configure an LLM in Settings to ask questions'}
 				readOnly={!configured}
-				class="input {mode}"
+				class="input"
 				onchange={(e) => (chat.draft = e.value)}
 				onsubmit={(e) => send(e.value)}
 				onfocus={() => (focused = true)}
@@ -62,15 +60,8 @@
 
 <style>
 	.route { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
-	.composer { display: flex; flex-direction: row; align-items: end; gap: 8px; padding: 12px 24px 16px 24px; border-top-width: 1px; }
-	.composer.light { border-color: #e2d8c4; }
-	.composer.dark { border-color: #2b2621; }
-	.input-wrap { flex-grow: 1; min-width: 0; padding: 8px 12px; border-radius: 10px; border-width: 1px; }
-	.input-wrap.light { background-color: #fbf7ef; border-color: #e2d8c4; }
-	.input-wrap.focused.light { background-color: #ffffff; border-color: #5f7a4a; }
-	.input-wrap.dark { background-color: #231f1b; border-color: #36302a; }
-	.input-wrap.focused.dark { border-color: #8fae74; }
-	.input { font-size: 14px; line-height: 21px; }
-	.input.light { color: #2a251f; }
-	.input.dark { color: #ece3d3; }
+	.composer { display: flex; flex-direction: row; align-items: end; gap: 8px; padding: 12px 24px 16px 24px; border-top-width: 1px; border-color: var(--divider); }
+	.input-wrap { flex-grow: 1; min-width: 0; padding: 8px 12px; border-radius: 10px; border-width: 1px; background-color: var(--surface); border-color: var(--border); }
+	.input-wrap.focused { background-color: var(--focusSurface); border-color: var(--accent); }
+	.input { font-size: 14px; line-height: 21px; color: var(--ink); }
 </style>

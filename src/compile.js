@@ -114,12 +114,14 @@ function extract_rules(css, source, path) {
 			if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
 			else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
 		}
-		const style = parse_css_text(declarations.join('; '));
+		const css = declarations.join('; ');
+		// A `var()` only resolves at runtime, so a block that reads one ships as text.
+		const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
 
 		for (const complex of node.prelude.children) {
 			const selector = compile_selector(complex);
 			if (selector === null) refuse(source.slice(complex.start, complex.end));
-			else rules.push({ ...selector, style });
+			else rules.push({ ...selector, ...body });
 		}
 	}
 

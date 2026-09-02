@@ -1,10 +1,8 @@
 <script>
 	import { data } from '../lib/data.svelte.js';
 	import { push } from '../lib/router.svelte.js';
-	import { resolved } from '../lib/theme.svelte.js';
 	import Spinner from './Spinner.svelte';
 
-	const mode = $derived(resolved());
 
 	const summary = $derived.by(() => {
 		const ml = data.ml;
@@ -26,35 +24,26 @@
 	});
 </script>
 
-<div class="pill {mode}" onclick={() => push('/settings')}>
+<div class="pill" onclick={() => push('/settings')}>
 	{#if summary.busy}
 		<Spinner size={11} />
 	{:else}
-		<div class="dot {summary.tone} {mode}"></div>
+		<div class="dot {summary.tone}"></div>
 	{/if}
 	<div class="text">{summary.text}</div>
 	{#if data.queue.pending + data.queue.active > 0}
-		<div class="count {mode}">{data.queue.pending + data.queue.active}</div>
+		<div class="count">{data.queue.pending + data.queue.active}</div>
 	{/if}
 </div>
 
 <style>
-	.pill { display: flex; flex-direction: row; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; border-width: 1px; font-size: 11px; line-height: 14px; cursor: pointer; user-select: none; }
-	.pill.light { border-color: #e2d8c4; color: #6b6154; }
-	.pill.light:hover { background-color: rgba(42, 37, 31, 0.05); }
-	.pill.dark { border-color: #36302a; color: #b2a791; }
-	.pill.dark:hover { background-color: rgba(236, 227, 211, 0.06); }
+	.pill { display: flex; flex-direction: row; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; border-width: 1px; font-size: 11px; line-height: 14px; cursor: pointer; user-select: none; border-color: var(--border); color: var(--inkMuted); }
+	.pill:hover { background-color: var(--hover); }
 	.text { pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.dot { width: 8px; height: 8px; border-radius: 4px; pointer-events: none; }
-	.dot.ok.light { background-color: #5f7a4a; }
-	.dot.ok.dark { background-color: #8fae74; }
-	.dot.warn.light { background-color: #b8822b; }
-	.dot.warn.dark { background-color: #d9a34a; }
-	.dot.error.light { background-color: #a9483a; }
-	.dot.error.dark { background-color: #d46f5e; }
-	.dot.muted.light { background-color: #cbbfa6; }
-	.dot.muted.dark { background-color: #4a4237; }
-	.count { padding: 0 6px; border-radius: 999px; font-size: 10px; line-height: 14px; font-weight: 600; pointer-events: none; }
-	.count.light { background-color: #ece4d4; color: #2a251f; }
-	.count.dark { background-color: #36302a; color: #ece3d3; }
+	.dot.ok { background-color: var(--accent); }
+	.dot.warn { background-color: var(--ochre); }
+	.dot.error { background-color: var(--danger); }
+	.dot.muted { background-color: var(--borderStrong); }
+	.count { padding: 0 6px; border-radius: 999px; font-size: 10px; line-height: 14px; font-weight: 600; pointer-events: none; background-color: var(--well); color: var(--ink); }
 </style>

@@ -1,12 +1,10 @@
 <script>
 	import { get_native } from 'gpuix-svelte';
-	import { resolved } from '../lib/theme.svelte.js';
 
 	// GPUI paints no scrollbars, so the panel draws a thumb sized from its painted
 	// bounds and moved by its scroll offset (the tutorial's Scroller, in Substrate's colours).
 	let { children, gap = 8, pad = '0', follow = false, testid = null } = $props();
 
-	const mode = $derived(resolved());
 	let column = null;
 	let content = null;
 	let thumb = $state({ top: 0, height: 0 });
@@ -91,7 +89,7 @@
 
 	<div class="gutter">
 		<div
-			class="thumb {mode}"
+			class="thumb"
 			class:dragging={drag !== null}
 			style:top="{thumb.top}px"
 			style:height="{thumb.height}px"
@@ -109,12 +107,8 @@
 	.column { display: flex; flex-direction: column; height: 100%; padding-right: 10px; overflow-y: scroll; }
 	.content { display: flex; flex-direction: column; }
 	.gutter { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; pointer-events: none; }
-	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; }
-	.thumb.light { background-color: #cbbfa6; }
-	.thumb.light:hover { background-color: #b3a488; }
-	.thumb.dragging.light { background-color: #b3a488; }
-	.thumb.dark { background-color: #4a4237; }
-	.thumb.dark:hover { background-color: #5d5447; }
-	.thumb.dragging.dark { background-color: #5d5447; }
+	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; background-color: var(--thumb); }
+	.thumb:hover { background-color: var(--thumbHover); }
+	.thumb.dragging { background-color: var(--thumbHover); }
 	.overlay { position: absolute; inset: 0; user-select: none; }
 </style>

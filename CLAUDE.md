@@ -213,7 +213,14 @@ emitted weakest first (tags under classes, then source order), and the renderer'
 `class_rules()` picks the ones whose classes the element carries on every `class` change, so
 `class:` directives and dynamic class strings restyle for free. `build_style` then lays the
 inline `style` on top; `:hover` rules become GPUI's native `hover` object with the `hover=`
-attribute winning.
+attribute winning. A block that reads a `var(--name[, fallback])` is emitted as `css` text
+instead of a parsed `style`, because the map it resolves against lives at runtime: `style.js`
+substitutes on every `parse_css_text` (inline `style=` included), memoises each such rule per
+`set_css_vars()` generation, and the renderer flags nodes whose style read a variable so
+`set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch. An
+undefined variable without a fallback drops that declaration with a one-time warning. Merging
+also honours shorthands: a later `padding: 20px` clears the longhands an earlier
+`padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
@@ -322,9 +329,11 @@ the two stay in sync. Unknown events are dropped silently.
   filesystem path or a `data:` URL, never http. `<svg source>` inherits **no** `color` from its
   parent — set one on the element (Substrate's `Icon.svelte` does it with tone classes) or it
   paints a default grey.
-- Prefer `<style>` blocks to inline `style="..."`: shape and colour as class rules, themes as
-  `.light` / `.dark` class variants toggled from state (`class="card {mode}"`), `style:` only for
-  measured values. Shared reactive state goes in `.svelte.js` modules (see above).
+- Prefer `<style>` blocks to inline `style="..."`: shape and colour as class rules, colours as
+  `var(--token)` with the palette handed to `set_css_vars({ token: '#fff' })` once from the root
+  (Substrate does it in an `$effect` over its `LIGHT`/`DARK` objects — a theme switch is one
+  call), `style:` only for measured values. Shared reactive state goes in `.svelte.js` modules
+  (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
   since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are

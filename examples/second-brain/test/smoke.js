@@ -20,6 +20,7 @@ import {
 	wait,
 	drain,
 	find,
+	find_test_id,
 	click_text,
 	click_test_id,
 	press,
@@ -31,6 +32,8 @@ import {
 import { create_app } from '../lib/app.js';
 import { MlStub } from '../lib/ml-stub.js';
 import { route } from '../lib/router.svelte.js';
+import { DARK, LIGHT } from '../lib/theme.js';
+import { set_mode } from '../lib/theme.svelte.js';
 import { ui } from '../lib/ui.svelte.js';
 
 const app = await create_app({ data_dir: mkdtempSync(join(tmpdir(), 'substrate-smoke-')), ml: new MlStub(), seed: true });
@@ -51,6 +54,15 @@ await wait();
 check('brand painted', painted().includes('Substrate'));
 check('seeded note painted', painted().includes('Compost notes'));
 check('sidebar counts painted', painted().includes('Everything'));
+
+// The palette reaches every <style> through set_css_vars, so a mode switch is one restyle.
+const root_bg = () => find_test_id('root').style.backgroundColor;
+check('dark palette applied through css vars', root_bg(), DARK.bg);
+set_mode('light');
+await wait();
+check('switching the mode restyles', root_bg(), LIGHT.bg);
+set_mode('dark');
+await wait();
 
 const textarea = find((n) => n.type === 'textarea');
 check('capture textarea exists', textarea != null);

@@ -1,7 +1,6 @@
 <script>
 	import { get_native } from 'gpuix-svelte';
 	import { push, replace, route } from '../lib/router.svelte.js';
-	import { resolved } from '../lib/theme.svelte.js';
 	import { focus, register, ui } from '../lib/ui.svelte.js';
 	import Icon from './Icon.svelte';
 	import IconButton from './IconButton.svelte';
@@ -12,7 +11,6 @@
 		{ word: 'image', hint: 'only images' },
 		{ word: 'audio', hint: 'only recordings' }
 	];
-	const mode = $derived(resolved());
 	let value = $state(route.query.q ?? '');
 	let focused = $state(false);
 	let node = null;
@@ -118,7 +116,7 @@
 	}
 </script>
 
-<div class="search {mode}" class:focused>
+<div class="search" class:focused>
 	<Icon name="search" size={15} tone="faint" />
 	<input
 		{@attach (n) => {
@@ -127,7 +125,7 @@
 		}}
 		{value}
 		placeholder="Search your brain… (kind:note, kind:link, kind:image, kind:audio)"
-		class="input {mode}"
+		class="input"
 		onchange={(e) => change(e.value)}
 		onsubmit={(e) => submit(e.value)}
 		onfocus={onfocus}
@@ -138,20 +136,13 @@
 	{#if value}
 		<IconButton icon="x" size={22} onclick={clear} />
 	{:else}
-		<div class="hint {mode}">⌘K</div>
+		<div class="hint">⌘K</div>
 	{/if}
 </div>
 
 <style>
-	.search { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; padding: 6px 8px 6px 12px; border-radius: 8px; border-width: 1px; }
-	.search.light { background-color: #fbf7ef; border-color: #e2d8c4; color: #9b9080; }
-	.search.focused.light { border-color: #5f7a4a; background-color: #ffffff; }
-	.search.dark { background-color: #151210; border-color: #36302a; color: #7b7163; }
-	.search.focused.dark { border-color: #8fae74; }
-	.input { flex-grow: 1; min-width: 0; font-size: 13px; line-height: 18px; }
-	.input.light { color: #2a251f; }
-	.input.dark { color: #ece3d3; }
-	.hint { padding: 1px 6px; border-radius: 4px; border-width: 1px; font-size: 10px; line-height: 14px; font-family: Lilex; pointer-events: none; user-select: none; }
-	.hint.light { border-color: #e2d8c4; color: #9b9080; }
-	.hint.dark { border-color: #36302a; color: #7b7163; }
+	.search { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; padding: 6px 8px 6px 12px; border-radius: 8px; border-width: 1px; background-color: var(--surface); border-color: var(--border); color: var(--inkFaint); }
+	.search.focused { border-color: var(--accent); background-color: var(--focusSurface); }
+	.input { flex-grow: 1; min-width: 0; font-size: 13px; line-height: 18px; color: var(--ink); }
+	.hint { padding: 1px 6px; border-radius: 4px; border-width: 1px; font-size: 10px; line-height: 14px; font-family: Lilex; pointer-events: none; user-select: none; border-color: var(--border); color: var(--inkFaint); }
 </style>

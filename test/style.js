@@ -5,7 +5,7 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import { renderer, parse_css_text, set_native, create_root, commit } from 'gpuix-svelte';
+import { renderer, parse_css_text, build_style, set_native, create_root, commit } from 'gpuix-svelte';
 import { check, finish } from 'gpuix-svelte/test';
 
 check('padding expands to four longhands', parse_css_text('padding: 12px 24px'), {
@@ -57,6 +57,14 @@ check('keywords, percents and colors stay strings', parse_css_text('width: 50%; 
 	backgroundColor: '#1e1e2e'
 });
 check('negative lengths survive', parse_css_text('margin-top: -4px'), { marginTop: -4 });
+// GPUI reads longhands over the shorthand, so the later shorthand has to clear them.
+check('a later shorthand clears the earlier longhands', parse_css_text('padding: 12px 24px; padding: 20px'), { padding: 20 });
+check(
+	'across rules and inline style too',
+	build_style({ style: 'gap: 3px' }, [{ pseudo: null, style: parse_css_text('padding: 12px 24px; gap: 1px 2px') }, { pseudo: null, style: { padding: 20 } }]),
+	{ padding: 20, gap: 3 }
+);
+check('while a later longhand still refines the shorthand', parse_css_text('padding: 20px; padding-top: 4px'), { padding: 20, paddingTop: 4 });
 
 console.log('\n-- the next lines should each warn once --');
 check('unsupported unit is dropped, not shipped', parse_css_text('font-size: 1rem'), {});

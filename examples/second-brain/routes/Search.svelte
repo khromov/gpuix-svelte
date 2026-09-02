@@ -8,7 +8,6 @@
 	import { data, get_app } from '../lib/data.svelte.js';
 	import { parse_query } from '../lib/rank.js';
 	import { push, replace } from '../lib/router.svelte.js';
-	import { resolved } from '../lib/theme.svelte.js';
 
 	let { query } = $props();
 
@@ -20,7 +19,6 @@
 		{ value: 'audio', label: 'Audio' }
 	];
 	const KIND_WORD = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
-	const mode = $derived(resolved());
 	const q = $derived((query?.q ?? '').trim());
 	const parsed = $derived(parse_query(q));
 	let filter = $state('all');
@@ -77,16 +75,16 @@
 		<Segmented options={FILTERS} value={active} onchange={choose} small />
 		<div class="grow"></div>
 		{#if loading}<Spinner size={12} />{/if}
-		<div class="summary {mode}">{summary}</div>
+		<div class="summary">{summary}</div>
 	</div>
 	{#if result.degraded.includes('vector')}
-		<div class="notice {mode}">
+		<div class="notice">
 			<Icon name="alert" size={13} tone="text" />
 			<div>Semantic search is not ready yet — showing keyword matches only.</div>
 		</div>
 	{/if}
 	{#if parsed.unknown.length}
-		<div class="notice {mode}">
+		<div class="notice">
 			<Icon name="alert" size={13} tone="text" />
 			<div>Unknown kind “{parsed.unknown[0]}” — try kind:note, kind:link, kind:image or kind:audio.</div>
 		</div>
@@ -112,10 +110,6 @@
 	.route { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
 	.head { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 14px 20px 10px 20px; user-select: none; }
 	.grow { flex-grow: 1; }
-	.summary { font-size: 12px; line-height: 16px; }
-	.summary.light { color: #9b9080; }
-	.summary.dark { color: #7b7163; }
-	.notice { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 0 20px 10px 20px; padding: 8px 12px; border-radius: 8px; font-size: 12px; line-height: 16px; user-select: none; }
-	.notice.light { background-color: #f1e3c6; color: #7a5518; }
-	.notice.dark { background-color: #3a2e1b; color: #d9a34a; }
+	.summary { font-size: 12px; line-height: 16px; color: var(--inkFaint); }
+	.notice { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 0 20px 10px 20px; padding: 8px 12px; border-radius: 8px; font-size: 12px; line-height: 16px; user-select: none; background-color: var(--ochreSoft); color: var(--ochreInk); }
 </style>

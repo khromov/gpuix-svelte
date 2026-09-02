@@ -1,5 +1,5 @@
 <script>
-	import { set_window_title } from 'gpuix-svelte';
+	import { set_css_vars, set_window_title } from 'gpuix-svelte';
 	import { untrack } from 'svelte';
 	import Modal from './components/Modal.svelte';
 	import SearchSuggest from './components/SearchSuggest.svelte';
@@ -8,7 +8,7 @@
 	import TopBar from './components/TopBar.svelte';
 	import { bind_app } from './lib/data.svelte.js';
 	import { back, push, route } from './lib/router.svelte.js';
-	import { bind_theme, resolved, start_system_poll } from './lib/theme.svelte.js';
+	import { bind_theme, start_system_poll, tokens } from './lib/theme.svelte.js';
 	import { close_modal, focus, register, ui } from './lib/ui.svelte.js';
 	import RouteView from './RouteView.svelte';
 
@@ -33,9 +33,9 @@
 		{ path: '*', load: () => import('./routes/NotFound.svelte'), title: 'Not found' }
 	];
 
-	const mode = $derived(resolved());
-
 	$effect(() => start_system_poll());
+	// The palette is the only theme: every `var(--…)` in a <style> below resolves against it.
+	$effect(() => set_css_vars(tokens()));
 	$effect(() => {
 		set_window_title(ui.title === 'Everything' ? 'Substrate' : `Substrate — ${ui.title}`);
 	});
@@ -56,7 +56,7 @@
 	}
 </script>
 
-<div {@attach (node) => register('root', node)} autofocus tabindex="0" onkeydown={onkey} class="root {mode}" testId="root">
+<div {@attach (node) => register('root', node)} autofocus tabindex="0" onkeydown={onkey} class="root" testId="root">
 	<Sidebar />
 	<div class="main">
 		<TopBar />
@@ -70,9 +70,7 @@
 </div>
 
 <style>
-	.root { position: relative; display: flex; flex-direction: row; width: 100%; height: 100%; font-family: IBM Plex Sans; font-size: 13px; line-height: 20px; }
-	.root.light { background-color: #f5efe4; color: #2a251f; selection-color: rgba(95, 122, 74, 0.28); }
-	.root.dark { background-color: #1b1815; color: #ece3d3; selection-color: rgba(143, 174, 116, 0.32); }
+	.root { position: relative; display: flex; flex-direction: row; width: 100%; height: 100%; font-family: IBM Plex Sans; font-size: 13px; line-height: 20px; background-color: var(--bg); color: var(--ink); selection-color: var(--selection); }
 	.main { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; min-height: 0; height: 100%; }
 	.page { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
 </style>

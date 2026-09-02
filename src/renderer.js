@@ -5,7 +5,7 @@
  */
 
 import { createRenderer } from 'svelte/renderer';
-import { build_style } from './style.js';
+import { build_style, define_css_vars, used_css_vars } from './style.js';
 import { to_gpui_event } from './events.js';
 
 /** Anything not listed here degrades to `div`. */
@@ -96,6 +96,8 @@ function node(kind, name, data) {
 		attrs: /** @type {Record<string, any>} */ ({}),
 		listeners: /** @type {Map<string, any[]>} */ (new Map()),
 		nativeId: /** @type {number | null} */ (null),
+		/** its style read a `var()`, so `set_css_vars` has to restyle it */
+		uses_vars: false,
 		/** reachable from the designated GPUI root */
 		live: false,
 		/** currently appended to its native parent */
@@ -189,7 +191,9 @@ function class_rules(el) {
 
 function apply_style(el) {
 	if (el.nativeId === null) return;
-	emit(['setStyle', el.nativeId, build_style(el.attrs, class_rules(el))]);
+	const style = build_style(el.attrs, class_rules(el));
+	el.uses_vars = used_css_vars();
+	emit(['setStyle', el.nativeId, style]);
 }
 
 const prop_name = (key) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
@@ -425,6 +429,19 @@ export default renderer;
 /** Runs at import time, from the call compile.js appends to every component with a `<style>`. */
 export function define_styles(scope, rules) {
 	stylesheets.set(scope, rules);
+}
+
+/**
+ * A theme is one call: every live element whose style read a `var()` is restyled,
+ * and the whole sweep ships in the next batch like any other frame.
+ *
+ * @param {Record<string, string | number | null>} vars `{ surface: '#fff' }` for `var(--surface)`
+ */
+export function set_css_vars(vars) {
+	define_css_vars(vars);
+	for (const n of by_id.values()) {
+		if (n.uses_vars) apply_style(n);
+	}
 }
 
 // Host wiring — used by `render.js`, not by compiled components.

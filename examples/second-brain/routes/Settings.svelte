@@ -9,11 +9,10 @@
 	import { create_llm } from '../lib/llm.js';
 	import { MODEL_IDS } from '../lib/ml-client.js';
 	import { reveal } from '../lib/shell.js';
-	import { resolved, set_mode, theme } from '../lib/theme.svelte.js';
+	import { set_mode, theme } from '../lib/theme.svelte.js';
 	import { confirm, toast } from '../lib/ui.svelte.js';
 
 	const app = get_app();
-	const mode = $derived(resolved());
 	const settings = app.settings;
 
 	let llm = $state({
@@ -86,9 +85,9 @@
 
 <div class="route">
 	<Scroller pad="20px 24px 32px 24px" gap={20}>
-		<div class="section {mode}">
+		<div class="section">
 			<div class="heading">Language model</div>
-			<div class="hint {mode}">Any OpenAI-compatible endpoint. Ollama: http://localhost:11434 · LM Studio: http://localhost:1234 · OpenAI: https://api.openai.com/v1</div>
+			<div class="hint">Any OpenAI-compatible endpoint. Ollama: http://localhost:11434 · LM Studio: http://localhost:1234 · OpenAI: https://api.openai.com/v1</div>
 			<Field label="Base URL" value={llm.baseUrl} placeholder="http://localhost:11434" mono hint={settings.from_env('llm.baseUrl') ? 'set by GPUIX_BRAIN_LLM_URL' : ''} onchange={(v) => save('llm.baseUrl', 'baseUrl', v)} onsubmit={test_connection} />
 			<Field label="API key" value={llm.apiKey} placeholder="optional for local servers" secret hint={settings.from_env('llm.apiKey') ? 'set by GPUIX_BRAIN_LLM_KEY' : 'stored in plain text inside the data directory'} onchange={(v) => save('llm.apiKey', 'apiKey', v)} />
 			<div class="row">
@@ -101,31 +100,31 @@
 			</div>
 		</div>
 
-		<div class="section {mode}">
+		<div class="section">
 			<div class="heading">Appearance</div>
 			<Segmented options={THEMES} value={theme.mode} onchange={set_mode} />
 		</div>
 
-		<div class="section {mode}">
+		<div class="section">
 			<div class="heading">On-device models</div>
-			<div class="hint {mode}">Downloaded once into the data directory (about 400 MB), then run locally through transformers.js in a worker process.</div>
+			<div class="hint">Downloaded once into the data directory (about 400 MB), then run locally through transformers.js in a worker process.</div>
 			{#if data.ml.error}
-				<div class="problem {mode}">{data.ml.error}</div>
+				<div class="problem">{data.ml.error}</div>
 			{/if}
 			{#each MODELS as m (m.key)}
 				{@const status = data.ml[m.key] ?? { state: 'unloaded' }}
-				<div class="model {mode}">
+				<div class="model">
 					<div class="model-text">
 						<div class="model-name">{m.label}</div>
-						<div class="model-note {mode}">{MODEL_IDS[m.key]} · {m.note}</div>
+						<div class="model-note">{MODEL_IDS[m.key]} · {m.note}</div>
 						{#if status.state === 'downloading'}
 							<ProgressBar value={status.progress ?? null} />
 						{/if}
 						{#if status.state === 'error'}
-							<div class="problem {mode}">{status.error}</div>
+							<div class="problem">{status.error}</div>
 						{/if}
 					</div>
-					<div class="model-state {status.state} {mode}">
+					<div class="model-state {status.state}">
 						{#if status.state === 'loading' || status.state === 'downloading'}<Spinner size={11} />{/if}
 						<div>{STATE_LABEL[status.state] ?? status.state}{status.state === 'downloading' && status.progress != null ? ` ${Math.round(status.progress)}%` : ''}</div>
 					</div>
@@ -135,7 +134,7 @@
 				</div>
 			{/each}
 			<div class="row">
-				<div class="hint {mode}">
+				<div class="hint">
 					Worker: {data.ml.worker}{data.ml.memory ? ` · ${format_bytes(data.ml.memory.rss)}` : ''} · App: {format_bytes(data.memory)}. Whisper and image models unload after fifteen idle minutes and reload on demand.
 				</div>
 				<div class="grow"></div>
@@ -143,9 +142,9 @@
 			</div>
 		</div>
 
-		<div class="section {mode}">
+		<div class="section">
 			<div class="heading">Pipeline</div>
-			<div class="hint {mode}">
+			<div class="hint">
 				{#if outstanding > 0}
 					{data.queue.active} in flight · {data.queue.pending} queued · {data.queue.done} done this session{data.queue.failed ? ` · ${data.queue.failed} failed` : ''}
 				{:else if data.queue.done + data.queue.failed > 0}
@@ -156,14 +155,14 @@
 			</div>
 			<ProgressBar value={outstanding > 0 ? pipeline_pct : 100} />
 			{#each in_flight as item (item.id)}
-				<div class="job {mode}">
+				<div class="job">
 					<Spinner size={11} />
 					<div class="job-title">{display_title(item)}</div>
-					<div class="job-step {mode}">{status_text(item)}</div>
+					<div class="job-step">{status_text(item)}</div>
 				</div>
 			{/each}
 			{#if data.stuck > 0}
-				<div class="problem {mode}">
+				<div class="problem">
 					{data.stuck} unfinished item{data.stuck === 1 ? '' : 's'} nobody is working on — left by another process or a crash. They are picked up after ten minutes, or now:
 				</div>
 			{/if}
@@ -173,15 +172,15 @@
 			</div>
 		</div>
 
-		<div class="section {mode}">
+		<div class="section">
 			<div class="heading">Transcription</div>
 			<Field label="Language" value={language} placeholder="auto-detect (or en, sv, de, …)" hint="Whisper base is multilingual; forcing a language helps short clips." onchange={(v) => { language = v; settings.set('stt.language', v.trim()); }} />
 		</div>
 
-		<div class="section {mode}">
+		<div class="section">
 			<div class="heading">Data</div>
-			<div class="hint {mode}">{app.dirs.root}</div>
-			<div class="hint {mode}">{data.counts.total} items · {app.vectors.size} text vectors · {app.images.size} image vectors</div>
+			<div class="hint">{app.dirs.root}</div>
+			<div class="hint">{data.counts.total} items · {app.vectors.size} text vectors · {app.images.size} image vectors</div>
 			<div class="row">
 				<Button label="Reveal in Finder" icon="folder" small onclick={() => reveal(app.dirs.db)} />
 				<Button label="Rebuild index" icon="refresh" small onclick={rebuild} />
@@ -192,38 +191,21 @@
 
 <style>
 	.route { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
-	.section { display: flex; flex-direction: column; gap: 12px; max-width: 720px; padding: 18px 20px; border-radius: 12px; border-width: 1px; }
-	.section.light { background-color: #fbf7ef; border-color: #e2d8c4; }
-	.section.dark { background-color: #231f1b; border-color: #36302a; }
+	.section { display: flex; flex-direction: column; gap: 12px; max-width: 720px; padding: 18px 20px; border-radius: 12px; border-width: 1px; background-color: var(--surface); border-color: var(--border); }
 	.heading { font-size: 15px; line-height: 20px; font-weight: 600; }
-	.hint { font-size: 12px; line-height: 17px; }
-	.hint.light { color: #6b6154; }
-	.hint.dark { color: #b2a791; }
+	.hint { font-size: 12px; line-height: 17px; color: var(--inkMuted); }
 	.row { display: flex; flex-direction: row; align-items: end; gap: 12px; }
 	.grow { flex-grow: 1; }
-	.problem { padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 16px; }
-	.problem.light { background-color: #f3dcd6; color: #a9483a; }
-	.problem.dark { background-color: #3c2521; color: #d46f5e; }
-	.model { display: flex; flex-direction: row; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 8px; border-width: 1px; }
-	.model.light { border-color: #e2d8c4; }
-	.model.dark { border-color: #36302a; }
+	.problem { padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 16px; background-color: var(--dangerSoft); color: var(--danger); }
+	.model { display: flex; flex-direction: row; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 8px; border-width: 1px; border-color: var(--border); }
 	.model-text { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 0; }
 	.model-name { font-size: 13px; line-height: 18px; font-weight: 600; }
-	.model-note { font-size: 11px; line-height: 15px; }
-	.model-note.light { color: #9b9080; }
-	.model-note.dark { color: #7b7163; }
+	.model-note { font-size: 11px; line-height: 15px; color: var(--inkFaint); }
 	.model-state { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; white-space: nowrap; user-select: none; }
-	.model-state.ready.light { color: #5f7a4a; }
-	.model-state.ready.dark { color: #8fae74; }
-	.model-state.error.light { color: #a9483a; }
-	.model-state.error.dark { color: #d46f5e; }
-	.model-state.unloaded.light { color: #9b9080; }
-	.model-state.unloaded.dark { color: #7b7163; }
-	.job { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 16px; }
-	.job.light { background-color: #ece4d4; }
-	.job.dark { background-color: #2b2621; }
+	.model-state.ready { color: var(--accent); }
+	.model-state.error { color: var(--danger); }
+	.model-state.unloaded { color: var(--inkFaint); }
+	.job { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 16px; background-color: var(--well); }
 	.job-title { flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.job-step { white-space: nowrap; }
-	.job-step.light { color: #6b6154; }
-	.job-step.dark { color: #b2a791; }
+	.job-step { white-space: nowrap; color: var(--inkMuted); }
 </style>
