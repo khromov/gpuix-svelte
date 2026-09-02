@@ -1,5 +1,5 @@
-<script>
-	import { ui } from '../lib/ui.svelte.js';
+<script lang="ts">
+	import { ui } from '../lib/ui.svelte.ts';
 
 </script>
 

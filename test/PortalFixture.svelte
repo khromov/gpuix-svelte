@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 
 	let show = $state(true);

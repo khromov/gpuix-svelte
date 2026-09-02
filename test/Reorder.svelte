@@ -1,11 +1,11 @@
-<script>
+<script lang="ts">
 	let items = $state([1, 2, 3, 4, 5]);
 	let show = $state(true);
 
-	export function set(next) {
+	export function set(next: number[]) {
 		items = next;
 	}
-	export function toggle(next) {
+	export function toggle(next: boolean) {
 		show = next;
 	}
 </script>

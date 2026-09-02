@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	const who = 'GPUI';
 </script>
 

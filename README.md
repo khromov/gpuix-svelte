@@ -54,7 +54,7 @@ still come from `npm install` either way; there is one lockfile, and CI runs bot
 
 The one exception is Substrate (`npm run brain`), which is built on Bun's own APIs — `bun:sqlite`,
 `Bun.spawn` IPC, `Bun.Image`, `HTMLRewriter`, `bun:ffi` — and shows what a complete application
-on this renderer looks like: a hand-rolled router, `.svelte.js` state modules that survive hot
+on this renderer looks like: a hand-rolled router, `.svelte.ts` state modules that survive hot
 reloads, light and dark themes as one `set_css_vars()` palette, the package's `Scroller` and
 `Portal`, a background worker process for transformers.js, and OS integrations for everything GPUI
 has no API for.
@@ -116,8 +116,8 @@ npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511    # latest build o
 `svelte` has to be Svelte's unreleased custom-renderer branch; pkg.svelte.dev serves its latest
 build (this repo pins one specific commit under `vendor/` instead, see `CLAUDE.md`).
 
-```js
-// app.js
+```ts
+// app.ts
 import { render_hot } from "gpuix-svelte";
 
 render_hot(new URL("./App.svelte", import.meta.url), {
@@ -130,22 +130,36 @@ render_hot(new URL("./App.svelte", import.meta.url), {
 Run it through the package's bin:
 
 ```bash
-npx gpuix-svelte app.js          # Node
-npx gpuix-svelte --bun app.js    # Bun
+npx gpuix-svelte app.ts          # Node
+npx gpuix-svelte --bun app.ts    # Bun
 ```
 
-Two things have to be true before your entry module resolves, and the bin does both: Svelte must
-be resolved with the `custom-renderer` condition (without it `svelte` is its server build and
-`mount()` doesn't exist), and the `.svelte` loader must be installed. Spelled out, the bin runs
+Three things have to be true before your entry module resolves, and the bin does all of them: Svelte
+must be resolved with the `custom-renderer` condition (without it `svelte` is its server build and
+`mount()` doesn't exist), the `.svelte` loader must be installed, and on Node the package's
+TypeScript sources need [tsx](https://tsx.is) (it ships as a dependency — Node's own type stripping
+refuses to run under `node_modules`). Spelled out, the bin runs
 
 ```bash
-node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.js
-bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin  app.js
+node --conditions custom-renderer --conditions development --import tsx --import gpuix-svelte/register app.ts
+bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
 ```
 
 which you can run by hand instead (on Bun, `preload = ["gpuix-svelte/plugin"]` in a `bunfig.toml`
-replaces the `--preload`). Flags before the entry go to the runtime (`gpuix-svelte
---experimental-ffi app.js`); arguments after it go to your script.
+replaces the `--preload`; `tsx` has to come before `gpuix-svelte/register`, or it falls back to
+off-thread hooks the `.svelte` loader can't chain with, and a bare `--import tsx` only resolves
+where your package manager hoists it — the bin resolves its own copy). Flags before the entry go
+to the runtime (`gpuix-svelte --experimental-ffi app.ts`); arguments after it go to your script.
+Plain JavaScript entries work too; `.ts` is what the examples use.
+
+The package ships TypeScript sources, not declaration files, so to typecheck your own code against
+it `tsc` needs `"allowImportingTsExtensions": true` (which implies `"noEmit": true` — a tsx or
+bundler workflow) and `@types/node`:
+
+```jsonc
+// tsconfig.json
+{ "compilerOptions": { "module": "nodenext", "strict": true, "noEmit": true, "allowImportingTsExtensions": true, "types": ["node"] } }
+```
 
 See [HOWTO.txt](HOWTO.txt) for a few more details and troubleshooting notes.
 
@@ -282,7 +296,7 @@ control, so a palette is one object and a theme switch is one call:
 works on any property, pixel-only ones included, and inside inline `style=` too.
 `var(--name, fallback)` uses the fallback while the variable is unset; without one the declaration
 is dropped with a one-time warning. Keys are accepted with or without the `--`. Substrate
-(`examples/second-brain/lib/theme.js`) is the worked example: one palette object per mode, handed
+(`examples/second-brain/lib/theme.ts`) is the worked example: one palette object per mode, handed
 over from `App.svelte` in an `$effect`.
 
 ## Components
@@ -303,6 +317,15 @@ Props: `gap` and `pad` for the content column, `grow` (its `flex-grow`), `scroll
 without a thumb, `follow` to keep the bottom in view while content grows (a streaming reply), and
 `testid`. Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys
 as fallbacks.
+
+A plain scroll column still lays out and paints every child on every frame, on screen or not, so a
+long list gets slow in proportion to its length. `virtual` renders GPUI's native `<virtual-list>`
+instead: every direct child is one row (wrap each item in a `div` with `width: 100%`, since rows
+size to their content and the list has no `gap`), GPUI builds and paints only the rows near the viewport, `estimate` is the
+height hint for rows it has not measured yet, and `follow` becomes the list's own tail-following.
+The thumb then works in rows rather than pixels, from `getListScrollTop` and the `visibleRange`
+event, and a drag scrolls with `scrollToItem`. Substrate's timeline is the example: 50 cards went
+from ~24 ms to ~1.4 ms per frame.
 
 **`Portal`** — paint order is document order, so a modal, toast or menu had to be the root's last
 child. `<Portal>` renders from wherever the overlay is needed and still paints on top: the renderer
@@ -382,16 +405,16 @@ To get hold of an element use `{@attach (node) => …}` (or `use:`); `node.nativ
 
 ## State that survives hot reload
 
-`render_hot` remounts the root on every `.svelte` save, so component state resets. A `.svelte.js`
+`render_hot` remounts the root on every `.svelte` save, so component state resets. A `.svelte.ts`
 runes module is loaded once per process and never cache-busted, which makes it the place for state
 that should outlive a reload — the current route, the theme, an app object:
 
-```js
-// state.svelte.js
+```ts
+// state.svelte.ts
 export const app = $state({ route: '/', theme: 'system' });
 ```
 
-The flip side: editing a `.svelte.js` (or any `.js`) file needs a restart; `render_hot` prints a
+The flip side: editing a `.svelte.ts` (or any `.ts`) file needs a restart; `render_hot` prints a
 reminder when one changes under the watched directory.
 
 ## Testing headlessly

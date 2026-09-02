@@ -1,7 +1,7 @@
-<script>
-	import { back, can_back } from '../lib/router.svelte.js';
+<script lang="ts">
+	import { back, can_back } from '../lib/router.svelte.ts';
 	import { blur } from 'gpuix-svelte';
-	import { ui } from '../lib/ui.svelte.js';
+	import { ui } from '../lib/ui.svelte.ts';
 	import IconButton from './IconButton.svelte';
 	import SearchBar from './SearchBar.svelte';
 

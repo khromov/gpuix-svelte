@@ -1,6 +1,6 @@
-<script>
+<script lang="ts">
 	import EmptyState from '../components/EmptyState.svelte';
-	import { replace } from '../lib/router.svelte.js';
+	import { replace } from '../lib/router.svelte.ts';
 </script>
 
 <div class="route">

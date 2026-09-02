@@ -1,16 +1,17 @@
-<script>
+<script lang="ts">
 	import Button from '../components/Button.svelte';
 	import Field from '../components/Field.svelte';
 	import ProgressBar from '../components/ProgressBar.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
-	import { data, display_title, format_bytes, get_app, item_by_id, status_text } from '../lib/data.svelte.js';
-	import { create_llm } from '../lib/llm.js';
-	import { MODEL_IDS } from '../lib/ml-client.js';
-	import { reveal } from '../lib/shell.js';
-	import { set_mode, theme } from '../lib/theme.svelte.js';
-	import { toast } from '../lib/ui.svelte.js';
+	import { data, display_title, format_bytes, get_app, item_by_id, status_text } from '../lib/data.svelte.ts';
+	import { create_llm } from '../lib/llm.ts';
+	import { MODEL_IDS, type ModelName } from '../lib/ml-client.ts';
+	import type { SettingKey } from '../lib/settings.ts';
+	import { reveal } from '../lib/shell.ts';
+	import { set_mode, theme } from '../lib/theme.svelte.ts';
+	import { toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
 
 	const app = get_app();
@@ -25,7 +26,7 @@
 	let language = $state(settings.get('stt.language') ?? '');
 	let testing = $state(false);
 
-	const save = (key, prop, value) => {
+	const save = (key: SettingKey, prop: keyof typeof llm, value: string) => {
 		llm[prop] = value;
 		settings.set(key, value.trim());
 	};
@@ -43,7 +44,7 @@
 				result.modelListed ? 'success' : 'info'
 			);
 		} catch (err) {
-			toast(err.message, 'error');
+			toast((err as Error).message, 'error');
 		} finally {
 			testing = false;
 		}
@@ -51,7 +52,7 @@
 
 	let confirming = $state(false);
 
-	function rebuild(ok) {
+	function rebuild(ok: boolean) {
 		confirming = false;
 		if (!ok) return;
 		app.reindex();
@@ -73,7 +74,7 @@
 		toast(n ? `Retrying ${n} failed item${n === 1 ? '' : 's'}` : 'No failed items');
 	}
 
-	const MODELS = [
+	const MODELS: Array<{ key: ModelName; label: string; note: string }> = [
 		{ key: 'embed', label: 'Text embeddings', note: 'semantic search, related items, Ask' },
 		{ key: 'whisper', label: 'Speech to text', note: 'transcribes recordings' },
 		{ key: 'clip', label: 'Image understanding', note: 'finds images by what is in them' }
@@ -83,7 +84,7 @@
 		{ value: 'dark', icon: 'moon', label: 'Dark' },
 		{ value: 'system', icon: 'monitor', label: 'System' }
 	];
-	const STATE_LABEL = { unloaded: 'not loaded', downloading: 'downloading', loading: 'loading', ready: 'ready', error: 'error' };
+	const STATE_LABEL: Record<string, string> = { unloaded: 'not loaded', downloading: 'downloading', loading: 'loading', ready: 'ready', error: 'error' };
 </script>
 
 <div class="route">

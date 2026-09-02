@@ -1,7 +1,24 @@
-<script>
+<script lang="ts">
+	import type { IconName } from '../lib/icons.ts';
 	import Icon from './Icon.svelte';
 
-	let { icon, onclick = null, active = false, danger = false, disabled = false, size = 28, testid = null } = $props();
+	let {
+		icon,
+		onclick = null,
+		active = false,
+		danger = false,
+		disabled = false,
+		size = 28,
+		testid = null
+	}: {
+		icon: IconName;
+		onclick?: (() => void) | null;
+		active?: boolean;
+		danger?: boolean;
+		disabled?: boolean;
+		size?: number;
+		testid?: string | null;
+	} = $props();
 
 </script>
 

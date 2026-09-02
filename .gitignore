@@ -7,10 +7,10 @@ bun.lock
 # test:coverage working copy of svelte's sample suite
 test/.samples-tmp
 
-# compiled on demand by examples/liquid-glass-ffi/glass.js
+# compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib
 
-# compiled on demand by examples/second-brain/lib/recorder.js
+# compiled on demand by examples/second-brain/lib/recorder.ts
 examples/second-brain/native/.recorder-shim.dylib
 
 # the second-brain example's database, files and model cache

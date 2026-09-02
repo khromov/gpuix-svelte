@@ -1,14 +1,16 @@
-<script>
+<script lang="ts">
 	import { spawn } from 'node:child_process';
+
+	type Story = { id: number; title: string; url?: string; by: string; score: number; time: number; descendants?: number };
 
 	const API = 'https://hacker-news.firebaseio.com/v0';
 	const FEEDS = ['top', 'new', 'best'];
 	const COUNT = 25;
 
 	let feed = $state('top');
-	let stories = $state([]);
+	let stories = $state<Story[]>([]);
 	let loading = $state(true);
-	let error = $state(null);
+	let error = $state<string | null>(null);
 	let generation = 0;
 
 	async function load() {
@@ -16,27 +18,27 @@
 		loading = true;
 		error = null;
 		try {
-			const ids = await (await fetch(`${API}/${feed}stories.json`)).json();
+			const ids: number[] = await (await fetch(`${API}/${feed}stories.json`)).json();
 			const items = await Promise.all(
-				ids.slice(0, COUNT).map(async (id) => (await fetch(`${API}/item/${id}.json`)).json())
+				ids.slice(0, COUNT).map(async (id): Promise<Story | null> => (await fetch(`${API}/item/${id}.json`)).json())
 			);
 			if (gen !== generation) return;
 			stories = items.filter(Boolean);
 		} catch (err) {
 			if (gen !== generation) return;
-			error = err.message;
+			error = (err as Error).message;
 		} finally {
 			if (gen === generation) loading = false;
 		}
 	}
 
-	function setFeed(name) {
+	function setFeed(name: string) {
 		if (feed === name) return;
 		feed = name;
 		load();
 	}
 
-	function open(story) {
+	function open(story: Story) {
 		const url = story.url ?? `https://news.ycombinator.com/item?id=${story.id}`;
 		const cmd =
 			process.platform === 'darwin' ? ['open', url]
@@ -48,15 +50,15 @@
 		child.unref();
 	}
 
-	function domain(story) {
+	function domain(story: Story) {
 		try {
-			return new URL(story.url).hostname.replace(/^www\./, '');
+			return new URL(story.url!).hostname.replace(/^www\./, '');
 		} catch {
 			return 'news.ycombinator.com';
 		}
 	}
 
-	function age(story) {
+	function age(story: Story) {
 		const mins = Math.max(1, Math.round((Date.now() / 1000 - story.time) / 60));
 		if (mins < 60) return `${mins}m ago`;
 		if (mins < 60 * 24) return `${Math.round(mins / 60)}h ago`;

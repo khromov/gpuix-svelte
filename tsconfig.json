@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"lib": ["esnext"],
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"customConditions": ["custom-renderer", "development"],
+		"types": ["node", "bun"],
+		"strict": true,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+		"allowJs": true,
+		"checkJs": true,
+		"skipLibCheck": true
+	},
+	"include": ["types", "src", "bin", "scripts", "test", "examples"],
+	"exclude": ["**/node_modules", "test/.samples-tmp", "examples/second-brain/.data", "vendor", "dist"]
+}

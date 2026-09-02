@@ -1,6 +1,6 @@
 #import <AppKit/AppKit.h>
 
-// Compiled on demand by glass.js.
+// Compiled on demand by glass.ts.
 
 static NSView *glass_view = nil;
 

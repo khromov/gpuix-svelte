@@ -1,11 +1,11 @@
-<script>
+<script lang="ts">
 	import Button from '../components/Button.svelte';
 	import ChatMessage from '../components/ChatMessage.svelte';
 	import EmptyState from '../components/EmptyState.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-	import { chat, clear, send, stop } from '../lib/chat.svelte.js';
-	import { data } from '../lib/data.svelte.js';
-	import { push } from '../lib/router.svelte.js';
+	import { chat, clear, send, stop } from '../lib/chat.svelte.ts';
+	import { data } from '../lib/data.svelte.ts';
+	import { push } from '../lib/router.svelte.ts';
 
 	const configured = $derived(data.capabilities?.llm?.ok ?? false);
 	let focused = $state(false);

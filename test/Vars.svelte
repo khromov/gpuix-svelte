@@ -1,5 +1,5 @@
-<script>
-	let { accent = 'var(--accent)' } = $props();
+<script lang="ts">
+	let { accent = 'var(--accent)' }: { accent?: string } = $props();
 	let big = $state(false);
 </script>
 

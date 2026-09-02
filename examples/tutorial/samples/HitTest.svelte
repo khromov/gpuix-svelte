@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	let broken = $state(0);
 	let fixed = $state(0);
 

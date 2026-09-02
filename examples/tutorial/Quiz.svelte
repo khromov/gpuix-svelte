@@ -1,7 +1,14 @@
-<script>
-	let { question, options, answer, explanation, picked = null, onpick } = $props();
+<script lang="ts">
+	let {
+		question,
+		options,
+		answer,
+		explanation,
+		picked = null,
+		onpick
+	}: { question: string; options: string[]; answer: number; explanation: string; picked?: number | null; onpick: (i: number) => void } = $props();
 
-	function option_style(i) {
+	function option_style(i: number) {
 		if (picked === null) return 'background-color: #313244; border-color: #313244; color: #cdd6f4';
 		if (i === answer) return 'background-color: #a6e3a1; border-color: #a6e3a1; color: #1e1e2e';
 		if (i === picked) return 'background-color: #f38ba8; border-color: #f38ba8; color: #1e1e2e';

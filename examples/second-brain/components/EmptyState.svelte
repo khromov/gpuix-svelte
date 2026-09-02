@@ -1,9 +1,14 @@
-<script>
+<script lang="ts">
+	import type { IconName } from '../lib/icons.ts';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 
-	let { icon = 'leaf', title, body = '', action = null } = $props();
-
+	let {
+		icon = 'leaf',
+		title,
+		body = '',
+		action = null
+	}: { icon?: IconName; title: string; body?: string; action?: { label: string; onclick: () => void } | null } = $props();
 </script>
 
 <div class="empty">

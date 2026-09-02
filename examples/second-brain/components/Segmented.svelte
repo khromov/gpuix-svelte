@@ -1,7 +1,13 @@
-<script>
+<script lang="ts">
+	import type { IconName } from '../lib/icons.ts';
 	import Icon from './Icon.svelte';
 
-	let { options = [], value, onchange, small = false } = $props();
+	let {
+		options = [],
+		value,
+		onchange,
+		small = false
+	}: { options?: Array<{ value: string; label?: string; icon?: IconName }>; value: string; onchange: (value: string) => void; small?: boolean } = $props();
 
 </script>
 

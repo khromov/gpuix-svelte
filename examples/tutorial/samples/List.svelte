@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	const NAMES = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta'];
 	let next = 3;
 	let items = $state([

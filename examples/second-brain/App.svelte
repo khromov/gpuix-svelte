@@ -1,17 +1,18 @@
-<script>
-	import { on_window_key, set_css_vars, set_window_title } from 'gpuix-svelte';
+<script lang="ts">
+	import { on_window_key, set_css_vars, set_window_title, type GpuixEvent } from 'gpuix-svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import { untrack } from 'svelte';
 	import Sidebar from './components/Sidebar.svelte';
 	import Toasts from './components/Toasts.svelte';
 	import TopBar from './components/TopBar.svelte';
-	import { bind_app } from './lib/data.svelte.js';
-	import { back, push, route } from './lib/router.svelte.js';
-	import { bind_theme, start_system_poll, tokens } from './lib/theme.svelte.js';
-	import { focus, ui } from './lib/ui.svelte.js';
+	import type { App } from './lib/app.ts';
+	import { bind_app } from './lib/data.svelte.ts';
+	import { back, push, route, type RouteEntry } from './lib/router.svelte.ts';
+	import { bind_theme, start_system_poll, tokens } from './lib/theme.svelte.ts';
+	import { focus, ui } from './lib/ui.svelte.ts';
 	import RouteView from './RouteView.svelte';
 
-	let { app } = $props();
+	let { app }: { app: App } = $props();
 
 	// Both are idempotent: the state modules outlive a hot remount, the app object too.
 	untrack(() => {
@@ -19,7 +20,7 @@
 		bind_theme(app);
 	});
 
-	const ROUTES = [
+	const ROUTES: RouteEntry[] = [
 		{ path: '/', load: () => import('./routes/Everything.svelte'), title: 'Everything' },
 		{ path: '/notes', load: () => import('./routes/Kind.svelte'), props: { kind: 'text' }, title: 'Notes' },
 		{ path: '/links', load: () => import('./routes/Kind.svelte'), props: { kind: 'link' }, title: 'Links' },
@@ -39,7 +40,7 @@
 		set_window_title(ui.title === 'Everything' ? 'Substrate' : `Substrate — ${ui.title}`);
 	});
 
-	function onkey(e) {
+	function onkey(e: GpuixEvent) {
 		const cmd = e.modifiers?.cmd || e.modifiers?.ctrl;
 		if (cmd && e.key === 'k') return focus('search');
 		if (cmd && e.key === 'n') {

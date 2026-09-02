@@ -13,15 +13,18 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 
 Everything goes through the package scripts, and those go through `bin/gpuix-svelte.js`
 (`node bin/gpuix-svelte.js [--bun] [runtime flags] <entry> [args]`, published as the `gpuix-svelte`
-bin). It runs `node --conditions custom-renderer --conditions development --import ./src/register.js
-<entry>` — the conditions are **mandatory**, without them `svelte` resolves to its server build and
-`mount()` does not exist, and `--import` installs the `.svelte` loader — or, under `--bun` / when
-invoked by Bun, `bun` with the same conditions and `--preload ./src/plugin.js`. Flags before the
-entry are forwarded to the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
+bin). It runs `node --conditions custom-renderer --conditions development --import <tsx>
+--import ./src/register.ts <entry>` — the conditions are **mandatory**, without them `svelte`
+resolves to its server build and `mount()` does not exist; the first `--import` is tsx (resolved
+with `import.meta.resolve`, so it is found from under a consumer's `node_modules`) for the `.ts`
+sources, the second installs the `.svelte` loader — or, under `--bun` / when invoked by Bun, `bun`
+with the same conditions and `--preload ./src/plugin.ts`. Flags before the entry are forwarded to
+the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
 ```bash
 npm install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
-npm run demo               # all four demos at once (via scripts/demo-all.js —
+npm run typecheck          # tsc --noEmit over everything (strict); the first step of `test`
+npm run demo               # all four demos at once (via scripts/demo-all.ts —
                            # cmd.exe has no `&` ... `wait`)
 npm run demo:counter       # counter (hot-reloads on save)
 npm run demo:tictactoe
@@ -29,7 +32,7 @@ npm run demo:hn            # Hacker News reader — live network data, scrolling
 npm run demo:glass         # transparent window, macOS vibrancy (GPUI window blur)
 npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, macOS 26+)
                            # via a clang-compiled ObjC shim + FFI (node:ffi/bun:ffi) in
-                           # examples/liquid-glass-ffi/glass.js; GPUIX_GLASS=0 forces the
+                           # examples/liquid-glass-ffi/glass.ts; GPUIX_GLASS=0 forces the
                            # window-blur fallback; NOT part of `npm run demo`
 npm run demo:styling       # styling playground: three columns of style strings next to what GPUI
                            # made of them (reads like CSS / looks like CSS but is not / GPUI-only);
@@ -37,7 +40,7 @@ npm run demo:styling       # styling playground: three columns of style strings 
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram on the left and highlighted source + the same
                            # component running live on the right, with a quiz. Prose is
-                           # examples/tutorial/content/*.md, the registry is steps.js, samples/
+                           # examples/tutorial/content/*.md, the registry is steps.ts, samples/
                            # hot-reload; GPUIX_TUTORIAL_STEP=7 starts at step 7. The only user
                            # of GPUI's <code>/<markdown> elements. `bun run tutorial` runs it on
                            # Bun: the bin picks the runtime from --bun or npm_config_user_agent
@@ -48,7 +51,7 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # (nomic embeddings + FTS5 + CLIP, fused with RRF); RAG chat over any
                            # OpenAI-compatible endpoint; light/dark. BUN ONLY (bun:sqlite,
                            # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
-                           # is the same script. Models run in a child process (ml/worker.js).
+                           # is the same script. Models run in a child process (ml/worker.ts).
                            # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
                            # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
                            # _RECORDER=0, _FFMPEG, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
@@ -57,7 +60,7 @@ npm run brain:install      # once: `npm install --prefix examples/second-brain/m
                            # in that nested package so the root and CI stay lean
 npm run brain:doctor       # feasibility spike: loads all three models under Bun and runs one
                            # inference each; first run downloads ~380 MB into .data/models
-npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/compile-brain.js (macOS
+npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/compile-brain.ts (macOS
                            # only). transformers.js can't be compiled into a Bun binary
                            # (huggingface/transformers.js#1672), so the worker ships as source with
                            # its node_modules in Contents/Resources and the app runs it on its own
@@ -76,16 +79,16 @@ npm run test:teardown      # single test — removal marks dirty, blank text dem
 npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
-npm run test:module        # single test — a .svelte.js runes module compiles and is one shared instance
+npm run test:module        # single test — a .svelte.ts runes module compiles and is one shared instance
 npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in one batch
-npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}
+npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual
 npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
-npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.js
+npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.ts
                            # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
                            # pipeline with a stub worker, real IPC client vs a fake worker incl. a crash)
-                           # and test/smoke.js (headless mount; capture, open, Esc, delete via real hit
+                           # and test/smoke.ts (headless mount; capture, open, Esc, delete via real hit
                            # testing). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
@@ -97,12 +100,13 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
 running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`), which takes the
-loader as a `--preload` rather than an `--import`; `bunfig.toml` carries the same preload for
-ad-hoc `bun file.js` runs. Deps come from `npm install` either way. Adding a script means adding
-both halves — except the Bun-only ones (`compile`, `brain:*` other than `brain`), whose `bun:`
-twin is an alias.
+loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
+`bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `npm install`
+either way. Adding a script means adding both halves — except the Bun-only ones (`compile`,
+`brain:*` other than `brain`) and `typecheck`, whose `bun:` twin is an alias. Repo-local scripts
+that run on plain `node` (`demo`, `vendor`) take `--import tsx` themselves.
 
-Headless tests go through `gpuix-svelte/test` (`src/test.js`): `mount_headless(Component, { props,
+Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
 `tree()` over `getTreeJson()` (nodes carry `testId` and `events`), and `click_text` /
 `click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)`, which run GPUI's real hit
@@ -113,8 +117,8 @@ do it only where the batching itself is under test. The headless viewport width 
 `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px — elements laid
 out below that can't be hit (`click` throws; shift the layout up inside an absolute wrapper to reach
 them) — and Windows ignores the request and opens a 1024×749 viewport, so never assert against the
-size you asked for; read `native.getWindowSize()` (`test/portal.js` does).
-`src/window.js` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
+size you asked for; read `native.getWindowSize()` (`test/portal.ts` does).
+`src/window.ts` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
 renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
 
 Tests are plain scripts: `check(label, actual, expected)` and `finish(name)` from the same module,
@@ -137,15 +141,15 @@ GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter    # writes a PNG after every m
 ```
 
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls
-`TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.js`.
+`TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.ts`.
 
 ### Standalone binary
 
-`scripts/compile.js` is `Bun.build({ compile })` over `examples/tic-tac-toe/standalone.js`, a
-static-`render()` entry — `render_hot` re-imports from disk and can't live in a binary, so `main.js`
+`scripts/compile.ts` is `Bun.build({ compile })` over `examples/tic-tac-toe/standalone.ts`, a
+static-`render()` entry — `render_hot` re-imports from disk and can't live in a binary, so `main.ts`
 stays the dev entry. The `.svelte` plugin has to be passed explicitly: `Bun.build` never sees the
 `Bun.plugin` registration from `bunfig.toml`, and without one a `.svelte` import silently becomes a
-file asset while the build still succeeds — hence `src/plugin.js` exports its load hook and the
+file asset while the build still succeeds — hence `src/plugin.ts` exports its load hook and the
 script counts the components that went through it. `custom-renderer` is a build-time condition
 there, and `production` only takes effect together with the `process.env.NODE_ENV` define, because
 Bun implies `development` otherwise and esm-env lists it first. `@gpuix/native`'s loader bundles
@@ -161,11 +165,21 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
 
 ## Hard constraints
 
-- **No build step, no TypeScript emit.** Plain ESM JS with JSDoc types; `exports` points straight
-  at `src/*.js`. Keep it that way.
+- **TypeScript sources run as-is; no build step, no emit.** `exports` points straight at
+  `src/*.ts`; Node runs them through tsx (a runtime dependency, injected by the bin — Node's own
+  type stripping refuses files under `node_modules`, so consumers need it), Bun natively.
+  `tsc --noEmit` (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`, explicit `./x.ts`
+  specifiers) gates `npm test`, `npm run bun:test` and CI over src, bin, scripts, test and every
+  example; `types/*.d.ts` hold the ambient shims (`*.svelte` modules, `node:ffi`'s missing names).
+  Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The one `.js` in
+  the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
+  cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `.svelte`
+  script bodies are outside the gate too — the compiler strips their types, svelte-check never
+  runs — so an annotation there is documentation, not a check. Consumers typechecking against
+  the package need `allowImportingTsExtensions` (hence `noEmit`) and `@types/node`, as README says.
 - **Node >= 26.1** (the glass-ffi demo loads its ObjC shim with the experimental `node:ffi`;
   everything else only needs 24's `module.registerHooks`) or **Bun >= 1.4.0**. Both are tested in
-  CI; keep runtime-specific code confined to `register.js` / `plugin.js`.
+  CI; keep runtime-specific code confined to `register.ts` / `plugin.ts`.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
@@ -195,22 +209,29 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
 Three layers, `src/`:
 
 ```
-render.js    window lifecycle + frame loop  ─┐
-renderer.js  shadow tree → GPUI projection   ├─ style.js / events.js are its translation helpers
-compile.js   .svelte → JS, runtime-agnostic  ─┘
-  register.js  Node loader (module.registerHooks)   ─ the default
-  plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.js
-  test.js      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
-  window.js    title / activate / blur / focus helpers  ─ no-ops headlessly
+render.ts    window lifecycle + frame loop  ─┐
+renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
+compile.ts   .svelte → JS, runtime-agnostic  ─┘
+  types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
+  register.ts  Node loader (module.registerHooks)   ─ the default
+  plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
+  test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
+  window.ts    title / activate / blur / focus helpers  ─ no-ops headlessly
   components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
 
 `src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
-`Scroller` (props `gap`, `pad`, `grow`, `scroll`, `follow`, `testid`) is the scroll column with a
-drawn thumb that the tutorial, the styling playground and Substrate all use — GPUI paints no
-scrollbar and captures no pointer, so it measures `getElementBounds`/`getScrollOffset` on a timer
-and drags on a panel-sized overlay. Its colours are `var(--scroller-thumb, …)` /
+`Scroller` (props `gap`, `pad`, `grow`, `scroll`, `follow`, `virtual`, `estimate`, `testid`) is
+the scroll column with a drawn thumb that the tutorial, the styling playground and Substrate all
+use — GPUI paints no scrollbar and captures no pointer, so it measures
+`getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the thumb
+restyle after a wheel event is throttled to one per 50 ms because each one is a full native frame.
+A plain scroll container lays out and paints every child every frame, so `virtual` swaps in GPUI's
+`<virtual-list>` (each direct child a row, which needs `width: 100%`; `estimate` the unmeasured-row height hint; `follow` →
+`followTail`; thumb from `getListScrollTop` and the `visibleRange` event, drag via `scrollToItem`;
+the list host has no tracked bounds, so measure its wrapper). Substrate's timeline and kind lists
+use it. Its colours are `var(--scroller-thumb, …)` /
 `var(--scroller-thumb-hover, …)`, so a palette sets them and the fallbacks are the Catppuccin
 greys. `Portal` is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
 renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
@@ -222,7 +243,7 @@ longer `live`, because its ancestor's `destroyElement` never reaches it. Substra
 renders through it from whichever component needs a dialog (no `ui.confirm()` promise store), and
 so do its toasts and search completions.
 
-**`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
+**`compile.ts`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
 `GPUIX_SVELTE_RENDERER` overrides that baked specifier — needed for components outside this
 workspace, since it must resolve from the `.svelte` file's own location.
@@ -240,7 +261,7 @@ emitted weakest first (tags under classes, then source order), and the renderer'
 `class:` directives and dynamic class strings restyle for free. `build_style` then lays the
 inline `style` on top; `:hover` rules become GPUI's native `hover` object with the `hover=`
 attribute winning. A block that reads a `var(--name[, fallback])` is emitted as `css` text
-instead of a parsed `style`, because the map it resolves against lives at runtime: `style.js`
+instead of a parsed `style`, because the map it resolves against lives at runtime: `style.ts`
 substitutes on every `parse_css_text` (inline `style=` included), memoises each such rule per
 `set_css_vars()` generation, and the renderer flags nodes whose style read a variable so
 `set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch. An
@@ -249,16 +270,21 @@ also honours shorthands: a later `padding: 20px` clears the longhands an earlier
 `padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
-`module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
-be installed before the entry module resolves — Node via `--import ./src/register.js`, Bun via
-`--preload ./src/plugin.js` (or `bunfig.toml`'s `preload`), both supplied by `bin/gpuix-svelte.js`.
-Tests rely on that registration rather than importing a loader themselves. Both also compile `.svelte.js` runes modules through
-`compile_module()` (`compileModule` from `svelte/compiler`, no renderer option). Those are
-deliberately **not** cache-busted: a module is one instance per process, so state kept in one
-survives a hot remount (that is how Substrate keeps its route and theme), and editing one needs a
-restart.
+`module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both must
+be installed before the entry module resolves — Node via `--import tsx --import ./src/register.ts`,
+Bun via `--preload ./src/plugin.ts` (or `bunfig.toml`'s `preload`), both supplied by
+`bin/gpuix-svelte.js`. On Node, tsx must be registered *first*: a `.ts` `--import` ahead of it flips
+tsx onto async off-thread hooks, and sync hooks (LIFO, so `register.ts`'s runs first) can't chain
+into those; a `.ts` `--import` in `NODE_OPTIONS` has the same effect, whatever the bin does. Tests rely on that registration rather than importing a loader themselves. Both also
+compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
+`svelte/compiler`, no renderer option) — which does **not** strip types, so the loaders do it
+first: `register.ts` hands the URL to `nextLoad` (tsx returns JS; without tsx, Node's
+`module-typescript` source goes through `stripTypeScriptTypes`), `plugin.ts` runs
+`Bun.Transpiler`. Those modules are deliberately **not** cache-busted: a module is one instance
+per process, so state kept in one survives a hot remount (that is how Substrate keeps its route
+and theme), and editing one needs a restart.
 
-**`renderer.js`** is where the real work is. Svelte's renderer contract is DOM-shaped (fragments,
+**`renderer.ts`** is where the real work is. Svelte's renderer contract is DOM-shaped (fragments,
 comments, sibling walking); GPUI's tree is flat, id-based and knows only `div`/`text` plus a few
 custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
@@ -279,7 +305,7 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   the id map learns what to purge. The node's `listeners` map survives that purge, like `attrs`
   does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
-**`render.js`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
+**`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
 reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
 `setImmediate` burns ~73% CPU at idle. Since native 0.7.0 `requiresTick()` is true on every
 platform — on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether
@@ -288,10 +314,10 @@ loop and the process. Where it is false, `set_auto_commit(true)` makes the rende
 own commit on a microtask instead — otherwise a mutation with no native event behind it (a
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
 `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
-directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates that query to child
+directory and re-imports with a `?v=N` cache-buster; `compile.ts` propagates that query to child
 `.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
-`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
+`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native` and tsx) and
 splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
 comment is left alone and the rest of the output stays byte-identical. Only relative, absolute and
 `file:` specifiers are busted: Node refuses a bare one with a query
@@ -299,7 +325,7 @@ comment is left alone and the rest of the output stays byte-identical. Only rela
 package component is not what is being edited. The re-import goes through a `file://` URL, since
 a bare Windows path parses as a URL scheme.
 
-**`style.js`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
+**`style.ts`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The
 raw string is kept on the shadow node because Svelte read-modify-writes it for `style:` directives.
 `hover`/`active` are GPUI's native pseudo-styles — nested objects CSS text can't express, so they
@@ -332,12 +358,12 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
   is the weight names; `overflow: scroll` is handled separately in `build_host_container`.
 - `color.rs` — colour syntax (`csscolorparser` since 0.7.0, so names and `hsl()` work).
 
-Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION` in `src/style.js`,
+Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION` in `src/style.ts`,
 add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
 mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
 `StyleDesc`, with unknown keys already dropped, which is exactly what README claims.
 
-**`events.js`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
+**`events.ts`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
 the two stay in sync. Unknown events are dropped silently.
 
@@ -362,7 +388,7 @@ the two stay in sync. Unknown events are dropped silently.
 - Prefer `<style>` blocks to inline `style="..."`: shape and colour as class rules, colours as
   `var(--token)` with the palette handed to `set_css_vars({ token: '#fff' })` once from the root
   (Substrate does it in an `$effect` over its `LIGHT`/`DARK` objects — a theme switch is one
-  call), `style:` only for measured values. Shared reactive state goes in `.svelte.js` modules
+  call), `style:` only for measured values. Shared reactive state goes in `.svelte.ts` modules
   (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
   since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus. For
@@ -414,9 +440,12 @@ the two stay in sync. Unknown events are dropped silently.
 
 ## Runtime
 
-Node, via `npm`: `npm install`, `npm run <script>`, `npx`. Keep the source runtime-agnostic —
-`node:*` builtins only, no `Bun.*` calls and no `bun` imports outside `src/plugin.js` and
-`scripts/compile.js` (Bun is the compiler there).
+Node 26 (`.nvmrc`; `nvm use` before anything), via `npm`: `npm install`, `npm run <script>`, `npx`.
+Keep the source runtime-agnostic — `node:*` builtins only, no `Bun.*` calls and no `bun` imports
+outside `src/plugin.ts` and `scripts/compile*.ts` (Bun is the compiler there). Import types with
+`import type`, and components import the renderer's types (`ShadowNode` for `{@attach}`,
+`GpuixEvent` for handlers) from `'gpuix-svelte'`; `.svelte` files use `<script lang="ts">` — the
+compiler strips the types itself, and svelte-check is not part of the gate.
 
 ## Comments
 

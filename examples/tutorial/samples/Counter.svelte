@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	let count = $state(0);
 	const doubled = $derived(count * 2);
 </script>

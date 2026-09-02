@@ -1,7 +1,8 @@
-<script>
-	import { add_link_from_text, capture, paste_image, pick_audio, pick_images, start_recording, stop_recording, submit } from '../lib/capture.svelte.js';
-	import { data, format_duration } from '../lib/data.svelte.js';
-	import { register } from '../lib/ui.svelte.js';
+<script lang="ts">
+	import { add_link_from_text, capture, paste_image, pick_audio, pick_images, start_recording, stop_recording, submit } from '../lib/capture.svelte.ts';
+	import { data, format_duration } from '../lib/data.svelte.ts';
+	import type { ShadowNode } from 'gpuix-svelte';
+	import { register } from '../lib/ui.svelte.ts';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 
@@ -12,7 +13,7 @@
 
 <div class="box" class:focused>
 	<textarea
-		{@attach (node) => register('capture', node)}
+		{@attach (node: ShadowNode) => register('capture', node)}
 		value={capture.text}
 		minRows={2}
 		maxRows={8}

@@ -3,7 +3,7 @@ gpuix-svelte is a **custom renderer** for Svelte. Your components compile exactl
 The pieces, left to right in the diagram below:
 
 - **Svelte's compiler** runs with the unreleased `customRenderer` option, so every component imports `gpuix-svelte/renderer` instead of touching `document`.
-- **`renderer.js`** keeps a JavaScript *shadow tree* shaped the way Svelte expects (comments, fragments, sibling walking) and projects it onto GPUI's flat, id-based tree.
+- **`renderer.ts`** keeps a JavaScript *shadow tree* shaped the way Svelte expects (comments, fragments, sibling walking) and projects it onto GPUI's flat, id-based tree.
 - **`@gpuix/native`** is a prebuilt Rust addon. Each frame's changes ship as one `applyBatch(json)` call.
 - **GPUI** does the layout (flexbox, in logical pixels) and paints with Metal on macOS, DirectX on Windows and Vulkan on Linux.
 

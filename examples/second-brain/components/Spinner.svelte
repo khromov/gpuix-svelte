@@ -1,7 +1,7 @@
-<script>
-	import { spinner_frame, use_ticker } from '../lib/ui.svelte.js';
+<script lang="ts">
+	import { spinner_frame, use_ticker } from '../lib/ui.svelte.ts';
 
-	let { size = 13 } = $props();
+	let { size = 13 }: { size?: number } = $props();
 
 	$effect(() => use_ticker());
 </script>

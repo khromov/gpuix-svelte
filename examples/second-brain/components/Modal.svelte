@@ -1,19 +1,32 @@
-<script>
-	import { on_window_key } from 'gpuix-svelte';
+<script lang="ts">
+	import { on_window_key, type GpuixEvent } from 'gpuix-svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import { untrack } from 'svelte';
-	import { ui } from '../lib/ui.svelte.js';
+	import { ui } from '../lib/ui.svelte.ts';
 	import Button from './Button.svelte';
 
-	/** @type {{ title: string, body?: string | null, confirmLabel?: string, cancelLabel?: string, danger?: boolean, onclose: (ok: boolean) => void }} */
-	let { title, body = null, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onclose } = $props();
+	let {
+		title,
+		body = null,
+		confirmLabel = 'OK',
+		cancelLabel = 'Cancel',
+		danger = false,
+		onclose
+	}: {
+		title: string;
+		body?: string | null;
+		confirmLabel?: string;
+		cancelLabel?: string;
+		danger?: boolean;
+		onclose: (ok: boolean) => void;
+	} = $props();
 
 	// Counted, so the app's own escape handler steps aside while a dialog is up.
 	$effect(() => {
 		untrack(() => ui.modals++);
 		return () => untrack(() => ui.modals--);
 	});
-	$effect(() => on_window_key('keydown', (e) => e.key === 'escape' && onclose(false)));
+	$effect(() => on_window_key('keydown', (e: GpuixEvent) => e.key === 'escape' && onclose(false)));
 </script>
 
 <Portal>

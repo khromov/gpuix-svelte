@@ -1,20 +1,21 @@
-<script>
+<script lang="ts">
 	import Button from '../components/Button.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
 	import Markdown from '../components/Markdown.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Spinner from '../components/Spinner.svelte';
-	import { playback, toggle_play } from '../lib/capture.svelte.js';
-	import { write_text } from '../lib/clipboard.js';
-	import { ago, data, format_duration, get_app, status_text } from '../lib/data.svelte.js';
-	import { back, push } from '../lib/router.svelte.js';
-	import { open_url, reveal } from '../lib/shell.js';
+	import { playback, toggle_play } from '../lib/capture.svelte.ts';
+	import { write_text } from '../lib/clipboard.ts';
+	import { ago, data, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
+	import { back, push } from '../lib/router.svelte.ts';
+	import { open_url, reveal } from '../lib/shell.ts';
 	import { blur } from 'gpuix-svelte';
-	import { toast } from '../lib/ui.svelte.js';
+	import type { SearchHit } from '../lib/search.ts';
+	import { toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
 
-	let { params } = $props();
+	let { params }: { params: Record<string, string> } = $props();
 
 	const id = $derived(Number(params.id));
 	const item = $derived(data.items.find((i) => i.id === id) ?? get_app().get_item(id));
@@ -32,13 +33,13 @@
 
 	let editing = $state(false);
 	let draft = $state({ title: '', body: '' });
-	let saved_at = $state(null);
-	let related = $state([]);
-	let working = $state(null);
-	let timer = null;
+	let saved_at = $state<number | null>(null);
+	let related = $state<SearchHit[]>([]);
+	let working = $state<string | null>(null);
+	let timer: ReturnType<typeof setTimeout> | undefined;
 
 	function start_edit() {
-		draft = { title: item.title, body: item.body };
+		draft = { title: item!.title, body: item!.body };
 		editing = true;
 	}
 
@@ -64,7 +65,7 @@
 
 	let confirming = $state(false);
 
-	function confirmed(ok) {
+	function confirmed(ok: boolean) {
 		confirming = false;
 		if (!ok) return;
 		get_app().delete_item(id);
@@ -72,12 +73,12 @@
 		toast('Deleted');
 	}
 
-	async function run(label, fn) {
+	async function run(label: string, fn: () => Promise<unknown>) {
 		working = label;
 		try {
 			await fn();
 		} catch (err) {
-			toast(err.message, 'error');
+			toast((err as Error).message, 'error');
 		} finally {
 			working = null;
 		}

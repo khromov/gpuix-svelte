@@ -1,12 +1,14 @@
-<script>
+<script lang="ts">
 	import { set_css_vars } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 
 	set_css_vars({ accent: '#f9e2af' });
 
+	type Case = { css?: string; kind?: string; label?: string; note: string; hover?: string; active?: string; bare?: boolean };
+
 	// Every case is a style string rendered verbatim on a box, so what GPUI
 	// actually did with it sits next to what was written.
-	const SECTIONS = [
+	const SECTIONS: Array<{ title: string; color: string; cases: Case[] }> = [
 		{
 			title: 'Reads like CSS',
 			color: '#a6e3a1',
@@ -139,7 +141,7 @@
 	const LONG = 'The quick brown fox jumps over the lazy dog and keeps running well past the edge of this box';
 
 	// Inline wins over a class, so the class case must not carry the base inline.
-	function sample_style(c) {
+	function sample_style(c: Case) {
 		if (c.kind === 'class') return '';
 		return `${BASE}; ${c.bare ? '' : FILL}; ${c.css ?? ''}`;
 	}

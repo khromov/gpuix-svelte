@@ -40,7 +40,7 @@ to run.
 - **Ask**: retrieval-augmented chat over the corpus with any OpenAI-compatible endpoint (Ollama,
   LM Studio, OpenAI, OpenRouter). Answers stream in as markdown; `[n]` citations become chips that
   open the item. A vision model, when configured, describes images on import.
-- **Light and dark**, following the system or fixed, with the palette in `lib/theme.js`.
+- **Light and dark**, following the system or fixed, with the palette in `lib/theme.ts`.
 - **Settings → Pipeline** shows what is being scraped, transcribed and embedded right now, with
   requeue and retry buttons; **Settings → On-device models** shows each model's state, download
   progress and the worker's memory.
@@ -49,23 +49,23 @@ to run.
 
 ```
 examples/second-brain/
-  main.js                Bun guard → create_app() → render_hot(App.svelte, { props: { app } })
-  standalone.js          the compiled entry: static imports, render() instead of render_hot()
+  main.ts                Bun guard → create_app() → render_hot(App.svelte, { props: { app } })
+  standalone.ts          the compiled entry: static imports, render() instead of render_hot()
   App.svelte             root layout, window-level shortcuts, the palette → set_css_vars, route table
   RouteView.svelte       resolves the route and lazy-loads the page component
   routes/                Everything, Kind, Search, Item, Ask, Settings, NotFound
   components/            Sidebar, ItemCard, CaptureBox, Field, Modal (a <Portal>), …; scrolling
                          is the package's Scroller
-  lib/                   the data layer (plain JS) and the UI state (.svelte.js runes modules)
-  ml/worker.js           the child process that owns the models; ml/doctor.js is the spike
+  lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules)
+  ml/worker.ts           the child process that owns the models; ml/doctor.ts is the spike
   native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use
-  scripts/import-hn.js   the Hacker News importer
-  test/                  brain.js (data + native, no models) and smoke.js (headless UI)
+  scripts/import-hn.ts   the Hacker News importer
+  test/                  brain.ts (data + native, no models) and smoke.ts (headless UI)
   icon.svg / icon.png    the logo; the .app's icon is cut from the PNG
   .data/                 gitignored: substrate.sqlite, files/, thumbs/, models/
 ```
 
-The UI process is the only SQLite writer and holds the vector indexes in memory (`lib/vectors.js`
+The UI process is the only SQLite writer and holds the vector indexes in memory (`lib/vectors.ts`
 is the seam to swap for PGlite + pgvector should a corpus ever outgrow a brute-force scan). The
 worker is stateless: it gets texts or file paths over IPC and returns `Float32Array`s — typed
 arrays cross Bun IPC as-is. Every item goes `pending → processing → ready | error`; the steps
@@ -84,8 +84,8 @@ app's resident size. Run one model-loading process at a time.
 
 ## The macOS app
 
-`npm run brain:compile` runs `scripts/compile-brain.js`: `Bun.build({ compile })` over
-`standalone.js` gives `dist/substrate`, then `dist/Substrate.app` is assembled around it.
+`npm run brain:compile` runs `scripts/compile-brain.ts`: `Bun.build({ compile })` over
+`standalone.ts` gives `dist/substrate`, then `dist/Substrate.app` is assembled around it.
 transformers.js cannot be compiled into a Bun binary (onnxruntime's dylib and sharp's addon are
 not embedded — [huggingface/transformers.js#1672](https://github.com/huggingface/transformers.js/issues/1672)),
 and it never needs to be: the worker ships as source with its `node_modules` in
@@ -126,14 +126,14 @@ All optional, all `GPUIX_BRAIN_*`:
 | clipboard | `pbpaste`/`pbcopy` for text, `Bun.Image.fromClipboard()` for images |
 | audio playback | `afplay` |
 | system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
-| decoding audio | a hand-written WAV parser (`lib/wav.js`); anything else through ffmpeg when installed |
-| readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.js`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.js` shows the way around |
+| decoding audio | a hand-written WAV parser (`lib/wav.ts`); anything else through ffmpeg when installed |
+| readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.ts`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.ts` shows the way around |
 | AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) writes a WebP display copy next to the original |
 | search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
 
 ## About client-side routers
 
-Substrate hand-rolls its router (`lib/router.svelte.js`, ~60 lines: a `$state` route, a back
+Substrate hand-rolls its router (`lib/router.svelte.ts`, ~60 lines: a `$state` route, a back
 stack, `:param` matching, lazy `import()`). Eight popular Svelte routers were evaluated first;
 only **svelte-spa-router 5** compiles under the custom renderer and can run here, and only with
 a fake `window`/`history` on `globalThis` plus `--conditions svelte` on the run script, since its
@@ -170,8 +170,8 @@ for one.
 
 ## Tests
 
-`npm run test:brain` (Bun; also part of `npm run bun:test`) runs `test/brain.js` — the WAV codec,
+`npm run test:brain` (Bun; also part of `npm run bun:test`) runs `test/brain.ts` — the WAV codec,
 the page extractor, the SSE parser, the chunker, the vector index, the store and pipeline with a
 stub worker, and the real IPC client against a fake worker, including a forced crash — and
-`test/smoke.js`, which mounts the app headlessly and captures, opens, and deletes a note through
+`test/smoke.ts`, which mounts the app headlessly and captures, opens, and deletes a note through
 GPUI's real hit testing. Neither needs a model or the network.

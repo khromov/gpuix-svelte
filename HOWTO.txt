@@ -55,9 +55,11 @@ Notes
 - Every package script runs through bin/gpuix-svelte.js, which adds the
   mandatory `--conditions custom-renderer --conditions development` flags
   (without them svelte's exports resolve to its server build and mount()
-  doesn't exist) and installs the .svelte loader (`--import ./src/register.js`
-  on Node, `--preload ./src/plugin.js` on Bun). Always go through `npm run ...`
-  or the bin; flags before the entry are passed on to the runtime.
+  doesn't exist) and installs the .svelte loader (`--import tsx --import
+  ./src/register.ts` on Node, `--preload ./src/plugin.ts` on Bun). The sources
+  are TypeScript run as-is: tsx on Node, natively on Bun; `npm run typecheck`
+  (tsc --noEmit, strict) is the first step of `npm test`. Always go through
+  `npm run ...` or the bin; flags before the entry are passed on to the runtime.
 - GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
@@ -72,7 +74,7 @@ Notes
   head.
 - Every command has a Bun twin under a `bun:` prefix — npm run bun:test,
   npm run bun:demo, npm run bun:demo:counter, npm run bun:test:coverage.
-  Same entry points, run through Bun, which preloads src/plugin.js
+  Same entry points, run through Bun, which preloads src/plugin.ts
   (`--preload`, or bunfig.toml) instead of taking --import. Dependencies still come from
   npm install either way; CI runs both runtimes.
 - npm run compile bundles the tic-tac-toe example into dist/tictactoe
@@ -93,7 +95,7 @@ Notes
 - macOS vibrancy (windowBackground "blurred") is macOS-only. The liquid-glass
   demo asks for plain "transparent" elsewhere and darkens its own panel, so the
   window is still see-through; demo:glass-ffi's non-macOS path does the same.
-- npm run demo / npm run bun:demo fan out through scripts/demo-all.js rather
+- npm run demo / npm run bun:demo fan out through scripts/demo-all.ts rather
   than a POSIX `&` ... `wait` chain, which cmd.exe does not understand.
 - Optional: npm run test:coverage runs Svelte's own custom-renderer samples if
   SVELTE_SAMPLES_DIR points at a svelte checkout's

@@ -1,11 +1,13 @@
-<script>
-	import { resolve, route } from './lib/router.svelte.js';
-	import { ui } from './lib/ui.svelte.js';
+<script lang="ts">
+	import type { Component } from 'svelte';
+	import { resolve, route, type RouteEntry } from './lib/router.svelte.ts';
+	import { ui } from './lib/ui.svelte.ts';
 
-	let { routes } = $props();
+	let { routes }: { routes: RouteEntry[] } = $props();
 
 	// Component-local, so a hot remount imports the busted specifiers afresh.
-	const loaded = new Map();
+	type Page = Component<any, any, any>;
+	const loaded = new Map<RouteEntry, Page | Promise<Page>>();
 	const match = $derived(resolve(routes, route.path));
 
 	$effect(() => {

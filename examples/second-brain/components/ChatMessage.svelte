@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
+	import type { ChatMessage } from '../lib/chat.svelte.ts';
 	import Markdown from './Markdown.svelte';
 	import SourceChip from './SourceChip.svelte';
 	import Spinner from './Spinner.svelte';
 
-	let { message } = $props();
+	let { message }: { message: ChatMessage } = $props();
 
 	const user = $derived(message.role === 'user');
 </script>
