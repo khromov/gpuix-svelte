@@ -5,23 +5,11 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import { mount, flushSync } from 'svelte';
-import renderer, {
-	set_native,
-	create_root,
-	commit,
-	is_dirty,
-	dispatch
-} from '../src/renderer.js';
+import { flushSync } from 'svelte';
+import { renderer, set_native, create_root, commit, is_dirty, dispatch } from 'gpuix-svelte';
+import { mount_headless, settle, all_text, check, finish } from 'gpuix-svelte/test';
 
-let failures = 0;
-
-function check(label, actual, expected) {
-	const ok = JSON.stringify(actual) === JSON.stringify(expected);
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`);
-}
-
+/** A root with no component in it, for trees built by hand. */
 function fresh(width, height) {
 	const native = new TestGpuixRenderer(width, height);
 	set_native(native);
@@ -33,13 +21,9 @@ function fresh(width, height) {
 
 // --- a removal-only update has to raise the dirty flag by itself -----------
 {
-	const { native, root, anchor } = fresh();
 	const Reorder = (await import('./Reorder.svelte')).default;
-	const component = mount(Reorder, { renderer, target: root, anchor, props: {} });
-	flushSync();
-	commit();
-	native.flush();
-	check('mounted with the {#if} live', native.getAllText().includes('IF'), true);
+	const { component } = mount_headless(Reorder);
+	check('mounted with the {#if} live', all_text().includes('IF'), true);
 
 	// Hiding the {#if} touches no sibling text or attribute, so this is the only
 	// signal the frame loop will ever get.
@@ -47,9 +31,8 @@ function fresh(width, height) {
 	flushSync();
 	check('removal-only update marks the tree dirty', is_dirty(), true);
 
-	commit();
-	native.flush();
-	check('and the removed node is gone once committed', native.getAllText(), [
+	settle();
+	check('and the removed node is gone once committed', all_text(), [
 		'head',
 		'1',
 		'2',
@@ -73,8 +56,7 @@ function fresh(width, height) {
 		return t;
 	});
 
-	commit();
-	native.flush();
+	settle();
 	const x = (n) => Math.round(native.getElementBounds(n.nativeId)[0]);
 	const b_before = x(texts[1]);
 	const c_before = x(texts[2]);
@@ -82,18 +64,16 @@ function fresh(width, height) {
 
 	renderer.setText(texts[1], '');
 	check('blanked text drops its native id', texts[1].nativeId, null);
-	commit();
-	native.flush();
+	settle();
 
-	check('the blanked text is no longer painted', native.getAllText(), ['A', 'C']);
+	check('the blanked text is no longer painted', all_text(), ['A', 'C']);
 	// A reclaimed slot means C slides into exactly where B used to start.
 	check('and its layout slot is reclaimed', x(texts[2]), b_before);
 
 	// The promotion direction still has to work afterwards.
 	renderer.setText(texts[1], 'B');
-	commit();
-	native.flush();
-	check('re-filled text comes back in order', native.getAllText(), ['A', 'B', 'C']);
+	settle();
+	check('re-filled text comes back in order', all_text(), ['A', 'B', 'C']);
 	check('and pushes the row back out', x(texts[2]), c_before);
 }
 
@@ -104,27 +84,21 @@ function fresh(width, height) {
 	let clicks = 0;
 	renderer.addEventListener(button, 'click', () => clicks++);
 	renderer.insert(root, button, anchor);
-	commit();
-	native.flush();
+	settle();
 	check('listener registered while live', native.hasEventListener(button.nativeId, 'click'), true);
 
 	renderer.remove(button);
-	commit();
-	native.flush();
+	settle();
 	check('destroy returns the node to virtual', button.nativeId, null);
 
 	renderer.insert(root, button, anchor);
-	commit();
-	native.flush();
+	settle();
 	check('re-inserted node is native again', button.nativeId !== null, true);
 	check('and its listener was re-emitted', native.hasEventListener(button.nativeId, 'click'), true);
 
+	// Straight at the node on purpose: the listener's survival is what is under test.
 	dispatch({ elementId: button.nativeId, eventType: 'click' });
 	check('so the handler still fires', clicks, 1);
 }
 
-if (failures > 0) {
-	console.error(`\n${failures} failure(s)`);
-	process.exit(1);
-}
-console.log('\nteardown ok');
+finish('teardown');

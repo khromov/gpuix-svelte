@@ -1,7 +1,7 @@
 <script>
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
-	import { get_native } from 'gpuix-svelte';
+	import { focus_element } from 'gpuix-svelte';
 	import { CHAPTERS, STEPS as RAW_STEPS } from './steps.js';
 	import { THEME } from './theme.js';
 	import Scroller from './Scroller.svelte';
@@ -57,7 +57,7 @@
 	function go(to) {
 		index = Math.max(0, Math.min(STEPS.length - 1, to));
 		// The <input> on the native-elements step takes focus on mousedown and nothing gives it back.
-		if (root?.nativeId) get_native()?.focusElement(root.nativeId);
+		focus_element(root);
 	}
 
 	function onkey(e) {

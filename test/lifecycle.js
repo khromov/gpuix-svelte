@@ -5,22 +5,9 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import renderer, {
-	set_native,
-	create_root,
-	commit,
-	queue_destroy,
-	set_auto_commit
-} from '../src/renderer.js';
+import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit } from '../src/renderer.js';
 import { handle_event, start_frame_loop } from '../src/render.js';
-
-let failures = 0;
-
-function check(label, actual, expected) {
-	const ok = JSON.stringify(actual) === JSON.stringify(expected);
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`);
-}
+import { check, finish } from 'gpuix-svelte/test';
 
 // --- a throwing commit must not kill the frame loop -----------------------
 {
@@ -102,8 +89,4 @@ function check(label, actual, expected) {
 
 set_auto_commit(false);
 
-if (failures > 0) {
-	console.error(`\n${failures} failure(s)`);
-	process.exit(1);
-}
-console.log('\nlifecycle ok');
+finish('lifecycle');

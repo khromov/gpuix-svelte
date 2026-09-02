@@ -23,13 +23,7 @@ import { init_recorder } from '../lib/recorder.js';
 import { decode_entities, extract, normalize_url, pick_title } from '../lib/scrape.js';
 import { VectorIndex, from_blob, to_blob } from '../lib/vectors.js';
 import { decode_wav, encode_wav, wav_header } from '../lib/wav.js';
-
-let failures = 0;
-function check(label, actual, expected = true) {
-	const ok = actual === expected;
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : `\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`}`);
-}
+import { check, finish } from 'gpuix-svelte/test';
 
 // --- wav
 {
@@ -336,9 +330,4 @@ if (process.platform === 'darwin' && process.env.GPUIX_BRAIN_RECORDER !== '0') {
 	check('auth status is a known value', ['notDetermined', 'authorized', 'denied', 'restricted'].includes(rec.authStatus()));
 }
 
-if (failures > 0) {
-	console.error(`\n${failures} failure(s)`);
-	process.exit(1);
-}
-console.log('\nbrain ok');
-process.exit(0);
+finish('brain');

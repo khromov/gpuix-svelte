@@ -5,16 +5,8 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import { parse_css_text } from '../src/style.js';
-import renderer, { set_native, create_root, commit } from '../src/renderer.js';
-
-let failures = 0;
-
-function check(label, actual, expected) {
-	const ok = JSON.stringify(actual) === JSON.stringify(expected);
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`);
-}
+import { renderer, parse_css_text, set_native, create_root, commit } from 'gpuix-svelte';
+import { check, finish } from 'gpuix-svelte/test';
 
 check('padding expands to four longhands', parse_css_text('padding: 12px 24px'), {
 	paddingTop: 12,
@@ -111,11 +103,7 @@ try {
 check('commit survives a shorthand-heavy style', threw && threw.message, null);
 
 native.flush();
-const bounds = native.getElementBounds(label.nativeId);
-check('padding actually applied (x, y)', bounds && bounds.slice(0, 2).map(Math.round), [24, 12]);
+const box_bounds = native.getElementBounds(label.nativeId);
+check('padding actually applied (x, y)', box_bounds && box_bounds.slice(0, 2).map(Math.round), [24, 12]);
 
-if (failures > 0) {
-	console.error(`\n${failures} failure(s)`);
-	process.exit(1);
-}
-console.log('\nstyle ok');
+finish('style');

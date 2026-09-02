@@ -96,16 +96,23 @@ ad-hoc `bun file.js` runs. Deps come from `npm install` either way. Adding a scr
 both halves — except the Bun-only ones (`compile`, `brain:*` other than `brain`), whose `bun:`
 twin is an alias.
 
-To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
-GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
-through `dispatch()`. Calling `dispatch()` directly injects events at an element and *bypasses* hit
-testing, so it can pass while the real window fails. The headless viewport width follows
-`new TestGpuixRenderer(width, height)`, but its height caps at 538 logical px — elements laid
-out below that can't be hit (shift the layout up inside an absolute wrapper to reach them).
+Headless tests go through `gpuix-svelte/test` (`src/test.js`): `mount_headless(Component, { props,
+width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
+`tree()` over `getTreeJson()` (nodes carry `testId` and `events`), and `click_text` /
+`click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)`, which run GPUI's real hit
+testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`; `drain()` alone is the
+last two). Prefer those over calling `dispatch()` directly, which injects an event at an element
+and *bypasses* hit testing, so it can pass while the real window fails — the renderer's own tests
+do it only where the batching itself is under test. The headless viewport width follows
+`mount_headless`'s `width`/`height`, but its height caps at 538 logical px — elements laid out below
+that can't be hit (`click` throws; shift the layout up inside an absolute wrapper to reach them).
+`src/window.js` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
+renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
 
-Tests are plain scripts that assert and `process.exit(1)` — no test runner.
-Adding one means adding a `test:*` script and chaining it into `test`. CI (`.github/workflows/test.yml`)
-runs `npm test` and `npm run bun:test` as two macOS jobs.
+Tests are plain scripts: `check(label, actual, expected)` and `finish(name)` from the same module,
+exit 1 on any failure — no test runner. Adding one means adding a `test:*` script and chaining it
+into `test`. CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two macOS
+jobs.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -185,6 +192,8 @@ renderer.js  shadow tree → GPUI projection   ├─ style.js / events.js are i
 compile.js   .svelte → JS, runtime-agnostic  ─┘
   register.js  Node loader (module.registerHooks)   ─ the default
   plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.js
+  test.js      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
+  window.js    title / activate / blur / focus helpers  ─ no-ops headlessly
 ```
 
 **`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
@@ -318,7 +327,9 @@ the two stay in sync. Unknown events are dropped silently.
   measured values. Shared reactive state goes in `.svelte.js` modules (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
   since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
-- **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a
+- **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
+  the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
+  listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child with a
   `background-color` (or `position: absolute`) swallows clicks meant for a clickable ancestor —
   give decorative children `pointer-events: none`. GPUI also doesn't capture the pointer on
   mousedown: for drags, put `mousemove`/`mouseup` on the surfaces the cursor may cross (or show a

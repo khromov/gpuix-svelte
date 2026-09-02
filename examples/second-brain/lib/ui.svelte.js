@@ -1,4 +1,4 @@
-import { get_native } from 'gpuix-svelte';
+import { focus_element } from 'gpuix-svelte';
 
 /**
  * @typedef {{ title: string, body?: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean }} ModalOptions
@@ -27,8 +27,7 @@ export function register(name, node) {
 }
 
 export function focus(name) {
-	const node = nodes[name];
-	if (node?.nativeId != null) get_native()?.focusElement(node.nativeId);
+	focus_element(nodes[name]);
 }
 
 /** @param {ModalOptions} options @returns {Promise<boolean>} */

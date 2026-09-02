@@ -14,69 +14,40 @@ process.env.GPUIX_BRAIN_THEME = 'dark';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { TestGpuixRenderer } from '@gpuix/native';
-import { mount, flushSync } from 'svelte';
-import renderer, { set_native, create_root, commit, dispatch } from '../../../src/renderer.js';
+import { dispatch } from 'gpuix-svelte';
+import {
+	mount_headless,
+	wait,
+	drain,
+	find,
+	click_text,
+	click_test_id,
+	press,
+	painted,
+	screenshot,
+	check,
+	finish
+} from 'gpuix-svelte/test';
 import { create_app } from '../lib/app.js';
 import { MlStub } from '../lib/ml-stub.js';
 import { route } from '../lib/router.svelte.js';
 import { ui } from '../lib/ui.svelte.js';
 
-let failures = 0;
-function check(label, actual, expected = true) {
-	const ok = actual === expected;
-	if (!ok) failures++;
-	console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : `\n       want ${JSON.stringify(expected)}\n       got  ${JSON.stringify(actual)}`}`);
-}
-
 const app = await create_app({ data_dir: mkdtempSync(join(tmpdir(), 'substrate-smoke-')), ml: new MlStub(), seed: true });
 await app.ingest.idle();
 
-const native = new TestGpuixRenderer(1100, 538);
-set_native(native);
-const root = create_root();
-const anchor = renderer.createComment('');
-renderer.insert(root, anchor, null);
-
 const App = (await import('../App.svelte')).default;
-mount(App, { renderer, target: root, anchor, props: { app } });
+// 538 is the headless height cap; anything laid out below it cannot be hit.
+const { native } = mount_headless(App, { props: { app }, width: 1100, height: 538 });
 
-async function settle(ms = 30) {
-	await new Promise((r) => setTimeout(r, ms));
-	flushSync();
-	commit();
-	native.flush();
-}
-const painted = () => native.getPaintedText().join('\n');
-const tree = () => JSON.parse(native.getTreeJson());
-
-function find_all(pred) {
-	const hits = [];
-	(function walk(n) {
-		if (!n) return;
-		if (pred(n)) hits.push(n);
-		for (const c of n.children ?? []) walk(c);
-	})(tree());
-	return hits;
-}
-const find = (pred) => find_all(pred)[0] ?? null;
-const find_text = (content, { last = false } = {}) => {
-	const all = find_all((n) => n.type === 'text' && n.text === content);
-	return last ? all.at(-1) ?? null : all[0] ?? null;
-};
-
-// A decorative label passes the click through to its button, which is the point.
-async function click_text(content, opts) {
-	const node = find_text(content, opts);
-	if (!node) throw new Error(`no text "${content}" in the tree`);
-	const [x, y, w, h] = native.getElementBounds(node.id);
-	native.simulateClick(x + w / 2, y + h / 2);
-	for (const e of native.drainEvents()) dispatch(e);
-	await settle();
+/** A click, then the timers and dynamic imports a route change runs through. */
+async function tap(text, opts) {
+	click_text(text, opts);
+	await wait();
 }
 
-await settle();
-await settle();
+await wait();
+await wait();
 check('brand painted', painted().includes('Substrate'));
 check('seeded note painted', painted().includes('Compost notes'));
 check('sidebar counts painted', painted().includes('Everything'));
@@ -84,82 +55,67 @@ check('sidebar counts painted', painted().includes('Everything'));
 const textarea = find((n) => n.type === 'textarea');
 check('capture textarea exists', textarea != null);
 dispatch({ elementId: textarea.id, eventType: 'change', value: 'Buy compost for the raised beds' });
-await settle();
-await click_text('Save');
+await wait();
+await tap('Save');
 await app.ingest.idle();
-await settle();
+await wait();
 check('new note appears in the timeline', painted().includes('Buy compost for the raised beds'));
 const note = app.store.list_items({ limit: 1 })[0];
 check('new note is in the store', note.body, 'Buy compost for the raised beds');
 
-await click_text('Buy compost for the raised beds');
-await settle();
-await settle();
+await tap('Buy compost for the raised beds');
+await wait();
 check('card click opens the item route', route.path, `/item/${note.id}`);
 check('item page paints the body', painted().includes('Buy compost for the raised beds'));
 check('window title follows the route', ui.title, 'Item');
 
-// The tree's root is the renderer's container; the app's root is its first element.
-const root_node = tree().children.find((n) => n.type === 'div');
-dispatch({ elementId: root_node.id, eventType: 'keyDown', key: 'escape', modifiers: { cmd: false, shift: false, ctrl: false, alt: false } });
-await settle();
+press('escape');
+await wait();
 check('escape goes back', route.path, '/');
 
-await click_text('Buy compost for the raised beds');
-await settle();
-await settle();
-await click_text('Substrate');
-await settle();
+await tap('Buy compost for the raised beds');
+await wait();
+await tap('Substrate');
 check('brand click goes home', route.path, '/');
 
 // Typing `k` into the search box offers `kind:`; picking a kind completes and searches.
 const search_input = find((n) => n.type === 'input');
 native.focusElement(search_input.id);
 native.flush();
-for (const e of native.drainEvents()) dispatch(e);
+drain();
 dispatch({ elementId: search_input.id, eventType: 'focus' });
 dispatch({ elementId: search_input.id, eventType: 'change', value: 'k' });
-await settle();
+await wait();
 check('typing k suggests kind:', ui.suggest?.items.map((i) => i.label).join(','), 'kind:');
 check('suggestion painted', painted().includes('filter by kind — note, link, image or audio'));
-await click_text('kind:');
-await settle();
+await tap('kind:');
 check('picking kind: suggests the kinds', ui.suggest?.items.map((i) => i.label).join(','), 'kind:note,kind:link,kind:image,kind:audio');
-await click_text('kind:image');
-await settle(250);
-await settle();
+await tap('kind:image');
+await wait(250);
 check('completion searches by kind', route.path === '/search' && route.query.q, 'kind:image');
 check('kind listing paints the image', painted().includes('Tic-tac-toe icon'));
-dispatch({ elementId: search_input.id, eventType: 'keyDown', key: 'escape', modifiers: {} });
-await settle();
-check('escape clears the search box', route.path, '/search');
-dispatch({ elementId: root_node.id, eventType: 'keyDown', key: 'escape', modifiers: {} });
-await settle();
-await settle();
-check('escape from the root leaves search', route.path, '/');
+// A key reaches the focused box and every focusable ancestor above it, so one
+// escape clears the box and, through the root's handler, leaves the search too.
+native.focusElement(search_input.id);
+native.flush();
+press('escape');
+await wait();
+await wait();
+check('escape clears the search box and leaves search', route.path, '/');
 
-await click_text('Buy compost for the raised beds');
-await settle();
-await settle();
-await click_text('Delete');
+await tap('Buy compost for the raised beds');
+await wait();
+await tap('Delete');
 check('confirm dialog opens', ui.modal != null);
 check('dialog painted on top', painted().includes('Delete this item?'));
-// The toolbar's Delete is under the scrim now; the dialog's is the last one in the tree.
-await click_text('Delete', { last: true });
-await settle();
+click_test_id('modal-confirm');
+await wait();
 check('confirm deletes the item', app.get_item(note.id), null);
 check('delete navigates back', route.path, '/');
-await settle();
+await wait();
 check('deleted note gone from the timeline', painted().includes('Buy compost for the raised beds'), false);
 
-const shot = join(tmpdir(), 'substrate-smoke.png');
-native.captureScreenshot(shot);
-console.log('screenshot:', shot);
+console.log('screenshot:', screenshot(join(tmpdir(), 'substrate-smoke.png')));
 
 app.close();
-if (failures > 0) {
-	console.error(`\n${failures} failure(s)`);
-	process.exit(1);
-}
-console.log('\nsmoke ok');
-process.exit(0);
+finish('smoke');

@@ -14,6 +14,7 @@
 		"./renderer": "./src/renderer.js",
 		"./plugin": "./src/plugin.js",
 		"./register": "./src/register.js",
+		"./test": "./src/test.js",
 		"./package.json": "./package.json"
 	},
 	"files": [

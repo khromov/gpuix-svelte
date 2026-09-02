@@ -1,5 +1,5 @@
 <script>
-	import { get_native } from 'gpuix-svelte';
+	import { set_window_title } from 'gpuix-svelte';
 	import { untrack } from 'svelte';
 	import Modal from './components/Modal.svelte';
 	import SearchSuggest from './components/SearchSuggest.svelte';
@@ -36,9 +36,8 @@
 	const mode = $derived(resolved());
 
 	$effect(() => start_system_poll());
-	// The headless test renderer has no window to title.
 	$effect(() => {
-		get_native()?.setWindowTitle?.(ui.title === 'Everything' ? 'Substrate' : `Substrate — ${ui.title}`);
+		set_window_title(ui.title === 'Everything' ? 'Substrate' : `Substrate — ${ui.title}`);
 	});
 
 	function onkey(e) {
