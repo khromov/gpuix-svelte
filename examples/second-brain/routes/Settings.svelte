@@ -10,7 +10,8 @@
 	import { MODEL_IDS } from '../lib/ml-client.js';
 	import { reveal } from '../lib/shell.js';
 	import { set_mode, theme } from '../lib/theme.svelte.js';
-	import { confirm, toast } from '../lib/ui.svelte.js';
+	import { toast } from '../lib/ui.svelte.js';
+	import Modal from '../components/Modal.svelte';
 
 	const app = get_app();
 	const settings = app.settings;
@@ -48,11 +49,13 @@
 		}
 	}
 
-	async function rebuild() {
-		if (await confirm({ title: 'Rebuild the index?', body: 'Every item is chunked and embedded again. Nothing is deleted.', confirmLabel: 'Rebuild' })) {
-			app.reindex();
-			toast('Reindexing in the background');
-		}
+	let confirming = $state(false);
+
+	function rebuild(ok) {
+		confirming = false;
+		if (!ok) return;
+		app.reindex();
+		toast('Reindexing in the background');
 	}
 
 	const in_flight = $derived(data.queue.active_ids.map((id) => item_by_id(id)).filter(Boolean));
@@ -183,7 +186,10 @@
 			<div class="hint">{data.counts.total} items · {app.vectors.size} text vectors · {app.images.size} image vectors</div>
 			<div class="row">
 				<Button label="Reveal in Finder" icon="folder" small onclick={() => reveal(app.dirs.db)} />
-				<Button label="Rebuild index" icon="refresh" small onclick={rebuild} />
+				<Button label="Rebuild index" icon="refresh" small onclick={() => (confirming = true)} />
+				{#if confirming}
+					<Modal title="Rebuild the index?" body="Every item is chunked and embedded again. Nothing is deleted." confirmLabel="Rebuild" onclose={rebuild} />
+				{/if}
 			</div>
 		</div>
 	</Scroller>

@@ -1,16 +1,12 @@
 import { focus_element } from 'gpuix-svelte';
 
-/**
- * @typedef {{ title: string, body?: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean }} ModalOptions
- */
-
 export const ui = $state({
 	title: 'Everything',
-	/** @type {(ModalOptions & { resolve: (ok: boolean) => void }) | null} */
-	modal: null,
+	/** Dialogs up right now; each renders itself through a <Portal> from wherever it is needed. */
+	modals: 0,
 	/** @type {Array<{ id: number, text: string, kind: 'info' | 'error' | 'success' }>} */
 	toasts: [],
-	/** Completions under the search box, painted from the root so the page cannot cover them. */
+	/** Completions under the search box; the SearchBar paints them through a <Portal>. */
 	/** @type {{ items: Array<{ label: string, hint: string, apply: () => void }>, active: number, left: number, top: number, width: number } | null} */
 	suggest: null,
 	tick: 0
@@ -28,19 +24,6 @@ export function register(name, node) {
 
 export function focus(name) {
 	focus_element(nodes[name]);
-}
-
-/** @param {ModalOptions} options @returns {Promise<boolean>} */
-export function confirm(options) {
-	return new Promise((resolve) => {
-		ui.modal = { ...options, resolve };
-	});
-}
-
-export function close_modal(ok = false) {
-	const modal = ui.modal;
-	ui.modal = null;
-	modal?.resolve(ok);
 }
 
 /** @param {string} text @param {'info' | 'error' | 'success'} [kind] */

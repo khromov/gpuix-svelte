@@ -119,7 +119,7 @@ check('escape from the window leaves search', route.path, '/');
 await tap('Buy compost for the raised beds');
 await wait();
 await tap('Delete');
-check('confirm dialog opens', ui.modal != null);
+check('confirm dialog opens', ui.modals, 1);
 check('dialog painted on top', painted().includes('Delete this item?'));
 click_test_id('modal-confirm');
 await wait();

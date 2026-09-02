@@ -11,7 +11,8 @@
 	import { back, push } from '../lib/router.svelte.js';
 	import { open_url, reveal } from '../lib/shell.js';
 	import { blur } from 'gpuix-svelte';
-	import { confirm, toast } from '../lib/ui.svelte.js';
+	import { toast } from '../lib/ui.svelte.js';
+	import Modal from '../components/Modal.svelte';
 
 	let { params } = $props();
 
@@ -61,8 +62,10 @@
 		blur();
 	}
 
-	async function remove() {
-		const ok = await confirm({ title: 'Delete this item?', body: item.title || 'Untitled', confirmLabel: 'Delete', danger: true });
+	let confirming = $state(false);
+
+	function confirmed(ok) {
+		confirming = false;
 		if (!ok) return;
 		get_app().delete_item(id);
 		back();
@@ -121,7 +124,10 @@
 				{/if}
 			{/if}
 			<div class="grow"></div>
-			<Button label="Delete" icon="trash" variant="ghost" small onclick={remove} testid="delete" />
+			<Button label="Delete" icon="trash" variant="ghost" small onclick={() => (confirming = true)} testid="delete" />
+			{#if confirming}
+				<Modal title="Delete this item?" body={item.title || 'Untitled'} confirmLabel="Delete" danger onclose={confirmed} />
+			{/if}
 		</div>
 
 		{#if editing}

@@ -1,5 +1,7 @@
 <script>
 	import { blur, get_native } from 'gpuix-svelte';
+	import Portal from 'gpuix-svelte/components/Portal.svelte';
+	import SearchSuggest from './SearchSuggest.svelte';
 	import { push, replace, route } from '../lib/router.svelte.js';
 	import { focus, register, ui } from '../lib/ui.svelte.js';
 	import Icon from './Icon.svelte';
@@ -139,6 +141,8 @@
 		<div class="hint">⌘K</div>
 	{/if}
 </div>
+
+<Portal><SearchSuggest /></Portal>
 
 <style>
 	.search { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; padding: 6px 8px 6px 12px; border-radius: 8px; border-width: 1px; background-color: var(--surface); border-color: var(--border); color: var(--inkFaint); }

@@ -140,7 +140,12 @@ export function click(target, { button, modifiers } = {}) {
 		);
 	}
 
-	native().simulateClick(cx, cy, button, modifiers);
+	click_at(cx, cy, { button, modifiers });
+}
+
+/** A click at window coordinates, through the same hit testing. */
+export function click_at(x, y, { button, modifiers } = {}) {
+	native().simulateClick(x, y, button, modifiers);
 	drain();
 	settle();
 }

@@ -32,7 +32,7 @@ const UNIVERSAL_PROPS = new Set(['autoFocus', 'tabIndex', 'testId', 'motion', 'h
 const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
 
 /** Attributes the renderer consumes itself; never forwarded as props. */
-const RENDERER_ATTRS = new Set(['hitbox']);
+const RENDERER_ATTRS = new Set(['hitbox', 'portal']);
 
 /** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
 const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
@@ -63,6 +63,21 @@ let inheriting_svgs = new Set();
 
 /** The text field with focus, if any — what `editing` on a window key event reports. */
 let focused_input = null;
+
+/** The node `create_root` made, where `portal` elements go natively. */
+let root_node = null;
+
+/**
+ * `portal` nodes stay where Svelte put them in the shadow tree but hang off the root
+ * natively, so paint order (document order in GPUI) puts them on top; an ancestor's
+ * destroy never reaches them, so `commit` retires them itself.
+ */
+let portals = new Set();
+
+/** Portals met while materialising a subtree, appended once that subtree is attached. */
+let pending_portals = [];
+
+const is_portal = (n) => 'portal' in n.attrs;
 
 /**
  * Monotonic across remounts on purpose: `render_hot` builds a fresh tree while the old
@@ -172,10 +187,10 @@ const is_blank = (s) => s == null || s.trim() === '';
  */
 const native_parent_of = (parent) => (parent && parent.kind === 'element' ? parent : null);
 
-/** Siblings only: a native node can never hide beneath a virtual one. */
+/** Siblings only: a native node can never hide beneath a virtual one. A portal is not in this parent's native list. */
 function first_native_after(cursor) {
 	for (let n = cursor; n !== null; n = n.next) {
-		if (n.nativeId !== null && n.attached) return n;
+		if (n.nativeId !== null && n.attached && !is_portal(n)) return n;
 	}
 	return null;
 }
@@ -276,6 +291,13 @@ function restyle_subtree(el) {
 	}
 }
 
+/** `portal` toggled on a live node: GPUI reparents on the next appendChild/insertBefore. */
+function reparent(el) {
+	if (el.nativeId === null || !el.attached || !el.live) return;
+	attach(el);
+	attach_portals();
+}
+
 const prop_name = (key) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 
 function normalize_prop(name, value) {
@@ -337,6 +359,11 @@ function materialize(n) {
 function attach(n) {
 	if (n.nativeId === null) return;
 
+	if (is_portal(n)) {
+		pending_portals.push(n);
+		return;
+	}
+
 	const np = native_parent_of(n.parent);
 	if (np === null || np.nativeId === null) return;
 
@@ -347,6 +374,20 @@ function attach(n) {
 			: ['appendChild', np.nativeId, n.nativeId]
 	);
 	n.attached = true;
+}
+
+/**
+ * After the subtree they sit in is attached — an app root materialising would
+ * otherwise append its portals before itself. Always appended, so later ones paint on top.
+ */
+function attach_portals() {
+	for (const n of pending_portals) {
+		if (n.nativeId === null || root_node === null || root_node.nativeId === null) continue;
+		emit(['appendChild', root_node.nativeId, n.nativeId]);
+		n.attached = true;
+		portals.add(n);
+	}
+	pending_portals = [];
 }
 
 function set_live(n, value) {
@@ -387,6 +428,7 @@ const renderer = createRenderer({
 		el.attrs[key] = value;
 
 		if (STYLE_ATTRS.has(key)) apply_style(el);
+		else if (key === 'portal') reparent(el);
 		else if (RENDERER_ATTRS.has(key)) restyle_subtree(el);
 		else apply_prop(el, key, value);
 	},
@@ -396,7 +438,10 @@ const renderer = createRenderer({
 		delete el.attrs[name];
 
 		if (STYLE_ATTRS.has(name)) apply_style(el);
-		else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
+		else if (name === 'portal') {
+			portals.delete(el);
+			reparent(el);
+		} else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
 		else apply_prop(el, name, null);
 	},
 
@@ -454,6 +499,7 @@ const renderer = createRenderer({
 			pending_destroy.delete(n); // resurrected before the next commit
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
+			attach_portals();
 		} else if (n.nativeId !== null && n.attached) {
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
@@ -543,6 +589,9 @@ export function set_native(instance) {
 	pending_destroy = new Set();
 	inheriting_svgs = new Set();
 	focused_input = null;
+	root_node = null;
+	portals = new Set();
+	pending_portals = [];
 	dirty = false;
 	commit_scheduled = false;
 
@@ -593,12 +642,14 @@ export function on_window_key(type, handler) {
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
 export const get_native = () => native;
 
-export function create_root(style = { display: 'flex', width: '100%', height: '100%' }) {
+/** `position: relative`, so a portal's `inset: 0` means the window. */
+export function create_root(style = { display: 'flex', width: '100%', height: '100%', position: 'relative' }) {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
 	root.live = true;
 	root.attached = true;
 	by_id.set(root.nativeId, root);
+	root_node = root;
 
 	emit(['createElement', root.nativeId, 'div']);
 	emit(['setStyle', root.nativeId, style]);
@@ -629,6 +680,11 @@ export function commit() {
 	}
 	pending_destroy.clear();
 
+	// Not under their shadow ancestors natively, so that ancestor's destroy misses them.
+	for (const p of portals) {
+		if (!p.live && p.nativeId !== null) emit(['destroyElement', p.nativeId]);
+	}
+
 	if (queue.length === 0) {
 		dirty = false;
 		return;
@@ -648,6 +704,7 @@ export function commit() {
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
 			if (n === focused_input) focused_input = null;
+			portals.delete(n);
 		}
 		by_id.delete(id);
 	}

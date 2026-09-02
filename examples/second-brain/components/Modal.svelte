@@ -1,22 +1,33 @@
 <script>
-	import { close_modal, ui } from '../lib/ui.svelte.js';
+	import { on_window_key } from 'gpuix-svelte';
+	import Portal from 'gpuix-svelte/components/Portal.svelte';
+	import { untrack } from 'svelte';
+	import { ui } from '../lib/ui.svelte.js';
 	import Button from './Button.svelte';
 
-	const modal = $derived(ui.modal);
+	/** @type {{ title: string, body?: string | null, confirmLabel?: string, cancelLabel?: string, danger?: boolean, onclose: (ok: boolean) => void }} */
+	let { title, body = null, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onclose } = $props();
+
+	// Counted, so the app's own escape handler steps aside while a dialog is up.
+	$effect(() => {
+		untrack(() => ui.modals++);
+		return () => untrack(() => ui.modals--);
+	});
+	$effect(() => on_window_key('keydown', (e) => e.key === 'escape' && onclose(false)));
 </script>
 
-{#if modal}
-	<div class="scrim" onclick={() => close_modal(false)}>
+<Portal>
+	<div class="scrim" onclick={() => onclose(false)}>
 		<div class="dialog" onclick={() => {}}>
-			<div class="title">{modal.title}</div>
-			{#if modal.body}<div class="body">{modal.body}</div>{/if}
+			<div class="title">{title}</div>
+			{#if body}<div class="body">{body}</div>{/if}
 			<div class="actions">
-				<Button label={modal.cancelLabel ?? 'Cancel'} onclick={() => close_modal(false)} />
-				<Button label={modal.confirmLabel ?? 'OK'} variant={modal.danger ? 'danger' : 'primary'} onclick={() => close_modal(true)} testid="modal-confirm" />
+				<Button label={cancelLabel} onclick={() => onclose(false)} />
+				<Button label={confirmLabel} variant={danger ? 'danger' : 'primary'} onclick={() => onclose(true)} testid="modal-confirm" />
 			</div>
 		</div>
 	</div>
-{/if}
+</Portal>
 
 <style>
 	.scrim { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; background-color: var(--scrim); }

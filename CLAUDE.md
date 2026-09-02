@@ -194,7 +194,7 @@ compile.js   .svelte → JS, runtime-agnostic  ─┘
   plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.js
   test.js      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   window.js    title / activate / blur / focus helpers  ─ no-ops headlessly
-  components/  Scroller.svelte                          ─ `gpuix-svelte/components/*`
+  components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
 
 `src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
@@ -204,7 +204,15 @@ drawn thumb that the tutorial, the styling playground and Substrate all use — 
 scrollbar and captures no pointer, so it measures `getElementBounds`/`getScrollOffset` on a timer
 and drags on a panel-sized overlay. Its colours are `var(--scroller-thumb, …)` /
 `var(--scroller-thumb-hover, …)`, so a palette sets them and the fallbacks are the Catppuccin
-greys.
+greys. `Portal` is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
+renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
+teardown walk, anchors and `{#if}` blocks are untouched) and only the **native** node hangs off
+the root — appended after the subtree it sits in has attached (`pending_portals`), so it paints
+last, and later portals over earlier ones. `first_native_after` skips portal nodes, since they
+are not in their shadow parent's native child list, and `commit()` destroys any portal that is no
+longer `live`, because its ancestor's `destroyElement` never reaches it. Substrate's `Modal`
+renders through it from whichever component needs a dialog (no `ui.confirm()` promise store), and
+so do its toasts and search completions.
 
 **`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
@@ -377,6 +385,11 @@ the two stay in sync. Unknown events are dropped silently.
 - `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
   `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
   example.
+- Paint order is document order, so anything that must sit on top (a modal, a toast, a popover)
+  goes inside `<Portal>` from `gpuix-svelte/components/Portal.svelte`, rendered from wherever
+  it is needed; its children position against the window. The native `<anchored>` element is
+  the popover primitive when the content should sit beside a trigger instead (README lists its
+  props); its child sizes to content, so it is no use for a scrim.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight` as props;
   other attributes are dropped for built-ins and forwarded for custom element types.
   `highlight={{ query } | { ranges: [[start, end], …], color, radius }}` paints GPUI's native
