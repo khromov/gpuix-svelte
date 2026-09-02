@@ -5,12 +5,16 @@
 
 import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { compile_svelte } from './compile.js';
+import { compile_module, compile_svelte } from './compile.js';
 
 export { RENDERER_MODULE } from './compile.js';
 
 registerHooks({
 	load(url, context, nextLoad) {
+		if (/\.svelte\.js(\?|$)/.test(url)) {
+			return { format: 'module', shortCircuit: true, source: compile_module(fileURLToPath(new URL(url))) };
+		}
+
 		if (!/\.svelte(\?|$)/.test(url)) return nextLoad(url, context);
 
 		// `render_hot` busts Node's module cache with a `?v=N` tail; it lands in

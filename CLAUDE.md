@@ -40,9 +40,30 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
                            # Bun: scripts/run-example.js picks the runtime from --bun or
                            # npm_config_user_agent (Bun's script runner executes `node ...` on
                            # real Node otherwise). NOT part of `npm run demo`
+npm run brain              # Substrate, the "second brain" example (examples/second-brain): notes, links
+                           # (scraped with HTMLRewriter), images, voice memos; hybrid search
+                           # (nomic embeddings + FTS5 + CLIP, fused with RRF); RAG chat over any
+                           # OpenAI-compatible endpoint; light/dark. BUN ONLY (bun:sqlite,
+                           # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
+                           # is the same script. Models run in a child process (ml/worker.js).
+                           # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
+                           # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
+                           # _RECORDER=0, _FFMPEG, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
+npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
+                           # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
+                           # in that nested package so the root and CI stay lean
+npm run brain:doctor       # feasibility spike: loads all three models under Bun and runs one
+                           # inference each; first run downloads ~380 MB into .data/models
+npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/compile-brain.js (macOS
+                           # only). transformers.js can't be compiled into a Bun binary
+                           # (huggingface/transformers.js#1672), so the worker ships as source with
+                           # its node_modules in Contents/Resources and the app runs it on its own
+                           # embedded Bun (BUN_BE_BUN=1). Data goes to ~/Library/Application
+                           # Support/Substrate. CODESIGN_IDENTITY / NOTARY_PROFILE as for compile.
+npm run brain:import-hn    # pours the Hacker News front page into the real brain (scrape smoke test)
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
-                           # test:teardown, test:lifecycle, test:compile, test:css
+                           # test:teardown, test:lifecycle, test:compile, test:css, test:module
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -51,6 +72,12 @@ npm run test:teardown      # single test — removal marks dirty, blank text dem
 npm run test:lifecycle     # single test — throws don't kill the frame loop; remount is one batch
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
+npm run test:module        # single test — a .svelte.js runes module compiles and is one shared instance
+npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.js
+                           # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
+                           # pipeline with a stub worker, real IPC client vs a fake worker incl. a crash)
+                           # and test/smoke.js (headless mount; capture, open, Esc, delete via real hit
+                           # testing). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
@@ -61,7 +88,8 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
 running the same entry point through Bun, which takes the loader from `bunfig.toml` rather than
-`--import`. Deps come from `npm install` either way. Adding a script means adding both halves.
+`--import`. Deps come from `npm install` either way. Adding a script means adding both halves —
+except the Bun-only ones (`compile`, `brain*`, `test:brain`), whose `bun:` twin is an alias.
 
 To verify interactions, prefer `TestGpuixRenderer.simulateClick/simulateMouseDown/...` — they run
 GPUI's real hit testing (occlusion included) and queue results for `drainEvents()`, which you feed
@@ -177,7 +205,11 @@ The two loaders exist because there is no shared API: Bun has no `module.registe
 `module.register()` is a silent no-op. Both are ~20 lines around `compile_svelte()`, and both must
 be installed before the entry module resolves — Node via `--import ./src/register.js` in every
 `node` script, Bun via `bunfig.toml`'s `preload`. Tests rely on that registration rather than
-importing a loader themselves.
+importing a loader themselves. Both also compile `.svelte.js` runes modules through
+`compile_module()` (`compileModule` from `svelte/compiler`, no renderer option). Those are
+deliberately **not** cache-busted: a module is one instance per process, so state kept in one
+survives a hot remount (that is how Substrate keeps its route and theme), and editing one needs a
+restart.
 
 **`renderer.js`** is where the real work is. Svelte's renderer contract is DOM-shaped (fragments,
 comments, sibling walking); GPUI's tree is flat, id-based and knows only `div`/`text` plus a few
@@ -272,7 +304,13 @@ the two stay in sync. Unknown events are dropped silently.
   time with a warning. `flex: 1`, `border: 1px solid ...`, unitless `line-height` and
   `display: none` have the same problems in a class rule as inline (see the styling playground).
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
-  `virtual-list`, ...); anything else degrades to `div` with a one-time warning.
+  `virtual-list`, ...); anything else degrades to `div` with a one-time warning. `<img src>` is a
+  filesystem path or a `data:` URL, never http. `<svg source>` inherits **no** `color` from its
+  parent — set one on the element (Substrate's `Icon.svelte` does it with tone classes) or it
+  paints a default grey.
+- Prefer `<style>` blocks to inline `style="..."`: shape and colour as class rules, themes as
+  `.light` / `.dark` class variants toggled from state (`class="card {mode}"`), `style:` only for
+  measured values. Shared reactive state goes in `.svelte.js` modules (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
   since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus.
 - **No event bubbling, and a painted child occludes its parent's hitbox.** A child with a

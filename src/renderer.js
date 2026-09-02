@@ -26,7 +26,7 @@ const GPUI_TAGS = new Set([
 
 /** GPUI only forwards a handful of props to `div`/`text`. */
 const BUILT_IN_TAGS = new Set(['div', 'text']);
-const UNIVERSAL_PROPS = new Set(['autoFocus', 'tabIndex', 'testId', 'motion']);
+const UNIVERSAL_PROPS = new Set(['autoFocus', 'tabIndex', 'testId', 'motion', 'highlight']);
 
 /** Attributes that feed `setStyle` rather than a custom prop — `class` via the component's `<style>` rules. */
 const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);

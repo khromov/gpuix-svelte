@@ -23,7 +23,9 @@ export const GPUI_EVENTS = [
 	'keyUp',
 	'focus',
 	'blur',
-	'scroll'
+	'scroll',
+	// `highlight={{ query }}` on div/text reports its match count
+	'highlight'
 ];
 
 const BY_LOWERCASE = new Map(GPUI_EVENTS.map((name) => [name.toLowerCase(), name]));

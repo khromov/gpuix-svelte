@@ -6,7 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 import { Parser } from 'acorn';
-import { compile } from 'svelte/compiler';
+import { compile, compileModule } from 'svelte/compiler';
 import { parse_css_text } from './style.js';
 
 /**
@@ -164,4 +164,22 @@ export function compile_svelte(path, query) {
 	// Propagate the cache-buster to child components, or a reload would
 	// re-instantiate the root against stale children.
 	return query ? bust_child_specifiers(code, query) : code;
+}
+
+/**
+ * A `.svelte.js` module has runes but no template, so it needs neither the renderer
+ * import nor a cache-buster: it is loaded once and shared, which is what lets its
+ * state outlive a hot remount.
+ *
+ * @param {string} path absolute path to a `.svelte.js` file
+ * @returns {string} compiled JS
+ */
+export function compile_module(path) {
+	const { js, warnings } = compileModule(readFileSync(path, 'utf8'), { filename: path, generate: 'client' });
+
+	for (const warning of warnings) {
+		console.warn(`[gpuix-svelte] ${path}: ${warning.message}`);
+	}
+
+	return js.code;
 }

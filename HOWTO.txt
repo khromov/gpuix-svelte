@@ -36,6 +36,15 @@ Needs Node.js 26.1 or newer, or Bun 1.4.0 or newer.
                              # runtime from how it was invoked, since Bun's script
                              # runner executes a `node ...` body on real Node).
                              # GPUIX_TUTORIAL_STEP=7 starts at step 7
+    npm run brain            # Substrate, a "second brain" app: notes, links, images and
+                             # voice memos searched by meaning, keyword and image
+                             # content with on-device models, plus a chat over it
+                             # through any OpenAI-compatible endpoint. Bun only.
+                             # `npm run brain:install` first (ML deps, ~380 MB);
+                             # the first launch downloads ~380 MB of models.
+                             # GPUIX_BRAIN_STUB=1 runs it with fake data and no
+                             # models. `npm run brain:compile` makes
+                             # dist/Substrate.app. See examples/second-brain/README.md
 
 Success looks like:
     [gpuix-svelte] created native window

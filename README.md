@@ -35,6 +35,11 @@ npm run demo:glass-ffi    # same app on REAL Liquid Glass — NSGlassEffectView 
                           # (macOS 26+; falls back to the window blur elsewhere)
 npm run demo:styling      # styling playground — which CSS text reaches GPUI and which is dropped
 npm run tutorial          # interactive onboarding guide — 12 steps with live samples and quizzes
+npm run brain             # Substrate, a "second brain": notes, links, images and voice memos,
+                          # searched by meaning, keyword and image content with on-device models,
+                          # plus an OpenAI-compatible chat over it all. Bun only; run
+                          # `npm run brain:install` first — see examples/second-brain/README.md
+npm run brain:compile     # Substrate as dist/Substrate.app (macOS), models and all
 npm test                  # headless renderer tests
 ```
 
@@ -46,6 +51,12 @@ Every command has a [Bun](https://bun.com) twin under a `bun:` prefix — `npm r
 `npm run bun:demo`, `npm run bun:demo:counter`, and so on. They run the same entry points through
 Bun, which picks the `.svelte` loader up from `bunfig.toml` instead of `--import`. Dependencies
 still come from `npm install` either way; there is one lockfile, and CI runs both runtimes.
+
+The one exception is Substrate (`npm run brain`), which is built on Bun's own APIs — `bun:sqlite`,
+`Bun.spawn` IPC, `Bun.Image`, `HTMLRewriter`, `bun:ffi` — and shows what a complete application
+on this renderer looks like: a hand-rolled router, `.svelte.js` state modules that survive hot
+reloads, `<style>`-driven light and dark themes, custom scrollbars, a background worker process
+for transformers.js, and OS integrations for everything GPUI has no API for.
 
 ## Build a standalone binary
 
