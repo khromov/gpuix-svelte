@@ -49,8 +49,8 @@ export const LIGHT = {
 	active: 'rgba(42, 37, 31, 0.09)',
 	selection: 'rgba(95, 122, 74, 0.28)',
 	scrim: 'rgba(42, 37, 31, 0.42)',
-	thumb: '#cbbfa6',
-	thumbHover: '#b3a488'
+	'scroller-thumb': '#cbbfa6',
+	'scroller-thumb-hover': '#b3a488'
 };
 
 export const DARK = {
@@ -98,8 +98,8 @@ export const DARK = {
 	active: 'rgba(236, 227, 211, 0.10)',
 	selection: 'rgba(143, 174, 116, 0.32)',
 	scrim: 'rgba(0, 0, 0, 0.55)',
-	thumb: '#4a4237',
-	thumbHover: '#5d5447'
+	'scroller-thumb': '#4a4237',
+	'scroller-thumb-hover': '#5d5447'
 };
 
 export const KIND_COLOR = {

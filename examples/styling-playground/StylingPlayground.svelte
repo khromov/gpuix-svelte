@@ -1,5 +1,8 @@
 <script>
-	import { get_native } from 'gpuix-svelte';
+	import { set_css_vars } from 'gpuix-svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
+
+	set_css_vars({ accent: '#f9e2af' });
 
 	// Every case is a style string rendered verbatim on a box, so what GPUI
 	// actually did with it sits next to what was written.
@@ -16,6 +19,10 @@
 					kind: 'class',
 					label: 'class="chip"  (.chip and .chip:hover in <style>)',
 					note: 'class rules are compiled into a GPUI style; hover the chip'
+				},
+				{
+					css: 'padding: 6px 18px; border-radius: 10px; background-color: var(--accent); color: var(--ink, #1e1e2e)',
+					note: 'var() resolves against set_css_vars({ accent }) at runtime; --ink is unset, so its fallback paints'
 				},
 				{
 					css: 'background-color: rebeccapurple; color: hsl(50 90% 70%)',
@@ -137,91 +144,11 @@
 		return `${BASE}; ${c.bare ? '' : FILL}; ${c.css ?? ''}`;
 	}
 
-	// GPUI paints no scrollbars, so each column gets a thumb sized from its painted
-	// bounds and moved by its scroll offset.
-	let columns = [];
-	let contents = [];
-	let thumbs = $state(SECTIONS.map(() => ({ top: 0, height: 0 })));
-
-	function metrics(i) {
-		const native = get_native();
-		const column = columns[i]?.nativeId;
-		const content = contents[i]?.nativeId;
-		if (!native || !column || !content) return null;
-
-		const viewport = native.getElementBounds(column)?.[3];
-		const total = native.getElementBounds(content)?.[3];
-		if (!viewport || !total) return null;
-
-		return { native, column, viewport, total, offset: native.getScrollOffset(column)?.[1] ?? 0 };
-	}
-
-	function place_thumb(i, m, offset) {
-		if (m.total <= m.viewport) {
-			thumbs[i] = { top: 0, height: 0 };
-			return;
-		}
-
-		const height = Math.max(24, (m.viewport / m.total) * m.viewport);
-		const top = (-offset / (m.total - m.viewport)) * (m.viewport - height);
-		thumbs[i] = { top: Math.round(top), height: Math.round(height) };
-	}
-
-	function update_thumb(i) {
-		const m = metrics(i);
-		if (m) place_thumb(i, m, m.offset);
-	}
-
-	// GPUI does not capture the pointer on mousedown, so a drag shows a window-sized
-	// overlay that receives every move and the release; a move with no button held
-	// is a release that happened outside the window.
-	let drag = $state(null);
-
-	function grab(i, e) {
-		if (e.button !== 0) return;
-		const m = metrics(i);
-		if (m) drag = { i, y: e.y, offset: m.offset };
-	}
-
-	function drag_to(e) {
-		if (drag === null) return;
-		if (e.pressedButton == null) {
-			drag = null;
-			return;
-		}
-
-		const m = metrics(drag.i);
-		if (!m || m.total <= m.viewport) return;
-
-		const travel = m.viewport - thumbs[drag.i].height;
-		const wanted = drag.offset - ((e.y - drag.y) / travel) * (m.total - m.viewport);
-		const offset = Math.max(m.viewport - m.total, Math.min(0, wanted));
-		m.native.scrollTo(m.column, 0, offset);
-		place_thumb(drag.i, m, offset);
-	}
-
-	// The offset moves after the wheel event returns, and bounds exist only after
-	// the first paint, so both reads wait a beat.
-	const refresh = (i) => setTimeout(() => update_thumb(i), 16);
-
-	$effect(() => {
-		const timer = setTimeout(() => SECTIONS.forEach((_, i) => update_thumb(i)), 100);
-		return () => clearTimeout(timer);
-	});
 </script>
 
-<div
-	style="position: relative; display: flex; flex-direction: row; gap: 16px; width: 100%; height: 100%;
-	       background-color: #11111b; padding: 16px"
->
-	{#each SECTIONS as section, i}
-		<div style="position: relative; width: 33%; height: 100%">
-			<div
-				{@attach (node) => { columns[i] = node; }}
-				onscroll={() => refresh(i)}
-				style="display: flex; flex-direction: column; height: 100%; overflow-y: scroll; padding-right: 14px"
-			>
-				<div {@attach (node) => { contents[i] = node; }} style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-direction: row; gap: 16px; width: 100%; height: 100%; background-color: #11111b; padding: 16px">
+	{#each SECTIONS as section}
+		<Scroller gap={8}>
 			<div style="font-size: 14px; font-weight: bold" style:color={section.color}>
 				{section.title}
 			</div>
@@ -258,29 +185,8 @@
 					<div style="font-size: 11px; color: #6c7086">{c.note}</div>
 				</div>
 			{/each}
-				</div>
-			</div>
-
-			<div style="position: absolute; top: 0; right: 0; bottom: 0; width: 8px; pointer-events: none">
-				<div
-					style="position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none"
-					style:top="{thumbs[i].top}px"
-					style:height="{thumbs[i].height}px"
-					style:background-color={drag?.i === i ? '#7f849c' : '#585b70'}
-					hover="background-color: #7f849c"
-					onmousedown={(e) => grab(i, e)}
-				></div>
-			</div>
-		</div>
+		</Scroller>
 	{/each}
-
-	{#if drag !== null}
-		<div
-			style="position: absolute; inset: 0; user-select: none"
-			onmousemove={drag_to}
-			onmouseup={() => (drag = null)}
-		></div>
-	{/if}
 </div>
 
 <style>

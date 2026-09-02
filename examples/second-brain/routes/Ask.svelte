@@ -2,7 +2,7 @@
 	import Button from '../components/Button.svelte';
 	import ChatMessage from '../components/ChatMessage.svelte';
 	import EmptyState from '../components/EmptyState.svelte';
-	import Scroller from '../components/Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import { chat, clear, send, stop } from '../lib/chat.svelte.js';
 	import { data } from '../lib/data.svelte.js';
 	import { push } from '../lib/router.svelte.js';

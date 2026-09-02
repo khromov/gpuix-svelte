@@ -2,7 +2,7 @@
 	import Button from '../components/Button.svelte';
 	import Field from '../components/Field.svelte';
 	import ProgressBar from '../components/ProgressBar.svelte';
-	import Scroller from '../components/Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
 	import { data, display_title, format_bytes, get_app, item_by_id, status_text } from '../lib/data.svelte.js';

@@ -27,6 +27,9 @@ check('both lookalikes survive verbatim', bare('HotString') && bare('HotComment'
 
 // The renderer import must stay stable, or each reload gets its own shadow tree.
 check('the renderer specifier is untouched', /gpuix-svelte\/renderer['"]/.test(code), true);
+// Node refuses a bare specifier with a query, and a package component is not being edited.
+check('a bare package specifier is left alone', busted('Scroller'), false);
+check('and survives verbatim', bare('Scroller'), true);
 
 const plain = compile_svelte(FIXTURE);
 check('no query means no rewrite', plain.includes('?v='), false);

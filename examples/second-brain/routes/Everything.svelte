@@ -3,7 +3,7 @@
 	import CaptureBox from '../components/CaptureBox.svelte';
 	import EmptyState from '../components/EmptyState.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
-	import Scroller from '../components/Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import { data } from '../lib/data.svelte.js';
 	import { push } from '../lib/router.svelte.js';
 	import { focus } from '../lib/ui.svelte.js';

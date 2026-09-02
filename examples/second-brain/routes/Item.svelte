@@ -3,7 +3,7 @@
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
 	import Markdown from '../components/Markdown.svelte';
-	import Scroller from '../components/Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Spinner from '../components/Spinner.svelte';
 	import { playback, toggle_play } from '../lib/capture.svelte.js';
 	import { write_text } from '../lib/clipboard.js';

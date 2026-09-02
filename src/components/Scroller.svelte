@@ -1,9 +1,9 @@
 <script>
 	import { get_native } from 'gpuix-svelte';
 
-	// GPUI paints no scrollbars, so the panel draws a thumb sized from its painted
-	// bounds and moved by its scroll offset (the tutorial's Scroller, in Substrate's colours).
-	let { children, gap = 8, pad = '0', follow = false, testid = null } = $props();
+	// GPUI paints no scrollbars, so the column draws a thumb sized from its painted
+	// bounds and moved by its scroll offset, and drags it on a panel-sized overlay.
+	let { children, gap = 8, pad = '0', grow = 1, scroll = true, follow = false, testid = null } = $props();
 
 	let column = null;
 	let content = null;
@@ -23,7 +23,7 @@
 	}
 
 	function place(m, offset) {
-		if (m.total <= m.viewport) {
+		if (!scroll || m.total <= m.viewport) {
 			thumb = { top: 0, height: 0 };
 			return;
 		}
@@ -80,9 +80,9 @@
 	});
 </script>
 
-<div class="wrap">
-	<div {@attach (node) => (column = node)} onscroll={refresh} class="column" testId={testid}>
-		<div {@attach (node) => (content = node)} class="content" style="gap: {gap}px; padding: {pad}">
+<div class="wrap" style="flex-grow: {grow}">
+	<div {@attach (node) => (column = node)} onscroll={refresh} class="column" class:fixed={!scroll} testId={testid}>
+		<div {@attach (node) => (content = node)} class="content" class:fixed={!scroll} style="gap: {gap}px; padding: {pad}">
 			{@render children()}
 		</div>
 	</div>
@@ -94,21 +94,24 @@
 			style:top="{thumb.top}px"
 			style:height="{thumb.height}px"
 			onmousedown={grab}
+			testId={testid && `${testid}-thumb`}
 		></div>
 	</div>
 
 	{#if drag !== null}
-		<div class="overlay" onmousemove={drag_to} onmouseup={() => (drag = null)}></div>
+		<div class="overlay" onmousemove={drag_to} onmouseup={() => (drag = null)} testId={testid && `${testid}-overlay`}></div>
 	{/if}
 </div>
 
 <style>
-	.wrap { position: relative; display: flex; flex-direction: column; flex-grow: 1; flex-basis: 0; min-height: 0; min-width: 0; width: 100%; }
-	.column { display: flex; flex-direction: column; height: 100%; padding-right: 10px; overflow-y: scroll; }
+	.wrap { position: relative; display: flex; flex-direction: column; flex-basis: 0; min-height: 0; min-width: 0; width: 100%; height: 100%; }
+	.column { display: flex; flex-direction: column; height: 100%; padding-right: 12px; overflow-y: scroll; }
+	.column.fixed { overflow-y: hidden; }
 	.content { display: flex; flex-direction: column; }
+	.content.fixed { flex-grow: 1; min-height: 0; }
 	.gutter { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; pointer-events: none; }
-	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; background-color: var(--thumb); }
-	.thumb:hover { background-color: var(--thumbHover); }
-	.thumb.dragging { background-color: var(--thumbHover); }
+	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; background-color: var(--scroller-thumb, #585b70); }
+	.thumb:hover { background-color: var(--scroller-thumb-hover, #7f849c); }
+	.thumb.dragging { background-color: var(--scroller-thumb-hover, #7f849c); }
 	.overlay { position: absolute; inset: 0; user-select: none; }
 </style>

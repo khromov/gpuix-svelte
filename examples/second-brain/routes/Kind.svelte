@@ -2,7 +2,7 @@
 	import EmptyState from '../components/EmptyState.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
-	import Scroller from '../components/Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import { data, status_text } from '../lib/data.svelte.js';
 	import { push } from '../lib/router.svelte.js';
 

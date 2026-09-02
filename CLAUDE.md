@@ -194,7 +194,17 @@ compile.js   .svelte → JS, runtime-agnostic  ─┘
   plugin.js    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.js
   test.js      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   window.js    title / activate / blur / focus helpers  ─ no-ops headlessly
+  components/  Scroller.svelte                          ─ `gpuix-svelte/components/*`
 ```
+
+`src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
+`import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
+`Scroller` (props `gap`, `pad`, `grow`, `scroll`, `follow`, `testid`) is the scroll column with a
+drawn thumb that the tutorial, the styling playground and Substrate all use — GPUI paints no
+scrollbar and captures no pointer, so it measures `getElementBounds`/`getScrollOffset` on a timer
+and drags on a panel-sized overlay. Its colours are `var(--scroller-thumb, …)` /
+`var(--scroller-thumb-hover, …)`, so a palette sets them and the fallbacks are the Catppuccin
+greys.
 
 **`compile.js`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
@@ -267,7 +277,10 @@ directory and re-imports with a `?v=N` cache-buster; `compile.js` propagates tha
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
 `acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
 splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
-comment is left alone and the rest of the output stays byte-identical. The re-import goes through a `file://` URL, since
+comment is left alone and the rest of the output stays byte-identical. Only relative, absolute and
+`file:` specifiers are busted: Node refuses a bare one with a query
+(`gpuix-svelte/components/Scroller.svelte?v=2` is `ERR_PACKAGE_PATH_NOT_EXPORTED`), and a
+package component is not what is being edited. The re-import goes through a `file://` URL, since
 a bare Windows path parses as a URL scheme.
 
 **`style.js`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase

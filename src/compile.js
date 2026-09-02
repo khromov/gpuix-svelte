@@ -37,7 +37,10 @@ function bust_child_specifiers(code, query) {
 	function scan(node) {
 		// A computed `import(expr)` has no literal to rewrite, and never had one.
 		if (SPECIFIER_NODES.has(node.type) && node.source?.type === 'Literal') {
-			if (String(node.source.value).endsWith('.svelte')) closing_quotes.push(node.source.end - 1);
+			const value = String(node.source.value);
+			// A bare specifier can't carry a query (Node refuses `pkg/x.svelte?v=1`), and a
+			// package component is not what is being edited anyway.
+			if (value.endsWith('.svelte') && /^(\.|\/|file:)/.test(value)) closing_quotes.push(node.source.end - 1);
 		}
 
 		for (const key in node) {

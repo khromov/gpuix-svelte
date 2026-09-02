@@ -4,7 +4,7 @@
 	import { focus_element } from 'gpuix-svelte';
 	import { CHAPTERS, STEPS as RAW_STEPS } from './steps.js';
 	import { THEME } from './theme.js';
-	import Scroller from './Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import CodePanel from './CodePanel.svelte';
 	import Diagram from './Diagram.svelte';
 	import Quiz from './Quiz.svelte';
@@ -114,7 +114,7 @@
 
 	<div style="display: flex; flex-direction: row; flex-grow: 1; min-height: 0; gap: 12px; padding: 12px">
 		{#key step.id}
-			<Scroller testid="left-panel">
+			<Scroller gap={12} testid="left-panel">
 				<div style="color: #cdd6f4; font-size: 22px; font-weight: bold">{step.title}</div>
 				<markdown source={step.prose} theme={THEME} onlinkclick={(e) => open(e.value)}></markdown>
 				{#if step.diagram}
@@ -123,7 +123,7 @@
 				<Quiz {...step.quiz} picked={answers[step.id] ?? null} onpick={(i) => (answers[step.id] = i)} />
 			</Scroller>
 
-			<Scroller scroll={!step.previewFill} grow={1.25} testid="right-panel">
+			<Scroller scroll={!step.previewFill} grow={1.25} gap={12} testid="right-panel">
 				{#each step.code as c (c.label)}
 					<CodePanel {...c} theme={THEME} />
 				{/each}

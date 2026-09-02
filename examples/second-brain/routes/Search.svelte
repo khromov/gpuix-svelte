@@ -2,7 +2,7 @@
 	import EmptyState from '../components/EmptyState.svelte';
 	import Icon from '../components/Icon.svelte';
 	import ItemCard from '../components/ItemCard.svelte';
-	import Scroller from '../components/Scroller.svelte';
+	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
 	import { data, get_app } from '../lib/data.svelte.js';
