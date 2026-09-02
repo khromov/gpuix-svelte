@@ -25,7 +25,9 @@ export const GPUI_EVENTS: readonly string[] = [
 	'blur',
 	'scroll',
 	// `highlight={{ query }}` on div/text reports its match count
-	'highlight'
+	'highlight',
+	// `<virtual-list>` reports the rows it has in view instead of a scroll offset
+	'visibleRange'
 ];
 
 /** Not element events: they arrive on the id handed to `setWindowKeyEvents` (see `on_window_key`). */

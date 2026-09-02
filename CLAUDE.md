@@ -81,7 +81,7 @@ npm run test:compile       # single test — the ?v=N cache-buster reaches every
 npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
 npm run test:module        # single test — a .svelte.ts runes module compiles and is one shared instance
 npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in one batch
-npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}
+npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual
 npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
@@ -222,10 +222,16 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
 
 `src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
-`Scroller` (props `gap`, `pad`, `grow`, `scroll`, `follow`, `testid`) is the scroll column with a
-drawn thumb that the tutorial, the styling playground and Substrate all use — GPUI paints no
-scrollbar and captures no pointer, so it measures `getElementBounds`/`getScrollOffset` on a timer
-and drags on a panel-sized overlay. Its colours are `var(--scroller-thumb, …)` /
+`Scroller` (props `gap`, `pad`, `grow`, `scroll`, `follow`, `virtual`, `estimate`, `testid`) is
+the scroll column with a drawn thumb that the tutorial, the styling playground and Substrate all
+use — GPUI paints no scrollbar and captures no pointer, so it measures
+`getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the thumb
+restyle after a wheel event is throttled to one per 50 ms because each one is a full native frame.
+A plain scroll container lays out and paints every child every frame, so `virtual` swaps in GPUI's
+`<virtual-list>` (each direct child a row, which needs `width: 100%`; `estimate` the unmeasured-row height hint; `follow` →
+`followTail`; thumb from `getListScrollTop` and the `visibleRange` event, drag via `scrollToItem`;
+the list host has no tracked bounds, so measure its wrapper). Substrate's timeline and kind lists
+use it. Its colours are `var(--scroller-thumb, …)` /
 `var(--scroller-thumb-hover, …)`, so a palette sets them and the fallbacks are the Catppuccin
 greys. `Portal` is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
 renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
