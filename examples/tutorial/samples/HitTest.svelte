@@ -19,11 +19,9 @@
 	</div>
 
 	<div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
-		<div style={BUTTON} hover="background-color: #45475a" onclick={() => fixed++}>
+		<div style={BUTTON} hover="background-color: #45475a" hitbox="self" onclick={() => fixed++}>
 			Save
-			<div style="{BADGE}; background-color: #a6e3a1; pointer-events: none">
-				badge
-			</div>
+			<div style="{BADGE}; background-color: #a6e3a1">badge</div>
 		</div>
 		<div style="font-size: 12px; color: #a6adc8">fixed: {fixed} clicks</div>
 	</div>

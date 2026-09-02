@@ -335,7 +335,7 @@ export const STEPS = [
 					label: 'div  onclick  background-color',
 					children: [
 						{ label: '"Save"' },
-						{ label: 'div  badge  pointer-events: none', note: 'the click falls through to the button' }
+						{ label: 'div  hitbox="self"  →  badge', note: 'the renderer shields the badge; the click falls through to the button' }
 					]
 				}
 			}
@@ -351,7 +351,7 @@ export const STEPS = [
 			],
 			answer: 1,
 			explanation:
-				'An element that paints a background, a border, or is positioned blocks hits behind it. Give decorative children pointer-events: none.'
+				'An element that paints a background, a border, or is positioned blocks hits behind it. Put hitbox="self" on the clickable element (or give decorative children pointer-events: none yourself).'
 		}
 	},
 	{

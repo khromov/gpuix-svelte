@@ -51,10 +51,11 @@ to run.
 examples/second-brain/
   main.js                Bun guard → create_app() → render_hot(App.svelte, { props: { app } })
   standalone.js          the compiled entry: static imports, render() instead of render_hot()
-  App.svelte             root layout, keyboard shortcuts, overlays, route table
+  App.svelte             root layout, window-level shortcuts, the palette → set_css_vars, route table
   RouteView.svelte       resolves the route and lazy-loads the page component
   routes/                Everything, Kind, Search, Item, Ask, Settings, NotFound
-  components/            Scroller, Sidebar, ItemCard, CaptureBox, Field, Modal, …
+  components/            Sidebar, ItemCard, CaptureBox, Field, Modal (a <Portal>), …; scrolling
+                         is the package's Scroller
   lib/                   the data layer (plain JS) and the UI state (.svelte.js runes modules)
   ml/worker.js           the child process that owns the models; ml/doctor.js is the spike
   native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use
@@ -126,7 +127,7 @@ All optional, all `GPUIX_BRAIN_*`:
 | audio playback | `afplay` |
 | system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
 | decoding audio | a hand-written WAV parser (`lib/wav.js`); anything else through ffmpeg when installed |
-| readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.js`) that scores candidate containers |
+| readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.js`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.js` shows the way around |
 | AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) writes a WebP display copy next to the original |
 | search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
 

@@ -66,7 +66,8 @@ npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/com
 npm run brain:import-hn    # pours the Hacker News front page into the real brain (scrape smoke test)
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
-                           # test:teardown, test:lifecycle, test:compile, test:css, test:module
+                           # test:teardown, test:lifecycle, test:compile, test:css, test:module,
+                           # test:vars, test:scroller, test:hitbox, test:window-keys, test:portal
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -76,6 +77,11 @@ npm run test:lifecycle     # single test — throws don't kill the frame loop; r
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
 npm run test:module        # single test — a .svelte.js runes module compiles and is one shared instance
+npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in one batch
+npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}
+npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
+npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
+npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.js
                            # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
                            # pipeline with a stub worker, real IPC client vs a fake worker incl. a crash)
