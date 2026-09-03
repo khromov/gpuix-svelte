@@ -1200,10 +1200,10 @@ const feed_fetch: Fetcher = async (url) => {
 
 // --- the recorder backend loads (no prompt, no recording). init_recorder is memoized, so
 // both platforms share one block rather than racing for it.
-if (
+const recorder =
   (process.platform === "darwin" || process.platform === "win32") &&
-  process.env.GPUIX_BRAIN_RECORDER !== "0"
-) {
+  process.env.GPUIX_BRAIN_RECORDER !== "0";
+if (recorder) {
   const rec = await init_recorder();
   // A Windows box with no capture device is a legitimate unavailable, so only assert the
   // shape there; macOS always has the shim.
@@ -1226,4 +1226,4 @@ if (
   check("still idle after stop", rec.isRecording(), false);
 }
 
-finish("brain", recorder ? 209 : 206);
+finish("brain", recorder ? 220 : 215);
