@@ -39,7 +39,8 @@ to run.
   Every item also gets a "Related" list from its stored vectors.
 - **Feeds**: subscribe to an RSS or Atom address (or a blog's homepage — the `<link rel="alternate">`
   it advertises is followed) and its entries are ingested like any link you save. Each feed has its
-  own cron schedule (croner, seconds first), a **full article** switch — off, only what the document
+  own check interval — hourly, every 4 or 12 hours, or daily (croner under the hood) — a
+  **full article** switch — off, only what the document
   itself carries is stored and no page is fetched per entry — and optional retention (keep the
   newest *n*, or *n* days; anything you have edited is never pruned). A missed poll is caught up
   shortly after launch. Because a feed brings in far more than you do, feed items are **kept out of

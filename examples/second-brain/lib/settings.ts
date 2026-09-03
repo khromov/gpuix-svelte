@@ -1,6 +1,7 @@
 import type { Bus } from './bus.ts';
 import { normalize_base_url, type LlmConfig } from './llm.ts';
-import { DEFAULT_SCHEDULE, type Store } from './store.ts';
+import { DEFAULT_SCHEDULE } from './feeds/schedules.ts';
+import type { Store } from './store.ts';
 
 export interface SettingValues {
 	'llm.baseUrl': string;

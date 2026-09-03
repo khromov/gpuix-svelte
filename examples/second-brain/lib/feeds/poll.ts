@@ -11,9 +11,10 @@ import { log, warn } from '../log.ts';
 import { derive_title } from '../media.ts';
 import { friendly_fetch_error, normalize_url } from '../scrape.ts';
 import type { Settings } from '../settings.ts';
-import { DEFAULT_SCHEDULE, type Feed, type Item, type Store } from '../store.ts';
+import type { Feed, Item, Store } from '../store.ts';
 import type { Fetcher } from '../types.ts';
 import { detect, source_of } from './index.ts';
+import { DEFAULT_SCHEDULE } from './schedules.ts';
 import type { FeedEntry, FeedSource } from './types.ts';
 
 export interface FeedDeps {

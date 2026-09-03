@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { TranscribeSegment } from './ml-client.ts';
+import { DEFAULT_SCHEDULE } from './feeds/schedules.ts';
 import { to_blob } from './vectors.ts';
 
 /** The JSON `meta` column; every key is optional because each pipeline step adds its own. */
@@ -131,9 +132,6 @@ type Params = Record<string, Param>;
 const ITEM_COLS =
 	'id, kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, attempts, meta, feed_id, created_at, updated_at';
 const PATCHABLE = new Set(['kind', 'title', 'body', 'source_url', 'file_blob', 'thumb_blob', 'width', 'height', 'duration', 'status', 'error', 'attempts', 'feed_id']);
-
-/** Every two hours, on the hour — croner's six-field form, seconds first. */
-export const DEFAULT_SCHEDULE = '0 0 */2 * * *';
 
 const FEED_COLS =
 	'id, type, url, title, site_url, schedule, full_text, enabled, retention_days, retention_max, etag, last_modified, last_polled_at, last_ok_at, last_error, created_at';

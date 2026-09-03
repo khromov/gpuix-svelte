@@ -6,7 +6,9 @@
 	import Icon from '../components/Icon.svelte';
 	import Modal from '../components/Modal.svelte';
 	import Spinner from '../components/Spinner.svelte';
+	import Segmented from '../components/Segmented.svelte';
 	import Toggle from '../components/Toggle.svelte';
+	import { SCHEDULES } from '../lib/feeds/schedules.ts';
 	import { ago, data, get_app } from '../lib/data.svelte.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import type { Feed } from '../lib/store.ts';
@@ -62,12 +64,6 @@
 		set(feed, { [key]: value.trim() && Number.isFinite(n) && n > 0 ? Math.round(n) : null });
 	}
 
-	function set_schedule(feed: Feed, value: string) {
-		const schedule = value.trim();
-		if (app.feeds.next_run(schedule) == null) return toast('That is not a schedule croner can read', 'error');
-		set(feed, { schedule });
-	}
-
 	const host = (feed: Feed) => {
 		try {
 			return new URL(feed.url).host;
@@ -121,7 +117,11 @@
 								checked={feed.full_text}
 								onchange={(v) => set(feed, { full_text: v })}
 							/>
-							<Field label="Schedule" value={feed.schedule} placeholder="0 0 */2 * * *" mono hint="Cron, seconds first. Next run {when_next(feed.schedule)}." onchange={(v) => set_schedule(feed, v)} />
+							<div class="setting">
+								<div class="label">Check for new entries</div>
+								<Segmented options={SCHEDULES} value={feed.schedule} onchange={(v) => set(feed, { schedule: v })} />
+								<div class="hint">Next {when_next(feed.schedule)}. A check missed while Substrate was closed runs at the next launch.</div>
+							</div>
 							<div class="row">
 								<Field
 									label="Keep newest"
@@ -169,6 +169,9 @@
 	.titles { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
 	.name { font-size: 14px; line-height: 19px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.sub { font-size: 11px; line-height: 15px; color: var(--inkFaint); }
+	.setting { display: flex; flex-direction: column; align-items: start; gap: 6px; }
+	.label { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--inkMuted); }
+	.hint { font-size: 11px; line-height: 15px; color: var(--inkFaint); }
 	.options { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; border-top-width: 1px; border-color: var(--divider); }
 	.problem { padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 16px; background-color: var(--dangerSoft); color: var(--danger); }
 	.grow { flex-grow: 1; }

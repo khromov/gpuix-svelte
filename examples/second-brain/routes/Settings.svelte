@@ -15,6 +15,7 @@
 	import Modal from '../components/Modal.svelte';
 	import Toggle from '../components/Toggle.svelte';
 	import { push } from '../lib/router.svelte.ts';
+	import { SCHEDULES } from '../lib/feeds/schedules.ts';
 
 	const app = get_app();
 	const settings = app.settings;
@@ -190,14 +191,8 @@
 				onchange={(v) => { include_feeds = v; settings.set('search.includeFeeds', v); }}
 				testid="include-feeds"
 			/>
-			<Field
-				label="Default schedule for a new feed"
-				value={schedule}
-				placeholder="0 0 */2 * * *"
-				mono
-				hint="Cron, seconds first. Each feed can be given its own."
-				onchange={(v) => { schedule = v.trim(); settings.set('feeds.schedule', schedule); }}
-			/>
+			<div class="hint">How often a new feed checks for entries — each feed can be given its own on the Feeds page.</div>
+			<Segmented options={SCHEDULES} value={schedule} onchange={(v) => { schedule = v; settings.set('feeds.schedule', v); }} />
 			<div class="row">
 				<Button label={data.feeds.length ? `Manage ${data.feeds.length} feed${data.feeds.length === 1 ? '' : 's'}` : 'Add a feed'} icon="rss" small onclick={() => push('/feeds')} />
 				<div class="hint">{data.counts.feeds} item{data.counts.feeds === 1 ? '' : 's'} came from feeds.</div>

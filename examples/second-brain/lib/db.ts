@@ -77,7 +77,7 @@ CREATE TABLE feeds (
   url            TEXT NOT NULL UNIQUE,
   title          TEXT NOT NULL DEFAULT '',
   site_url       TEXT,
-  schedule       TEXT NOT NULL DEFAULT '0 0 */2 * * *',
+  schedule       TEXT NOT NULL DEFAULT '0 0 */4 * * *',
   full_text      INTEGER NOT NULL DEFAULT 1,
   enabled        INTEGER NOT NULL DEFAULT 1,
   retention_days INTEGER,
