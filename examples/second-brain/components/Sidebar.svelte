@@ -35,6 +35,11 @@
 		<NavItem label="Audio" icon="audio" path="/audio" count={data.counts.by_kind.audio} />
 	</div>
 
+	<div class="section">Sources</div>
+	<div class="nav">
+		<NavItem label="Feeds" icon="rss" path="/feeds" count={data.counts.feeds} />
+	</div>
+
 	<div class="section">Think</div>
 	<div class="nav">
 		<NavItem label="Ask" icon="sparkles" path="/ask" />

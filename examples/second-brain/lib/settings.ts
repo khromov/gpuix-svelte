@@ -1,6 +1,6 @@
 import type { Bus } from './bus.ts';
 import { normalize_base_url, type LlmConfig } from './llm.ts';
-import type { Store } from './store.ts';
+import { DEFAULT_SCHEDULE, type Store } from './store.ts';
 
 export interface SettingValues {
 	'llm.baseUrl': string;
@@ -11,6 +11,8 @@ export interface SettingValues {
 	'stt.language': string;
 	'ml.autoload': boolean;
 	'index.embedModel': string | null;
+	'search.includeFeeds': boolean;
+	'feeds.schedule': string;
 }
 
 export type SettingKey = keyof SettingValues;
@@ -32,7 +34,9 @@ export const SETTINGS: Record<SettingKey, SettingSpec> = {
 	'theme.mode': { default: 'system' },
 	'stt.language': { default: '' },
 	'ml.autoload': { default: true },
-	'index.embedModel': { default: null, internal: true }
+	'index.embedModel': { default: null, internal: true },
+	'search.includeFeeds': { default: false },
+	'feeds.schedule': { default: DEFAULT_SCHEDULE }
 };
 
 const mask = (value: unknown) => (value ? `${'•'.repeat(Math.max(0, Math.min(12, String(value).length - 4)))}${String(value).slice(-4)}` : '');

@@ -24,9 +24,16 @@ export interface QueueEvent {
 	active_ids: number[];
 }
 
+/** A feed row changed; `null` when the list itself did. */
+export interface FeedEvent {
+	type: 'feed';
+	id: number | null;
+}
+
 export type BusEvent =
 	| ItemEvent
 	| QueueEvent
+	| FeedEvent
 	| { type: 'ml'; status: MlStatus }
 	| { type: 'settings'; key: SettingKey; value: unknown };
 

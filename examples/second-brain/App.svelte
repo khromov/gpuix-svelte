@@ -26,6 +26,7 @@
 		{ path: '/links', load: () => import('./routes/Kind.svelte'), props: { kind: 'link' }, title: 'Links' },
 		{ path: '/images', load: () => import('./routes/Kind.svelte'), props: { kind: 'image' }, title: 'Images' },
 		{ path: '/audio', load: () => import('./routes/Kind.svelte'), props: { kind: 'audio' }, title: 'Audio' },
+		{ path: '/feeds', load: () => import('./routes/Feeds.svelte'), title: 'Feeds' },
 		{ path: '/search', load: () => import('./routes/Search.svelte'), title: 'Search' },
 		{ path: '/item/:id', load: () => import('./routes/Item.svelte'), title: 'Item' },
 		{ path: '/ask', load: () => import('./routes/Ask.svelte'), title: 'Ask' },

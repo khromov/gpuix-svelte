@@ -37,6 +37,15 @@ to run.
   `kind:image` and `kind:audio` narrow a query or, alone, list a kind; the search box completes
   them as you type (arrows choose, Tab completes, Enter searches). A pasted URL finds its item.
   Every item also gets a "Related" list from its stored vectors.
+- **Feeds**: subscribe to an RSS or Atom address (or a blog's homepage — the `<link rel="alternate">`
+  it advertises is followed) and its entries are ingested like any link you save. Each feed has its
+  own cron schedule (croner, seconds first), a **full article** switch — off, only what the document
+  itself carries is stored and no page is fetched per entry — and optional retention (keep the
+  newest *n*, or *n* days; anything you have edited is never pruned). A missed poll is caught up
+  shortly after launch. Because a feed brings in far more than you do, feed items are **kept out of
+  search, Ask and Related** until *Include feeds when you search* is ticked in Settings; a single
+  query overrides it with `feeds:on`. An entry whose URL you had already saved is adopted rather
+  than duplicated, and an entry you delete is never fetched again.
 - **Ask**: retrieval-augmented chat over the corpus with any OpenAI-compatible endpoint (Ollama,
   LM Studio, OpenAI, OpenRouter). Answers stream in as markdown; `[n]` citations become chips that
   open the item. A vision model, when configured, describes images on import.
@@ -53,12 +62,14 @@ examples/second-brain/
   standalone.ts          the compiled entry: static imports, render() instead of render_hot()
   App.svelte             root layout, window-level shortcuts, the palette → set_css_vars, route table
   RouteView.svelte       resolves the route and lazy-loads the page component
-  routes/                Everything, Kind, Search, Item, Ask, Settings, NotFound; Item renders a
+  routes/                Everything, Kind, Search, Item, Ask, Feeds, Settings, NotFound; Item renders a
                          page one <markdown> block per virtual row (lib/blocks.ts), since a native
                          markdown element lays out its whole document every frame
   components/            Sidebar, ItemCard, CaptureBox, Field, Modal (a <Portal>), …; scrolling
                          is the package's Scroller
   lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules)
+  lib/feeds/             the poller (poll.ts, croner) over a source registry; rss.ts reads RSS 2.0,
+                         RDF and Atom, and another kind is a module plus an entry in SOURCES
   ml/worker.ts           the child process that owns the models; ml/doctor.ts is the spike
   native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use
   scripts/import-hn.ts   the Hacker News importer; frame-cost.ts prints GPUI draw times per route
@@ -120,6 +131,7 @@ All optional, all `GPUIX_BRAIN_*`:
 | `ML=wasm\|off` | force transformers.js onto onnxruntime-web, or disable the worker entirely |
 | `OFFLINE=1` | never download models |
 | `RECORDER=0` | don't compile or load the microphone shim |
+| `FEEDS=0` | no scheduled feed polling (manual refresh still works); implied by `OFFLINE=1` |
 | `LLM_URL`, `LLM_KEY`, `LLM_MODEL` | override Settings; the key never has to be stored |
 | `RESOURCES=/path` | where a compiled app's worker and shim live (auto-detected inside a .app) |
 | `DEBUG=1` | verbose logging |
@@ -141,6 +153,7 @@ All optional, all `GPUIX_BRAIN_*`:
 | AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) stores a WebP display copy beside the original |
 | shrinking a recording | LAME as WebAssembly (`wasm-media-encoders`, `lib/mp3.ts`): once the transcript exists, a memo the app recorded itself is re-encoded from 16 kHz PCM to 32 kbps MP3 in place, about eight times smaller, and mpg123 decodes it back if it is ever re-transcribed. An imported file is the user's master and is never rewritten |
 | search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
+| reading a feed | a small XML scanner (`lib/feeds/xml.ts`) rather than `HTMLRewriter`, which is an HTML parser: it voids `<link/>`, lowercases and reshapes the tree, so Atom's `<link href>` and `<content type="html">` do not survive it. The HTML *inside* an entry does go through `extract()` |
 
 ## About client-side routers
 
@@ -183,6 +196,7 @@ for one.
 
 `npm run test:brain` (Bun; also part of `npm run bun:test`) runs `test/brain.ts` — the WAV codec,
 the page extractor, the SSE parser, the chunker, the vector index, the store and pipeline with a
-stub worker, and the real IPC client against a fake worker, including a forced crash — and
-`test/smoke.ts`, which mounts the app headlessly and captures, opens, and deletes a note through
-GPUI's real hit testing. Neither needs a model or the network.
+stub worker, the feed parser and poller against fixture documents, and the real IPC client against
+a fake worker, including a forced crash — and `test/smoke.ts`, which mounts the app headlessly and
+captures, opens, and deletes a note through GPUI's real hit testing. Neither needs a model or the
+network.

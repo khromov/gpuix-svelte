@@ -123,6 +123,7 @@
 		"@eslint/js": "^10.0.1",
 		"@types/bun": "^1.4.0",
 		"@types/node": "^26.4.1",
+		"croner": "^10.0.1",
 		"eslint": "^10.9.1",
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.12.0",

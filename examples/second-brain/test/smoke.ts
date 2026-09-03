@@ -40,7 +40,20 @@ import { DARK, LIGHT } from '../lib/theme.ts';
 import { set_mode } from '../lib/theme.svelte.ts';
 import { ui } from '../lib/ui.svelte.ts';
 
-const app = await create_app({ data_dir: mkdtempSync(join(tmpdir(), 'substrate-smoke-')), ml: new MlStub(), seed: true });
+const RSS = `<rss version="2.0"><channel><title>Newsonaut</title><link>https://feed.test/</link>
+<item><title>Mycelium and the wood wide web</title><link>https://feed.test/post-1</link><guid>post-1</guid>
+<description>Fungal networks trade sugar for phosphorus.</description></item></channel></rss>`;
+
+const app = await create_app({
+	data_dir: mkdtempSync(join(tmpdir(), 'substrate-smoke-')),
+	ml: new MlStub(),
+	seed: true,
+	fetch: async (url) =>
+		String(url).includes('rss.xml')
+			? new Response(RSS, { headers: { 'content-type': 'application/rss+xml' } })
+			: new Response('<html><body><article><p>The full post about mycelium.</p></article></body></html>', { headers: { 'content-type': 'text/html' } })
+});
+await app.feeds.add('https://feed.test/rss.xml');
 await app.ingest.idle();
 
 const App = (await import('../App.svelte')).default;
@@ -156,6 +169,25 @@ check('confirm deletes the item', app.get_item(note.id), null);
 check('delete navigates back', route.path, '/');
 await wait();
 check('deleted note gone from the timeline', all_text().some((t) => t.includes('Buy compost for the raised beds')), false);
+
+push('/feeds');
+await wait();
+await wait();
+const feed = app.feeds.list()[0];
+check('the feeds route lists the subscription', painted().includes('Newsonaut'));
+check('and says how much it brought in', painted().includes('1 items'));
+await tap('Options');
+check('the options panel opens', painted().includes('Fetch the full article'));
+await tap('Fetch the full article');
+check('a toggle writes through to the feed', app.feeds.get(feed.id)!.full_text, false);
+
+push('/settings');
+await wait();
+await wait();
+check('settings carries the search switch', all_text().some((t) => t.includes('Include feeds when you search')));
+check('search hides feed items by default', (await app.search('mycelium')).hits.length, 0);
+app.settings.set('search.includeFeeds', true);
+check('and the switch reveals them', (await app.search('mycelium')).hits[0]?.item.feed_id, feed.id);
 
 console.log('screenshot:', screenshot(join(tmpdir(), 'substrate-smoke.png')));
 

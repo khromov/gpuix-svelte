@@ -48,7 +48,10 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
                            # NOT part of `npm run demo`
 npm run brain              # Substrate, the "second brain" example (examples/second-brain): notes, links
                            # (scraped with HTMLRewriter), images, voice memos; hybrid search
-                           # (nomic embeddings + FTS5 + CLIP, fused with RRF); RAG chat over any
+                           # (nomic embeddings + FTS5 + CLIP, fused with RRF); RSS/Atom feeds
+                           # polled on a per-feed cron (croner, in-process — the ML worker takes one
+                           # job at a time and does not exist without the ML deps), kept out of
+                           # search/Ask/Related behind search.includeFeeds; RAG chat over any
                            # OpenAI-compatible endpoint; light/dark. BUN ONLY (bun:sqlite,
                            # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
                            # is the same script. Models run in a child process (ml/worker.ts).
@@ -56,7 +59,7 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # <data-dir>/cache is a disposable extraction of them (lib/blobs.ts).
                            # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
                            # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
-                           # _RECORDER=0, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
+                           # _RECORDER=0, _FEEDS=0, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
 npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
                            # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
                            # in that nested package so the root and CI stay lean
@@ -92,7 +95,8 @@ npm run test:window-keys   # single test — on_window_key, the editing flag, re
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.ts
                            # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
-                           # pipeline with a stub worker, real IPC client vs a fake worker incl. a crash)
+                           # pipeline with a stub worker, the feed parser/poller over fixture
+                           # documents, real IPC client vs a fake worker incl. a crash)
                            # and test/smoke.ts (headless mount; capture, open, Esc, delete via real hit
                            # testing; a long page paints only the rows in view). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)

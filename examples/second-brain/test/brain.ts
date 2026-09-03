@@ -21,6 +21,7 @@ import { MlClient } from '../lib/ml-client.ts';
 import { MlStub } from '../lib/ml-stub.ts';
 import { chunk_body, fts_query, match_ranges, parse_query, query_terms, rrf, snippet_around } from '../lib/rank.ts';
 import { init_recorder } from '../lib/recorder.ts';
+import { rss } from '../lib/feeds/rss.ts';
 import { decode_entities, extract, normalize_url, pick_title } from '../lib/scrape.ts';
 import type { Failure, Fetcher } from '../lib/types.ts';
 import { VectorIndex, from_blob, to_blob } from '../lib/vectors.ts';
@@ -194,10 +195,12 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('fts_query empty', fts_query('  '), null);
 	check('chunk_body strips heading path', chunk_body('Title › Section\n\nBody here', 'Title'), 'Body here');
 
-	check('parse_query strips kind:', JSON.stringify(parse_query('compost kind:note')), '{"text":"compost","kinds":["text"],"unknown":[]}');
+	check('parse_query strips kind:', JSON.stringify(parse_query('compost kind:note')), '{"text":"compost","kinds":["text"],"unknown":[],"feeds":null}');
 	check('parse_query several kinds and aliases', parse_query('kind:links,img is:voice foo').kinds!.join(','), 'link,image,audio');
 	check('parse_query unknown kind reported', parse_query('kind:bogus x').unknown.join(','), 'bogus');
-	check('parse_query kind only', JSON.stringify(parse_query('kind:image')), '{"text":"","kinds":["image"],"unknown":[]}');
+	check('parse_query kind only', JSON.stringify(parse_query('kind:image')), '{"text":"","kinds":["image"],"unknown":[],"feeds":null}');
+	check('parse_query feeds:on', JSON.stringify(parse_query('soil feeds:on')), '{"text":"soil","kinds":null,"unknown":[],"feeds":true}');
+	check('parse_query feeds:off', parse_query('feeds:off soil').feeds, false);
 
 	const terms = query_terms('Compost "worms"*');
 	check('query_terms longest first, no fts syntax', terms.join(','), 'compost,worms');
@@ -389,6 +392,175 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('restart restores image vectors', app.images.size, 1);
 	check('restart keeps items', app.snapshot().counts.total, 8);
 	check('media survives a reopen', (app.blobs.bytes(app.list({ kind: 'image' })[0].file_blob)?.length ?? 0) > 0);
+	app.close();
+}
+
+// --- feeds
+const RSS = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel>
+  <title>Newsonaut</title>
+  <link>https://feed.test/</link>
+  <description>Dispatches</description>
+  <item>
+    <title>Mycelium &amp; the wood wide web</title>
+    <link>https://feed.test/post-1?utm_source=rss</link>
+    <guid isPermaLink="false">post-1</guid>
+    <pubDate>Tue, 01 Sep 2026 08:00:00 GMT</pubDate>
+    <dc:creator>A. Gardener</dc:creator>
+    <description><![CDATA[<p>Fungal networks trade <b>sugar</b> for phosphorus.</p>]]></description>
+    <enclosure url="/hero.png" type="image/png" length="1" />
+  </item>
+  <item>
+    <title>Charcoal in the beds</title>
+    <link>https://feed.test/post-2</link>
+    <guid isPermaLink="false">post-2</guid>
+    <pubDate>Mon, 31 Aug 2026 08:00:00 GMT</pubDate>
+    <content:encoded><![CDATA[<p>Biochar holds onto nutrients for centuries.</p>]]></content:encoded>
+  </item>
+</channel>
+</rss>`;
+const ATOM = `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atomsonaut</title>
+  <link rel="self" href="https://feed.test/atom.xml"/>
+  <link rel="alternate" href="https://feed.test/"/>
+  <entry>
+    <title>Quenching the clay</title>
+    <id>urn:uuid:atom-1</id>
+    <link rel="alternate" href="https://feed.test/atom-post-1"/>
+    <updated>2026-09-02T10:00:00Z</updated>
+    <author><name>B. Digger</name></author>
+    <summary type="html">&lt;p&gt;Gypsum will not fix compaction.&lt;/p&gt;</summary>
+  </entry>
+</feed>`;
+const HOMEPAGE = `<html><head><title>Blog</title><link rel="alternate" type="application/rss+xml" href="/rss.xml"></head><body><p>hello</p></body></html>`;
+const ARTICLE = (word: string) => `<html><head><title>Post</title></head><body><article><h1>Post</h1><p>The full article body mentions ${word} at length, which the feed summary never does.</p></article></body></html>`;
+
+let fetches = 0;
+const feed_fetch: Fetcher = async (url) => {
+	fetches++;
+	const path = String(url);
+	if (path.endsWith('/hero.png')) return new Response(await Bun.file(icon).bytes(), { headers: { 'content-type': 'image/png' } });
+	if (path.includes('atom.xml')) return new Response(ATOM, { headers: { 'content-type': 'application/atom+xml' } });
+	if (path.includes('rss.xml') || path.includes('feed.xml')) return new Response(RSS, { headers: { 'content-type': 'application/rss+xml' } });
+	if (path.startsWith('https://blog.test') && !path.includes('.xml')) return new Response(HOMEPAGE, { headers: { 'content-type': 'text/html' } });
+	if (path.includes('post-1')) return new Response(ARTICLE('nitrogen'), { headers: { 'content-type': 'text/html' } });
+	if (path.includes('post-2')) return new Response(ARTICLE('potassium'), { headers: { 'content-type': 'text/html' } });
+	return new Response('nope', { status: 404 });
+};
+
+{
+	const parsed = rss.parse(RSS, 'https://feed.test/rss.xml');
+	check('rss title', parsed.title, 'Newsonaut');
+	check('rss site url', parsed.site_url, 'https://feed.test/');
+	check('rss entries', parsed.entries.length, 2);
+	check('rss entity in a title', parsed.entries[0].title, 'Mycelium & the wood wide web');
+	check('rss guid', parsed.entries[0].guid, 'post-1');
+	check('rss link', parsed.entries[0].url, 'https://feed.test/post-1?utm_source=rss');
+	check('rss cdata html becomes text', parsed.entries[0].body, 'Fungal networks trade sugar for phosphorus.');
+	check('rss author', parsed.entries[0].author, 'A. Gardener');
+	check('rss enclosure image is absolute', parsed.entries[0].image_url, 'https://feed.test/hero.png');
+	check('rss date', new Date(parsed.entries[0].published_at!).toISOString(), '2026-09-01T08:00:00.000Z');
+	check('content:encoded beats description', parsed.entries[1].body, 'Biochar holds onto nutrients for centuries.');
+
+	const atom = rss.parse(ATOM, 'https://feed.test/atom.xml');
+	check('atom title', atom.title, 'Atomsonaut');
+	check('atom skips rel=self for the site link', atom.site_url, 'https://feed.test/');
+	check('atom id is the guid', atom.entries[0].guid, 'urn:uuid:atom-1');
+	check('atom link href', atom.entries[0].url, 'https://feed.test/atom-post-1');
+	check('atom escaped html unescapes to text', atom.entries[0].body, 'Gypsum will not fix compaction.');
+	check('atom nested author name', atom.entries[0].author, 'B. Digger');
+	check('sniff by content type', rss.sniff('', 'application/rss+xml'));
+	check('sniff by document element', rss.sniff(ATOM, 'text/plain'));
+	check('sniff refuses html', rss.sniff(HOMEPAGE, 'text/html'), false);
+	check('unclosed tags still parse', rss.parse('<rss><channel><title>Half<item><title>One</title></channel></rss>', 'https://x.test/').entries.length, 1);
+}
+
+{
+	const feed_dir = mkdtempSync(join(tmpdir(), 'substrate-feeds-'));
+	const app = await create_app({ data_dir: feed_dir, ml: new MlStub(), fetch: feed_fetch });
+
+	// An entry captured by hand before the feed knew about it is adopted, not duplicated.
+	const { item: manual } = await app.add_link('https://feed.test/post-2');
+
+	const { feed, result } = await app.feeds.add('https://feed.test/rss.xml');
+	await app.ingest.idle();
+	check('feed title from the document', feed.title, 'Newsonaut');
+	check('backfill takes what the feed carries', result.added, 1);
+	check('an existing item is adopted', app.get_item(manual.id)!.feed_id, feed.id);
+	check('no duplicate for the adopted url', app.store.counts().total, 2);
+	check('feed items counted', app.store.counts().feeds, 2);
+
+	const first = app.list({ limit: 10 }).find((i) => i.meta.feed && i.source_url?.includes('post-1'))!;
+	check('entry keeps its publish date', new Date(first.created_at).toISOString(), '2026-09-01T08:00:00.000Z');
+	check('utm stripped from the entry url', first.source_url, 'https://feed.test/post-1');
+	check('full text is fetched by default', first.body.includes('nitrogen'));
+	check('entry author recorded', first.meta.author, 'A. Gardener');
+	check('feed entries are ready', first.status, 'ready');
+
+	check('a second poll adds nothing', (await app.feeds.refresh(feed.id)).added, 0);
+	await app.ingest.idle();
+	check('and creates no items', app.store.counts().total, 2);
+
+	// The feed's own words are searchable, but only when asked for.
+	check('feed items are out of search', (await app.search('nitrogen')).hits.length, 0);
+	check('feeds:on reveals them', (await app.search('nitrogen feeds:on')).hits[0]?.item.id, first.id);
+	check('the option reveals them', (await app.search('nitrogen', { feeds: true })).hits[0]?.item.id, first.id);
+	check('a pasted feed url still resolves', (await app.search('https://feed.test/post-1')).hits[0]?.item.id, first.id);
+	check('rag retrieval skips feeds', (await app.search('nitrogen', { feeds: false })).hits.length, 0);
+	app.settings.set('search.includeFeeds', true);
+	check('the setting reveals them', (await app.search('nitrogen')).hits[0]?.item.id, first.id);
+	app.settings.set('search.includeFeeds', false);
+
+	const note = app.add_note({ body: 'Nitrogen notes: legumes fix it out of the air.' });
+	await app.ingest.idle();
+	check('own items are unaffected', (await app.search('nitrogen')).hits[0]?.item.id, note.id);
+
+	// Feed content only: no article fetch, the body is what the document carried.
+	const atom_feed = (await app.feeds.add('https://feed.test/atom.xml', { full_text: false })).feed;
+	await app.ingest.idle();
+	const atom_item = app.list({ limit: 10 }).find((i) => i.feed_id === atom_feed.id)!;
+	check('feed-content-only body', atom_item.body, 'Gypsum will not fix compaction.');
+	check('and no page was scraped', atom_item.meta.fetched_at === undefined);
+	check('the feed summary is kept as the excerpt', atom_item.meta.excerpt, 'Gypsum will not fix compaction.');
+
+	// A blog address is followed to the feed it advertises.
+	const found = await app.feeds.add('https://blog.test');
+	check('an html page resolves to its feed', found.feed.url, 'https://blog.test/rss.xml');
+	check('subscribing twice is refused', await app.feeds.add('https://blog.test/rss.xml').then(() => 'ok', (e: Error) => e.message), 'already subscribed to that feed');
+	app.feeds.remove(found.feed.id, { keep_items: false });
+	check('removing a feed with its items', app.store.list_feeds().length, 2);
+
+	// Retention keeps the newest entry and never lets the pruned one back in.
+	app.feeds.update(feed.id, { retention_max: 1 });
+	const pruned = await app.feeds.refresh(feed.id);
+	check('retention prunes the older entry', pruned.pruned, 1);
+	check('retention keeps the newest', app.store.feed_entry_items(feed.id).length, 1);
+	check('a pruned entry is not fetched again', (await app.feeds.refresh(feed.id)).added, 0);
+
+	// An entry you have edited is yours, whatever retention says.
+	const kept = app.store.feed_entry_items(feed.id)[0];
+	app.store.update_item(kept.id, { meta: { edited: true } });
+	app.feeds.update(feed.id, { retention_max: 0 });
+	check('an edited entry survives retention', (await app.feeds.refresh(feed.id)).pruned, 0);
+
+	// A feed the app was closed for polls at start; one just polled does not.
+	app.store.update_feed(atom_feed.id, { last_polled_at: 0, last_error: null });
+	const before = fetches;
+	app.feeds.start();
+	await new Promise((r) => setTimeout(r, 200));
+	check('a missed poll is caught up at start', fetches > before);
+	check('and the feed is marked polled', app.store.get_feed(atom_feed.id)!.last_polled_at! > 0);
+	const after = fetches;
+	app.feeds.stop();
+	app.feeds.start();
+	await new Promise((r) => setTimeout(r, 200));
+	check('a feed that is up to date is left alone', fetches, after);
+	app.feeds.stop();
+
+	check('a broken schedule is reported', app.feeds.next_run('not a cron'), null);
+	check('a good schedule has a next run', (app.feeds.next_run('0 0 */2 * * *') ?? 0) > Date.now());
 	app.close();
 }
 
