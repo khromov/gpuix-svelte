@@ -185,6 +185,7 @@
 			<div class="heading">Data</div>
 			<div class="hint">{app.dirs.root}</div>
 			<div class="hint">{data.counts.total} items · {app.vectors.size} text vectors · {app.images.size} image vectors</div>
+			<div class="hint">substrate.sqlite holds everything, media included — {format_bytes(app.store.bytes_used())}. Copy it and you have moved the whole brain.</div>
 			<div class="row">
 				<Button label="Reveal in Finder" icon="folder" small onclick={() => reveal(app.dirs.db)} />
 				<Button label="Rebuild index" icon="refresh" small onclick={() => (confirming = true)} />

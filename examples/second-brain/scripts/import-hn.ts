@@ -53,7 +53,7 @@ for (const { story, item } of added) {
 	const site: string = fresh.meta.site_name ?? new URL(story.url).hostname;
 	if (fresh.status === 'ready') {
 		ok++;
-		console.log(`  ok    ${String(fresh.id).padStart(3)}  ${site.padEnd(28)} ${fresh.body.length.toString().padStart(6)} chars  thumb=${fresh.thumb_path ? 'y' : '-'}  ${JSON.stringify(fresh.title).slice(0, 60)}`);
+		console.log(`  ok    ${String(fresh.id).padStart(3)}  ${site.padEnd(28)} ${fresh.body.length.toString().padStart(6)} chars  thumb=${fresh.thumb_blob ? 'y' : '-'}  ${JSON.stringify(fresh.title).slice(0, 60)}`);
 	} else {
 		console.log(`  ${fresh.status.padEnd(5)} ${String(fresh.id).padStart(3)}  ${site.padEnd(28)} ${fresh.error}`);
 	}

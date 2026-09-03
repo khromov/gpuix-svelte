@@ -10,7 +10,7 @@ if (!process.versions.bun) {
 
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse_appearance } from '../lib/appearance.ts';
 import { create_app } from '../lib/app.ts';
@@ -246,7 +246,12 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('link dedupes by normalized url', (await app.add_link('https://example.com/soil')).existed, true);
 	const image = await app.add_image(icon);
 	check('image has dimensions', image.width, 1024);
-	check('image has a thumbnail', existsSync(image.thumb_path!));
+	check('image bytes are in the database', (app.blobs.bytes(image.file_blob)?.length ?? 0) > 0);
+	check('image has a thumbnail', (app.blobs.info(image.thumb_blob!)?.size ?? 0) > 0);
+	const cached = app.blobs.file(image.thumb_blob)!;
+	check('a blob materialises into the cache', existsSync(cached));
+	check('the cache path lives under cache/', cached.startsWith(app.dirs.cache));
+	check('materialising twice is the same path', app.blobs.file(image.thumb_blob), cached);
 	const wav = join(dir, 'memo.wav');
 	await Bun.write(wav, encode_wav(Float32Array.from({ length: 44100 }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 440 * i) / 44100)), 44100));
 	const audio = await app.add_audio(wav);
@@ -255,7 +260,7 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('note ready', app.get_item(note.id)!.status, 'ready');
 	check('link scraped title', app.get_item(link.id)!.title, 'All about loam');
 	check('link body from article', app.get_item(link.id)!.body.includes('drains well'));
-	check('link thumb fetched', existsSync(app.get_item(link.id)!.thumb_path ?? ''));
+	check('link thumb fetched', (app.blobs.info(app.get_item(link.id)!.thumb_blob!)?.size ?? 0) > 0);
 	check('audio converted', Math.round(app.get_item(audio.id)!.duration!), 1);
 	check('audio transcribed by stub', app.get_item(audio.id)!.body.startsWith('Stub transcript'));
 	check('image ready', app.get_item(image.id)!.status, 'ready');
@@ -271,9 +276,11 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('kind: in the query filters', (await app.search('compost kind:link')).hits.some((h) => h.item.id === note.id), false);
 	check('kind: alone lists that kind', (await app.search('kind:image')).hits.map((h) => h.item.id).join(','), String(image.id));
 	check('kind: outranks the option', (await app.search('compost kind:note', { kinds: ['link'] })).hits[0]?.item.id, note.id);
-	check('image search by name (stub hashes the query)', (await app.search('3.png', { kinds: ['image'] })).hits[0]?.item.id, image.id);
+	// MlStub hashes the basename of whatever path it is handed, which is now the cache file.
+	const clip_name = basename(app.blobs.file(image.file_blob)!);
+	check('image search by name (stub hashes the query)', (await app.search(clip_name, { kinds: ['image'] })).hits[0]?.item.id, image.id);
 	ml.status.clip.state = 'unloaded';
-	check('an unloaded model is still asked while the worker is up', (await app.search('3.png', { kinds: ['image'] })).hits[0]?.signals.join(','), 'clip');
+	check('an unloaded model is still asked while the worker is up', (await app.search(clip_name, { kinds: ['image'] })).hits[0]?.signals.join(','), 'clip');
 	ml.status.clip.state = 'ready';
 
 	app.update_note(note.id, { body: 'Turn the compost weekly. Snails hate copper tape.' });
@@ -284,6 +291,16 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('delete returns true', app.delete_item(note.id), true);
 	check('delete drops vectors', app.vectors.size, 2);
 	check('delete drops fts', (await app.search('snails')).hits.length, 0);
+
+	// Added and deleted again, so the counts the restart block asserts are unchanged.
+	const throwaway = await app.add_image(icon, { title: 'Throwaway' });
+	await app.ingest.idle();
+	const gone_blobs = app.blobs.of_item(throwaway.id);
+	const gone_paths = gone_blobs.map((b) => app.blobs.file(b.id)!);
+	check('every blob of an item materialises', gone_paths.every(existsSync));
+	app.delete_item(throwaway.id);
+	check('delete cascades to the blob rows', gone_blobs.every((b) => app.blobs.info(b.id) === null));
+	check('delete clears the cached files', gone_paths.every((p) => !existsSync(p)));
 
 	const { item: bad } = await app.add_link('https://example.com/fail');
 	await app.ingest.idle();
@@ -298,6 +315,24 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	await app.ingest.idle();
 	check('retry recovers', app.get_item(audio2.id)!.status, 'ready');
 
+	// An imported file is the user's master copy: stored verbatim, never re-encoded.
+	check('imported audio kept byte-exact', Buffer.from(app.blobs.bytes(app.get_item(audio.id)!.file_blob)!).equals(Buffer.from(await Bun.file(wav).bytes())));
+	check('imported audio stays a wav', app.blobs.info(app.get_item(audio.id)!.file_blob!)?.ext, 'wav');
+	check('derived pcm dropped once transcribed', app.get_item(audio.id)!.meta.pcm_blob, null);
+
+	// A recording is ours, so it is re-encoded in place once the transcript exists.
+	const memo = join(dir, 'memo-16k.wav');
+	await Bun.write(memo, encode_wav(Float32Array.from({ length: 16000 }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 440 * i) / 16000)), 16000));
+	const memo_bytes = (await Bun.file(memo).bytes()).length;
+	const recorded = await app.add_audio(memo, { recorded: true, title: 'Voice memo' });
+	await app.ingest.idle();
+	const done = app.get_item(recorded.id)!;
+	check('recording re-encoded to mp3', app.blobs.info(done.file_blob!)?.ext, 'mp3');
+	check('recording got smaller', app.blobs.info(done.file_blob!)!.size < memo_bytes);
+	check('recording pcm cleared', done.meta.pcm_blob, null);
+	check('compacted recording still resolves', existsSync(app.blobs.file(done.file_blob)!));
+	check('transcript survived compaction', done.body.startsWith('Stub transcript'));
+
 	app.settings.set('llm.model', 'x');
 	check('settings roundtrip', app.settings.get('llm.model'), 'x');
 	check('secrets masked', app.settings.all()['llm.apiKey'], '');
@@ -305,9 +340,10 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 }
 {
 	const app = await create_app({ data_dir: dir, ml: new MlStub(), fetch: fixture_fetch });
-	check('restart restores vectors', app.vectors.size, 3);
+	check('restart restores vectors', app.vectors.size, 4);
 	check('restart restores image vectors', app.images.size, 1);
-	check('restart keeps items', app.snapshot().counts.total, 5);
+	check('restart keeps items', app.snapshot().counts.total, 6);
+	check('media survives a reopen', (app.blobs.bytes(app.list({ kind: 'image' })[0].file_blob)?.length ?? 0) > 0);
 	app.close();
 }
 

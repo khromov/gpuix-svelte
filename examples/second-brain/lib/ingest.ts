@@ -4,13 +4,14 @@
  * instead of replaying an hour of Whisper.
  */
 
+import type { Blobs } from './blobs.ts';
 import type { Bus, ItemEvent } from './bus.ts';
 import { chunk_markdown, embed_text } from './chunk.ts';
 import { create_llm } from './llm.ts';
 import { warn } from './log.ts';
 import { derive_title, segments_to_markdown, type Media } from './media.ts';
 import type { MlLike } from './ml-client.ts';
-import { thumb_path, type DataDirs } from './paths.ts';
+import { encode_mp3 } from './mp3.ts';
 import { fetch_image, scrape } from './scrape.ts';
 import type { Settings } from './settings.ts';
 import type { Item, Store } from './store.ts';
@@ -22,13 +23,13 @@ const MAX_ATTEMPTS = 3;
 
 export interface IngestDeps {
 	store: Store;
+	blobs: Blobs;
 	vectors: VectorIndex;
 	images: VectorIndex;
 	ml: MlLike;
 	media: Media;
 	settings: Settings;
 	bus: Bus;
-	dirs: DataDirs;
 	io_concurrency?: number;
 	fetch?: Fetcher;
 }
@@ -45,7 +46,7 @@ export type Ingestor = ReturnType<typeof create_ingestor>;
 
 type Step = (item: Item) => Promise<void>;
 
-export function create_ingestor({ store, vectors, images, ml, media, settings, bus, dirs, io_concurrency = 4, fetch: fetch_fn = fetch }: IngestDeps) {
+export function create_ingestor({ store, blobs, vectors, images, ml, media, settings, bus, io_concurrency = 4, fetch: fetch_fn = fetch }: IngestDeps) {
 	const queue: number[] = [];
 	const active = new Set<number>();
 	const timers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -81,10 +82,13 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 	function plan(item: Item): Array<[string, Step]> {
 		const steps: Array<[string, Step]> = [];
 		if (item.kind === 'link' && !item.body) steps.push(['scrape', scrape_step]);
-		if (item.kind === 'audio' && !item.meta.pcm_path) steps.push(['convert', convert_step]);
+		// The PCM only exists to feed Whisper, and `compact` clears it afterwards — without
+		// the body test that would put ffmpeg back in the plan on every later pass.
+		if (item.kind === 'audio' && !item.body && !item.meta.pcm_blob) steps.push(['convert', convert_step]);
 		if (item.kind === 'audio' && !item.body) steps.push(['transcribe', transcribe_step]);
+		if (item.kind === 'audio' && !item.meta.compacted) steps.push(['compact', compact_step]);
 		if (item.kind === 'image' && !item.body && settings.vision_config()) steps.push(['describe', describe_step]);
-		if (item.kind === 'image' && item.file_path && !store.has_image_embedding(item.id)) steps.push(['clip', clip_step]);
+		if (item.kind === 'image' && item.file_blob && !store.has_image_embedding(item.id)) steps.push(['clip', clip_step]);
 		steps.push(['embed', embed_step]);
 		return steps;
 	}
@@ -148,21 +152,55 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 			}
 		};
 		if (page.imageUrl) {
-			const thumb = await fetch_image(page.imageUrl, thumb_path(dirs, item.id), { fetch: fetch_fn });
-			if (thumb) Object.assign(patch, { thumb_path: thumb.path, width: thumb.width, height: thumb.height });
+			const thumb = await fetch_image(page.imageUrl, { fetch: fetch_fn });
+			if (thumb) {
+				Object.assign(patch, { thumb_blob: blobs.put(item.id, 'thumb', thumb.bytes, thumb.ext), width: thumb.width, height: thumb.height });
+			}
 		}
 		store.update_item(item.id, patch);
 	}
 
 	async function convert_step(item: Item) {
-		if (!item.file_path) throw Object.assign(new Error('audio file missing'), { transient: false });
-		const { pcm_path, duration } = await media.prepare_pcm(item.file_path, item.id);
-		store.update_item(item.id, { duration, meta: { pcm_path } });
+		const original = blobs.get(item.file_blob!);
+		if (!original) throw Object.assign(new Error('audio file missing'), { transient: false });
+		const { pcm, duration } = await media.prepare_pcm(original.bytes, original.ext, item.id);
+		// A recording is already 16 kHz mono, so it is its own sidecar and gets no second blob.
+		const pcm_blob = pcm ? blobs.put(item.id, 'pcm', pcm, 'wav') : original.id;
+		store.update_item(item.id, { duration, meta: { pcm_blob } });
+	}
+
+	/**
+	 * Once the transcript exists the PCM is dead weight. A memo Substrate recorded itself is
+	 * re-encoded to MP3 in its place; anything the user imported is left byte-exact.
+	 */
+	async function compact_step(item: Item) {
+		// info(), not get(): an imported file can be tens of megabytes and is usually left alone.
+		const original = blobs.info(item.file_blob!);
+		if (!original) {
+			store.update_item(item.id, { meta: { compacted: true } });
+			return;
+		}
+		if (item.meta.pcm_blob && item.meta.pcm_blob !== original.id) blobs.drop(item.meta.pcm_blob);
+
+		let file_blob = original.id;
+		if (item.meta.recorded && original.ext === 'wav') {
+			try {
+				const wav = blobs.bytes(original.id)!;
+				const mp3 = await encode_mp3(wav);
+				if (mp3.length < wav.length) file_blob = blobs.put(item.id, 'original', mp3, 'mp3');
+			} catch (err) {
+				warn(`could not compact recording ${item.id}:`, (err as Error).message);
+			}
+		}
+		store.update_item(item.id, { file_blob, meta: { pcm_blob: null, compacted: true } });
+		store.reclaim();
 	}
 
 	async function transcribe_step(item: Item) {
 		const language = settings.get('stt.language') || null;
-		const result = await ml.transcribe(item.meta.pcm_path!, {
+		const pcm = blobs.file(item.meta.pcm_blob);
+		if (!pcm) throw Object.assign(new Error('audio file missing'), { transient: false });
+		const result = await ml.transcribe(pcm, {
 			language,
 			on_progress: (p) =>
 				emit_item(item.id, {
@@ -182,9 +220,11 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 	// Failure here is a note on the item, not a failed ingest: the LLM is optional.
 	async function describe_step(item: Item) {
 		const config = settings.vision_config();
-		if (!config || !item.file_path) return;
+		if (!config) return;
+		const bytes = blobs.bytes(item.file_blob);
+		if (!bytes) return;
 		try {
-			const description = await create_llm(config).describe_image(await Bun.file(item.file_path).bytes());
+			const description = await create_llm(config).describe_image(bytes);
 			store.update_item(item.id, { body: description.trim(), meta: { described_by: config.model, describe_error: null } });
 		} catch (err) {
 			warn(`describe failed for item ${item.id}:`, (err as Error).message);
@@ -194,9 +234,11 @@ export function create_ingestor({ store, vectors, images, ml, media, settings, b
 
 	async function clip_step(item: Item) {
 		if (!ml.available || ml.status.worker === 'down') return;
+		const file = blobs.file(item.meta.display_blob ?? item.file_blob);
+		if (!file) return;
 		let vec: Float32Array;
 		try {
-			vec = await ml.clip_image(item.meta.display_path ?? item.file_path!);
+			vec = await ml.clip_image(file);
 		} catch (err) {
 			if ((err as Failure).code === 'ML_UNAVAILABLE') return;
 			throw err;

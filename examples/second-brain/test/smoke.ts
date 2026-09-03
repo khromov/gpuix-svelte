@@ -11,7 +11,7 @@ if (!process.versions.bun) {
 
 process.env.GPUIX_BRAIN_THEME = 'dark';
 
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dispatch } from 'gpuix-svelte';
@@ -129,6 +129,10 @@ await tap('kind:image');
 await wait(250);
 check('completion searches by kind', route.path === '/search' && route.query.q, 'kind:image');
 check('kind listing paints the image', painted().includes('Tic-tac-toe icon'));
+// The thumbnail is a row in the database until something asks for a path, so an <img>
+// in the tree at all is the proof that the blob reached the cache.
+check('the thumbnail blob materialised into an <img>', find_all((n) => n.type === 'img').length > 0);
+check('and its cache file is on disk', existsSync(app.blobs.file(app.list({ kind: 'image' })[0].thumb_blob)!));
 // Escape in the box clears it; the window handler sees `editing` and leaves the route
 // alone. blur() is a no-op headlessly, so unfocus() stands in for the box letting go.
 focus(search_input!);

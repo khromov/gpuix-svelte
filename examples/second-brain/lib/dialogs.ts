@@ -55,6 +55,28 @@ async function choose_mac({ kinds, multiple, prompt }: ChooseOptions): Promise<s
 	return stdout.split('\n').map((s) => s.trim()).filter(Boolean);
 }
 
+/** Empty on cancel. The bytes live in the database, so saving one out is an export. */
+export async function choose_save_path(name: string, { prompt = 'Export from Substrate' }: { prompt?: string } = {}): Promise<string> {
+	if (process.platform === 'darwin') {
+		const lines = [`return POSIX path of (choose file name with prompt "${escape_applescript(prompt)}" default name "${escape_applescript(name)}")`];
+		const { stdout, stderr, code } = await run(['osascript', ...lines.flatMap((line) => ['-e', line])]);
+		if (code !== 0) {
+			if (/-128/.test(stderr)) return '';
+			throw new Error(stderr.trim() || `osascript exited ${code}`);
+		}
+		return stdout.trim();
+	}
+	if (process.platform === 'linux') {
+		let cmd: string[];
+		if (Bun.which('zenity')) cmd = ['zenity', '--file-selection', '--save', '--confirm-overwrite', `--title=${prompt}`, `--filename=${name}`];
+		else if (Bun.which('kdialog')) cmd = ['kdialog', '--getsavefilename', name, '--title', prompt];
+		else throw new Error(picker_available().reason);
+		const { stdout, code } = await run(cmd);
+		return code === 0 ? stdout.trim() : '';
+	}
+	throw new Error(picker_available().reason);
+}
+
 async function choose_linux({ kinds, multiple, prompt }: ChooseOptions): Promise<string[]> {
 	let cmd: string[];
 	if (Bun.which('zenity')) {

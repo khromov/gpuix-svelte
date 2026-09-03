@@ -6,8 +6,7 @@ import { fileURLToPath } from 'node:url';
 export interface DataDirs {
 	root: string;
 	db: string;
-	files: string;
-	thumbs: string;
+	cache: string;
 	models: string;
 	tmp: string;
 }
@@ -39,12 +38,11 @@ export function data_dirs(root: string = process.env.GPUIX_BRAIN_DIR || default_
 	const dirs: DataDirs = {
 		root,
 		db: join(root, 'substrate.sqlite'),
-		files: join(root, 'files'),
-		thumbs: join(root, 'thumbs'),
+		cache: join(root, 'cache'),
 		models: join(root, 'models'),
 		tmp: join(root, 'tmp')
 	};
-	for (const dir of [root, dirs.files, dirs.thumbs, dirs.models, dirs.tmp]) mkdirSync(dir, { recursive: true });
+	for (const dir of [root, dirs.cache, dirs.models, dirs.tmp]) mkdirSync(dir, { recursive: true });
 
 	// The database was called loam.sqlite before the rename.
 	if (!existsSync(dirs.db) && existsSync(join(root, 'loam.sqlite'))) {
@@ -56,5 +54,9 @@ export function data_dirs(root: string = process.env.GPUIX_BRAIN_DIR || default_
 	return dirs;
 }
 
-export const file_path = (dirs: DataDirs, id: number | string, ext: string) => join(dirs.files, `${id}.${String(ext).replace(/^\./, '').toLowerCase()}`);
-export const thumb_path = (dirs: DataDirs, id: number) => join(dirs.thumbs, `${id}.webp`);
+/**
+ * Blob rows are immutable — a replacement gets a new id — so this name stays valid for
+ * the life of the bytes and a stale cache file cannot happen.
+ */
+export const cache_path = (dirs: DataDirs, blob_id: number, ext: string) =>
+	join(dirs.cache, `${blob_id}.${String(ext).replace(/^\./, '').toLowerCase() || 'bin'}`);

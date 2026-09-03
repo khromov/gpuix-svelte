@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ask as ask_llm, type AskOptions } from './ask.ts';
+import { create_blobs } from './blobs.ts';
 import { create_bus } from './bus.ts';
 import { capabilities as get_capabilities } from './capabilities.ts';
 import { read_image } from './clipboard.ts';
@@ -18,7 +19,7 @@ import { log, warn } from './log.ts';
 import { create_media, derive_title, needs_display_copy } from './media.ts';
 import { DIMS, MlClient, type MlLike, type MlStatus } from './ml-client.ts';
 import { MlStub } from './ml-stub.ts';
-import { data_dirs, resources_dir, thumb_path } from './paths.ts';
+import { data_dirs, resources_dir } from './paths.ts';
 import { normalize_url } from './scrape.ts';
 import { create_search, type SearchOptions } from './search.ts';
 import { create_settings } from './settings.ts';
@@ -74,6 +75,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	const dirs = data_dirs(data_dir ?? undefined);
 	const db = open_db(dirs.db);
 	const store = create_store(db);
+	const blobs = create_blobs(db, dirs);
 	const bus = create_bus();
 	const settings = create_settings(store, bus);
 
@@ -87,7 +89,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	ml ??= default_ml({ models_dir: dirs.models, autoload: autoload && settings.get('ml.autoload') !== false, on_status });
 	ml.on_status = on_status;
 
-	const ingest = create_ingestor({ store, vectors, images, ml, media, settings, bus, dirs, fetch: fetch_fn });
+	const ingest = create_ingestor({ store, blobs, vectors, images, ml, media, settings, bus, fetch: fetch_fn });
 	const search = create_search({ store, vectors, images, ml });
 
 	// Items added while the worker was down get their vectors once it comes up.
@@ -103,7 +105,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	bus.subscribe((e) => {
 		if (e.type !== 'settings' || !e.key.startsWith('llm.') || !settings.vision_config()) return;
 		for (const item of store.list_items({ kind: 'image', limit: 10_000 })) {
-			if (!item.body && item.file_path && item.status !== 'processing') {
+			if (!item.body && item.file_blob && item.status !== 'processing') {
 				store.set_status(item.id, 'pending');
 				ingest.enqueue(item.id);
 			}
@@ -124,6 +126,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		dirs,
 		db,
 		store,
+		blobs,
 		settings,
 		vectors,
 		images,
@@ -162,14 +165,19 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			}
 			const item = store.insert_item({ kind: 'image', title: title || name, meta: { auto_title: !title, original_name: name } });
 			try {
-				const info = await media.import_image(typeof src === 'string' ? src : bytes!, item.id, { ext });
-				const thumb = await media.make_thumb(info.file_path, thumb_path(dirs, item.id));
+				const info = await media.import_image(typeof src === 'string' ? src : bytes!, { ext });
+				const thumb = await media.make_thumb(info.bytes);
 				store.update_item(item.id, {
-					file_path: info.file_path,
+					file_blob: blobs.put(item.id, 'original', info.bytes, info.ext),
 					width: info.width,
 					height: info.height,
-					thumb_path: thumb.path,
-					meta: { format: info.format, thumb_width: thumb.width, thumb_height: thumb.height, display_path: info.display_path }
+					thumb_blob: blobs.put(item.id, 'thumb', thumb.bytes, thumb.ext),
+					meta: {
+						format: info.format,
+						thumb_width: thumb.width,
+						thumb_height: thumb.height,
+						display_blob: info.display ? blobs.put(item.id, 'display', info.display.bytes, info.display.ext) : null
+					}
 				});
 			} catch (err) {
 				store.set_status(item.id, 'error', { error: (err as Error).message });
@@ -177,16 +185,16 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			return added(store.get_item(item.id)!);
 		},
 
-		async add_audio(src: string, { move = false, title = '' }: { move?: boolean; title?: string } = {}): Promise<Item> {
+		async add_audio(src: string, { move = false, recorded = false, title = '' }: { move?: boolean; recorded?: boolean; title?: string } = {}): Promise<Item> {
 			const name = basename(src);
 			const item = store.insert_item({
 				kind: 'audio',
 				title: title || (move ? `Recording ${date_label()}` : name),
-				meta: { auto_title: !title, original_name: name }
+				meta: { auto_title: !title, original_name: name, recorded }
 			});
 			try {
-				const { file_path } = media.import_audio_file(src, item.id, { move });
-				store.update_item(item.id, { file_path });
+				const audio = await media.import_audio_file(src, { move });
+				store.update_item(item.id, { file_blob: blobs.put(item.id, 'original', audio.bytes, audio.ext) });
 			} catch (err) {
 				store.set_status(item.id, 'error', { error: (err as Error).message });
 			}
@@ -215,7 +223,8 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			if (!gone) return false;
 			vectors.remove(gone.chunk_ids);
 			images.remove([id]);
-			media.remove_files([gone.file_path, gone.thumb_path, gone.meta?.pcm_path, gone.meta?.display_path]);
+			blobs.forget(gone.blob_ids);
+			store.reclaim();
 			bus.emit({ type: 'item', id, status: 'deleted' });
 			return true;
 		},
@@ -225,8 +234,9 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			const config = settings.vision_config();
 			if (!config) throw new Error('set a vision model in Settings first');
 			const item = store.get_item(id);
-			if (!item?.file_path) throw new Error('no image file');
-			const description = (await create_llm(config).describe_image(await Bun.file(item.file_path).bytes())).trim();
+			const bytes = blobs.bytes(item?.file_blob);
+			if (!bytes) throw new Error('no image file');
+			const description = (await create_llm(config).describe_image(bytes)).trim();
 			store.update_item(id, { meta: { described_by: config.model, describe_error: null } });
 			app.update_note(id, { body: description });
 			return description;
@@ -275,17 +285,19 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 
 	if (seed && store.counts().total === 0) await seed_demo(app);
 
+	blobs.prune_cache();
+
 	// Images imported before AVIF/HEIC got a paintable copy.
 	for (const item of store.list_items({ kind: 'image', limit: 10_000 })) {
-		if (item.file_path && needs_display_copy(item.meta.format) && !item.meta.display_path) {
-			media
-				.make_display(item.file_path, item.id)
-				.then((display_path) => {
-					store.update_item(item.id, { meta: { display_path } });
-					bus.emit({ type: 'item', id: item.id, status: item.status, updated: true });
-				})
-				.catch((err) => warn(`display copy for image ${item.id} failed:`, (err as Error).message));
-		}
+		const original = needs_display_copy(item.meta.format) && !item.meta.display_blob ? blobs.bytes(item.file_blob) : null;
+		if (!original) continue;
+		media
+			.make_display(original)
+			.then((display) => {
+				store.update_item(item.id, { meta: { display_blob: blobs.put(item.id, 'display', display.bytes, display.ext) } });
+				bus.emit({ type: 'item', id: item.id, status: item.status, updated: true });
+			})
+			.catch((err) => warn(`display copy for image ${item.id} failed:`, (err as Error).message));
 	}
 
 	ml.start()

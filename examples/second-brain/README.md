@@ -65,12 +65,20 @@ examples/second-brain/
                          (npm run brain:frames), against a copy of the data
   test/                  brain.ts (data + native, no models) and smoke.ts (headless UI)
   icon.svg / icon.png    the logo; the .app's icon is cut from the PNG
-  .data/                 gitignored: substrate.sqlite, files/, thumbs/, models/
+  .data/                 gitignored: substrate.sqlite, cache/, models/, tmp/
 ```
+
+**`substrate.sqlite` is the whole brain.** Images, thumbnails and recordings are rows in a
+`blobs` table, not files beside the database, so copying that one file moves everything —
+which is also why `npm run brain:frames` can point a window at a `VACUUM INTO` copy and still
+paint. GPUI's `<img src>`, `afplay`, ffmpeg and the worker all want a real path, so `lib/blobs.ts`
+writes a blob into `cache/` the first time one is asked for. That directory is disposable:
+delete it and it fills in again. Blob rows are immutable — replacing an item's media inserts a
+new row — so a cache file named after a blob id can never be stale.
 
 The UI process is the only SQLite writer and holds the vector indexes in memory (`lib/vectors.ts`
 is the seam to swap for PGlite + pgvector should a corpus ever outgrow a brute-force scan). The
-worker is stateless: it gets texts or file paths over IPC and returns `Float32Array`s — typed
+worker is stateless: it gets texts or cache paths over IPC and returns `Float32Array`s — typed
 arrays cross Bun IPC as-is. Every item goes `pending → processing → ready | error`; the steps
 are derived from the row's state, so a restart resumes where it stopped instead of replaying an
 hour of Whisper. Jobs another process left unfinished are requeued after ten minutes (or from
@@ -131,7 +139,8 @@ All optional, all `GPUIX_BRAIN_*`:
 | system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
 | decoding audio | a hand-written WAV parser (`lib/wav.ts`); anything else through ffmpeg when installed |
 | readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.ts`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.ts` shows the way around |
-| AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) writes a WebP display copy next to the original |
+| AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) stores a WebP display copy beside the original |
+| shrinking a recording | LAME as WebAssembly (`wasm-media-encoders`, `lib/mp3.ts`): once the transcript exists, a memo the app recorded itself is re-encoded from 16 kHz PCM to 32 kbps MP3 in place, about eight times smaller. An imported file is the user's master and is never rewritten |
 | search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
 
 ## About client-side routers

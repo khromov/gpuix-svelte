@@ -52,6 +52,8 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # OpenAI-compatible endpoint; light/dark. BUN ONLY (bun:sqlite,
                            # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
                            # is the same script. Models run in a child process (ml/worker.ts).
+                           # substrate.sqlite is the master record: media are blob rows, and
+                           # <data-dir>/cache is a disposable extraction of them (lib/blobs.ts).
                            # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
                            # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
                            # _RECORDER=0, _FFMPEG, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
@@ -162,7 +164,8 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 
 Scroll lag here is native per-frame layout, not JS, so measure before reasoning. `npm run
 brain:frames -- [--keep] [route ...]` (`examples/second-brain/scripts/frame-cost.ts`) boots
-Substrate against a `VACUUM INTO` copy of the data, visits each route (default: `/`, `/settings`
+Substrate against a `VACUUM INTO` copy of the data — self-contained since the media became blob
+rows, where it used to paint out of the original tree — visits each route (default: `/`, `/settings`
 and the item with the longest body), and prints a table of GPUI's own draw times — idle frames
 over 2 s, then p90/p99/max and fps while 90 wheel events scroll the content column; `--keep`
 leaves the window open with the overlay on for scrolling by hand. It is a thin script over the

@@ -131,7 +131,7 @@ export async function stop_recording() {
 		rmSync(recording.path, { force: true });
 		return;
 	}
-	await get_app().add_audio(recording.path, { move: true });
+	await get_app().add_audio(recording.path, { move: true, recorded: true });
 	toast('Recording saved — transcribing', 'success');
 }
 
@@ -141,9 +141,10 @@ export function toggle_play(item: Item) {
 		playback.id = null;
 		return;
 	}
-	if (!item.file_path) return;
+	const file = get_app().blobs.file(item.file_blob);
+	if (!file) return;
 	try {
-		play(item.file_path, {
+		play(file, {
 			onEnded: () => {
 				if (playback.id === item.id) playback.id = null;
 			}

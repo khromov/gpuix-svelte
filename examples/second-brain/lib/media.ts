@@ -1,21 +1,24 @@
-import { copyFileSync, existsSync, renameSync, unlinkSync } from 'node:fs';
-import { extname } from 'node:path';
-import { convert_to_wav, ffmpeg_path, wav_duration, wav_is_pcm16_mono_16k } from './audio.ts';
+import { unlinkSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { convert_to_wav, ffmpeg_path, wav_info } from './audio.ts';
 import { warn } from './log.ts';
-import { file_path, type DataDirs } from './paths.ts';
+import type { DataDirs } from './paths.ts';
 import type { Failure } from './types.ts';
 import { decode_wav, encode_wav } from './wav.ts';
 
-export interface ImportedImage {
-	file_path: string;
+export interface Encoded {
+	bytes: Uint8Array;
+	ext: string;
+}
+
+export interface ImportedImage extends Encoded {
 	width: number;
 	height: number;
 	format: string;
-	display_path: string | null;
+	display: Encoded | null;
 }
 
-export interface Thumb {
-	path: string;
+export interface Thumb extends Encoded {
 	width: number;
 	height: number;
 }
@@ -40,92 +43,89 @@ export function create_media(dirs: DataDirs) {
 		has_ffmpeg: ffmpeg_path() !== null,
 
 		/** `src` is a path or PNG bytes. */
-		async import_image(src: string | Uint8Array, id: number, { ext }: { ext?: string } = {}): Promise<ImportedImage> {
+		async import_image(src: string | Uint8Array, { ext }: { ext?: string } = {}): Promise<ImportedImage> {
 			const bytes = typeof src === 'string' ? await Bun.file(src).bytes() : src;
 			const { width, height, format } = await new Bun.Image(bytes).metadata();
 			const extension = EXT_BY_FORMAT[format] ?? ext ?? (typeof src === 'string' ? extname(src).slice(1) : 'png') ?? 'png';
-			const file = file_path(dirs, id, extension || 'png');
-			await Bun.write(file, bytes);
-			const display_path = needs_display_copy(format) ? await this.make_display(file, id) : null;
-			return { file_path: file, width, height, format, display_path };
+			const display = needs_display_copy(format) ? await this.make_display(bytes) : null;
+			return { bytes, ext: extension || 'png', width, height, format, display };
 		},
 
 		/** A WebP the window can paint, at most 2048 px on a side. */
-		async make_display(file: string, id: number): Promise<string> {
-			const path = file_path(dirs, `${id}.display`, 'webp');
-			await new Bun.Image(file).resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 88 }).write(path);
-			return path;
+		async make_display(bytes: Uint8Array): Promise<Encoded> {
+			const out = await new Bun.Image(bytes).resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 88 }).bytes();
+			return { bytes: out, ext: 'webp' };
 		},
 
 		/** WebP unless the platform's encoder refuses, then PNG. */
-		async make_thumb(file: string, thumb: string, { size = 480 }: { size?: number } = {}): Promise<Thumb> {
-			let path = thumb;
+		async make_thumb(bytes: Uint8Array, { size = 480 }: { size?: number } = {}): Promise<Thumb> {
+			const fit = { fit: 'inside', withoutEnlargement: true } as const;
+			let out: Uint8Array;
+			let ext = 'webp';
 			try {
-				await new Bun.Image(file).resize(size, size, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).write(path);
+				out = await new Bun.Image(bytes).resize(size, size, fit).webp({ quality: 80 }).bytes();
 			} catch (err) {
 				warn('webp thumbnail failed, using png:', (err as Error).message);
-				path = thumb.replace(/\.webp$/, '.png');
-				await new Bun.Image(file).resize(size, size, { fit: 'inside', withoutEnlargement: true }).png().write(path);
+				out = await new Bun.Image(bytes).resize(size, size, fit).png().bytes();
+				ext = 'png';
 			}
-			const { width, height } = await new Bun.Image(path).metadata();
-			return { path, width, height };
-		},
-
-		image_data_url(file: string, { max = 1024, quality = 80 }: { max?: number; quality?: number } = {}) {
-			return new Bun.Image(file).resize(max, max, { fit: 'inside', withoutEnlargement: true }).webp({ quality }).dataurl();
+			const { width, height } = await new Bun.Image(out).metadata();
+			return { bytes: out, ext, width, height };
 		},
 
 		/**
-		 * Copies (or moves) the original into files/; the 16 kHz PCM sidecar is made later
-		 * by the pipeline, since ffmpeg can take a while.
+		 * Reads the file in (and unlinks it when it was ours to move); the 16 kHz PCM
+		 * sidecar is made later by the pipeline, since ffmpeg can take a while.
 		 */
-		import_audio_file(src: string, id: number, { move = false }: { move?: boolean } = {}): { file_path: string } {
-			const extension = extname(src).slice(1).toLowerCase() || 'wav';
-			const file = file_path(dirs, id, extension);
+		async import_audio_file(src: string, { move = false }: { move?: boolean } = {}): Promise<Encoded> {
+			const bytes = await Bun.file(src).bytes();
 			if (move) {
 				try {
-					renameSync(src, file);
-				} catch {
-					copyFileSync(src, file);
 					unlinkSync(src);
+				} catch (err) {
+					warn(`could not remove ${src}:`, (err as Error).message);
 				}
-			} else {
-				copyFileSync(src, file);
 			}
-			return { file_path: file };
+			return { bytes, ext: extname(src).slice(1).toLowerCase() || 'wav' };
 		},
 
-		/** `file` is the stored original. */
-		async prepare_pcm(file: string, id: number): Promise<{ pcm_path: string; duration: number; converted: boolean }> {
-			const extension = extname(file).slice(1).toLowerCase();
-			let pcm_path: string;
-			if (extension === 'wav' && (await wav_is_pcm16_mono_16k(file)).ok) {
-				pcm_path = file;
-			} else if (extension === 'wav') {
-				pcm_path = file_path(dirs, `${id}.16k`, 'wav');
+		/**
+		 * `null` bytes mean the original already *is* 16 kHz mono PCM and needs no sidecar.
+		 * ffmpeg is a subprocess, so the non-WAV path goes through scratch files in tmp/.
+		 */
+		async prepare_pcm(original: Uint8Array, ext: string, id: number): Promise<{ pcm: Uint8Array | null; duration: number }> {
+			const extension = String(ext).toLowerCase();
+			// Left null when the original already is what the worker wants, so it needs no sidecar.
+			let pcm: Uint8Array | null = null;
+			if (extension !== 'wav') {
+				pcm = await this.transcode_pcm(original, extension, id);
+			} else if (!wav_info(original).ok) {
 				try {
-					const { samples } = decode_wav(await Bun.file(file).bytes());
-					await Bun.write(pcm_path, encode_wav(samples, 16000));
+					pcm = encode_wav(decode_wav(original).samples, 16000);
 				} catch (err) {
 					if ((err as Failure).code !== 'EWAVFORMAT') throw err;
-					await convert_to_wav(file, pcm_path);
+					pcm = await this.transcode_pcm(original, extension, id);
 				}
-			} else {
-				pcm_path = file_path(dirs, `${id}.16k`, 'wav');
-				await convert_to_wav(file, pcm_path);
 			}
-			const duration = await wav_duration(pcm_path);
+			const duration = wav_info(pcm ?? original).duration;
 			if (!(duration > 0)) throw Object.assign(new Error('no audio data in the file'), { transient: false });
-			return { pcm_path, duration, converted: pcm_path !== file };
+			return { pcm, duration };
 		},
 
-		remove_files(paths: Array<string | null | undefined>) {
-			for (const path of paths) {
-				if (!path || !existsSync(path)) continue;
-				try {
-					unlinkSync(path);
-				} catch (err) {
-					warn(`could not remove ${path}:`, (err as Error).message);
+		async transcode_pcm(bytes: Uint8Array, ext: string, id: number): Promise<Uint8Array> {
+			const src = join(dirs.tmp, `pcm-${id}-${Date.now()}.${ext || 'bin'}`);
+			const dest = `${src}.16k.wav`;
+			try {
+				await Bun.write(src, bytes);
+				await convert_to_wav(src, dest);
+				return await Bun.file(dest).bytes();
+			} finally {
+				for (const scratch of [src, dest]) {
+					try {
+						unlinkSync(scratch);
+					} catch {
+						// Never written, because ffmpeg is missing or the conversion failed.
+					}
 				}
 			}
 		}

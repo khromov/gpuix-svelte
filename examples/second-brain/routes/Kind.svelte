@@ -3,7 +3,7 @@
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-	import { data, status_text } from '../lib/data.svelte.ts';
+	import { blob_src, data, status_text } from '../lib/data.svelte.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import type { Kind } from '../lib/store.ts';
 
@@ -30,8 +30,8 @@
 			<div class="grid">
 				{#each items as item (item.id)}
 					<div class="tile" hitbox="self" onclick={() => push(`/item/${item.id}`)}>
-						{#if item.thumb_path}
-							<img src={item.thumb_path} objectFit="cover" class="pic" />
+						{#if blob_src(item.thumb_blob)}
+							<img src={blob_src(item.thumb_blob)} objectFit="cover" class="pic" />
 						{:else}
 							<div class="pic missing"></div>
 						{/if}

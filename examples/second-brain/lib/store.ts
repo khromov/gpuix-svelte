@@ -9,7 +9,7 @@ export interface ItemMeta {
 	format?: string | null;
 	thumb_width?: number;
 	thumb_height?: number;
-	display_path?: string | null;
+	display_blob?: number | null;
 	described_by?: string;
 	describe_error?: string | null;
 	summary?: string;
@@ -23,7 +23,11 @@ export interface ItemMeta {
 	fetched_at?: number;
 	truncated?: boolean;
 	empty?: boolean;
-	pcm_path?: string;
+	pcm_blob?: number | null;
+	/** Captured through the microphone rather than handed to the app, so safe to re-encode. */
+	recorded?: boolean;
+	/** The post-transcript pass that drops the PCM and shrinks a recording has run. */
+	compacted?: boolean;
 	segments?: TranscribeSegment[];
 	language?: string | null;
 	embed_model?: string;
@@ -39,8 +43,8 @@ export type Item = {
 	title: string;
 	body: string;
 	source_url: string | null;
-	file_path: string | null;
-	thumb_path: string | null;
+	file_blob: number | null;
+	thumb_blob: number | null;
 	width: number | null;
 	height: number | null;
 	duration: number | null;
@@ -90,8 +94,8 @@ type Param = string | number | bigint | boolean | null | Uint8Array;
 type Params = Record<string, Param>;
 
 const ITEM_COLS =
-	'id, kind, title, body, source_url, file_path, thumb_path, width, height, duration, status, error, attempts, meta, created_at, updated_at';
-const PATCHABLE = new Set(['kind', 'title', 'body', 'source_url', 'file_path', 'thumb_path', 'width', 'height', 'duration', 'status', 'error', 'attempts']);
+	'id, kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, attempts, meta, created_at, updated_at';
+const PATCHABLE = new Set(['kind', 'title', 'body', 'source_url', 'file_blob', 'thumb_blob', 'width', 'height', 'duration', 'status', 'error', 'attempts']);
 
 const parse_meta = (s: string): ItemMeta => {
 	try {
@@ -107,8 +111,8 @@ export function create_store(db: Database) {
 	const q = <Row>(sql: string) => db.query<Row, Params[]>(sql);
 
 	const insert_stmt = q<never>(
-		`INSERT INTO items (kind, title, body, source_url, file_path, thumb_path, width, height, duration, status, error, meta, created_at, updated_at)
-		 VALUES ($kind, $title, $body, $source_url, $file_path, $thumb_path, $width, $height, $duration, $status, $error, $meta, $now, $now)`
+		`INSERT INTO items (kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, meta, created_at, updated_at)
+		 VALUES ($kind, $title, $body, $source_url, $file_blob, $thumb_blob, $width, $height, $duration, $status, $error, $meta, $now, $now)`
 	);
 	const get_stmt = q<ItemRow>(`SELECT ${ITEM_COLS} FROM items WHERE id = $id`);
 	const by_url_stmt = q<ItemRow>(`SELECT ${ITEM_COLS} FROM items WHERE source_url = $url`);
@@ -124,6 +128,7 @@ export function create_store(db: Database) {
 	const delete_stmt = q<never>(`DELETE FROM items WHERE id = $id`);
 
 	const chunk_ids_stmt = q<IdRow>(`SELECT id FROM chunks WHERE item_id = $item_id`);
+	const blob_ids_stmt = q<IdRow>(`SELECT id FROM blobs WHERE item_id = $item_id`);
 	const chunks_stmt = q<Chunk>(`SELECT id, item_id, idx, text FROM chunks WHERE item_id = $item_id ORDER BY idx`);
 	const chunk_stmt = q<ChunkDetail>(
 		`SELECT c.id, c.item_id, c.idx, c.text, i.title, i.kind, i.status AS item_status
@@ -136,7 +141,7 @@ export function create_store(db: Database) {
 	const missing_vectors_stmt = q<IdRow>(
 		`SELECT id FROM items WHERE status = 'ready' AND (
 		   (body <> '' AND NOT EXISTS (SELECT 1 FROM chunks WHERE chunks.item_id = items.id AND embedding IS NOT NULL))
-		   OR (kind = 'image' AND file_path IS NOT NULL AND NOT EXISTS (SELECT 1 FROM image_embeddings WHERE item_id = items.id))
+		   OR (kind = 'image' AND file_blob IS NOT NULL AND NOT EXISTS (SELECT 1 FROM image_embeddings WHERE item_id = items.id))
 		 )`
 	);
 
@@ -163,8 +168,8 @@ export function create_store(db: Database) {
 				title: fields.title ?? '',
 				body: fields.body ?? '',
 				source_url: fields.source_url ?? null,
-				file_path: fields.file_path ?? null,
-				thumb_path: fields.thumb_path ?? null,
+				file_blob: fields.file_blob ?? null,
+				thumb_blob: fields.thumb_blob ?? null,
 				width: fields.width ?? null,
 				height: fields.height ?? null,
 				duration: fields.duration ?? null,
@@ -216,12 +221,14 @@ export function create_store(db: Database) {
 		unfinished_items: (): Item[] => unfinished_stmt.all().map(to_item) as Item[],
 		errored_items: (): Item[] => errored_stmt.all().map(to_item) as Item[],
 
-		delete_item: db.transaction((id: number): { chunk_ids: number[]; file_path: string | null; thumb_path: string | null; meta: ItemMeta } | null => {
+		/** The blob rows go with the item (ON DELETE CASCADE); their ids come back so the cache can too. */
+		delete_item: db.transaction((id: number): { chunk_ids: number[]; blob_ids: number[] } | null => {
 			const item = store.get_item(id);
 			if (!item) return null;
 			const chunk_ids = chunk_ids_stmt.all({ item_id: id }).map((r) => r.id);
+			const blob_ids = blob_ids_stmt.all({ item_id: id }).map((r) => r.id);
 			delete_stmt.run({ id });
-			return { chunk_ids, file_path: item.file_path, thumb_path: item.thumb_path, meta: item.meta };
+			return { chunk_ids, blob_ids };
 		}),
 
 		replace_chunks: db.transaction((item_id: number, chunks: Array<{ text: string; embedding?: Float32Array | null }>): { removed: number[]; chunks: Chunk[] } => {
@@ -275,6 +282,16 @@ export function create_store(db: Database) {
 
 		rebuild_fts() {
 			db.run(`INSERT INTO items_fts(items_fts) VALUES ('rebuild')`);
+		},
+
+		/** Hands the pages a deleted image left behind back to the filesystem. */
+		reclaim() {
+			db.run('PRAGMA incremental_vacuum');
+		},
+
+		bytes_used(): number {
+			const row = db.query<{ n: number }, []>('SELECT page_count * page_size - freelist_count * page_size AS n FROM pragma_page_count(), pragma_page_size(), pragma_freelist_count()').get();
+			return row?.n ?? 0;
 		},
 
 		get_setting(key: string): unknown {
