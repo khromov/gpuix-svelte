@@ -26,7 +26,8 @@ import { decode_entities, extract, normalize_url, pick_title } from '../lib/scra
 import type { Failure, Fetcher } from '../lib/types.ts';
 import { VectorIndex, from_blob, to_blob } from '../lib/vectors.ts';
 import { decode_mp3, encode_mp3 } from '../lib/mp3.ts';
-import { decode_wav, encode_wav, wav_header } from '../lib/wav.ts';
+import { build_wav_header, decode_wav, encode_wav, pcm16_from_float, wav_header, wav_info, WAV_HEADER_SIZE } from '../lib/wav.ts';
+import { parse_mic_consent } from '../lib/recorder-win.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 // --- wav
@@ -49,6 +50,17 @@ import { check, finish } from 'gpuix-svelte/test';
 	}
 	check('wav peak survives', Math.abs(peak - 0.5) < 0.05);
 	check('wav pitch survives (zero crossings ≈ 880)', Math.abs(crossings - 880) <= 6);
+
+	// What the Windows recorder writes: a placeholder header, PCM appended as it arrives,
+	// then the same builder again over the first 44 bytes once the total is known.
+	const pcm = pcm16_from_float(new Float32Array(160).fill(0.5));
+	const streamed = new Uint8Array(WAV_HEADER_SIZE + pcm.length);
+	streamed.set(build_wav_header(0, 16000, 1));
+	streamed.set(pcm, WAV_HEADER_SIZE);
+	check('unpatched header is repaired from the file size', wav_header(streamed).dataLength, pcm.length);
+	streamed.set(build_wav_header(pcm.length, 16000, 1));
+	check('patched header matches encode_wav', streamed, encode_wav(new Float32Array(160).fill(0.5)));
+	check('recorder output needs no sidecar', wav_info(streamed).ok, true);
 
 	// 24-bit extensible, with LIST and FLLR chunks ahead of data, as CoreAudio writes.
 	const frames = 100;
@@ -187,6 +199,18 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('darwin light', parse_appearance('darwin', 1, ''), 'light');
 	check('darwin dark', parse_appearance('darwin', 0, 'Dark\n'), 'dark');
 	check('win32 dark', parse_appearance('win32', 0, '  AppsUseLightTheme  REG_DWORD  0x0'), 'dark');
+
+	// The three microphone consent keys: master, "let desktop apps…", per-executable.
+	const allow = '    Value    REG_SZ    Allow';
+	const deny = '    Value    REG_SZ    Deny';
+	check('consent: all three allow', parse_mic_consent(allow, allow, allow), 'authorized');
+	check('consent: master off wins', parse_mic_consent(deny, allow, allow), 'denied');
+	check('consent: desktop apps off wins', parse_mic_consent(allow, deny, allow), 'denied');
+	check('consent: per-app off wins', parse_mic_consent(allow, allow, deny), 'denied');
+	// Absent keys mean inherit — treating that as notDetermined would refuse to record on a
+	// machine that never had reason to write them.
+	check('consent: absent keys are allowed', parse_mic_consent('', '', ''), 'authorized');
+	check('consent: an error from reg is not a denial', parse_mic_consent(allow, allow, 'ERROR: The system was unable to find the specified registry key'), 'authorized');
 
 	const fused = rrf({ a: [{ id: 1 }, { id: 2 }], b: [{ id: 3 }, { id: 2 }] });
 	check('rrf: twice second beats once first', fused[0].id, 2);
@@ -592,12 +616,18 @@ const feed_fetch: Fetcher = async (url) => {
 	check('stopped', client.status.worker, 'down');
 }
 
-// --- recorder shim compiles and loads (no prompt, no recording)
-if (process.platform === 'darwin' && process.env.GPUIX_BRAIN_RECORDER !== '0') {
+// --- the recorder backend loads (no prompt, no recording). init_recorder is memoized, so
+// both platforms share one block rather than racing for it.
+if ((process.platform === 'darwin' || process.platform === 'win32') && process.env.GPUIX_BRAIN_RECORDER !== '0') {
 	const rec = await init_recorder();
-	check('recorder shim loads', rec.available, true);
+	// A Windows box with no capture device is a legitimate unavailable, so only assert the
+	// shape there; macOS always has the shim.
+	if (process.platform === 'darwin') check('recorder shim loads', rec.available, true);
+	else check('recorder reports availability with a reason', rec.available || typeof rec.reason === 'string', true);
 	check('recorder idle', rec.isRecording(), false);
 	check('auth status is a known value', ['notDetermined', 'authorized', 'denied', 'restricted'].includes(rec.authStatus()));
+	check('stop with nothing running is 0', await rec.stop(), 0);
+	check('still idle after stop', rec.isRecording(), false);
 }
 
 finish('brain');

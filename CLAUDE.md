@@ -59,14 +59,19 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # search/Ask/Related behind search.includeFeeds; RAG chat over any
                            # OpenAI-compatible endpoint; right-click menus on every surface
                            # (components/ContextMenu.svelte draws them, lib/menus.ts says what is
-                           # in them); light/dark. BUN ONLY (bun:sqlite,
+                           # in them); light/dark. Recording and playback work on macOS
+                           # (AVFoundation via the clang-built native/recorder-shim.m) and on
+                           # Windows (winmm's waveIn/waveOut straight over bun:ffi, no shim to
+                           # compile — lib/winmm.ts, recorder-win.ts, player-win.ts). BUN ONLY
+                           # (bun:sqlite,
                            # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
                            # is the same script. Models run in a child process (ml/worker.ts).
                            # substrate.sqlite is the master record: media are blob rows, and
                            # <data-dir>/cache is a disposable extraction of them (lib/blobs.ts).
                            # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
                            # _START=/settings, _THEME=light|dark, _ML=off, _OFFLINE=1,
-                           # _RECORDER=0, _FEEDS=0, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
+                           # _RECORDER=0 (no microphone backend), _FEEDS=0,
+                           # _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
 npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
                            # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
                            # in that nested package so the root and CI stay lean
@@ -106,9 +111,11 @@ npm run test:auxclick      # single test — a right click is onauxclick, ctrl+c
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.ts
-                           # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
+                           # (WAV codec incl. the streamed header the Windows recorder writes,
+                           # page extractor, SSE parser, chunker, vector index, store +
                            # pipeline with a stub worker, the feed parser/poller over fixture
-                           # documents, real IPC client vs a fake worker incl. a crash)
+                           # documents, the Windows mic consent parser, real IPC client vs a
+                           # fake worker incl. a crash)
                            # and test/smoke.ts (headless mount; capture, open, Esc, delete via real hit
                            # testing; a long page paints only the rows in view). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
