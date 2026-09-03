@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse_appearance } from '../lib/appearance.ts';
 import { create_app } from '../lib/app.ts';
+import { markdown_blocks } from '../lib/blocks.ts';
 import { chunk_markdown } from '../lib/chunk.ts';
 import { normalize_base_url, parse_sse } from '../lib/llm.ts';
 import { MlClient } from '../lib/ml-client.ts';
@@ -193,6 +194,19 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('fence never split', chunks.some((c) => c.text.includes('```js\nconst a = 1;\n\nconst b = 2;\n```')));
 	check('empty body → no chunks', chunk_markdown('').length, 0);
 	check('short body → one chunk', chunk_markdown('Just a line.').length, 1);
+
+	const page = 'Intro para.\n\n# Heading\nRight after.\n\n- one\n\n- two\n1. three\n\nAfter list.\n\n```js\nconst a = 1;\n\nconst b = 2;\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n';
+	const blocks = markdown_blocks(page);
+	check('markdown_blocks splits on blank lines and headings', blocks.slice(0, 3).join('|'), 'Intro para.|# Heading|Right after.');
+	check('markdown_blocks keeps a loose list together', blocks[3], '- one\n\n- two');
+	check('markdown_blocks starts a block at an ordered list', blocks[4], '1. three');
+	check('markdown_blocks ends the list at prose', blocks[5], 'After list.');
+	check('markdown_blocks keeps a fence whole', blocks[6], '```js\nconst a = 1;\n\nconst b = 2;\n```');
+	check('markdown_blocks keeps table rows together', blocks[7], '| a | b |\n|---|---|\n| 1 | 2 |');
+	check('markdown_blocks count', blocks.length, 8);
+	check('markdown_blocks normalises CRLF', markdown_blocks('a\r\n\r\nb').join('|'), 'a|b');
+	check('markdown_blocks: an unterminated fence runs to the end', markdown_blocks('```\nx\n\ny').join('|'), '```\nx\n\ny');
+	check('markdown_blocks empty', markdown_blocks('').length, 0);
 
 	const index = new VectorIndex(4, 1);
 	const unit = (...v: number[]) => {

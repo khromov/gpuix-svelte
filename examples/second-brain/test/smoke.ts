@@ -21,6 +21,7 @@ import {
 	focus,
 	unfocus,
 	find,
+	find_all,
 	find_test_id,
 	click_text,
 	click_test_id,
@@ -34,7 +35,7 @@ import {
 import type { ClickOptions } from 'gpuix-svelte/test';
 import { create_app } from '../lib/app.ts';
 import { MlStub } from '../lib/ml-stub.ts';
-import { route } from '../lib/router.svelte.ts';
+import { push, route } from '../lib/router.svelte.ts';
 import { DARK, LIGHT } from '../lib/theme.ts';
 import { set_mode } from '../lib/theme.svelte.ts';
 import { ui } from '../lib/ui.svelte.ts';
@@ -44,7 +45,7 @@ await app.ingest.idle();
 
 const App = (await import('../App.svelte')).default;
 // 538 is the headless height cap; anything laid out below it cannot be hit.
-mount_headless(App, { props: { app }, width: 1100, height: 538 });
+const { native } = mount_headless(App, { props: { app }, width: 1100, height: 538 });
 
 /** A click, then the timers and dynamic imports a route change runs through. */
 async function tap(text: string, opts?: ClickOptions) {
@@ -93,6 +94,27 @@ await tap('Buy compost for the raised beds');
 await wait();
 await tap('Substrate');
 check('brand click goes home', route.path, '/');
+
+// A long body is one <markdown> row per block under a virtual Scroller: every block stays in
+// the tree, but only those near the viewport are built and painted.
+const paragraphs = Array.from({ length: 150 }, (_, i) => `Paragraph ${i} of the long page.`);
+const long_note = app.add_note({ title: 'Long page', body: paragraphs.join('\n\n') });
+await app.ingest.idle();
+push(`/item/${long_note.id}`);
+await wait();
+await wait();
+check('long page keeps a markdown row per block', find_all((n) => n.type === 'markdown').length, 150);
+check('and paints the first block', painted().includes('Paragraph 0 of the long page.'));
+check('but not the last', painted().includes('Paragraph 149 of the long page.'), false);
+const body_list = find_test_id('item-body')!;
+let last_block = -1;
+body_list.children!.forEach((row, i) => {
+	if (row.children?.some((c) => c.type === 'markdown')) last_block = i;
+});
+native.scrollToItem(body_list.id, last_block);
+await wait();
+check('scrolling to the end paints the last block', painted().includes('Paragraph 149 of the long page.'));
+await tap('Substrate');
 
 // Typing `k` into the search box offers `kind:`; picking a kind completes and searches.
 const search_input = find((n) => n.type === 'input');

@@ -53,13 +53,16 @@ examples/second-brain/
   standalone.ts          the compiled entry: static imports, render() instead of render_hot()
   App.svelte             root layout, window-level shortcuts, the palette → set_css_vars, route table
   RouteView.svelte       resolves the route and lazy-loads the page component
-  routes/                Everything, Kind, Search, Item, Ask, Settings, NotFound
+  routes/                Everything, Kind, Search, Item, Ask, Settings, NotFound; Item renders a
+                         page one <markdown> block per virtual row (lib/blocks.ts), since a native
+                         markdown element lays out its whole document every frame
   components/            Sidebar, ItemCard, CaptureBox, Field, Modal (a <Portal>), …; scrolling
                          is the package's Scroller
   lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules)
   ml/worker.ts           the child process that owns the models; ml/doctor.ts is the spike
   native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use
-  scripts/import-hn.ts   the Hacker News importer
+  scripts/import-hn.ts   the Hacker News importer; frame-cost.ts prints GPUI draw times per route
+                         (npm run brain:frames), against a copy of the data
   test/                  brain.ts (data + native, no models) and smoke.ts (headless UI)
   icon.svg / icon.png    the logo; the .app's icon is cut from the PNG
   .data/                 gitignored: substrate.sqlite, files/, thumbs/, models/

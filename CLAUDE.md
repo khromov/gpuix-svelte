@@ -67,6 +67,9 @@ npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/com
                            # embedded Bun (BUN_BE_BUN=1). Data goes to ~/Library/Application
                            # Support/Substrate. CODESIGN_IDENTITY / NOTARY_PROFILE as for compile.
 npm run brain:import-hn    # pours the Hacker News front page into the real brain (scrape smoke test)
+npm run brain:frames       # draw-time stats per route (idle and while scrolling) from GPUI's debug
+                           # frame overlay, against a copy of the data; `-- --keep /item/36` leaves
+                           # the window open with the overlay on. See "Measuring frame cost"
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
@@ -89,7 +92,7 @@ npm run test:brain         # Bun-only, chained into bun:test not test — exampl
                            # (WAV codec, page extractor, SSE parser, chunker, vector index, store +
                            # pipeline with a stub worker, real IPC client vs a fake worker incl. a crash)
                            # and test/smoke.ts (headless mount; capture, open, Esc, delete via real hit
-                           # testing). No models, no network.
+                           # testing; a long page paints only the rows in view). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
@@ -150,6 +153,25 @@ GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter    # writes a PNG after every m
 
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls
 `TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.ts`.
+
+### Measuring frame cost
+
+Scroll lag here is native per-frame layout, not JS, so measure before reasoning. `npm run
+brain:frames -- [--keep] [route ...]` (`examples/second-brain/scripts/frame-cost.ts`) boots
+Substrate against a `VACUUM INTO` copy of the data, visits each route (default: `/`, `/settings`
+and the item with the longest body), and prints a table of GPUI's own draw times — idle frames
+over 2 s, then p90/p99/max and fps while 90 wheel events scroll the content column; `--keep`
+leaves the window open with the overlay on for scrolling by hand. It is a thin script over the
+API both `GpuixRenderer` and `TestGpuixRenderer` expose: `setDebugFrameOverlay('full')`,
+`resetDebugFrameOverlayStats()`, `getDebugFrameOverlayStats()` (cur/p90/p99/max draw ms and a
+frame count) and `simulateScrollWheel(x, y, dx, dy)` — so a headless bench of one component is
+the same calls around `mount_headless` (from outside the repo it needs a `node_modules` of
+symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json, or tsx
+emits CJS). The window needs the Bash sandbox off, like every other renderer run. Baselines on
+2026-09-03 (native 0.7.0, 1180×780): the timeline ~4.6 ms a frame, settings ~7–9 ms, the item
+route ~5 ms since its Scroller went virtual (it was ~10 ms with a 12-character note and ~18 ms
+with a 226-block page before). Open: `/settings` blocks ~90 ms per simulated wheel event although
+its draw is ~9 ms.
 
 ### Standalone binary
 
@@ -406,7 +428,12 @@ the two stay in sync. Unknown events are dropped silently.
   `display: none` have the same problems in a class rule as inline (see the styling playground).
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning. `<img src>` is a
-  filesystem path or a `data:` URL, never http. `<svg source>` inherits **no** `color` natively,
+  filesystem path or a `data:` URL, never http. `<markdown>` is rebuilt and laid out in full on
+  every frame, on screen or not, and the cost follows its block count, not its bytes (a 226-block
+  page cost ~7 ms a frame headless, ~18 ms in Substrate's window), so a long document goes one
+  block per row under `<Scroller virtual>`, which brought it under 1 ms headless and the window
+  to ~5 ms — Substrate's `Item.svelte` with `lib/blocks.ts` (one row per top-level token of
+  `marked`'s lexer) is the example. `<svg source>` inherits **no** `color` natively,
   so the renderer copies the nearest ancestor's (from its class rules or inline style) onto any
   `<svg>` without one and re-copies it whenever that ancestor restyles; a parent's `:hover` colour
   does not reach it, since hover is native. Substrate's `Icon.svelte` still sets tones explicitly.
@@ -490,6 +517,42 @@ outside `src/plugin.ts` and `scripts/compile*.ts` (Bun is the compiler there). I
 `import type`, and components import the renderer's types (`ShadowNode` for `{@attach}`,
 `GpuixEvent` for handlers) from `'gpuix-svelte'`; `.svelte` files use `<script lang="ts">` — the
 compiler strips the types itself, and svelte-check is not part of the gate.
+
+## Working in this repo
+
+- Make file changes with the Edit/Write tools so every change shows as a diff; Bash is for
+  reading, running scripts and tests, and scratch files under `$TMPDIR`. Anything worth
+  remembering goes in this file, not in Claude Code's memory directory.
+- The headless renderer (Metal) crashes under Claude Code's Bash sandbox ("Swift Fatal error:
+  Array index out of range", hiservices XPC errors) — run `npm test`, `test:brain` and `consume`
+  with the sandbox disabled.
+- The machine has 16 GB of RAM and each `ml/worker.ts` loads ~1 GB of ONNX models with ORT's arena
+  on top: run one model-loading process at a time (the app, `brain:doctor`, the HN import — never
+  in parallel), check `ps -axo pid,rss,command | grep worker` after background runs and kill
+  orphans, and prefer `GPUIX_BRAIN_STUB=1` or `MlStub` for screenshots and tests. Keep the
+  safeguards: chunk length capped by characters, embedding batches of 8, `enableCpuMemArena:
+  false`, idle unload of Whisper/CLIP, the worker's orphan watchdog.
+- Sibling checkouts: `../gpuix` is the fork this repo was extracted from (2026-08-30) and lags at
+  native 0.4.0 — read upstream release tags instead (see "Regenerating README's styling
+  reference"); `../svelte` (khromov/svelte, branch `custom-condition`) is the local copy of the
+  custom-renderer PR stack, force-pushed about weekly.
+- npm does not verify lock integrity for `file:` tarballs and says "up to date" when a same-named
+  tarball changes bytes; if one is ever replaced under the same name, delete
+  `packages['node_modules/svelte']` from package-lock.json and `npm install`. `npm install` never
+  moves a locked version because a range widened — use `npm update <pkg>`.
+- `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
+  `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
+  `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. tsx, Bun and tsc all
+  silently map a stale `./x.js` specifier onto `x.ts`, so grep for `.js'` imports rather than
+  trusting the tests. The 17 `var(--…) is not defined` warnings on Substrate's first paint are
+  long-standing, not a regression.
+- `test:coverage` baseline: 32/47 samples mount, 13 refused by design, 2 runtime errors
+  (boundary-pending, raw-snippet).
+- `demo:glass-ffi` renders as an opaque dark slab over bright backdrops on every native version
+  tested: attaching the NSGlassEffectView itself turns the window opaque (the shim never opts into
+  behind-window sampling), not a renderer regression.
+- The npm name `gpuix-svelte` was reserved with a 0.0.1 placeholder on 2026-09-01, so the first
+  real release is 0.1.0.
 
 ## Comments
 
