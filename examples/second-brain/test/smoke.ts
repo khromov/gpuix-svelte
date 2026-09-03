@@ -252,7 +252,7 @@ check('the timeline carries a feeds switch', painted().includes('Include feeds')
 check('and shows the feed entry', painted().includes('Mycelium and the wood wide web'));
 await tap('Include feeds');
 check('unticking it hides feed items', painted().includes('Mycelium and the wood wide web'), false);
-check('and the choice is stored', app.settings.get('timeline.includeFeeds'), false);
+check('and the choice is stored', app.settings.get('feeds.include'), false);
 
 push('/search?q=mycelium');
 await wait();
@@ -264,7 +264,12 @@ await tap('Include feeds');
 await wait(250);
 await wait();
 check('ticking it brings them back', painted().includes('Mycelium and the wood wide web'));
-check('and persists as a setting', app.settings.get('search.includeFeeds'), true);
+check('and persists as a setting', app.settings.get('feeds.include'), true);
+
+push('/');
+await wait();
+await wait();
+check('the timeline follows the same switch', painted().includes('Mycelium and the wood wide web'));
 
 await tap('Mycelium and the wood wide web');
 await wait();
@@ -274,9 +279,11 @@ check('and which feed it came from', painted().includes('Newsonaut'));
 push('/settings');
 await wait();
 await wait();
-check('settings carries the search switch', all_text().some((t) => t.includes('Include feeds when you search')));
+check('settings carries the same switch', all_text().some((t) => t.includes("Covers the timeline, search, Ask and an item's Related list")));
+// The tick is a filled box, so the palette's accent is what says the switch is on.
+check('and it carries what search just set', find_test_id('settings-feeds')?.children?.[0]?.style?.backgroundColor, DARK.accent);
 
 console.log('screenshot:', screenshot(join(tmpdir(), 'substrate-smoke.png')));
 
 app.close();
-finish('smoke', 65);
+finish('smoke', 67);

@@ -12,8 +12,7 @@ export interface SettingValues {
 	'stt.language': string;
 	'ml.autoload': boolean;
 	'index.embedModel': string | null;
-	'search.includeFeeds': boolean;
-	'timeline.includeFeeds': boolean;
+	'feeds.include': boolean;
 	'feeds.schedule': string;
 }
 
@@ -37,8 +36,7 @@ export const SETTINGS: Record<SettingKey, SettingSpec> = {
 	'stt.language': { default: '' },
 	'ml.autoload': { default: true },
 	'index.embedModel': { default: null, internal: true },
-	'search.includeFeeds': { default: false },
-	'timeline.includeFeeds': { default: true },
+	'feeds.include': { default: true },
 	'feeds.schedule': { default: DEFAULT_SCHEDULE }
 };
 
