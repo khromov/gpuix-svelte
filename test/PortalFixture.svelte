@@ -3,6 +3,7 @@
 
 	let show = $state(true);
 	let second = $state(false);
+	let lead = $state(false);
 	let hits = $state({ under: 0, over: 0, second: 0 });
 </script>
 
@@ -10,6 +11,9 @@
 	<div class="stack">
 		{#if show}
 			<div class="inner" testId="inner">
+				{#if lead}
+					<div class="lead" testId="lead">lead</div>
+				{/if}
 				<Portal>
 					<div class="over" onclick={() => hits.over++} testId="over">over</div>
 				</Portal>
@@ -26,6 +30,7 @@
 	<div class="row">
 		<div onclick={() => (show = !show)} testId="toggle">toggle</div>
 		<div onclick={() => (second = !second)} testId="add">add</div>
+		<div onclick={() => (lead = !lead)} testId="addlead">addlead</div>
 		<div testId="hits">{hits.under}-{hits.over}-{hits.second}</div>
 	</div>
 </div>

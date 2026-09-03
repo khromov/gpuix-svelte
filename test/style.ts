@@ -66,7 +66,12 @@ check(
 );
 check('while a later longhand still refines the shorthand', parse_css_text('padding: 20px; padding-top: 4px'), { padding: 20, paddingTop: 4 });
 
-console.log('\n-- the next lines should each warn once --');
+// Every value dropped below has to say so, once per property key for the life of the
+// process — which is why `box-shadow: none` is silent, boxShadow having warned already.
+const dropped: string[] = [];
+const warn = console.warn;
+console.warn = (message) => dropped.push(String(message));
+
 check('unsupported unit is dropped, not shipped', parse_css_text('font-size: 1rem'), {});
 check('multi-value box-shadow is dropped', parse_css_text('box-shadow: 0 2px 4px rgba(0,0,0,.2)'), {});
 // GPUI types these as bare `f64`, so `auto` and `%` are just as fatal as `1rem`.
@@ -83,6 +88,20 @@ check('box-shadow keywords are dropped too', parse_css_text('box-shadow: none'),
 check('percent still works where GPUI takes one', parse_css_text('max-width: 80%'), {
 	maxWidth: '80%'
 });
+
+console.warn = warn;
+const warned_keys = dropped.map((message) => /style value `([^:]+):/.exec(message)?.[1] ?? message);
+check('every dropped value named its property', warned_keys, [
+	'fontSize',
+	'boxShadow',
+	'marginRight',
+	'marginLeft',
+	'borderRadius',
+	'top',
+	'borderTopRightRadius',
+	'borderBottomLeftRadius'
+]);
+check('and no property warned twice', warned_keys.length, new Set(warned_keys).size);
 
 // The whole point: none of this may reach Rust as a string it will reject.
 const native = new TestGpuixRenderer(400, 200);
@@ -114,4 +133,4 @@ native.flush();
 const box_bounds = native.getElementBounds(label.nativeId!);
 check('padding actually applied (x, y)', box_bounds && box_bounds.slice(0, 2).map(Math.round), [24, 12]);
 
-finish('style');
+finish('style', 24);

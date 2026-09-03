@@ -49,9 +49,17 @@ check('a handler registered outside the tree survives a remount', outer, 1);
 check('and the remounted component hears it too', seen(), 'c|0');
 off_outer();
 
-set_window_title('x');
-activate_window();
-blur();
-check('the window helpers are no-ops on the test renderer', true, true);
+// The test renderer has none of these methods, so app code calling them unguarded
+// must still be safe; a throw here would otherwise kill the run without a verdict.
+let helpers: string;
+try {
+	set_window_title('x');
+	activate_window();
+	blur();
+	helpers = 'no throw';
+} catch (err) {
+	helpers = `threw ${(err as Error).message}`;
+}
+check('the window helpers are no-ops on the test renderer', helpers, 'no throw');
 
-finish('window-keys');
+finish('window-keys', 9);

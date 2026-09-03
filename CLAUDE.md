@@ -156,10 +156,13 @@ size you asked for; read `native.getWindowSize()` (`test/portal.ts` does).
 `src/window.ts` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
 renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
 
-Tests are plain scripts: `check(label, actual, expected)` and `finish(name)` from the same module,
-exit 1 on any failure — no test runner. Adding one means adding a `test:*` script and chaining it
-into `test`. CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two macOS
-jobs.
+Tests are plain scripts: `check(label, actual, expected)` and `finish(name, expected)` from the same
+module, exit 1 on any failure — no test runner. **`finish`'s second argument is how many `check`
+calls should have run**, and a mismatch (zero included) fails: nothing else counts them, so
+assertions that stop executing would otherwise take the file green with them — adding or removing a
+check means bumping that number. `brain.ts` computes its own, since `brain.ts:596` gates three
+recorder checks on darwin. Adding a test means adding a `test:*` script and chaining it into `test`.
+CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two macOS jobs.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -636,7 +639,18 @@ compiler strips the types itself, and svelte-check is not part of the gate.
   silently map a stale `./x.js` specifier onto `x.ts`, so grep for `.js'` imports rather than
   trusting the tests.
 - `test:coverage` baseline: 32/47 samples mount, 13 refused by design, 2 runtime errors
-  (boundary-pending, raw-snippet).
+  (boundary-pending, raw-snippet). It asserts those as floors and named failures rather than an
+  exact tally, since the upstream suite grows; with `SVELTE_SAMPLES_DIR` unset it still skips at
+  exit 0.
+- Mutation-swept on 2026-09-03 (native 0.7.0). Inverting each of the 460 assertions one at a time
+  — 186 node, 274 bun — failed its run in all 460 cases, and every static `check(` site executes.
+  Two guards survive source mutation because no reachable state distinguishes them, both verified
+  by instrumenting the branch and running the whole suite: `first_native_after`'s `n.attached`
+  (`renderer.ts:206` — every id-bearing node the scan reaches is attached or a portal, and
+  `!is_portal` already excludes those) and `flush_var_warnings()` sitting above `commit()`'s
+  empty-queue return (`renderer.ts:696` — a var read always queues the `setStyle` that read it, so
+  moving it below would at worst defer a warning one frame). Both are deliberate belt-and-braces;
+  don't "cover" them, and don't delete them on the grounds that no test fails.
 - `check:svelte` talks the MCP streamable-HTTP protocol over `fetch` (initialize → tool call,
   answered as one-message SSE) rather than pulling in a client library, and the npm script passes
   `--use-env-proxy` so it works behind one. Its `FILTERS` table drops two classes that can never

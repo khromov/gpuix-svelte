@@ -101,4 +101,4 @@ function fresh(width?: number, height?: number) {
 	check('so the handler still fires', clicks, 1);
 }
 
-finish('teardown');
+finish('teardown', 14);

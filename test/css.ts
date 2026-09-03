@@ -44,6 +44,8 @@ check(':hover becomes the native hover style', element_of('toggle')!.style!.hove
 check('inline style wins over the class', pick(element_of('inline')!.style!, 'color', 'paddingTop'), ['#000000', 4]);
 check('the hover attribute wins over :hover', element_of('attr')!.style!.hover?.color, '#ffffff');
 check('a compound selector beats a single class whatever the source order', element_of('compound')!.style!.color, 'green');
+// A tag narrows a selector, so `div.tagged` outranks the `.tagged` declared after it.
+check('a tag alongside the class outranks the class alone', element_of('tagged')!.style!.color, 'teal');
 check('a dynamic class matches', element_of('dynamic')!.style!.opacity, 0.5);
 check('the refused rule never applies', element_of('nested')!.style!.fontSize ?? null, null);
 
@@ -55,4 +57,4 @@ check('class:on toggling off restyles', element_of('toggle')!.style!.backgroundC
 click_text('dynamic');
 check('swapping the class string restyles', element_of('dynamic')!.style!.opacity, 1);
 
-finish('css');
+finish('css', 17);

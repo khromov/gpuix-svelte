@@ -49,4 +49,4 @@ check('"beta" is gone after removal', final_text.includes('beta'), false);
 check('added rows are painted', final_text.includes('eta') && final_text.includes('theta'));
 check('screenshot written', existsSync(shot) && statSync(shot).size > 0);
 
-finish('smoke');
+finish('smoke', 6);

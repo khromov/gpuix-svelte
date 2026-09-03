@@ -8,4 +8,4 @@ click_test_id('plus');
 click_test_id('minus');
 
 check('the buttons reached the counter', all_text().includes('1'));
-finish('starter');
+finish('starter', 1);

@@ -47,4 +47,4 @@ order('reorder while {#if} hidden', ['head', '1', '2', '3', 'tail']);
 component.toggle(true);
 order('show {#if} again', ['head', 'IF', '1', '2', '3', 'tail']);
 
-finish('reorder');
+finish('reorder', 15);

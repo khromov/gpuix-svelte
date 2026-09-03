@@ -34,9 +34,17 @@ check('it comes back on the next render', holds(last_root_child(), 'over'), true
 click_test_id('over');
 check('and is clickable again', hits(), '1-2-0');
 
+// A portal is not in its shadow parent's native child list, so it can never be the
+// anchor a sibling inserted ahead of it lands before.
+click_test_id('addlead');
+const inner = () => (find_test_id('inner')!.children ?? []).map((c) => c.testId ?? c.text);
+check('a sibling inserted ahead of a live portal lands before the tail', inner(), ['lead', 'tail']);
+click_test_id('addlead');
+check('and removing it leaves the tail alone', inner(), ['tail']);
+
 click_test_id('add');
 check('a later portal is appended after the earlier one', holds(last_root_child(), 'second'), true);
 click_at(60, 50);
 check('so it paints and clicks on top where they overlap', hits(), '1-2-1');
 
-finish('portal');
+finish('portal', 14);

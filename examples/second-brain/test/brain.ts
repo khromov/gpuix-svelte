@@ -593,11 +593,12 @@ const feed_fetch: Fetcher = async (url) => {
 }
 
 // --- recorder shim compiles and loads (no prompt, no recording)
-if (process.platform === 'darwin' && process.env.GPUIX_BRAIN_RECORDER !== '0') {
+const recorder = process.platform === 'darwin' && process.env.GPUIX_BRAIN_RECORDER !== '0';
+if (recorder) {
 	const rec = await init_recorder();
 	check('recorder shim loads', rec.available, true);
 	check('recorder idle', rec.isRecording(), false);
 	check('auth status is a known value', ['notDetermined', 'authorized', 'denied', 'restricted'].includes(rec.authStatus()));
 }
 
-finish('brain');
+finish('brain', recorder ? 209 : 206);

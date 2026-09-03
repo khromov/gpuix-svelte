@@ -71,4 +71,13 @@ check('it warns when the frame that read it ships', late.filter((w) => w.include
 check('deleting a var drops the declaration it fed', element_of('inline')!.style!.color ?? null, null);
 check('and still restyles every element that read one', ops!.length, 5);
 
-finish('vars');
+// Still undefined and read again on the next frame — but reporting it once is the point.
+const again: string[] = [];
+console.warn = (message) => again.push(String(message));
+set_css_vars({ surface: '#444444' });
+settle();
+console.warn = warn;
+check('a var already reported stays quiet on later frames', again.filter((w) => w.includes('var(--accent)')).length, 0);
+check('though the frame itself still ships', ops!.length, 5);
+
+finish('vars', 23);

@@ -279,4 +279,4 @@ check('settings carries the search switch', all_text().some((t) => t.includes('I
 console.log('screenshot:', screenshot(join(tmpdir(), 'substrate-smoke.png')));
 
 app.close();
-finish('smoke');
+finish('smoke', 65);

@@ -4,6 +4,7 @@
  * that wants the macOS secondary click has to look at the modifiers itself.
  */
 
+import { to_gpui_event } from '../src/events.ts';
 import { mount_headless, find_test_id, click_test_id, check, finish } from 'gpuix-svelte/test';
 
 const AuxClick = (await import('./AuxClick.svelte')).default;
@@ -13,6 +14,10 @@ const log = () => find_test_id('log')!.children![0]?.text ?? '';
 const at = () => /at=(\d+),(\d+)/.exec(log());
 
 check('the card listens for both', find_test_id('card')!.events?.includes('auxClick'));
+// Svelte hands over whatever the author wrote; a name GPUI has no event for must be
+// dropped rather than registered under its own spelling.
+check('auxclick maps to GPUI\'s spelling', to_gpui_event('auxclick'), 'auxClick');
+check('and an event GPUI does not have maps to null', to_gpui_event('mouseover'), null);
 
 click_test_id('card');
 check('a left click is a click', log().startsWith('click right=false'));
@@ -33,4 +38,4 @@ check('hitbox="self" passes a right click through a shielded child', log().start
 click_test_id('inner', { button: 2 });
 check("a child with its own listener keeps the right click", log(), 'inner aux');
 
-finish('auxclick');
+finish('auxclick', 10);

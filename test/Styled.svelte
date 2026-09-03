@@ -10,6 +10,7 @@
 <div class="btn primary">compound</div>
 <div class={kind} onclick={() => (kind = kind === 'a' ? 'b' : 'a')}>dynamic</div>
 <div class="card"><div class="title">nested</div></div>
+<div class="tagged">tagged</div>
 
 <style>
 	.btn.primary {
@@ -33,6 +34,12 @@
 	}
 	.card .title {
 		font-size: 20px;
+	}
+	div.tagged {
+		color: teal;
+	}
+	.tagged {
+		color: red;
 	}
 	div {
 		gap: 4px;

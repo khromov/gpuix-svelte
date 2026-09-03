@@ -25,6 +25,11 @@ check('a `.svelte` string literal is left alone', busted('HotString'), false);
 check('a commented-out import is left alone', busted('HotComment'), false);
 check('both lookalikes survive verbatim', bare('HotString') && bare('HotComment'), true);
 
+// A runes module is one instance per process by design, so busting it would hand the
+// remounted tree a second copy of the state the first one is still using.
+check('a relative .svelte.ts module is left alone', code.includes('ModuleStore.svelte.ts?v=7'), false);
+check('and survives verbatim too', /ModuleStore\.svelte\.ts(?!\?)/.test(code), true);
+
 // The renderer import must stay stable, or each reload gets its own shadow tree.
 check('the renderer specifier is untouched', /gpuix-svelte\/renderer['"]/.test(code), true);
 // Node refuses a bare specifier with a query, and a package component is not being edited.
@@ -34,4 +39,4 @@ check('and survives verbatim', bare('Scroller'), true);
 const plain = compile_svelte(FIXTURE);
 check('no query means no rewrite', plain.includes('?v='), false);
 
-finish('compile');
+finish('compile', 13);
