@@ -25,7 +25,7 @@ to run.
 
 - **Capture**: a note (Enter saves, Shift+Enter is a newline), a URL (scraped to readable text with
   its title and preview image), images via the macOS file chooser or straight from the clipboard,
-  audio via the microphone or an imported file.
+  audio via the microphone or an imported WAV or MP3.
 - **On-device models**, all through [transformers.js](https://huggingface.co/docs/transformers.js)
   in a child Bun process: `nomic-ai/nomic-embed-text-v1.5` for text embeddings (768-d, 8k-token
   context), `onnx-community/whisper-base` for transcription, `Xenova/clip-vit-base-patch32` so a
@@ -71,7 +71,7 @@ examples/second-brain/
 **`substrate.sqlite` is the whole brain.** Images, thumbnails and recordings are rows in a
 `blobs` table, not files beside the database, so copying that one file moves everything —
 which is also why `npm run brain:frames` can point a window at a `VACUUM INTO` copy and still
-paint. GPUI's `<img src>`, `afplay`, ffmpeg and the worker all want a real path, so `lib/blobs.ts`
+paint. GPUI's `<img src>`, `afplay` and the worker all want a real path, so `lib/blobs.ts`
 writes a blob into `cache/` the first time one is asked for. That directory is disposable:
 delete it and it fills in again. Blob rows are immutable — replacing an item's media inserts a
 new row — so a cache file named after a blob id can never be stale.
@@ -120,7 +120,6 @@ All optional, all `GPUIX_BRAIN_*`:
 | `ML=wasm\|off` | force transformers.js onto onnxruntime-web, or disable the worker entirely |
 | `OFFLINE=1` | never download models |
 | `RECORDER=0` | don't compile or load the microphone shim |
-| `FFMPEG=/path` | ffmpeg to use for non-WAV audio (otherwise PATH, then Homebrew's) |
 | `LLM_URL`, `LLM_KEY`, `LLM_MODEL` | override Settings; the key never has to be stored |
 | `RESOURCES=/path` | where a compiled app's worker and shim live (auto-detected inside a .app) |
 | `DEBUG=1` | verbose logging |
@@ -137,10 +136,10 @@ All optional, all `GPUIX_BRAIN_*`:
 | clipboard | `pbpaste`/`pbcopy` for text, `Bun.Image.fromClipboard()` for images |
 | audio playback | `afplay` |
 | system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
-| decoding audio | a hand-written WAV parser (`lib/wav.ts`); anything else through ffmpeg when installed |
+| decoding audio | a hand-written WAV parser (`lib/wav.ts`) and mpg123 as WebAssembly for MP3 (`lib/mp3.ts`). WAV and MP3 are the two formats Substrate imports, and both are handled in-process — there is no ffmpeg to install |
 | readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.ts`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.ts` shows the way around |
 | AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) stores a WebP display copy beside the original |
-| shrinking a recording | LAME as WebAssembly (`wasm-media-encoders`, `lib/mp3.ts`): once the transcript exists, a memo the app recorded itself is re-encoded from 16 kHz PCM to 32 kbps MP3 in place, about eight times smaller. An imported file is the user's master and is never rewritten |
+| shrinking a recording | LAME as WebAssembly (`wasm-media-encoders`, `lib/mp3.ts`): once the transcript exists, a memo the app recorded itself is re-encoded from 16 kHz PCM to 32 kbps MP3 in place, about eight times smaller, and mpg123 decodes it back if it is ever re-transcribed. An imported file is the user's master and is never rewritten |
 | search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
 
 ## About client-side routers

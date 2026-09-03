@@ -56,7 +56,7 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # <data-dir>/cache is a disposable extraction of them (lib/blobs.ts).
                            # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
                            # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
-                           # _RECORDER=0, _FFMPEG, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
+                           # _RECORDER=0, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
 npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
                            # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
                            # in that nested package so the root and CI stay lean

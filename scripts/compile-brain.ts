@@ -105,6 +105,20 @@ const svelte_plugin: BunPlugin = {
 	}
 };
 
+// mpg123-decoder's entry also pulls in a WebWorker class the bundler emits as undefined
+// ("MPEGDecoderWebWorker is not defined" at startup), and its exports map blocks the deep
+// import that would avoid it — so the decoder class is resolved directly here.
+const mpg123_plugin: BunPlugin = {
+	name: 'mpg123-direct',
+	setup(build) {
+		build.onResolve({ filter: /^mpg123-decoder$/ }, () => ({ path: 'mpg123-decoder', namespace: 'mpg123' }));
+		build.onLoad({ filter: /.*/, namespace: 'mpg123' }, () => ({
+			contents: `export { default as MPEGDecoder } from ${JSON.stringify(join(root, 'node_modules/mpg123-decoder/src/MPEGDecoder.js'))};`,
+			loader: 'js'
+		}));
+	}
+};
+
 rmSync(binary, { force: true });
 rmSync(bundle, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
@@ -117,7 +131,7 @@ const result = await Bun.build({
 	conditions: ['custom-renderer', 'production'],
 	define: { 'process.env.NODE_ENV': '"production"' },
 	minify: true,
-	plugins: [svelte_plugin],
+	plugins: [svelte_plugin, mpg123_plugin],
 	throw: false,
 	compile: {
 		outfile: binary,

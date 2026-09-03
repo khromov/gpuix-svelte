@@ -127,6 +127,7 @@
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.12.0",
 		"marked": "^18.0.11",
+		"mpg123-decoder": "^1.0.3",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.69.0",
 		"wasm-media-encoders": "^0.7.0"

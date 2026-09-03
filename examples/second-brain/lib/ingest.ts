@@ -83,7 +83,7 @@ export function create_ingestor({ store, blobs, vectors, images, ml, media, sett
 		const steps: Array<[string, Step]> = [];
 		if (item.kind === 'link' && !item.body) steps.push(['scrape', scrape_step]);
 		// The PCM only exists to feed Whisper, and `compact` clears it afterwards — without
-		// the body test that would put ffmpeg back in the plan on every later pass.
+		// the body test that would redo the decode on every later pass.
 		if (item.kind === 'audio' && !item.body && !item.meta.pcm_blob) steps.push(['convert', convert_step]);
 		if (item.kind === 'audio' && !item.body) steps.push(['transcribe', transcribe_step]);
 		if (item.kind === 'audio' && !item.meta.compacted) steps.push(['compact', compact_step]);
@@ -163,7 +163,7 @@ export function create_ingestor({ store, blobs, vectors, images, ml, media, sett
 	async function convert_step(item: Item) {
 		const original = blobs.get(item.file_blob!);
 		if (!original) throw Object.assign(new Error('audio file missing'), { transient: false });
-		const { pcm, duration } = await media.prepare_pcm(original.bytes, original.ext, item.id);
+		const { pcm, duration } = await media.prepare_pcm(original.bytes, original.ext);
 		// A recording is already 16 kHz mono, so it is its own sidecar and gets no second blob.
 		const pcm_blob = pcm ? blobs.put(item.id, 'pcm', pcm, 'wav') : original.id;
 		store.update_item(item.id, { duration, meta: { pcm_blob } });

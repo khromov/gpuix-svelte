@@ -24,6 +24,7 @@ import { init_recorder } from '../lib/recorder.ts';
 import { decode_entities, extract, normalize_url, pick_title } from '../lib/scrape.ts';
 import type { Failure, Fetcher } from '../lib/types.ts';
 import { VectorIndex, from_blob, to_blob } from '../lib/vectors.ts';
+import { decode_mp3, encode_mp3 } from '../lib/mp3.ts';
 import { decode_wav, encode_wav, wav_header } from '../lib/wav.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
@@ -102,6 +103,31 @@ import { check, finish } from 'gpuix-svelte/test';
 		threw = true;
 	}
 	check('truncated header throws', threw);
+}
+
+// --- mp3, both directions, entirely in-process
+{
+	const rate = 16000;
+	const tone = Float32Array.from({ length: rate * 2 }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 440 * i) / rate));
+	const wav = encode_wav(tone, rate);
+	const mp3 = await encode_mp3(wav);
+	check('mp3 is smaller than the wav', mp3.length < wav.length / 4);
+	check('mp3 starts with a frame or an id3 tag', mp3[0] === 0xff || String.fromCharCode(mp3[0], mp3[1], mp3[2]) === 'ID3');
+
+	const back = await decode_mp3(mp3);
+	check('mp3 decodes back to 16k mono', Math.abs(back.length - tone.length) < rate * 0.1);
+	let peak = 0;
+	let crossings = 0;
+	// Codec delay pads both ends, so measure the settled middle and expect 2 crossings
+	// per cycle across however long that window turned out to be.
+	const lo = Math.floor(back.length * 0.25) + 1;
+	const hi = Math.floor(back.length * 0.75);
+	for (let i = lo; i < hi; i++) {
+		peak = Math.max(peak, Math.abs(back[i]));
+		if (back[i - 1] < 0 !== back[i] < 0) crossings++;
+	}
+	check('mp3 peak survives the round trip', Math.abs(peak - 0.5) < 0.05);
+	check('mp3 pitch survives the round trip', Math.abs(crossings - (2 * 440 * (hi - lo)) / rate) <= 4);
 }
 
 // --- scrape
@@ -333,6 +359,25 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 	check('compacted recording still resolves', existsSync(app.blobs.file(done.file_blob)!));
 	check('transcript survived compaction', done.body.startsWith('Stub transcript'));
 
+	// An imported MP3 is decoded in-process; there is no ffmpeg on the machine to fall back to.
+	const imported_mp3 = join(dir, 'clip.mp3');
+	await Bun.write(imported_mp3, await encode_mp3(encode_wav(Float32Array.from({ length: 32000 }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 440 * i) / 16000)), 16000)));
+	const mp3_item = await app.add_audio(imported_mp3);
+	await app.ingest.idle();
+	const ready_mp3 = app.get_item(mp3_item.id)!;
+	check('mp3 import succeeds', ready_mp3.status, 'ready');
+	check('mp3 import keeps its mp3 original', app.blobs.info(ready_mp3.file_blob!)?.ext, 'mp3');
+	check('mp3 import gets a duration', Math.round(ready_mp3.duration!), 2);
+	check('mp3 import gets transcribed', ready_mp3.body.startsWith('Stub transcript'));
+	check('mp3 import drops its pcm sidecar', ready_mp3.meta.pcm_blob, null);
+
+	const unsupported = join(dir, 'clip.m4a');
+	await Bun.write(unsupported, new Uint8Array(2048));
+	const bad_audio = await app.add_audio(unsupported);
+	await app.ingest.idle();
+	check('an unsupported format fails clearly', app.get_item(bad_audio.id)!.error?.includes('import a WAV or MP3'), true);
+	check('and is not retried', app.get_item(bad_audio.id)!.status, 'error');
+
 	app.settings.set('llm.model', 'x');
 	check('settings roundtrip', app.settings.get('llm.model'), 'x');
 	check('secrets masked', app.settings.all()['llm.apiKey'], '');
@@ -340,9 +385,9 @@ const dir = mkdtempSync(join(tmpdir(), 'substrate-test-'));
 }
 {
 	const app = await create_app({ data_dir: dir, ml: new MlStub(), fetch: fixture_fetch });
-	check('restart restores vectors', app.vectors.size, 4);
+	check('restart restores vectors', app.vectors.size, 5);
 	check('restart restores image vectors', app.images.size, 1);
-	check('restart keeps items', app.snapshot().counts.total, 6);
+	check('restart keeps items', app.snapshot().counts.total, 8);
 	check('media survives a reopen', (app.blobs.bytes(app.list({ kind: 'image' })[0].file_blob)?.length ?? 0) > 0);
 	app.close();
 }

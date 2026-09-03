@@ -84,7 +84,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	const images = new VectorIndex(DIMS.clip);
 	images.load(store.all_image_vectors());
 
-	const media = create_media(dirs);
+	const media = create_media();
 	const on_status = (status: MlStatus) => bus.emit({ type: 'ml', status });
 	ml ??= default_ml({ models_dir: dirs.models, autoload: autoload && settings.get('ml.autoload') !== false, on_status });
 	ml.on_status = on_status;

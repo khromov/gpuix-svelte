@@ -4,7 +4,7 @@
  */
 
 import { rmSync } from 'node:fs';
-import { data, get_app } from './data.svelte.ts';
+import { get_app } from './data.svelte.ts';
 import { choose_files } from './dialogs.ts';
 import { warn } from './log.ts';
 import { play, stop_all } from './player.ts';
@@ -76,10 +76,9 @@ export async function paste_image() {
 
 export async function pick_audio() {
 	const app = get_app();
-	const kinds = data.capabilities?.ffmpeg?.ok ? 'audio' : 'wav';
 	let paths: string[];
 	try {
-		paths = await choose_files({ kinds, multiple: true, prompt: kinds === 'wav' ? 'Import WAV files (install ffmpeg for other formats)' : 'Import audio' });
+		paths = await choose_files({ kinds: 'audio', multiple: true, prompt: 'Import audio' });
 	} catch (err) {
 		toast((err as Error).message, 'error');
 		return;

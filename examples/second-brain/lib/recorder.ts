@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { wav_duration } from './audio.ts';
+import { wav_duration } from './wav.ts';
 import { on_exit } from './lifecycle.ts';
 import { warn } from './log.ts';
 import { resources_dir } from './paths.ts';

@@ -1,4 +1,3 @@
-import { ffmpeg_available } from './audio.ts';
 import { clipboard_available } from './clipboard.ts';
 import { picker_available } from './dialogs.ts';
 import { llm_available, type LlmConfig } from './llm.ts';
@@ -13,7 +12,6 @@ export interface Cap {
 export interface Capabilities {
 	platform: string;
 	recorder: Cap;
-	ffmpeg: Cap;
 	clipboardImage: Cap;
 	clipboardText: Cap;
 	filePicker: Cap;
@@ -27,7 +25,6 @@ export async function capabilities({ llmConfig = null }: { llmConfig?: LlmConfig
 	return {
 		platform: process.platform,
 		recorder: recorder_available(),
-		ffmpeg: ffmpeg_available(),
 		clipboardImage: clipboard.image,
 		clipboardText: clipboard.text,
 		filePicker: picker_available(),

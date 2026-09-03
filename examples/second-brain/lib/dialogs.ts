@@ -1,6 +1,6 @@
 import { track } from './lifecycle.ts';
 
-export type FileKinds = 'image' | 'audio' | 'wav' | 'any';
+export type FileKinds = 'image' | 'audio' | 'any';
 
 interface ChooseOptions {
 	kinds: FileKinds;
@@ -10,14 +10,12 @@ interface ChooseOptions {
 
 const UTIS: Partial<Record<FileKinds, string>> = {
 	image: '{"public.image"}',
-	audio: '{"public.audio", "public.movie"}',
-	wav: '{"com.microsoft.waveform-audio"}'
+	audio: '{"com.microsoft.waveform-audio", "public.mp3"}'
 };
 
 const LINUX_FILTERS: Partial<Record<FileKinds, string>> = {
 	image: 'Images | *.png *.jpg *.jpeg *.gif *.webp *.bmp *.heic *.tiff',
-	audio: 'Audio | *.wav *.mp3 *.m4a *.aac *.ogg *.opus *.flac *.aiff *.webm *.mp4',
-	wav: 'WAV | *.wav'
+	audio: 'Audio | *.wav *.mp3'
 };
 
 export function picker_available(): { ok: boolean; reason?: string } {

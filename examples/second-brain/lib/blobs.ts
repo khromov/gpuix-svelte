@@ -1,6 +1,6 @@
 /**
  * Every byte the app owns lives in the `blobs` table; the database is the master copy.
- * GPUI's `<img src>`, afplay, ffmpeg and the ML worker all want a real path, so a blob is
+ * GPUI's `<img src>`, afplay and the ML worker all want a real path, so a blob is
  * written into `<data-dir>/cache/` the first time one is asked for. The cache is
  * disposable — deleting it costs one re-extract — which is what makes the .sqlite file
  * movable on its own.

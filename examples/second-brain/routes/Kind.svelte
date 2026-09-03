@@ -13,7 +13,7 @@
 		text: ['No notes yet', 'Type anything into the box on Everything and press Enter.'],
 		link: ['No links yet', 'Paste a URL into the box on Everything; the page is read and indexed for you.'],
 		image: ['No images yet', 'Use Add image… or Paste image on Everything. With a vision model configured, images get described too.'],
-		audio: ['No recordings yet', 'Press Record on Everything, or import a WAV (any format with ffmpeg installed).']
+		audio: ['No recordings yet', 'Press Record on Everything, or import a WAV or MP3.']
 	};
 	const items = $derived(data.items.filter((i) => i.kind === kind));
 </script>

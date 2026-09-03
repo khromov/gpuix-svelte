@@ -52,7 +52,7 @@ let app: App | null = null;
 export const get_app = () => app as App;
 
 /**
- * The bytes live in the database, so an `<img src>` (or afplay, or ffmpeg) gets a path into
+ * The bytes live in the database, so an `<img src>` (or afplay) gets a path into
  * the disposable cache. Synchronous, because this is called during render.
  */
 export const blob_src = (id: number | null | undefined): string | undefined => (app && id != null ? app.blobs.file(id) : undefined);
