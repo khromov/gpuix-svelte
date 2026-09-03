@@ -37,6 +37,11 @@ npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, m
 npm run demo:styling       # styling playground: three columns of style strings next to what GPUI
                            # made of them (reads like CSS / looks like CSS but is not / GPUI-only);
                            # NOT part of `npm run demo`
+npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU build — bundles it to
+                           # dist/web and serves it at http://localhost:4173 (PORT overrides).
+                           # --production for the minified/production-Svelte bundle, --build-only
+                           # to skip serving. BUN ONLY, and NOT part of `npm run demo`.
+                           # See "Rendering to the web"
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram on the left and highlighted source + the same
                            # component running live on the right, with a quiz. Prose is
@@ -52,7 +57,9 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # polled on a per-feed cron (croner, in-process — the ML worker takes one
                            # job at a time and does not exist without the ML deps), kept out of
                            # search/Ask/Related behind search.includeFeeds; RAG chat over any
-                           # OpenAI-compatible endpoint; light/dark. BUN ONLY (bun:sqlite,
+                           # OpenAI-compatible endpoint; right-click menus on every surface
+                           # (components/ContextMenu.svelte draws them, lib/menus.ts says what is
+                           # in them); light/dark. BUN ONLY (bun:sqlite,
                            # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
                            # is the same script. Models run in a child process (ml/worker.ts).
                            # substrate.sqlite is the master record: media are blob rows, and
@@ -78,7 +85,8 @@ npm run brain:frames       # draw-time stats per route (idle and while scrolling
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
-                           # test:vars, test:scroller, test:hitbox, test:window-keys, test:portal
+                           # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
+                           # test:portal
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -91,6 +99,7 @@ npm run test:module        # single test — a .svelte.ts runes module compiles 
 npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in one batch
 npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual
 npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
+npm run test:auxclick      # single test — a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.ts
@@ -100,6 +109,11 @@ npm run test:brain         # Bun-only, chained into bun:test not test — exampl
                            # and test/smoke.ts (headless mount; capture, open, Esc, delete via real hit
                            # testing; a long page paints only the rows in view). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
+npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
+                           # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
+                           # `-- <file|dir>` checks just that one, --a11y unhides the a11y
+                           # warnings, --json, --jobs N, --url. Exits 1 on issues, never on
+                           # suggestions. Network, not a runtime script, so no bun twin
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled and the published spec —
@@ -119,9 +133,9 @@ running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`),
 loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
 `bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `npm install`
 either way. Adding a script means adding both halves — except the Bun-only ones (`compile`,
-`brain:*` other than `brain`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
+`demo:web`, `brain:*` other than `brain`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
 `bun:` twin is an alias. Repo-local scripts that run on plain `node` (`demo`, `vendor`, `pack`,
-`consume`) take `--import tsx` themselves.
+`consume`, `check:svelte`) take `--import tsx` themselves.
 
 Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
@@ -204,6 +218,51 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
 `.app` through `notarytool` — a few minutes, and it needs `xcrun notarytool store-credentials
 <profile>` done once. Gatekeeper rejects a signed-but-unnotarized app, so both are needed to ship.
 
+### Rendering to the web
+
+There is **no DOM renderer** and there never was one to wire up: gpuix's web target is GPUI itself
+compiled to `wasm32-unknown-unknown`, painting a WebGPU (WebGL2 fallback) `<canvas>` that the wasm
+appends to `<body>` along with a hidden IME `<textarea>`. Nothing produces DOM nodes. The upside is
+that it is the same element tree, the same `applyBatch` protocol and the same error-first
+`(err, event)` callback, so **`renderer.ts`, `style.ts` and `events.ts` are untouched by it** and
+the pixels match the desktop app.
+
+`@gpuix/native` ships the build already — `browser.mjs`, `wasm/gpuix-web.js` and a 19.9 MB
+`wasm/gpuix-web_bg.wasm`, all in its `files`, rebuilt by its own `prepublishOnly`. Its
+`"browser": "browser.mjs"` is what `Bun.build({ target: 'browser' })` picks up, and `browser.mjs`
+pulls the wasm in with `with { type: 'file' }`, so Bun copies it beside the bundle and rewrites the
+URL. That import attribute is why this is **Bun-only**; nothing here has to know where the wasm
+lives. `scripts/web.ts` is the whole integration, and it reuses `scripts/compile.ts`'s plugin
+pattern (the exported `load_svelte`/`load_module` hooks plus the counter that catches a `.svelte`
+import silently becoming a file asset).
+
+Two things bite:
+
+- **Cross-origin isolation is mandatory.** The wasm links with `--shared-memory`, so its
+  `WebAssembly.Memory` is `shared: true` and needs `SharedArrayBuffer`, which exists only in an
+  isolated document. Every response carries `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp`, and `.wasm` must be served as `application/wasm`
+  or `instantiateStreaming` rejects it. Any real host has to do the same; `file://` cannot work.
+- **A browser bundle has no `process`.** Bun does not shim it for `target: 'browser'`, so a bare
+  `process.env.X` throws a `ReferenceError` that kills `render()` before it mounts — with GPUI
+  itself already up, which makes it look like a renderer bug. Hence the `env()` helper in
+  `render.ts`.
+
+The wasm class differs from the napi one in ways worth knowing before reusing desktop code:
+`requiresTick()` is hardcoded `false` (so the frame loop never starts and `set_auto_commit(true)`
+carries every commit) and `tick()` is a no-op; `init(options)` **ignores** its argument, so
+`title`/`width`/`height` do nothing and the page's CSS sizes the canvas; and it has no
+`captureScreenshot`, `activateWindow`, `simulateKeystrokes`, `simulateKeyDown`/`Up`, or the
+`resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair — so `brain:frames`-style
+measurement is desktop-only. `getAutomationTree()` stands in for `getTreeJson()`. Everything
+`Scroller` needs (`getElementBounds`, `getScrollOffset`, `getListScrollTop`, `scrollTo`,
+`scrollToItem`) is present, so a scrolling demo should port too.
+
+There is no automated test: `gpuix-svelte/test` is built on `TestGpuixRenderer`, which is napi-only.
+Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe-swiftshader
+--remote-debugging-port=9222`, then navigate and read `Runtime.consoleAPICalled`. Avoid
+`--virtual-time-budget`: GPUI never goes idle, so Chrome fast-forwards frames forever and hangs.
+
 ## Hard constraints
 
 - **TypeScript sources run as-is; no build step, no emit.** `exports` points straight at
@@ -218,6 +277,9 @@ entitlements Bun needs (inline in the script), and `NOTARY_PROFILE` then notariz
   script bodies are outside the gate too — the compiler strips their types, svelte-check never
   runs — so an annotation there is documentation, not a check. Consumers typechecking against
   the package need `allowImportingTsExtensions` (hence `noEmit`) and `@types/node`, as README says.
+  The `.` export is conditional — `browser` → `src/web.ts`, `default` → `src/index.ts` — and only a
+  browser bundler ever picks the first, so Node, Bun's runtime and `tsc` all still resolve
+  `index.ts`.
 - **Node >= 24** (`engines`; the package needs `module.registerHooks` and
   `stripTypeScriptTypes`, nothing newer — only the glass-ffi demo needs 26.1's experimental
   `node:ffi`) or **Bun >= 1.4.0**. CI tests Node 24 and 26 and Bun; keep runtime-specific code
@@ -271,6 +333,8 @@ render.ts    window lifecycle + frame loop  ─┐
 renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
+  hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
+  web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
@@ -371,7 +435,9 @@ that thread is still alive — and it returns false once the last window closes,
 loop and the process. Where it is false, `set_auto_commit(true)` makes the renderer schedule its
 own commit on a microtask instead — otherwise a mutation with no native event behind it (a
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
-`dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. `render_hot` watches the entry's
+`dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. It reads
+env through a `globalThis.process?.env` helper and keeps no `node:*` import, so it bundles for the
+browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `compile.ts` propagates that query to child
 `.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
@@ -463,6 +529,12 @@ the two stay in sync. Unknown events are dropped silently.
   included) but the headless renderer never does, which is what `gpuix-svelte/test`'s
   `focus()`/`unfocus()` stand in for. `blur()` from the package hands focus back from a field;
   `focus_element(node)` focuses one.
+- **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
+  `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
+  menu at the cursor (`getElementBounds` on that panel reports its content box, so it sits inset by
+  the border and padding). GPUI routes macOS's ctrl+click to `click`, not `auxClick`, so a surface
+  that wants the platform's secondary click needs both handlers; Substrate's `is_secondary(e)` in
+  `lib/ui.svelte.ts` is that check written once.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child with a
@@ -559,6 +631,13 @@ compiler strips the types itself, and svelte-check is not part of the gate.
   long-standing, not a regression.
 - `test:coverage` baseline: 32/47 samples mount, 13 refused by design, 2 runtime errors
   (boundary-pending, raw-snippet).
+- `check:svelte` talks the MCP streamable-HTTP protocol over `fetch` (initialize → tool call,
+  answered as one-message SSE) rather than pulling in a client library, and the npm script passes
+  `--use-env-proxy` so it works behind one. It hides `a11y_*` for the reason `svelte.config.js`
+  filters them — there is no DOM here — which is 143 of its 179 findings; the rest are
+  suggestions, mostly the autofixer's "you are calling `x` inside an `$effect`" heuristic, which
+  fires on *any* call in an effect and so hits every `on_window_key` / `setInterval` subscription
+  this renderer needs. Baseline on 2026-09-03: 72 files, 0 issues, 36 suggestions.
 - `demo:glass-ffi` renders as an opaque dark slab over bright backdrops on every native version
   tested: attaching the NSGlassEffectView itself turns the window opaque (the shim never opts into
   behind-window sampling), not a renderer regression.

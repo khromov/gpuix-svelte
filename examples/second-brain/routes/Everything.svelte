@@ -5,9 +5,11 @@
 	import ItemCard from '../components/ItemCard.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Toggle from '../components/Toggle.svelte';
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import { data, get_app } from '../lib/data.svelte.ts';
+	import { capture_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
-	import { focus } from '../lib/ui.svelte.ts';
+	import { focus, open_menu } from '../lib/ui.svelte.ts';
 
 	const PAGE = 200;
 	let page = $state(1);
@@ -21,7 +23,7 @@
 	}
 </script>
 
-<div class="route">
+<div class="route" onauxclick={(e: GpuixEvent) => open_menu(e, capture_actions())}>
 	<div class="capture"><CaptureBox /></div>
 	{#if data.counts.feeds > 0}
 		<div class="head">

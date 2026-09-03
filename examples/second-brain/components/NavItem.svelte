@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { push, route } from '../lib/router.svelte.ts';
-	import { blur } from 'gpuix-svelte';
+	import { blur, type GpuixEvent } from 'gpuix-svelte';
 	import type { IconName } from '../lib/icons.ts';
+	import { nav_actions } from '../lib/menus.ts';
+	import type { Kind } from '../lib/store.ts';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 	import Icon from './Icon.svelte';
 
-	let { label, icon, path, count = null }: { label: string; icon: IconName; path: string; count?: number | null } = $props();
+	let { label, icon, path, kind = null, count = null }: { label: string; icon: IconName; path: string; kind?: Kind | null; count?: number | null } = $props();
 
 	const active = $derived(route.path === path);
 
@@ -12,9 +15,18 @@
 		if (!active) push(path);
 		blur();
 	}
+
+	const show = (e: GpuixEvent) => open_menu(e, nav_actions(path, kind), label);
 </script>
 
-<div class="nav" class:active hitbox="self" onclick={go} testId="nav-{label}">
+<div
+	class="nav"
+	class:active
+	hitbox="self"
+	onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e) : go())}
+	onauxclick={show}
+	testId="nav-{label}"
+>
 	<Icon name={icon} size={16} tone={active ? 'accentDeep' : 'muted'} />
 	<div class="label">{label}</div>
 	{#if count != null && count > 0}<div class="count">{count}</div>{/if}

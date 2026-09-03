@@ -6,9 +6,12 @@
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
 	import Toggle from '../components/Toggle.svelte';
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import { data, get_app } from '../lib/data.svelte.ts';
+	import { capture_actions } from '../lib/menus.ts';
 	import { parse_query } from '../lib/rank.ts';
 	import { push, replace } from '../lib/router.svelte.ts';
+	import { open_menu } from '../lib/ui.svelte.ts';
 	import type { App } from '../lib/app.ts';
 
 	let { query }: { query: Record<string, string> } = $props();
@@ -86,7 +89,7 @@
 	});
 </script>
 
-<div class="route">
+<div class="route" onauxclick={(e: GpuixEvent) => open_menu(e, capture_actions())}>
 	<div class="head">
 		<Segmented options={FILTERS} value={active} onchange={choose} small />
 		<Toggle label="Include feeds" checked={feeds_on} onchange={toggle_feeds} testid="include-feeds" />

@@ -1,14 +1,24 @@
 <script lang="ts">
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import type { Source } from '../lib/ask.ts';
+	import { source_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import { KIND_ICON } from '../lib/icons.ts';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 	import Icon from './Icon.svelte';
 
 	let { source, cited = false }: { source: Source; cited?: boolean } = $props();
 
+	const show = (e: GpuixEvent) => open_menu(e, source_actions(source), source.title);
 </script>
 
-<div class="chip" class:cited hitbox="self" onclick={() => push(`/item/${source.item_id}`)}>
+<div
+	class="chip"
+	class:cited
+	hitbox="self"
+	onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e) : push(`/item/${source.item_id}`))}
+	onauxclick={show}
+>
 	<div class="n">{source.n}</div>
 	<Icon name={KIND_ICON[source.kind] ?? 'note'} size={12} tone={source.kind} />
 	<div class="title">{source.title}</div>

@@ -8,11 +8,13 @@
 	import Spinner from '../components/Spinner.svelte';
 	import Segmented from '../components/Segmented.svelte';
 	import Toggle from '../components/Toggle.svelte';
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import { SCHEDULES } from '../lib/feeds/schedules.ts';
 	import { ago, data, get_app } from '../lib/data.svelte.ts';
+	import { feed_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import type { Feed } from '../lib/store.ts';
-	import { toast } from '../lib/ui.svelte.ts';
+	import { open_menu, toast } from '../lib/ui.svelte.ts';
 
 	const app = get_app();
 
@@ -92,7 +94,11 @@
 			<EmptyState title="No feeds yet" body="Paste an RSS or Atom address above. Entries are ingested like any link you save — and stay out of search until you say otherwise in Settings." />
 		{:else}
 			{#each data.feeds as feed (feed.id)}
-				<div class="card" testId="feed-{feed.id}">
+				<div
+					class="card"
+					onauxclick={(e: GpuixEvent) => open_menu(e, feed_actions(feed, { on_options: () => (expanded = feed.id) }), feed.title || host(feed))}
+					testId="feed-{feed.id}"
+				>
 					<div class="row">
 						<Icon name="rss" size={16} tone={feed.enabled ? 'accent' : 'faint'} />
 						<div class="titles">

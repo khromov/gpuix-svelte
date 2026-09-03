@@ -3,11 +3,16 @@
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-	import { blob_src, data, status_text } from '../lib/data.svelte.ts';
+	import type { GpuixEvent } from 'gpuix-svelte';
+	import { blob_src, data, display_title, status_text } from '../lib/data.svelte.ts';
+	import { capture_actions, item_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
-	import type { Kind } from '../lib/store.ts';
+	import type { Item, Kind } from '../lib/store.ts';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 
 	let { kind }: { kind: Kind } = $props();
+
+	const show = (e: GpuixEvent, item: Item) => open_menu(e, item_actions(item), display_title(item));
 
 	const COPY: Record<Kind, [string, string]> = {
 		text: ['No notes yet', 'Type anything into the box on Everything and press Enter.'],
@@ -18,7 +23,7 @@
 	const items = $derived(data.items.filter((i) => i.kind === kind));
 </script>
 
-<div class="route">
+<div class="route" onauxclick={(e: GpuixEvent) => open_menu(e, capture_actions())}>
 	<div class="head">
 		<KindBadge {kind} />
 		<div class="count">{items.length} item{items.length === 1 ? '' : 's'}</div>
@@ -29,7 +34,12 @@
 		{:else if kind === 'image'}
 			<div class="grid">
 				{#each items as item (item.id)}
-					<div class="tile" hitbox="self" onclick={() => push(`/item/${item.id}`)}>
+					<div
+						class="tile"
+						hitbox="self"
+						onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e, item) : push(`/item/${item.id}`))}
+						onauxclick={(e: GpuixEvent) => show(e, item)}
+					>
 						{#if blob_src(item.thumb_blob)}
 							<img src={blob_src(item.thumb_blob)} objectFit="cover" class="pic" />
 						{:else}

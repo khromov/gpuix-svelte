@@ -2,6 +2,7 @@
 	import { on_window_key, set_css_vars, set_window_title, type GpuixEvent } from 'gpuix-svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import { untrack } from 'svelte';
+	import ContextMenu from './components/ContextMenu.svelte';
 	import Sidebar from './components/Sidebar.svelte';
 	import Toasts from './components/Toasts.svelte';
 	import TopBar from './components/TopBar.svelte';
@@ -51,8 +52,8 @@
 		}
 		if (cmd && e.key === ',') return push('/settings');
 		if (e.key === 'escape') {
-			// An open dialog and a focused text field each get the same key and handle it themselves.
-			if (ui.modals > 0 || e.editing) return;
+			// An open dialog, menu or focused text field each get the same key and handle it themselves.
+			if (ui.modals > 0 || ui.menu || e.editing) return;
 			if (route.path !== '/') back();
 		}
 	}
@@ -69,6 +70,7 @@
 		</div>
 	</div>
 	<Portal><Toasts /></Portal>
+	<Portal><ContextMenu /></Portal>
 </div>
 
 <style>

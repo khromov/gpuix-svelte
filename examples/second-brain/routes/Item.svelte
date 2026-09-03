@@ -8,16 +8,17 @@
 	import { markdown_blocks } from '../lib/blocks.ts';
 	import { playback, toggle_play } from '../lib/capture.svelte.ts';
 	import { write_text } from '../lib/clipboard.ts';
-	import { ago, blob_src, data, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
-	import { choose_save_path } from '../lib/dialogs.ts';
-	import { back, push } from '../lib/router.svelte.ts';
+	import { ago, blob_src, data, display_title, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
+	import { export_item, item_actions } from '../lib/menus.ts';
+	import { back, push, replace } from '../lib/router.svelte.ts';
 	import { open_url } from '../lib/shell.ts';
-	import { blur } from 'gpuix-svelte';
+	import { blur, type GpuixEvent } from 'gpuix-svelte';
+	import { untrack } from 'svelte';
 	import type { SearchHit } from '../lib/search.ts';
-	import { toast } from '../lib/ui.svelte.ts';
+	import { open_menu, toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
 
-	let { params }: { params: Record<string, string> } = $props();
+	let { params, query }: { params: Record<string, string>; query: Record<string, string> } = $props();
 
 	const id = $derived(Number(params.id));
 	const item = $derived(data.items.find((i) => i.id === id) ?? get_app().get_item(id));
@@ -89,18 +90,6 @@
 		toast('Deleted');
 	}
 
-	/** The database is the only copy, so there is nothing on disk to reveal — save one out instead. */
-	async function export_file() {
-		const app = get_app();
-		const blob = app.blobs.info(item!.file_blob!);
-		if (!blob) throw new Error('no file on this item');
-		const suggested = item!.meta.original_name?.replace(/\.[^.]+$/, '') || item!.title || `substrate-${item!.id}`;
-		const dest = await choose_save_path(`${suggested}.${blob.ext}`);
-		if (!dest) return;
-		await Bun.write(dest, app.blobs.bytes(blob.id)!);
-		toast(`Exported to ${dest}`);
-	}
-
 	async function run(label: string, fn: () => Promise<unknown>) {
 		working = label;
 		try {
@@ -120,12 +109,23 @@
 				.catch(() => (related = []));
 		}
 	});
+
+	// Where a card's Edit action lands; the flag is dropped from the URL so leaving the editor sticks.
+	$effect(() => {
+		if (query.edit !== '1' || !item) return;
+		untrack(() => {
+			if (!editing) start_edit();
+			replace(`/item/${id}`);
+		});
+	});
+
+	const show = (e: GpuixEvent) => open_menu(e, item_actions(item!, { on_item: true }), display_title(item!));
 </script>
 
 {#if !item}
 	<div class="missing">This item no longer exists.</div>
 {:else}
-	<div class="route">
+	<div class="route" onauxclick={show}>
 		<div class="bar">
 			{#if editing}
 				<Button label="Done" icon="check" variant="primary" small onclick={done} testid="edit-done" />
@@ -146,7 +146,7 @@
 					<Button label={working === 'summarize' ? 'Summarizing…' : 'Summarize'} icon="sparkles" small disabled={working !== null} onclick={() => run('summarize', () => get_app().summarize(id))} />
 				{/if}
 				{#if item.file_blob}
-					<Button label={working === 'export' ? 'Exporting…' : 'Export…'} icon="folder" small disabled={working !== null} onclick={() => run('export', export_file)} />
+					<Button label={working === 'export' ? 'Exporting…' : 'Export…'} icon="folder" small disabled={working !== null} onclick={() => run('export', () => export_item(item))} />
 				{/if}
 				{#if item.body}
 					<Button label="Copy" icon="copy" small onclick={() => write_text(item.body).then(() => toast('Copied'))} />
@@ -173,7 +173,7 @@
 			</div>
 		{:else}
 			<Scroller virtual estimate={44} pad="0 24px 32px 24px" testid="item-body">
-				<div class="row header">
+				<div class="row header" onauxclick={show}>
 					<div class="meta">
 						<KindBadge kind={item.kind} />
 						<div>{published ? `Published ${ago(item.created_at)}` : ago(item.created_at)}</div>

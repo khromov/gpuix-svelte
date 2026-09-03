@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import { data } from '../lib/data.svelte.ts';
+	import { status_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 	import Spinner from './Spinner.svelte';
 
 
@@ -22,9 +25,11 @@
 		if (data.queue.active > 0) return { tone: 'warn', text: 'working…', busy: true };
 		return { tone: 'muted', text: ml.worker === 'up' ? 'models idle' : 'models offline', busy: false };
 	});
+
+	const show = (e: GpuixEvent) => open_menu(e, status_actions(), summary.text);
 </script>
 
-<div class="pill" hitbox="self" onclick={() => push('/settings')}>
+<div class="pill" hitbox="self" onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e) : push('/settings'))} onauxclick={show}>
 	{#if summary.busy}
 		<Spinner size={11} />
 	{:else}

@@ -1,9 +1,12 @@
 <script lang="ts">
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import { ago, data, display_title, get_app, preview, status_text } from '../lib/data.svelte.ts';
+	import { feed_actions, item_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import { match_ranges } from '../lib/rank.ts';
 	import type { Item } from '../lib/store.ts';
 	import { resolved } from '../lib/theme.svelte.ts';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import KindBadge from './KindBadge.svelte';
@@ -43,9 +46,19 @@
 	const feed = $derived(item.feed_id == null ? null : (data.feeds.find((f) => f.id === item.feed_id) ?? null));
 	const title_mark = $derived(mark(title));
 	const text_mark = $derived(mark(text));
+
+	const show = (e: GpuixEvent) => open_menu(e, item_actions(item), title);
 </script>
 
-<div class="card" class:failed class:compact hitbox="self" onclick={onopen} testId="item-{item.id}">
+<div
+	class="card"
+	class:failed
+	class:compact
+	hitbox="self"
+	onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e) : onopen(item))}
+	onauxclick={show}
+	testId="item-{item.id}"
+>
 	<Thumb {item} size={compact ? 40 : 52} />
 	<div class="body">
 		{#if title_mark}
@@ -63,7 +76,12 @@
 		<div class="meta">
 			<KindBadge kind={item.kind} />
 			{#if feed}
-				<div class="feed" hitbox="self" onclick={() => push('/feeds')}>
+				<div
+					class="feed"
+					hitbox="self"
+					onclick={(e: GpuixEvent) => (is_secondary(e) ? open_menu(e, feed_actions(feed), feed.title) : push('/feeds'))}
+					onauxclick={(e: GpuixEvent) => open_menu(e, feed_actions(feed), feed.title)}
+				>
 					<Icon name="rss" size={11} tone="faint" />
 					<div class="feed-name">{feed.title}</div>
 				</div>

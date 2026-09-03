@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { add_link_from_text, capture, paste_image, pick_audio, pick_images, start_recording, stop_recording, submit } from '../lib/capture.svelte.ts';
 	import { data, format_duration } from '../lib/data.svelte.ts';
-	import type { ShadowNode } from 'gpuix-svelte';
-	import { register } from '../lib/ui.svelte.ts';
+	import type { GpuixEvent, ShadowNode } from 'gpuix-svelte';
+	import { capture_actions } from '../lib/menus.ts';
+	import { open_menu, register } from '../lib/ui.svelte.ts';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 
 	const caps = $derived(data.capabilities);
 	const recording = $derived(capture.recording);
 	let focused = $state(false);
+
+	const show = (e: GpuixEvent) => open_menu(e, capture_actions(), 'Capture');
 </script>
 
-<div class="box" class:focused>
+<div class="box" class:focused onauxclick={show}>
 	<textarea
 		{@attach (node: ShadowNode) => register('capture', node)}
 		value={capture.text}
@@ -23,6 +26,7 @@
 		onsubmit={() => submit()}
 		onfocus={() => (focused = true)}
 		onblur={() => (focused = false)}
+		onauxclick={show}
 		testId="capture-input"
 	></textarea>
 

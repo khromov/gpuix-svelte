@@ -52,6 +52,12 @@ to run.
 - **Ask**: retrieval-augmented chat over the corpus with any OpenAI-compatible endpoint (Ollama,
   LM Studio, OpenAI, OpenRouter). Answers stream in as markdown; `[n]` citations become chips that
   open the item. A vision model, when configured, describes images on import.
+- **Right-click anything**: an item, a feed, a sidebar entry, an answer, a citation, or empty space.
+  Each offers what applies to it — a failed link gets *Retry* and *Re-read page*, an audio item gets
+  *Play*, empty space gets the capture actions — with the arrow keys and Enter working through it and
+  a confirmation in front of anything destructive. On macOS ctrl+click opens the same menu on
+  anything that was already clickable — GPUI routes it to `click`, not `auxClick`, so only a
+  surface with a primary handler can see it.
 - **Light and dark**, following the system or fixed, with the palette in `lib/theme.ts`.
 - **Settings → Pipeline** shows what is being scraped, transcribed and embedded right now, with
   requeue and retry buttons; **Settings → On-device models** shows each model's state, download
@@ -68,9 +74,11 @@ examples/second-brain/
   routes/                Everything, Kind, Search, Item, Ask, Feeds, Settings, NotFound; Item renders a
                          page one <markdown> block per virtual row (lib/blocks.ts), since a native
                          markdown element lays out its whole document every frame
-  components/            Sidebar, ItemCard, CaptureBox, Field, Modal (a <Portal>), …; scrolling
+  components/            Sidebar, ItemCard, CaptureBox, Field, …; Modal is a <Portal> rendered from
+                         whoever needs a dialog, ContextMenu one mounted once by App; scrolling
                          is the package's Scroller
-  lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules)
+  lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules);
+                         menus.ts is what each right click offers
   lib/feeds/             the poller (poll.ts, croner) over a source registry; rss.ts reads RSS 2.0,
                          RDF and Atom, and another kind is a module plus an entry in SOURCES
   ml/worker.ts           the child process that owns the models; ml/doctor.ts is the spike

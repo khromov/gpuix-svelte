@@ -10,7 +10,10 @@
 		"gpuix-svelte": "bin/gpuix-svelte.js"
 	},
 	"exports": {
-		".": "./src/index.ts",
+		".": {
+			"browser": "./src/web.ts",
+			"default": "./src/index.ts"
+		},
 		"./renderer": "./src/renderer.ts",
 		"./plugin": "./src/plugin.ts",
 		"./register": "./src/register.ts",
@@ -42,6 +45,7 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit",
 		"lint": "eslint .",
+		"check:svelte": "node --use-env-proxy --import tsx scripts/svelte-mcp.ts",
 		"demo": "node --import tsx scripts/demo-all.ts",
 		"demo:counter": "node bin/gpuix-svelte.js examples/counter/main.ts",
 		"demo:tictactoe": "node bin/gpuix-svelte.js examples/tic-tac-toe/main.ts",
@@ -49,6 +53,7 @@
 		"demo:glass": "node bin/gpuix-svelte.js examples/liquid-glass/main.ts",
 		"demo:glass-ffi": "node bin/gpuix-svelte.js --experimental-ffi examples/liquid-glass-ffi/main.ts",
 		"demo:styling": "node bin/gpuix-svelte.js examples/styling-playground/main.ts",
+		"demo:web": "bun scripts/web.ts",
 		"tutorial": "node bin/gpuix-svelte.js examples/tutorial/main.ts",
 		"brain": "node bin/gpuix-svelte.js --bun examples/second-brain/main.ts",
 		"brain:install": "npm install --prefix examples/second-brain/ml --no-audit --no-fund",
@@ -56,10 +61,11 @@
 		"brain:compile": "bun scripts/compile-brain.ts",
 		"brain:import-hn": "bun examples/second-brain/scripts/import-hn.ts",
 		"brain:frames": "node bin/gpuix-svelte.js --bun examples/second-brain/scripts/frame-cost.ts",
-		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:hitbox && npm run test:window-keys && npm run test:portal",
+		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:portal",
 		"test:vars": "node bin/gpuix-svelte.js test/vars.ts",
 		"test:scroller": "node bin/gpuix-svelte.js test/scroller.ts",
 		"test:hitbox": "node bin/gpuix-svelte.js test/hitbox.ts",
+		"test:auxclick": "node bin/gpuix-svelte.js test/auxclick.ts",
 		"test:window-keys": "node bin/gpuix-svelte.js test/window-keys.ts",
 		"test:portal": "node bin/gpuix-svelte.js test/portal.ts",
 		"test:reorder": "node bin/gpuix-svelte.js test/reorder.ts",
@@ -92,10 +98,11 @@
 		"bun:demo:styling": "node bin/gpuix-svelte.js --bun examples/styling-playground/main.ts",
 		"bun:tutorial": "node bin/gpuix-svelte.js --bun examples/tutorial/main.ts",
 		"bun:brain": "node bin/gpuix-svelte.js --bun examples/second-brain/main.ts",
-		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:hitbox && npm run bun:test:window-keys && npm run bun:test:portal && npm run bun:test:brain",
+		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:portal && npm run bun:test:brain",
 		"bun:test:vars": "node bin/gpuix-svelte.js --bun test/vars.ts",
 		"bun:test:scroller": "node bin/gpuix-svelte.js --bun test/scroller.ts",
 		"bun:test:hitbox": "node bin/gpuix-svelte.js --bun test/hitbox.ts",
+		"bun:test:auxclick": "node bin/gpuix-svelte.js --bun test/auxclick.ts",
 		"bun:test:window-keys": "node bin/gpuix-svelte.js --bun test/window-keys.ts",
 		"bun:test:portal": "node bin/gpuix-svelte.js --bun test/portal.ts",
 		"bun:test:reorder": "node bin/gpuix-svelte.js --bun test/reorder.ts",

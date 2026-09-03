@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { data } from '../lib/data.svelte.ts';
+	import { brand_actions } from '../lib/menus.ts';
 	import { push, route } from '../lib/router.svelte.ts';
 	import { set_mode, theme } from '../lib/theme.svelte.ts';
-	import { blur } from 'gpuix-svelte';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
+	import { blur, type GpuixEvent } from 'gpuix-svelte';
 	import Icon from './Icon.svelte';
 	import NavItem from './NavItem.svelte';
 	import Segmented from './Segmented.svelte';
@@ -14,6 +16,8 @@
 		blur();
 	}
 
+	const show = (e: GpuixEvent) => open_menu(e, brand_actions(), 'Substrate');
+
 	const THEMES = [
 		{ value: 'light', icon: 'sun' },
 		{ value: 'dark', icon: 'moon' },
@@ -22,17 +26,17 @@
 </script>
 
 <div class="sidebar">
-	<div class="brand" hitbox="self" onclick={home} testId="brand">
+	<div class="brand" hitbox="self" onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e) : home())} onauxclick={show} testId="brand">
 		<div class="mark"><Icon name="leaf" size={18} tone="onAccent" /></div>
 		<div class="word">Substrate</div>
 	</div>
 
 	<div class="nav">
 		<NavItem label="Everything" icon="inbox" path="/" count={data.counts.total} />
-		<NavItem label="Notes" icon="note" path="/notes" count={data.counts.by_kind.text} />
-		<NavItem label="Links" icon="link" path="/links" count={data.counts.by_kind.link} />
-		<NavItem label="Images" icon="image" path="/images" count={data.counts.by_kind.image} />
-		<NavItem label="Audio" icon="audio" path="/audio" count={data.counts.by_kind.audio} />
+		<NavItem label="Notes" icon="note" path="/notes" kind="text" count={data.counts.by_kind.text} />
+		<NavItem label="Links" icon="link" path="/links" kind="link" count={data.counts.by_kind.link} />
+		<NavItem label="Images" icon="image" path="/images" kind="image" count={data.counts.by_kind.image} />
+		<NavItem label="Audio" icon="audio" path="/audio" kind="audio" count={data.counts.by_kind.audio} />
 	</div>
 
 	<div class="section">Sources</div>

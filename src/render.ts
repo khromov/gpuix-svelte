@@ -1,12 +1,9 @@
 /**
  * The structure mirrors `@gpuix/react`'s `render()` — a `globalThis` slot so
- * `render_hot` remounts onto the same window, and a paced `setTimeout` loop
- * driving `tick()`.
+ * `hot.ts` remounts onto the same window, and a paced `setTimeout` loop
+ * driving `tick()`. Node-free, so it bundles for the browser as-is.
  */
 
-import { watch } from 'node:fs';
-import { dirname } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GpuixRenderer, type EventPayload } from '@gpuix/native';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
@@ -28,6 +25,9 @@ import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 const FRAME_MS = 8;
 
 const SLOT = Symbol.for('gpuix.svelte.host');
+
+/** A browser bundle has no `process` at all, and both knobs it gates are desktop-only. */
+const env = (name: string): string | undefined => globalThis.process?.env?.[name];
 
 interface Host {
 	native: GpuixRenderer | null;
@@ -62,7 +62,8 @@ export function handle_event(event: EventPayload, onEvent?: (event: EventPayload
 export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 'tick'>): { stop(): void } {
 	if (!native.requiresTick()) {
 		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop
-		// to poll `is_dirty()` and commits have to schedule themselves.
+		// to poll `is_dirty()` and commits have to schedule themselves. The wasm
+		// build takes this path too — it drives its own frames off the canvas.
 		set_auto_commit(true);
 		return {
 			stop() {
@@ -124,7 +125,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		slot.native.init(window_options);
 		// GPUI's draw-time readout, top right: `1` is the full one (CUR / 1% / 10% / MAX ms and a
 		// frame count), any other value is passed through (`minimal` is the last draw only).
-		const overlay = process.env.GPUIX_FPS;
+		const overlay = env('GPUIX_FPS');
 		if (overlay) slot.native.setDebugFrameOverlay(overlay === '1' ? 'full' : overlay);
 		console.log('[gpuix-svelte] created native window');
 	}
@@ -175,12 +176,13 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 
 	// A window can't be inspected from a terminal but a PNG can, and Preview.app
 	// reloads on write, so this doubles as a live view.
-	const shot = process.env.GPUIX_SCREENSHOT;
+	const shot = env('GPUIX_SCREENSHOT');
 	if (shot) {
 		const native = slot.native;
 		setTimeout(() => {
 			try {
-				native.captureScreenshot(shot);
+				// The wasm build has no `captureScreenshot`, and the env var may still be set.
+				native.captureScreenshot?.(shot);
 				console.log(`[gpuix-svelte] screenshot -> ${shot}`);
 			} catch (err) {
 				console.error('[gpuix-svelte] screenshot failed:', (err as Error).message);
@@ -190,49 +192,4 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 
 	console.log(remount ? '[gpuix-svelte] remount complete' : '[gpuix-svelte] mount complete');
 	return component;
-}
-
-/**
- * Watching here rather than leaning on `bun --hot` keeps one Svelte runtime for
- * the life of the process, so the old tree unmounts properly.
- *
- * `entry` is the path to the root `.svelte` component.
- */
-export async function render_hot(entry: string | URL, options: RenderOptions = {}): Promise<void> {
-	// A bare Windows path is not a valid import specifier ("D:" parses as a URL
-	// scheme), so the cache-buster is appended to a file:// URL instead.
-	const url = entry instanceof URL ? entry : pathToFileURL(entry);
-	const path = fileURLToPath(url);
-
-	let version = 0;
-	const load = async () => (await import(`${url.href}?v=${++version}`)).default;
-
-	render(await load(), options);
-
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	const stale = new Set<string>();
-	watch(dirname(path), { recursive: true }, (_event, file) => {
-		if (!file) return;
-
-		// Modules (`.svelte.ts` state included) load once per process, which is what
-		// lets their state outlive a remount — so an edit there needs a restart, not a reload.
-		if (/\.[jt]s$/.test(file) && !file.includes('node_modules')) {
-			if (!stale.has(file)) {
-				stale.add(file);
-				console.warn(`[gpuix-svelte] ${file} changed — modules load once per process, restart to pick it up`);
-			}
-			return;
-		}
-		if (!file.endsWith('.svelte')) return;
-
-		// Editors write in bursts; coalesce them.
-		clearTimeout(timer);
-		timer = setTimeout(async () => {
-			try {
-				render(await load(), options);
-			} catch (err) {
-				console.error('[gpuix-svelte] reload failed:', (err as Error).message);
-			}
-		}, 60);
-	});
 }

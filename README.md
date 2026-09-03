@@ -34,6 +34,7 @@ npm run demo:glass        # liquid-glass control center (GPUI's blurred transluc
 npm run demo:glass-ffi    # same app on REAL Liquid Glass — NSGlassEffectView via FFI
                           # (macOS 26+; falls back to the window blur elsewhere)
 npm run demo:styling      # styling playground — which CSS text reaches GPUI and which is dropped
+npm run demo:web          # tic-tac-toe in a browser, on GPUI's WebAssembly/WebGPU build (Bun only)
 npm run tutorial          # interactive onboarding guide — 12 steps with live samples and quizzes
 npm run brain             # Substrate, a "second brain": notes, links, images and voice memos,
                           # searched by meaning, keyword and image content with on-device models,
@@ -75,6 +76,30 @@ for the host.
 
 The output is unsigned by default, and macOS blocks a downloaded unsigned copy until it is allowed
 under System Settings → Privacy & Security. See [Signing](#signing).
+
+## Run it in a browser
+
+The same components run on the web, because GPUI itself compiles to WebAssembly and paints a
+WebGPU canvas. This is not a DOM renderer — no HTML elements are produced — so what you get is the
+desktop app, pixel for pixel, inside a `<canvas>`:
+
+```bash
+npm run demo:web                  # → http://localhost:4173
+npm run demo:web -- --production  # minified, Svelte's production runtime
+```
+
+`examples/tic-tac-toe/web.ts` is the entry, and it is the same two lines as the desktop one — the
+component, the renderer and your styles are unchanged. Only the plumbing differs:
+
+- **Bun only.** `@gpuix/native` ships the wasm and points its `browser` field at it, and the loader
+  imports the binary with `with { type: 'file' }` — an attribute only Bun's bundler reads.
+- **The page must be cross-origin isolated.** GPUI's wasm uses shared memory, so whatever serves it
+  has to send `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp`, and serve `.wasm` as `application/wasm`.
+  `scripts/web.ts` does this; opening the HTML from disk will not work.
+- **The window options are ignored.** `title`, `width` and `height` mean nothing to the wasm
+  renderer — the canvas fills the page, so size it with CSS in `index.html`.
+- **It is a 19.9 MB download**, uncompressed. Serve it with compression in anything real.
 
 ## Signing
 
@@ -276,6 +301,11 @@ Accepted, but not what CSS would mean by it.
   (`<img>` and `<svg>` included; inputs, scroll containers and focusable elements excepted)
   `pointer-events: none`, so badges and icons pass the click through, while a child with its own
   handler keeps its hitbox. Setting `pointer-events` yourself still wins.
+- `onclick` is the primary button alone, as in the DOM. A right or middle click is `onauxclick`,
+  where `e.isRightClick` tells the two apart and `e.x` / `e.y` are window coordinates, so a menu
+  rendered through `<Portal>` can be placed straight at them. macOS's ctrl+click is *not* routed
+  there — it arrives as an ordinary `onclick` with `e.modifiers.ctrl`, so a handler that wants the
+  platform's secondary click has to check for it. `hitbox="self"` shields aux clicks like any other.
 - Animation goes through the `motion={{ initial, animate, transition }}` prop (`left`, `top`, `width`,
   `height`, `opacity`, `border-radius`), not `transition`.
 
@@ -466,6 +496,8 @@ asserting the numbers you passed. The headless renderer emits no `focus`/`blur` 
   progress bar's fill with `width: 50%` instead.
 - `<svg>` inherits no `color` natively. The renderer copies the nearest ancestor's onto any `<svg>`
   without one, but a parent's `:hover` colour does not reach it.
+- A right click opens no OS menu, so a context menu is drawn by the app — a `<Portal>` positioned at
+  the `onauxclick` coordinates. Substrate's `ContextMenu.svelte` is the worked example.
 
 ## License
 
