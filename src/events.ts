@@ -12,6 +12,7 @@ export const GPUI_EVENTS: readonly string[] = [
 	'change',
 	'submit',
 	'click',
+	'auxClick',
 	'mouseDown',
 	'mouseUp',
 	'mouseEnter',

@@ -5,6 +5,7 @@
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
+	import Toggle from '../components/Toggle.svelte';
 	import { data, get_app } from '../lib/data.svelte.ts';
 	import { parse_query } from '../lib/rank.ts';
 	import { push, replace } from '../lib/router.svelte.ts';
@@ -27,6 +28,15 @@
 	const q = $derived((query?.q ?? '').trim());
 	const parsed = $derived(parse_query(q));
 	let filter = $state('all');
+	let include_feeds = $state(get_app().settings.get('search.includeFeeds') === true);
+	// `feeds:on` in the query is the filter; the checkbox mirrors it, as the kinds do.
+	const feeds_on = $derived(parsed.feeds ?? include_feeds);
+
+	function toggle_feeds(on: boolean) {
+		include_feeds = on;
+		get_app().settings.set('search.includeFeeds', on);
+		if (parsed.feeds != null) replace(`/search?q=${encodeURIComponent(parsed.text)}`);
+	}
 	// A kind: in the query is the filter; the segmented control mirrors it.
 	const active = $derived(parsed.kinds ? (parsed.kinds.length === 1 ? parsed.kinds[0] : 'all') : filter);
 	let result = $state<Awaited<ReturnType<App['search']>>>({ hits: [], degraded: [], terms: [], kinds: null, text: '' });
@@ -44,6 +54,7 @@
 	$effect(() => {
 		const text = q;
 		const kinds = filter === 'all' ? null : [filter];
+		const feeds = include_feeds;
 		// Re-run once the embedding model comes up, so keyword-only results upgrade.
 		void model_states;
 		void total;
@@ -54,7 +65,7 @@
 		}
 		loading = true;
 		get_app()
-			.search(text, { kinds, limit: 30 })
+			.search(text, { kinds, feeds, limit: 30 })
 			.then((r) => {
 				if (gen !== generation) return;
 				result = r;
@@ -70,13 +81,15 @@
 		const n = result.hits.length;
 		const what = result.text ? ` for “${result.text}”` : '';
 		const kinds = result.kinds ? ` in ${result.kinds.map((k) => `${KIND_WORD[k]}s`).join(', ')}` : '';
-		return `${n} result${n === 1 ? '' : 's'}${what}${kinds}`;
+		const feeds = feeds_on ? '' : `${data.counts.feeds ? ', feeds excluded' : ''}`;
+		return `${n} result${n === 1 ? '' : 's'}${what}${kinds}${feeds}`;
 	});
 </script>
 
 <div class="route">
 	<div class="head">
 		<Segmented options={FILTERS} value={active} onchange={choose} small />
+		<Toggle label="Include feeds" checked={feeds_on} onchange={toggle_feeds} testid="include-feeds" />
 		<div class="grow"></div>
 		{#if loading}<Spinner size={12} />{/if}
 		<div class="summary">{summary}</div>

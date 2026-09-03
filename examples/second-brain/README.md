@@ -44,8 +44,10 @@ to run.
   itself carries is stored and no page is fetched per entry — and optional retention (keep the
   newest *n*, or *n* days; anything you have edited is never pruned). A missed poll is caught up
   shortly after launch. Because a feed brings in far more than you do, feed items are **kept out of
-  search, Ask and Related** until *Include feeds when you search* is ticked in Settings; a single
-  query overrides it with `feeds:on`. An entry whose URL you had already saved is adopted rather
+  search, Ask and Related** until *Include feeds* is ticked — the checkbox sits beside the kind
+  filters on the search page, and in Settings; a single query overrides it with `feeds:on`. The
+  timeline has its own *Include feeds* switch (on by default), so you can read a feed there while
+  keeping it out of search. Both choices are remembered. An entry whose URL you had already saved is adopted rather
   than duplicated, and an entry you delete is never fetched again.
 - **Ask**: retrieval-augmented chat over the corpus with any OpenAI-compatible endpoint (Ollama,
   LM Studio, OpenAI, OpenRouter). Answers stream in as markdown; `[n]` citations become chips that

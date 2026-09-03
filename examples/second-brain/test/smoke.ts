@@ -181,13 +181,31 @@ check('the options panel opens', painted().includes('Fetch the full article'));
 await tap('Fetch the full article');
 check('a toggle writes through to the feed', app.feeds.get(feed.id)!.full_text, false);
 
+push('/');
+await wait();
+await wait();
+check('the timeline carries a feeds switch', painted().includes('Include feeds'));
+check('and shows the feed entry', painted().includes('Mycelium and the wood wide web'));
+await tap('Include feeds');
+check('unticking it hides feed items', painted().includes('Mycelium and the wood wide web'), false);
+check('and the choice is stored', app.settings.get('timeline.includeFeeds'), false);
+
+push('/search?q=mycelium');
+await wait();
+await wait(250);
+await wait();
+check('search filters carry the same switch', painted().includes('Include feeds'));
+check('feed items are out of the results', painted().includes('No matches'));
+await tap('Include feeds');
+await wait(250);
+await wait();
+check('ticking it brings them back', painted().includes('Mycelium and the wood wide web'));
+check('and persists as a setting', app.settings.get('search.includeFeeds'), true);
+
 push('/settings');
 await wait();
 await wait();
 check('settings carries the search switch', all_text().some((t) => t.includes('Include feeds when you search')));
-check('search hides feed items by default', (await app.search('mycelium')).hits.length, 0);
-app.settings.set('search.includeFeeds', true);
-check('and the switch reveals them', (await app.search('mycelium')).hits[0]?.item.feed_id, feed.id);
 
 console.log('screenshot:', screenshot(join(tmpdir(), 'substrate-smoke.png')));
 
