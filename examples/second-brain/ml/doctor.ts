@@ -30,13 +30,11 @@ console.log(`[doctor] transformers.js ${env.version} | WhisperTextStreamer: ${ty
 
 env.cacheDir = process.env.GPUIX_BRAIN_MODELS_DIR ?? new URL('../.data/models/', import.meta.url).pathname;
 env.allowLocalModels = false;
-const device = process.env.GPUIX_BRAIN_ML === 'wasm' ? 'wasm' : undefined;
-console.log(`[doctor] cacheDir ${env.cacheDir} | device ${device ?? 'default'}`);
+console.log(`[doctor] cacheDir ${env.cacheDir}`);
 
 let s = performance.now();
 const embed = await pipeline('feature-extraction', 'nomic-ai/nomic-embed-text-v1.5', {
 	dtype: 'q8',
-	device,
 	progress_callback: progress
 });
 lap('embed load', s);
@@ -64,7 +62,6 @@ lap('sharp', s);
 s = performance.now();
 const asr = await pipeline('automatic-speech-recognition', 'onnx-community/whisper-base', {
 	dtype: 'q8',
-	device,
 	progress_callback: progress
 });
 lap('whisper load', s);
@@ -83,9 +80,9 @@ lap('whisper infer', s);
 s = performance.now();
 const CLIP = 'Xenova/clip-vit-base-patch32';
 const processor = await AutoProcessor.from_pretrained(CLIP, { progress_callback: progress });
-const vision = await CLIPVisionModelWithProjection.from_pretrained(CLIP, { dtype: 'q8', device, progress_callback: progress });
+const vision = await CLIPVisionModelWithProjection.from_pretrained(CLIP, { dtype: 'q8', progress_callback: progress });
 const tokenizer = await AutoTokenizer.from_pretrained(CLIP);
-const text = await CLIPTextModelWithProjection.from_pretrained(CLIP, { dtype: 'q8', device, progress_callback: progress });
+const text = await CLIPTextModelWithProjection.from_pretrained(CLIP, { dtype: 'q8', progress_callback: progress });
 lap('clip load', s);
 s = performance.now();
 const image = await RawImage.fromBlob(new Blob([png]));

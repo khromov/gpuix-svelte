@@ -139,7 +139,7 @@ All optional, all `GPUIX_BRAIN_*`:
 | `STUB=1` | seeded fake data and a stub worker — no models; used for screenshots and tests |
 | `START=/settings` | initial route |
 | `THEME=light\|dark` | ignore the stored theme and the system setting |
-| `ML=wasm\|off` | force transformers.js onto onnxruntime-web, or disable the worker entirely |
+| `ML=off` | disable the ML worker entirely |
 | `OFFLINE=1` | never download models |
 | `RECORDER=0` | don't compile or load the microphone shim |
 | `FEEDS=0` | no scheduled feed polling (manual refresh still works); implied by `OFFLINE=1` |

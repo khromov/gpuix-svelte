@@ -183,6 +183,8 @@ writeFileSync(join(resources, 'ml', 'worker.js'), await worker.outputs[0].text()
 copyFileSync(join(brain, 'ml/package.json'), join(resources, 'ml', 'package.json'));
 console.log('[compile-brain] copying the ML dependencies (a few hundred MB)');
 cpSync(join(brain, 'ml/node_modules'), join(resources, 'ml', 'node_modules'), { recursive: true, dereference: true });
+prune_foreign_runtimes(join(resources, 'ml', 'node_modules'));
+prune_wasm_backend(join(resources, 'ml', 'node_modules'));
 
 run('clang', [...CLANG_ARGS, '-o', join(resources, 'native', 'recorder-shim.dylib'), join(brain, 'native/recorder-shim.m')]);
 
@@ -204,6 +206,41 @@ if (!notary) {
 
 function mb(bytes: number) {
 	return (bytes / 1048576).toFixed(1);
+}
+
+// onnxruntime-node's tarball carries every platform's prebuilt runtime — win32 alone is
+// 124 MB — and the .app only ever dlopen's the host's.
+function prune_foreign_runtimes(modules: string) {
+	const bin = join(modules, 'onnxruntime-node/bin/napi-v6');
+	if (!existsSync(bin)) return;
+	const drop = [];
+	for (const platform of readdirSync(bin)) {
+		const dir = join(bin, platform);
+		if (!statSync(dir).isDirectory()) continue;
+		if (platform !== process.platform) drop.push(dir);
+		else for (const arch of readdirSync(dir)) if (arch !== process.arch && statSync(join(dir, arch)).isDirectory()) drop.push(join(dir, arch));
+	}
+	let freed = 0;
+	for (const dir of drop) {
+		freed += dir_size(dir);
+		rmSync(dir, { recursive: true, force: true });
+	}
+	if (drop.length) console.log(`[compile-brain] dropped ${drop.length} foreign onnxruntime build(s), ${mb(freed)} MB`);
+}
+
+// onnxruntime-web is in the bundle only because transformers.js imports it next to the node
+// binding; its own wasm builds and sourcemaps are never read, since transformers' node build
+// refuses `device: 'wasm'` outright ("should be one of: coreml, webgpu, cpu").
+function prune_wasm_backend(modules: string) {
+	const dist = join(modules, 'onnxruntime-web/dist');
+	if (!existsSync(dist)) return;
+	const drop = readdirSync(dist).filter((name) => /\.(wasm|map)$/.test(name));
+	let freed = 0;
+	for (const name of drop) {
+		freed += statSync(join(dist, name)).size;
+		rmSync(join(dist, name), { force: true });
+	}
+	if (drop.length) console.log(`[compile-brain] dropped ${drop.length} onnxruntime-web wasm/map file(s), ${mb(freed)} MB`);
 }
 
 function dir_size(path: string) {

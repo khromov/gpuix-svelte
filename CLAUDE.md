@@ -65,7 +65,7 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # substrate.sqlite is the master record: media are blob rows, and
                            # <data-dir>/cache is a disposable extraction of them (lib/blobs.ts).
                            # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
-                           # _START=/settings, _THEME=light|dark, _ML=wasm|off, _OFFLINE=1,
+                           # _START=/settings, _THEME=light|dark, _ML=off, _OFFLINE=1,
                            # _RECORDER=0, _FEEDS=0, _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
 npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
                            # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
@@ -76,7 +76,9 @@ npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/com
                            # only). transformers.js can't be compiled into a Bun binary
                            # (huggingface/transformers.js#1672), so the worker ships as source with
                            # its node_modules in Contents/Resources and the app runs it on its own
-                           # embedded Bun (BUN_BE_BUN=1). Data goes to ~/Library/Application
+                           # embedded Bun (BUN_BE_BUN=1); onnxruntime-node ships every platform's
+                           # prebuilt runtime, so the copy is pruned to the host's (176 MB of
+                           # win32+linux, 460 -> 284 MB). Data goes to ~/Library/Application
                            # Support/Substrate. CODESIGN_IDENTITY / NOTARY_PROFILE as for compile.
 npm run brain:import-hn    # pours the Hacker News front page into the real brain (scrape smoke test)
 npm run brain:frames       # draw-time stats per route (idle and while scrolling) from GPUI's debug
@@ -96,7 +98,8 @@ npm run test:lifecycle     # single test — throws don't kill the frame loop; r
 npm run test:compile       # single test — the ?v=N cache-buster reaches every child specifier
 npm run test:css           # single test — <style> class rules: specificity, inline wins, :hover, class: toggles
 npm run test:module        # single test — a .svelte.ts runes module compiles and is one shared instance
-npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in one batch
+npm run test:vars          # single test — var() in class rules and inline styles, set_css_vars restyles in
+                           # one batch, an undefined var warns at commit rather than where it was read
 npm run test:scroller      # single test — the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual
 npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # single test — a right click is onauxclick, ctrl+click is not
@@ -112,8 +115,9 @@ npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
                            # `-- <file|dir>` checks just that one, --a11y unhides the a11y
-                           # warnings, --json, --jobs N, --url. Exits 1 on issues, never on
-                           # suggestions. Network, not a runtime script, so no bun twin
+                           # warnings and --all every filtered class, --json, --jobs N, --url.
+                           # Exits 1 on issues, never on suggestions. Network, not a runtime
+                           # script, so no bun twin
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled and the published spec —
@@ -386,8 +390,11 @@ attribute winning. A block that reads a `var(--name[, fallback])` is emitted as 
 instead of a parsed `style`, because the map it resolves against lives at runtime: `style.ts`
 substitutes on every `parse_css_text` (inline `style=` included), memoises each such rule per
 `set_css_vars()` generation, and the renderer flags nodes whose style read a variable so
-`set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch. An
-undefined variable without a fallback drops that declaration with a one-time warning. Merging
+`set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch — a call
+whose values are all already in force is a no-op. An undefined variable without a fallback drops
+that declaration and is warned about once at the next `commit()`, not where it was read: the root's
+palette `$effect` runs after Svelte has styled the tree, so a name it defines is never reported.
+Merging
 also honours shorthands: a later `padding: 20px` clears the longhands an earlier
 `padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
 
@@ -627,17 +634,22 @@ compiler strips the types itself, and svelte-check is not part of the gate.
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. tsx, Bun and tsc all
   silently map a stale `./x.js` specifier onto `x.ts`, so grep for `.js'` imports rather than
-  trusting the tests. The 17 `var(--…) is not defined` warnings on Substrate's first paint are
-  long-standing, not a regression.
+  trusting the tests.
 - `test:coverage` baseline: 32/47 samples mount, 13 refused by design, 2 runtime errors
   (boundary-pending, raw-snippet).
 - `check:svelte` talks the MCP streamable-HTTP protocol over `fetch` (initialize → tool call,
   answered as one-message SSE) rather than pulling in a client library, and the npm script passes
-  `--use-env-proxy` so it works behind one. It hides `a11y_*` for the reason `svelte.config.js`
-  filters them — there is no DOM here — which is 143 of its 179 findings; the rest are
-  suggestions, mostly the autofixer's "you are calling `x` inside an `$effect`" heuristic, which
-  fires on *any* call in an effect and so hits every `on_window_key` / `setInterval` subscription
-  this renderer needs. Baseline on 2026-09-03: 72 files, 0 issues, 36 suggestions.
+  `--use-env-proxy` so it works behind one. Its `FILTERS` table drops two classes that can never
+  apply here, each shown with its reason in the run's header: `a11y_*` for the reason
+  `svelte.config.js` filters them (no DOM, and `apply_prop` drops `role`/`aria-*` before they
+  ship), and the autofixer's "you are calling `x` inside an `$effect`" heuristic, which fires on
+  *any* call in an effect and so hits every `on_window_key` / `use_ticker` / `setInterval`
+  subscription — all of which need the teardown `$derived` has no way to hold. Matching is on
+  message text, since suggestions carry no error code, so a reworded message fails open. The
+  surviving "stateful variable X is assigned inside an `$effect`" class is deliberately **not**
+  filtered: every current hit is an async fetch, a timer or a two-way sync, but it is the class
+  that caught tic-tac-toe's score tally. Baseline on 2026-09-03: 72 files, 0 issues, 6
+  suggestions, 143 a11y + 29 call-in-effect hidden.
 - `demo:glass-ffi` renders as an opaque dark slab over bright backdrops on every native version
   tested: attaching the NSGlassEffectView itself turns the window opaque (the shim never opts into
   behind-window sampling), not a renderer regression.

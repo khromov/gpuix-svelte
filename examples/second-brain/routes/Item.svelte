@@ -54,6 +54,7 @@
 	let related = $state<SearchHit[]>([]);
 	let working = $state<string | null>(null);
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let generation = 0;
 
 	function start_edit() {
 		draft = { title: item!.title, body: item!.body };
@@ -102,12 +103,17 @@
 	}
 
 	$effect(() => {
-		if (item?.status === 'ready') {
-			get_app()
-				.related(id)
-				.then((r) => (related = r))
-				.catch(() => (related = []));
-		}
+		if (item?.status !== 'ready') return;
+		// An edit or a pipeline status change re-runs this with a fetch already in flight.
+		const gen = ++generation;
+		get_app()
+			.related(id)
+			.then((r) => {
+				if (gen === generation) related = r;
+			})
+			.catch(() => {
+				if (gen === generation) related = [];
+			});
 	});
 
 	// Where a card's Edit action lands; the flag is dropped from the URL so leaving the editor sticks.

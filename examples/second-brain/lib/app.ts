@@ -62,7 +62,6 @@ export function default_ml({ models_dir, autoload = true, on_status }: { models_
 	return new MlClient({
 		worker_path: WORKER,
 		models_dir,
-		device: process.env.GPUIX_BRAIN_ML === 'wasm' ? 'wasm' : null,
 		autoload,
 		on_status
 	});

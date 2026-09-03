@@ -1,6 +1,6 @@
 // Runs every .svelte / .svelte.ts file past the official Svelte MCP server's autofixer
-// (the endpoint .mcp.json already points at) and prints what came back. a11y warnings are
-// hidden unless --a11y for the reason svelte.config.js filters them: there is no DOM here.
+// (the endpoint .mcp.json already points at) and prints what came back, minus the two
+// classes of finding that can never apply to a GPUI renderer (see FILTERS).
 // The transport is ~60 lines of fetch, so the repo keeps its three dependencies.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -16,13 +16,29 @@ Checks every .svelte and .svelte.ts file (or just the ones given) with the
 svelte-autofixer tool on the Svelte MCP server.
 
   --a11y        include the a11y warnings hidden by default
+  --all         include every hidden finding, a11y and call-in-effect alike
   --json        emit the raw report as JSON instead of text
   --jobs <n>    files in flight at once (default 6)
   --url <url>   MCP endpoint (default: .mcp.json's svelte server)
   -h, --help    this`;
 
+// Matching is on message text because suggestions carry no error code, so a reworded
+// message fails open — the finding comes back rather than being swallowed.
+const FILTERS = [
+	{
+		id: 'a11y',
+		why: 'GPUI has no DOM and no accessibility tree, and renderer.ts drops role/aria-* before they ship',
+		match: (f: Finding) => f.code?.startsWith('a11y_') === true
+	},
+	{
+		id: 'call-in-effect',
+		why: 'reviewed 2026-09-03: every such call here is a subscription whose teardown $derived cannot hold',
+		match: (f: Finding) => /inside an \$effect\. Please check if the function is reassigning/.test(f.message)
+	}
+];
+
 type Finding = { kind: 'issue' | 'suggestion' | 'error'; message: string; code?: string; line?: number; column?: number };
-type Report = { file: string; findings: Finding[]; hidden: number };
+type Report = { file: string; findings: Finding[]; hidden: Record<string, number> };
 type ToolResult = { content?: { type: string; text?: string }[]; structuredContent?: { issues?: string[]; suggestions?: string[] }; isError?: boolean };
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -30,6 +46,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 const paths: string[] = [];
 let show_a11y = false;
+let show_all = false;
 let as_json = false;
 let jobs = 6;
 let url = '';
@@ -37,6 +54,7 @@ let url = '';
 for (let i = 0; i < args.length; i++) {
 	const arg = args[i];
 	if (arg === '--a11y') show_a11y = true;
+	else if (arg === '--all') show_all = true;
 	else if (arg === '--json') as_json = true;
 	else if (arg === '--jobs') jobs = Math.max(1, Number(args[++i]));
 	else if (arg === '--url') url = args[++i];
@@ -64,8 +82,10 @@ let done = 0;
 
 if (!as_json) {
 	console.log(`${bold('svelte-mcp')} ${dim(`· ${files.length} files · ${url}`)}`);
-	if (!show_a11y) {
-		console.log(dim('excluding a11y warnings: GPUI has no DOM and no accessibility tree, so they never apply here. --a11y shows them.'));
+	const excluded = FILTERS.filter((f) => !showing(f.id));
+	if (excluded.length) {
+		console.log(dim('excluding, as reviewed for this renderer — --all shows them, --a11y just the a11y ones:'));
+		for (const filter of excluded) console.log(dim(`  ${filter.id} — ${filter.why}`));
 	}
 }
 
@@ -95,22 +115,23 @@ async function check(file: string): Promise<Report> {
 			arguments: { code: readFileSync(file, 'utf8'), filename: basename(file), desired_svelte_version: 5 }
 		});
 		const text = result.content?.find((c) => c.type === 'text')?.text;
-		const payload = result.structuredContent ?? (text ? JSON.parse(text) : {});
+		const payload: NonNullable<ToolResult['structuredContent']> = result.structuredContent ?? (text ? JSON.parse(text) : {});
 		if (result.isError) throw new Error(text ?? 'the tool reported an error');
 
 		const findings: Finding[] = [];
-		let hidden = 0;
-		for (const issue of payload.issues ?? []) {
-			const finding = parse_finding('issue', issue);
-			if (!show_a11y && finding.code?.startsWith('a11y_')) hidden++;
+		const hidden: Record<string, number> = {};
+		const raw = [
+			...(payload.issues ?? []).map((i) => parse_finding('issue', i)),
+			...unique(payload.suggestions ?? []).map((s) => parse_finding('suggestion', s))
+		];
+		for (const finding of raw) {
+			const filter = FILTERS.find((f) => !showing(f.id) && f.match(finding));
+			if (filter) hidden[filter.id] = (hidden[filter.id] ?? 0) + 1;
 			else findings.push(finding);
-		}
-		for (const suggestion of unique(payload.suggestions ?? [])) {
-			findings.push(parse_finding('suggestion', suggestion));
 		}
 		return { file: relative_path, findings, hidden };
 	} catch (error) {
-		return { file: relative_path, findings: [{ kind: 'error', message: collapse(String(error)) }], hidden: 0 };
+		return { file: relative_path, findings: [{ kind: 'error', message: collapse(String(error)) }], hidden: {} };
 	}
 }
 
@@ -133,10 +154,10 @@ function print(reports: Report[]) {
 	let issues = 0;
 	let suggestions = 0;
 	let errors = 0;
-	let hidden = 0;
+	const hidden: Record<string, number> = {};
 
 	for (const report of reports) {
-		hidden += report.hidden;
+		for (const [id, count] of Object.entries(report.hidden)) hidden[id] = (hidden[id] ?? 0) + count;
 		if (!report.findings.length) continue;
 		console.log(`\n${bold(report.file)}`);
 		for (const finding of report.findings) {
@@ -157,7 +178,8 @@ function print(reports: Report[]) {
 		plural(suggestions, 'suggestion')
 	];
 	if (errors) parts.push(red(`${plural(errors, 'file')} failed`));
-	if (hidden) parts.push(dim(`${hidden} a11y hidden (--a11y)`));
+	const excluded = Object.entries(hidden).map(([id, count]) => `${count} ${id}`);
+	if (excluded.length) parts.push(dim(`${excluded.join(' + ')} hidden`));
 	console.log(`\n${parts.join(dim(' · '))}`);
 }
 
@@ -287,6 +309,10 @@ function is_svelte(name: string) {
 
 function unique(values: string[]) {
 	return [...new Set(values)];
+}
+
+function showing(id: string) {
+	return show_all || (id === 'a11y' && show_a11y);
 }
 
 function plural(count: number, noun: string) {

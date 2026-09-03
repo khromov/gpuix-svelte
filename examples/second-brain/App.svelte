@@ -19,6 +19,8 @@
 	untrack(() => {
 		bind_app(app);
 		bind_theme(app);
+		// Before the template below is styled; the $effect only carries later switches.
+		set_css_vars(tokens());
 	});
 
 	const ROUTES: RouteEntry[] = [

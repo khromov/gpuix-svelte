@@ -6,7 +6,7 @@
 
 import type { EventPayload } from '@gpuix/native';
 import { createRenderer } from 'svelte/renderer';
-import { build_style, define_css_vars, used_css_vars } from './style.ts';
+import { build_style, define_css_vars, flush_var_warnings, used_css_vars } from './style.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import type {
 	ClassRule,
@@ -591,12 +591,13 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 
 /**
  * A theme is one call: every live element whose style read a `var()` is restyled,
- * and the whole sweep ships in the next batch like any other frame.
+ * and the whole sweep ships in the next batch like any other frame. A palette identical
+ * to the one in force — a theme effect re-running — is a no-op.
  *
  * `vars` is `{ surface: '#fff' }` for `var(--surface)`.
  */
 export function set_css_vars(vars: Record<string, string | number | null>) {
-	define_css_vars(vars);
+	if (!define_css_vars(vars)) return;
 	for (const n of by_id.values()) {
 		if (n.uses_vars) apply_style(n);
 	}
@@ -691,6 +692,9 @@ export function set_auto_commit(enabled: boolean) {
 
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
+	// Above the empty-queue return below: a frame that only restyled still has to report.
+	flush_var_warnings();
+
 	for (const n of pending_destroy) {
 		// Anything that left the live tree and was not rescued into it goes away —
 		// including nodes parked in offscreen fragments, which native would

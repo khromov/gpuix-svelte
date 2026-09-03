@@ -116,7 +116,6 @@ export interface HelloMessage {
 	type: 'hello';
 	pid: number;
 	versions: { transformers?: string; bun?: string };
-	device: string;
 }
 export type ProgressMessage = { id: number; type: 'progress' } & (TranscribeProgress | EmbedProgress);
 
@@ -187,7 +186,6 @@ const unpack_vec = (flat: Float32Array, offset: number, dim: number) => flat.sli
 export class MlClient implements MlLike {
 	#worker_path: string;
 	#models_dir: string;
-	#device: string | null;
 	#autoload: boolean;
 	#proc: WorkerProcess | null = null;
 	#next_id = 1;
@@ -207,19 +205,16 @@ export class MlClient implements MlLike {
 	constructor({
 		worker_path,
 		models_dir,
-		device = null,
 		autoload = true,
 		on_status = () => {}
 	}: {
 		worker_path: string;
 		models_dir: string;
-		device?: string | null;
 		autoload?: boolean;
 		on_status?: (status: MlStatus) => void;
 	}) {
 		this.#worker_path = worker_path;
 		this.#models_dir = models_dir;
-		this.#device = device;
 		this.#autoload = autoload;
 		this.on_status = on_status;
 		on_exit(() => this.stop_sync());
@@ -248,8 +243,7 @@ export class MlClient implements MlLike {
 			env: {
 				...process.env,
 				BUN_BE_BUN: '1',
-				GPUIX_BRAIN_MODELS_DIR: this.#models_dir,
-				GPUIX_BRAIN_ML: this.#device ?? ''
+				GPUIX_BRAIN_MODELS_DIR: this.#models_dir
 			},
 			stdin: 'ignore',
 			stdout: 'inherit',
@@ -267,7 +261,7 @@ export class MlClient implements MlLike {
 		if (msg.type === 'hello') {
 			this.status.worker = 'up';
 			this.status.error = null;
-			log(`ml worker up (pid ${msg.pid}, ${msg.device}, transformers.js ${msg.versions?.transformers})`);
+			log(`ml worker up (pid ${msg.pid}, transformers.js ${msg.versions?.transformers})`);
 			this.#hello?.resolve(msg);
 			this.#hello = null;
 			this.#emit();
@@ -368,7 +362,7 @@ export class MlClient implements MlLike {
 		if (this.#exits.length > 3) {
 			this.available = false;
 			this.status.worker = 'down';
-			this.status.error = 'ML worker keeps crashing (see the terminal); GPUIX_BRAIN_ML=wasm may help';
+			this.status.error = 'ML worker keeps crashing (see the terminal); GPUIX_BRAIN_ML=off runs the app without it';
 			for (const lane of Object.values(this.#queue)) {
 				for (const job of lane.splice(0)) job.reject(new MlError(this.status.error, { code: 'ML_UNAVAILABLE' }));
 			}

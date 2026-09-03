@@ -49,9 +49,6 @@ env.allowLocalModels = false;
 env.allowRemoteModels = process.env.GPUIX_BRAIN_OFFLINE !== '1';
 env.logLevel = 40;
 
-const device = process.env.GPUIX_BRAIN_ML === 'wasm' ? 'wasm' : undefined;
-// ORT-web's threaded workers are the fragile part under Bun; one thread is the safe fallback.
-if (device === 'wasm' && env.backends?.onnx?.wasm) env.backends.onnx.wasm.numThreads = 1;
 const threads = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
 
 const loaded: Partial<LoadedOf> = {};
@@ -81,7 +78,7 @@ async function load<M extends ModelName>(model: M): Promise<LoadedOf[M]>;
 async function load(model: ModelName): Promise<Loaded> {
 	const progress_callback = progress_for(model);
 	// No memory arena: ORT would otherwise keep the largest batch's working set forever.
-	const opts = { dtype: 'q8', device, progress_callback, session_options: { intraOpNumThreads: threads, enableCpuMemArena: false } };
+	const opts = { dtype: 'q8', progress_callback, session_options: { intraOpNumThreads: threads, enableCpuMemArena: false } };
 	if (model === 'embed') return { extractor: await pipeline('feature-extraction', MODELS.embed, opts) };
 	if (model === 'whisper') return { asr: await pipeline('automatic-speech-recognition', MODELS.whisper, opts) };
 	if (model === 'clip') {
@@ -263,4 +260,4 @@ process.on('unhandledRejection', (err) => {
 	process.exit(1);
 });
 
-send({ type: 'hello', pid: process.pid, versions: { transformers: env.version, bun: Bun.version }, device: device ?? 'native' });
+send({ type: 'hello', pid: process.pid, versions: { transformers: env.version, bun: Bun.version } });

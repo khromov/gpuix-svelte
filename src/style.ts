@@ -103,15 +103,34 @@ const css_vars = new Map<string, string>();
 let vars_generation = 0;
 let vars_read = false;
 const warned_vars = new Set<string>();
+const pending_vars = new Set<string>();
 
-/** Keys with or without the `--`. */
-export function define_css_vars(vars: Record<string, string | number | null>) {
+/** Keys with or without the `--`; false when nothing moved, so an identical palette costs no restyle. */
+export function define_css_vars(vars: Record<string, string | number | null>): boolean {
+	let changed = false;
+
 	for (const [key, value] of Object.entries(vars)) {
 		const name = key.startsWith('--') ? key.slice(2) : key;
-		if (value == null) css_vars.delete(name);
-		else css_vars.set(name, String(value));
+		if (value == null) {
+			if (css_vars.delete(name)) changed = true;
+		} else if (css_vars.get(name) !== String(value)) {
+			css_vars.set(name, String(value));
+			changed = true;
+		}
 	}
-	vars_generation++;
+
+	if (changed) vars_generation++;
+	return changed;
+}
+
+/** Deferred to the commit, since Svelte styles the tree before the root's `$effect` can set the palette. */
+export function flush_var_warnings() {
+	for (const name of pending_vars) {
+		if (css_vars.has(name)) continue;
+		warned_vars.add(name);
+		console.warn(`[gpuix-svelte] \`var(--${name})\` is not defined — set it with set_css_vars() or give it a fallback`);
+	}
+	pending_vars.clear();
 }
 
 /** Whether the last `build_style` read a variable, so the renderer knows what to restyle. */
@@ -149,10 +168,7 @@ function substitute_vars(value: string): string | null {
 		let resolved: string | null | undefined = css_vars.get(name);
 		if (resolved === undefined) {
 			if (comma === -1) {
-				if (!warned_vars.has(name)) {
-					warned_vars.add(name);
-					console.warn(`[gpuix-svelte] \`var(--${name})\` is not defined — set it with set_css_vars() or give it a fallback`);
-				}
+				if (!warned_vars.has(name)) pending_vars.add(name);
 				return null;
 			}
 			resolved = substitute_vars(inner.slice(comma + 1).trim());
