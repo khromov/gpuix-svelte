@@ -149,6 +149,10 @@ A window can't be inspected from a terminal, but a PNG can:
 ```bash
 GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter    # writes a PNG after every mount/remount
                                                     # (single demo — all four share the path)
+GPUIX_FPS=1 npm run brain                           # GPUI's draw-time overlay top right: CUR / 1% /
+                                                    # 10% / MAX ms and a frame count (=minimal shows
+                                                    # the last draw only). Draw time, not fps:
+                                                    # 8.3 ms is 120 Hz
 ```
 
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls

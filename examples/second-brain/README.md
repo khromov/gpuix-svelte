@@ -117,7 +117,7 @@ All optional, all `GPUIX_BRAIN_*`:
 | `RESOURCES=/path` | where a compiled app's worker and shim live (auto-detected inside a .app) |
 | `DEBUG=1` | verbose logging |
 
-`GPUIX_SCREENSHOT=/tmp/x.png` works as everywhere else. The API key lives in plain text in
+`GPUIX_SCREENSHOT=/tmp/x.png` and `GPUIX_FPS=1` (GPUI's draw-time overlay) work as everywhere else. The API key lives in plain text in
 `substrate.sqlite` when set through Settings; use `GPUIX_BRAIN_LLM_KEY` to keep it out.
 
 ## Things GPUI has no API for, and what stands in
