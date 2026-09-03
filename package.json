@@ -55,6 +55,7 @@
 		"brain:doctor": "bun examples/second-brain/ml/doctor.ts",
 		"brain:compile": "bun scripts/compile-brain.ts",
 		"brain:import-hn": "bun examples/second-brain/scripts/import-hn.ts",
+		"brain:frames": "node bin/gpuix-svelte.js --bun examples/second-brain/scripts/frame-cost.ts",
 		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:hitbox && npm run test:window-keys && npm run test:portal",
 		"test:vars": "node bin/gpuix-svelte.js test/vars.ts",
 		"test:scroller": "node bin/gpuix-svelte.js test/scroller.ts",
@@ -125,6 +126,7 @@
 		"eslint": "^10.9.1",
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.12.0",
+		"marked": "^18.0.11",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.69.0"
 	},

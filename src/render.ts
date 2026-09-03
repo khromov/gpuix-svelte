@@ -122,6 +122,10 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
+		// GPUI's draw-time readout, top right: `1` is the full one (CUR / 1% / 10% / MAX ms and a
+		// frame count), any other value is passed through (`minimal` is the last draw only).
+		const overlay = process.env.GPUIX_FPS;
+		if (overlay) slot.native.setDebugFrameOverlay(overlay === '1' ? 'full' : overlay);
 		console.log('[gpuix-svelte] created native window');
 	}
 

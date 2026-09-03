@@ -5,6 +5,7 @@
 	import Markdown from '../components/Markdown.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Spinner from '../components/Spinner.svelte';
+	import { markdown_blocks } from '../lib/blocks.ts';
 	import { playback, toggle_play } from '../lib/capture.svelte.ts';
 	import { write_text } from '../lib/clipboard.ts';
 	import { ago, data, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
@@ -28,6 +29,9 @@
 		const first = lines.findIndex((line) => line.trim());
 		return first === -1 ? item.body : lines.slice(first + 1).join('\n').trim();
 	});
+	// One <markdown> per block: a native markdown element lays out its whole document every
+	// frame, and a virtual row is only built near the viewport.
+	const blocks = $derived(markdown_blocks(body_view));
 	const llm = $derived(data.capabilities?.llm?.ok ?? false);
 	const vision = $derived(llm && !!get_app().settings.get('llm.visionModel'));
 
@@ -144,8 +148,8 @@
 				></textarea>
 			</div>
 		{:else}
-			<Scroller pad="0 24px 32px 24px" gap={16}>
-				<div class="header">
+			<Scroller virtual estimate={44} pad="0 24px 32px 24px" testid="item-body">
+				<div class="row header">
 					<div class="meta">
 						<KindBadge kind={item.kind} />
 						<div>{ago(item.created_at)}</div>
@@ -167,23 +171,26 @@
 				</div>
 
 				{#if item.kind === 'image' && item.file_path}
-					<img src={item.meta.display_path ?? item.file_path} objectFit="contain" class="hero" />
+					<div class="row"><img src={item.meta.display_path ?? item.file_path} objectFit="contain" class="hero" /></div>
 				{/if}
 				{#if item.kind === 'link' && item.thumb_path}
-					<img src={item.thumb_path} objectFit="cover" class="og" />
+					<div class="row"><img src={item.thumb_path} objectFit="cover" class="og" /></div>
 				{/if}
 
 				{#if item.meta.summary}
-					<div class="summary">
-						<div class="summary-label">Summary</div>
-						<Markdown source={item.meta.summary} />
+					<div class="row">
+						<div class="summary">
+							<div class="summary-label">Summary</div>
+							<Markdown source={item.meta.summary} />
+						</div>
 					</div>
 				{/if}
 
-				{#if body_view}
-					<div class="body"><Markdown source={body_view} /></div>
-				{:else if !busy}
-					<div class="placeholder">
+				{#each blocks as block, i (i)}
+					<div class="block"><Markdown source={block} /></div>
+				{/each}
+				{#if !blocks.length && !busy}
+					<div class="row placeholder">
 						{#if item.kind === 'image'}
 							{vision
 								? 'No description yet — press Describe with LLM above.'
@@ -195,11 +202,11 @@
 				{/if}
 
 				{#if item.meta.describe_error}
-					<div class="placeholder">Description failed: {item.meta.describe_error}</div>
+					<div class="row placeholder">Description failed: {item.meta.describe_error}</div>
 				{/if}
 
 				{#if related.length}
-					<div class="related">
+					<div class="row related">
 						<div class="related-label">Related</div>
 						{#each related as hit (hit.item.id)}
 							<ItemCard item={hit.item} compact onopen={() => push(`/item/${hit.item.id}`)} />
@@ -220,7 +227,8 @@
 	.editor { display: flex; flex-direction: column; gap: 10px; flex-grow: 1; min-height: 0; padding: 16px 24px 24px 24px; }
 	.title-input { padding: 8px 10px; border-radius: 6px; border-width: 1px; font-size: 18px; line-height: 24px; font-weight: 600; background-color: var(--field); border-color: var(--borderStrong); color: var(--ink); }
 	.body-input { flex-grow: 1; min-height: 0; padding: 10px; border-radius: 6px; border-width: 1px; font-size: 14px; line-height: 22px; background-color: var(--field); border-color: var(--borderStrong); color: var(--ink); }
-	.header { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
+	.row { display: flex; flex-direction: column; width: 100%; padding-bottom: 16px; }
+	.header { gap: 8px; padding-top: 16px; }
 	.meta { display: flex; flex-direction: row; align-items: center; gap: 10px; font-size: 12px; line-height: 16px; user-select: none; color: var(--inkFaint); }
 	.title { font-size: 26px; line-height: 34px; font-weight: 700; }
 	.url { font-size: 12px; line-height: 16px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--info); }
@@ -230,8 +238,8 @@
 	.og { width: 320px; height: 180px; border-radius: 8px; }
 	.summary { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background-color: var(--accentSoft); }
 	.summary-label { font-size: 11px; line-height: 14px; font-weight: 600; user-select: none; color: var(--accentDeep); }
-	.body { max-width: 760px; }
+	.block { width: 100%; max-width: 760px; padding-bottom: 12px; }
 	.placeholder { font-size: 13px; line-height: 20px; color: var(--inkFaint); }
-	.related { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; }
+	.related { gap: 6px; padding-top: 8px; }
 	.related-label { padding-bottom: 4px; font-size: 11px; line-height: 14px; font-weight: 600; user-select: none; color: var(--inkFaint); }
 </style>
