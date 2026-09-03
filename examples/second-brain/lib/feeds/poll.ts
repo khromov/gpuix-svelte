@@ -231,6 +231,8 @@ export function create_feeds({ store, settings, bus, ingest, delete_item, fetch:
 		list: (): Feed[] => store.list_feeds(),
 		get: (id: number) => store.get_feed(id),
 		counts: () => store.feed_counts(),
+		/** When a poll picked this item up, for items whose page was never fetched. */
+		entry: (item_id: number) => store.entry_of(item_id),
 
 		async add(url: string, options: Partial<Feed> = {}): Promise<{ feed: Feed; result: PollResult }> {
 			const normalized = normalize_url(url);

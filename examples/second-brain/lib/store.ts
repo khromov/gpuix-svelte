@@ -225,6 +225,7 @@ export function create_store(db: Database) {
 		`SELECT ${ITEM_COLS.split(', ').map((c) => `i.${c}`).join(', ')} FROM feed_entries e JOIN items i ON i.id = e.item_id
 		 WHERE e.feed_id = $feed_id ORDER BY i.created_at DESC, i.id DESC`
 	);
+	const feed_entry_by_item_stmt = q<FeedEntryRow>(`SELECT feed_id, guid, item_id, seen_at FROM feed_entries WHERE item_id = $item_id`);
 	const feed_counts_stmt = q<{ feed_id: number; n: number }>(`SELECT feed_id, COUNT(*) AS n FROM items WHERE feed_id IS NOT NULL GROUP BY feed_id`);
 
 	const store = {
@@ -443,6 +444,7 @@ export function create_store(db: Database) {
 		record_entry(feed_id: number, guid: string, item_id: number | null) {
 			feed_entry_insert_stmt.run({ feed_id, guid, item_id, now: Date.now() });
 		},
+		entry_of: (item_id: number): FeedEntryRow | null => feed_entry_by_item_stmt.get({ item_id }) ?? null,
 		feed_entry_items: (feed_id: number): Item[] => feed_entry_items_stmt.all({ feed_id }).map(to_item) as Item[],
 		feed_counts(): Record<number, number> {
 			const out: Record<number, number> = {};

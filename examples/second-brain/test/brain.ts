@@ -498,6 +498,8 @@ const feed_fetch: Fetcher = async (url) => {
 	check('full text is fetched by default', first.body.includes('nitrogen'));
 	check('entry author recorded', first.meta.author, 'A. Gardener');
 	check('feed entries are ready', first.status, 'ready');
+	check('an entry knows which poll picked it up', app.store.entry_of(first.id)?.guid, 'post-1');
+	check('a scraped entry records when it was read', (app.get_item(first.id)!.meta.fetched_at ?? 0) > 0);
 
 	check('a second poll adds nothing', (await app.feeds.refresh(feed.id)).added, 0);
 	await app.ingest.idle();

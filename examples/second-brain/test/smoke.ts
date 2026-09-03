@@ -202,6 +202,11 @@ await wait();
 check('ticking it brings them back', painted().includes('Mycelium and the wood wide web'));
 check('and persists as a setting', app.settings.get('search.includeFeeds'), true);
 
+await tap('Mycelium and the wood wide web');
+await wait();
+check('the item view says when its page was fetched', painted().includes('Fetched'));
+check('and which feed it came from', painted().includes('Newsonaut'));
+
 push('/settings');
 await wait();
 await wait();

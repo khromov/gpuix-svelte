@@ -33,6 +33,17 @@
 	// One <markdown> per block: a native markdown element lays out its whole document every
 	// frame, and a virtual row is only built near the viewport.
 	const blocks = $derived(markdown_blocks(body_view));
+	const feed = $derived(item?.feed_id == null ? null : (data.feeds.find((f) => f.id === item.feed_id) ?? null));
+	// A feed entry whose page was never fetched still knows when the poll picked it up.
+	const entry = $derived(item?.feed_id == null ? null : get_app().feeds.entry(item.id));
+	// An entry that carried no date was created at the poll, so only a clearly older one is a publish date.
+	const published = $derived(entry != null && item != null && item.created_at < entry.seen_at - 60_000);
+	const fetched = $derived.by(() => {
+		if (!item) return '';
+		if (item.meta.fetched_at) return `Fetched ${ago(item.meta.fetched_at)}`;
+		if (entry) return `Received ${ago(entry.seen_at)}`;
+		return '';
+	});
 	const llm = $derived(data.capabilities?.llm?.ok ?? false);
 	const vision = $derived(llm && !!get_app().settings.get('llm.visionModel'));
 
@@ -165,10 +176,12 @@
 				<div class="row header">
 					<div class="meta">
 						<KindBadge kind={item.kind} />
-						<div>{ago(item.created_at)}</div>
+						<div>{published ? `Published ${ago(item.created_at)}` : ago(item.created_at)}</div>
 						{#if item.kind === 'audio' && item.duration}<div>{format_duration(item.duration)}</div>{/if}
 						{#if item.kind === 'image' && item.width}<div>{item.width} × {item.height}</div>{/if}
 						{#if item.meta.site_name}<div>{item.meta.site_name}</div>{/if}
+						{#if feed && feed.title !== item.meta.site_name}<div>{feed.title}</div>{/if}
+						{#if fetched}<div>{fetched}</div>{/if}
 						{#if busy}<Spinner size={11} /><div>{status_text(item)}</div>{/if}
 					</div>
 					<div class="title">{item.title || 'Untitled'}</div>
