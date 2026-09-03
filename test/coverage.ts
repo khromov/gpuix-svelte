@@ -89,11 +89,13 @@ console.log('\nmounted:', results.ok.join(', '));
 // but nothing that mounts today may stop mounting.
 check('the samples directory was not empty', total > 0);
 check('nothing we should support fails to compile', results.compile_error, []);
+// raw-snippet's _config.js declares `error:` rather than `compile_error`, so its throw —
+// the outcome the sample asks for — lands here instead of with the expected refusals.
 check(
-	'only the two known runtime failures',
+	'only the known runtime failure',
 	results.runtime_error.map((entry) => entry.split(':')[0]).sort(),
-	['boundary-pending', 'raw-snippet']
+	['raw-snippet']
 );
-check('at least the recorded baseline still mounts', results.ok.length >= 32);
+check('at least the recorded baseline still mounts', results.ok.length >= 33);
 
 finish('coverage', 4);

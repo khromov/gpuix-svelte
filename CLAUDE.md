@@ -382,7 +382,12 @@ so do its toasts and search completions.
 **`compile.ts`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
 `GPUIX_SVELTE_RENDERER` overrides that baked specifier — needed for components outside this
-workspace, since it must resolve from the `.svelte` file's own location.
+workspace, since it must resolve from the `.svelte` file's own location. `async: true` rides
+along because a `pending`/`failed` snippet in a `<svelte:boundary>` crashes the compiler
+without it: `SvelteBoundary.js` reads `snippet.declarations[0].init` as the snippet function,
+but under a custom renderer that is the `renderer_snippet($renderer, …)` wrapper, so
+`snippet_fn.body` is undefined — and the `unshift` that trips over it only runs when async is
+off. Reported upstream on #18511; drop the flag once it lands.
 
 It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
 renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
@@ -645,8 +650,9 @@ compiler strips the types itself, and svelte-check is not part of the gate.
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. tsx, Bun and tsc all
   silently map a stale `./x.js` specifier onto `x.ts`, so grep for `.js'` imports rather than
   trusting the tests.
-- `test:coverage` baseline: 32/47 samples mount, 13 refused by design, 2 runtime errors
-  (boundary-pending, raw-snippet). It asserts those as floors and named failures rather than an
+- `test:coverage` baseline: 33/47 samples mount, 13 refused by design, 1 runtime error
+  (raw-snippet, whose `_config.js` declares `error:` rather than `compile_error`, so the throw it
+  asks for is bucketed as a failure). It asserts those as floors and named failures rather than an
   exact tally, since the upstream suite grows; with `SVELTE_SAMPLES_DIR` unset it still skips at
   exit 0.
 - Mutation-swept on 2026-09-03 (native 0.7.0). Inverting each of the 460 assertions one at a time
