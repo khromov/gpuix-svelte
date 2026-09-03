@@ -145,7 +145,9 @@ export function compile_svelte(path: string, query?: string): string {
 		// The value returned here is the class the compiler stamps on every element a
 		// selector matches, which is how the renderer finds the right sheet at runtime.
 		cssHash: (args) => (scope = `svelte-${args.hash(args.css)}`),
-		experimental: { customRenderer: RENDERER_MODULE }
+		// async is on because a `pending`/`failed` snippet in a <svelte:boundary> crashes the
+		// compiler without it (SvelteBoundary.js reads through the `renderer_snippet` wrapper).
+		experimental: { customRenderer: RENDERER_MODULE, async: true }
 	});
 
 	for (const warning of warnings) {
