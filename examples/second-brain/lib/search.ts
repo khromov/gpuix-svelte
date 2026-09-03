@@ -19,7 +19,7 @@ export interface SearchOptions {
 	limit?: number;
 	kinds?: Kind[] | null;
 	signals?: string[];
-	/** Overrides the `search.includeFeeds` setting for one call. */
+	/** Overrides the `feeds.include` setting for one call. */
 	feeds?: boolean;
 }
 
@@ -57,7 +57,7 @@ export function create_search({ store, vectors, images, ml, settings }: { store:
 	// first answer, not a missing signal; only a down worker degrades the search.
 	const usable = (model: 'embed' | 'clip') => ml.available && (ml.status?.worker === 'up' || ml.status?.[model]?.state === 'ready');
 	const threshold = (key: keyof MlLike['thresholds']) => ml.thresholds?.[key] ?? 0;
-	const include_feeds = () => settings.get('search.includeFeeds') === true;
+	const include_feeds = () => settings.get('feeds.include') !== false;
 	// The vector indexes know nothing about feeds, so the exclusion set comes from SQL.
 	const feed_filter = (with_feeds: boolean): ((group: number) => boolean) | null => {
 		if (with_feeds) return null;

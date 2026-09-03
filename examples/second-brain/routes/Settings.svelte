@@ -6,6 +6,7 @@
 	import Segmented from '../components/Segmented.svelte';
 	import Spinner from '../components/Spinner.svelte';
 	import { data, display_title, format_bytes, get_app, item_by_id, status_text } from '../lib/data.svelte.ts';
+	import { include_feeds, set_include_feeds } from '../lib/feed-filter.svelte.ts';
 	import { create_llm } from '../lib/llm.ts';
 	import { MODEL_IDS, type ModelName } from '../lib/ml-client.ts';
 	import type { SettingKey } from '../lib/settings.ts';
@@ -27,7 +28,6 @@
 		visionModel: settings.get('llm.visionModel') ?? ''
 	});
 	let language = $state(settings.get('stt.language') ?? '');
-	let include_feeds = $state(settings.get('search.includeFeeds') === true);
 	let schedule = $state(settings.get('feeds.schedule'));
 	let testing = $state(false);
 
@@ -183,13 +183,13 @@
 
 		<div class="section">
 			<div class="heading">Feeds</div>
-			<div class="hint">Subscriptions bring in far more than you do by hand, so what they bring is kept out of the way until you ask for it.</div>
+			<div class="hint">Subscriptions bring in far more than you do by hand. One switch decides whether what they bring is part of your brain or kept out of the way.</div>
 			<Toggle
-				label="Include feeds when you search"
-				hint="Also covers Ask and an item's Related list. A single query can override it with feeds:on."
-				checked={include_feeds}
-				onchange={(v) => { include_feeds = v; settings.set('search.includeFeeds', v); }}
-				testid="include-feeds"
+				label="Include feeds"
+				hint="Covers the timeline, search, Ask and an item's Related list — the same switch you see on those pages. A single query can override it with feeds:on."
+				checked={include_feeds()}
+				onchange={set_include_feeds}
+				testid="settings-feeds"
 			/>
 			<div class="hint">How often a new feed checks for entries — each feed can be given its own on the Feeds page.</div>
 			<Segmented options={SCHEDULES} value={schedule} onchange={(v) => { schedule = v; settings.set('feeds.schedule', v); }} />

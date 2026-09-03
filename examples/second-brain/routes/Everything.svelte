@@ -6,28 +6,29 @@
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Toggle from '../components/Toggle.svelte';
 	import type { GpuixEvent } from 'gpuix-svelte';
-	import { data, get_app } from '../lib/data.svelte.ts';
+	import { data } from '../lib/data.svelte.ts';
+	import { include_feeds, set_include_feeds } from '../lib/feed-filter.svelte.ts';
 	import { capture_actions } from '../lib/menus.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import { focus, open_menu } from '../lib/ui.svelte.ts';
 
 	const PAGE = 200;
 	let page = $state(1);
-	let include_feeds = $state(get_app().settings.get('timeline.includeFeeds') !== false);
-	const items = $derived(include_feeds ? data.items : data.items.filter((i) => i.feed_id == null));
+	const items = $derived(include_feeds() ? data.items : data.items.filter((i) => i.feed_id == null));
 	const visible = $derived(items.slice(0, page * PAGE));
-
-	function toggle_feeds(on: boolean) {
-		include_feeds = on;
-		get_app().settings.set('timeline.includeFeeds', on);
-	}
 </script>
 
 <div class="route" onauxclick={(e: GpuixEvent) => open_menu(e, capture_actions())}>
 	<div class="capture"><CaptureBox /></div>
 	{#if data.counts.feeds > 0}
 		<div class="head">
-			<Toggle label="Include feeds" hint="{data.counts.feeds} of {data.counts.total} items came from a subscription." checked={include_feeds} onchange={toggle_feeds} testid="timeline-feeds" />
+			<Toggle
+				label="Include feeds"
+				hint="{data.counts.feeds} of {data.counts.total} items came from a subscription. The same switch covers search, Ask and Related."
+				checked={include_feeds()}
+				onchange={set_include_feeds}
+				testid="timeline-feeds"
+			/>
 		</div>
 	{/if}
 	<Scroller virtual estimate={100} pad="0 20px 20px 20px" testid="timeline">

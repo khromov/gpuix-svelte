@@ -1027,12 +1027,19 @@ const feed_fetch: Fetcher = async (url) => {
   await app.ingest.idle();
   check("and creates no items", app.store.counts().total, 2);
 
-  // The feed's own words are searchable, but only when asked for.
+  // The feed's own words are searchable until the one switch takes them out.
   check(
-    "feed items are out of search",
-    (await app.search("nitrogen")).hits.length,
+    "feed items are searched by default",
+    (await app.search("nitrogen")).hits[0]?.item.id,
+    first.id,
+  );
+  check(
+    "the option hides them",
+    (await app.search("nitrogen", { feeds: false })).hits.length,
     0,
   );
+  app.settings.set("feeds.include", false);
+  check("the setting hides them", (await app.search("nitrogen")).hits.length, 0);
   check(
     "feeds:on reveals them",
     (await app.search("nitrogen feeds:on")).hits[0]?.item.id,
@@ -1048,18 +1055,6 @@ const feed_fetch: Fetcher = async (url) => {
     (await app.search("https://feed.test/post-1")).hits[0]?.item.id,
     first.id,
   );
-  check(
-    "rag retrieval skips feeds",
-    (await app.search("nitrogen", { feeds: false })).hits.length,
-    0,
-  );
-  app.settings.set("search.includeFeeds", true);
-  check(
-    "the setting reveals them",
-    (await app.search("nitrogen")).hits[0]?.item.id,
-    first.id,
-  );
-  app.settings.set("search.includeFeeds", false);
 
   const note = app.add_note({
     body: "Nitrogen notes: legumes fix it out of the air.",

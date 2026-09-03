@@ -8,6 +8,7 @@
 	import TopBar from './components/TopBar.svelte';
 	import type { App } from './lib/app.ts';
 	import { bind_app } from './lib/data.svelte.ts';
+	import { bind_feeds } from './lib/feed-filter.svelte.ts';
 	import { back, push, route, type RouteEntry } from './lib/router.svelte.ts';
 	import { bind_theme, start_system_poll, tokens } from './lib/theme.svelte.ts';
 	import { focus, ui } from './lib/ui.svelte.ts';
@@ -19,6 +20,7 @@
 	untrack(() => {
 		bind_app(app);
 		bind_theme(app);
+		bind_feeds(app);
 		// Before the template below is styled; the $effect only carries later switches.
 		set_css_vars(tokens());
 	});

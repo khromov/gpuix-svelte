@@ -8,6 +8,7 @@
 	import Toggle from '../components/Toggle.svelte';
 	import type { GpuixEvent } from 'gpuix-svelte';
 	import { data, get_app } from '../lib/data.svelte.ts';
+	import { include_feeds, set_include_feeds } from '../lib/feed-filter.svelte.ts';
 	import { capture_actions } from '../lib/menus.ts';
 	import { parse_query } from '../lib/rank.ts';
 	import { push, replace } from '../lib/router.svelte.ts';
@@ -31,13 +32,11 @@
 	const q = $derived((query?.q ?? '').trim());
 	const parsed = $derived(parse_query(q));
 	let filter = $state('all');
-	let include_feeds = $state(get_app().settings.get('search.includeFeeds') === true);
 	// `feeds:on` in the query is the filter; the checkbox mirrors it, as the kinds do.
-	const feeds_on = $derived(parsed.feeds ?? include_feeds);
+	const feeds_on = $derived(parsed.feeds ?? include_feeds());
 
 	function toggle_feeds(on: boolean) {
-		include_feeds = on;
-		get_app().settings.set('search.includeFeeds', on);
+		set_include_feeds(on);
 		if (parsed.feeds != null) replace(`/search?q=${encodeURIComponent(parsed.text)}`);
 	}
 	// A kind: in the query is the filter; the segmented control mirrors it.
@@ -57,7 +56,7 @@
 	$effect(() => {
 		const text = q;
 		const kinds = filter === 'all' ? null : [filter];
-		const feeds = include_feeds;
+		const feeds = include_feeds();
 		// Re-run once the embedding model comes up, so keyword-only results upgrade.
 		void model_states;
 		void total;
@@ -92,7 +91,7 @@
 <div class="route" onauxclick={(e: GpuixEvent) => open_menu(e, capture_actions())}>
 	<div class="head">
 		<Segmented options={FILTERS} value={active} onchange={choose} small />
-		<Toggle label="Include feeds" checked={feeds_on} onchange={toggle_feeds} testid="include-feeds" />
+		<Toggle label="Include feeds" checked={feeds_on} onchange={toggle_feeds} testid="search-feeds" />
 		<div class="grow"></div>
 		{#if loading}<Spinner size={12} />{/if}
 		<div class="summary">{summary}</div>

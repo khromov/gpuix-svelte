@@ -55,8 +55,8 @@ npm run brain              # Substrate, the "second brain" example (examples/sec
                            # (scraped with HTMLRewriter), images, voice memos; hybrid search
                            # (nomic embeddings + FTS5 + CLIP, fused with RRF); RSS/Atom feeds
                            # polled on a per-feed cron (croner, in-process — the ML worker takes one
-                           # job at a time and does not exist without the ML deps), kept out of
-                           # search/Ask/Related behind search.includeFeeds; RAG chat over any
+                           # job at a time and does not exist without the ML deps), in or out of the
+                           # timeline/search/Ask/Related behind one feeds.include switch; RAG chat over any
                            # OpenAI-compatible endpoint; right-click menus on every surface
                            # (components/ContextMenu.svelte draws them, lib/menus.ts says what is
                            # in them); light/dark. Recording and playback work on macOS
