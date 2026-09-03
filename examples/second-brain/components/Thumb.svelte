@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { blob_src } from '../lib/data.svelte.ts';
 	import { KIND_ICON } from '../lib/icons.ts';
 	import type { Item } from '../lib/store.ts';
 	import Icon from './Icon.svelte';
 
 	let { item, size = 52 }: { item: Item; size?: number } = $props();
 
+	const thumb = $derived(blob_src(item.thumb_blob));
 </script>
 
-{#if item.thumb_path}
-	<img src={item.thumb_path} objectFit="cover" class="thumb" style="width: {size}px; height: {size}px" />
+{#if thumb}
+	<img src={thumb} objectFit="cover" class="thumb" style="width: {size}px; height: {size}px" />
 {:else}
 	<div class="tile {item.kind}" style="width: {size}px; height: {size}px">
 		<Icon name={KIND_ICON[item.kind] ?? 'note'} size={Math.round(size * 0.42)} tone={item.kind} />

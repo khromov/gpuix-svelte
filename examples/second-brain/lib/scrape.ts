@@ -434,9 +434,8 @@ function empty_page(url: string): PageData {
 /** The thumbnail is optional: any failure here is a warning, never a failed ingest. */
 export async function fetch_image(
 	url: string,
-	destPath: string,
 	{ maxBytes = 8_000_000, maxDim = 512, fetch: fetch_fn = fetch }: { maxBytes?: number; maxDim?: number; fetch?: Fetcher } = {}
-): Promise<{ path: string; width: number; height: number } | null> {
+): Promise<{ bytes: Uint8Array; ext: string; width: number; height: number } | null> {
 	try {
 		const res = await fetch_fn(url, {
 			redirect: 'follow',
@@ -449,9 +448,9 @@ export async function fetch_image(
 		const { bytes, truncated } = await read_capped(res, maxBytes);
 		if (truncated) return null;
 
-		await new Bun.Image(bytes).resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).write(destPath);
-		const { width, height } = await new Bun.Image(destPath).metadata();
-		return { path: destPath, width, height };
+		const out = await new Bun.Image(bytes).resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).bytes();
+		const { width, height } = await new Bun.Image(out).metadata();
+		return { bytes: out, ext: 'webp', width, height };
 	} catch (err) {
 		warn(`thumbnail skipped for ${url}:`, (err as Error).message);
 		return null;

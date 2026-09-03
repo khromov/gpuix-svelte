@@ -1,6 +1,6 @@
 import { track } from './lifecycle.ts';
 
-export type FileKinds = 'image' | 'audio' | 'wav' | 'any';
+export type FileKinds = 'image' | 'audio' | 'any';
 
 interface ChooseOptions {
 	kinds: FileKinds;
@@ -10,14 +10,12 @@ interface ChooseOptions {
 
 const UTIS: Partial<Record<FileKinds, string>> = {
 	image: '{"public.image"}',
-	audio: '{"public.audio", "public.movie"}',
-	wav: '{"com.microsoft.waveform-audio"}'
+	audio: '{"com.microsoft.waveform-audio", "public.mp3"}'
 };
 
 const LINUX_FILTERS: Partial<Record<FileKinds, string>> = {
 	image: 'Images | *.png *.jpg *.jpeg *.gif *.webp *.bmp *.heic *.tiff',
-	audio: 'Audio | *.wav *.mp3 *.m4a *.aac *.ogg *.opus *.flac *.aiff *.webm *.mp4',
-	wav: 'WAV | *.wav'
+	audio: 'Audio | *.wav *.mp3'
 };
 
 export function picker_available(): { ok: boolean; reason?: string } {
@@ -53,6 +51,28 @@ async function choose_mac({ kinds, multiple, prompt }: ChooseOptions): Promise<s
 		throw new Error(stderr.trim() || `osascript exited ${code}`);
 	}
 	return stdout.split('\n').map((s) => s.trim()).filter(Boolean);
+}
+
+/** Empty on cancel. The bytes live in the database, so saving one out is an export. */
+export async function choose_save_path(name: string, { prompt = 'Export from Substrate' }: { prompt?: string } = {}): Promise<string> {
+	if (process.platform === 'darwin') {
+		const lines = [`return POSIX path of (choose file name with prompt "${escape_applescript(prompt)}" default name "${escape_applescript(name)}")`];
+		const { stdout, stderr, code } = await run(['osascript', ...lines.flatMap((line) => ['-e', line])]);
+		if (code !== 0) {
+			if (/-128/.test(stderr)) return '';
+			throw new Error(stderr.trim() || `osascript exited ${code}`);
+		}
+		return stdout.trim();
+	}
+	if (process.platform === 'linux') {
+		let cmd: string[];
+		if (Bun.which('zenity')) cmd = ['zenity', '--file-selection', '--save', '--confirm-overwrite', `--title=${prompt}`, `--filename=${name}`];
+		else if (Bun.which('kdialog')) cmd = ['kdialog', '--getsavefilename', name, '--title', prompt];
+		else throw new Error(picker_available().reason);
+		const { stdout, code } = await run(cmd);
+		return code === 0 ? stdout.trim() : '';
+	}
+	throw new Error(picker_available().reason);
 }
 
 async function choose_linux({ kinds, multiple, prompt }: ChooseOptions): Promise<string[]> {

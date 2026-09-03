@@ -163,3 +163,30 @@ export function encode_wav(samples: Float32Array, sampleRate = 16000, channels =
 	}
 	return bytes;
 }
+
+/** Header only, from the first 64 KiB; 0 when the file is not a WAV. */
+export async function wav_duration(path: string): Promise<number> {
+	try {
+		const file = Bun.file(path);
+		const head = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+		return header_duration(wav_header(head, file.size));
+	} catch {
+		return 0;
+	}
+}
+
+/** `ok` means it is already the 16 kHz mono PCM the worker wants, so no sidecar is needed. */
+export function wav_info(bytes: Uint8Array): { ok: boolean; duration: number; sampleRate?: number; channels?: number; bits?: number } {
+	try {
+		const h = wav_header(bytes);
+		return {
+			ok: h.formatTag === 1 && h.bitsPerSample === 16 && h.channels === 1 && h.sampleRate === 16000,
+			duration: header_duration(h),
+			sampleRate: h.sampleRate,
+			channels: h.channels,
+			bits: h.bitsPerSample
+		};
+	} catch {
+		return { ok: false, duration: 0 };
+	}
+}

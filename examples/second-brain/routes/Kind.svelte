@@ -3,7 +3,7 @@
 	import ItemCard from '../components/ItemCard.svelte';
 	import KindBadge from '../components/KindBadge.svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-	import { data, status_text } from '../lib/data.svelte.ts';
+	import { blob_src, data, status_text } from '../lib/data.svelte.ts';
 	import { push } from '../lib/router.svelte.ts';
 	import type { Kind } from '../lib/store.ts';
 
@@ -13,7 +13,7 @@
 		text: ['No notes yet', 'Type anything into the box on Everything and press Enter.'],
 		link: ['No links yet', 'Paste a URL into the box on Everything; the page is read and indexed for you.'],
 		image: ['No images yet', 'Use Add image… or Paste image on Everything. With a vision model configured, images get described too.'],
-		audio: ['No recordings yet', 'Press Record on Everything, or import a WAV (any format with ffmpeg installed).']
+		audio: ['No recordings yet', 'Press Record on Everything, or import a WAV or MP3.']
 	};
 	const items = $derived(data.items.filter((i) => i.kind === kind));
 </script>
@@ -30,8 +30,8 @@
 			<div class="grid">
 				{#each items as item (item.id)}
 					<div class="tile" hitbox="self" onclick={() => push(`/item/${item.id}`)}>
-						{#if item.thumb_path}
-							<img src={item.thumb_path} objectFit="cover" class="pic" />
+						{#if blob_src(item.thumb_blob)}
+							<img src={blob_src(item.thumb_blob)} objectFit="cover" class="pic" />
 						{:else}
 							<div class="pic missing"></div>
 						{/if}

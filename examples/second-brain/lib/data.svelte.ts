@@ -51,6 +51,12 @@ let app: App | null = null;
 
 export const get_app = () => app as App;
 
+/**
+ * The bytes live in the database, so an `<img src>` (or afplay) gets a path into
+ * the disposable cache. Synchronous, because this is called during render.
+ */
+export const blob_src = (id: number | null | undefined): string | undefined => (app && id != null ? app.blobs.file(id) : undefined);
+
 function upsert(item: Item) {
 	const at = data.items.findIndex((i) => i.id === item.id);
 	if (at === -1) {
@@ -166,7 +172,8 @@ export function preview(item: Item, max = 160): string {
 	return '';
 }
 
-export const format_bytes = (bytes: number) => (bytes >= 1073741824 ? `${(bytes / 1073741824).toFixed(1)} GB` : `${Math.round(bytes / 1048576)} MB`);
+export const format_bytes = (bytes: number) =>
+	bytes >= 1073741824 ? `${(bytes / 1073741824).toFixed(1)} GB` : bytes >= 1048576 ? `${Math.round(bytes / 1048576)} MB` : `${Math.round(bytes / 1024)} KB`;
 
 export function format_duration(seconds: number | null | undefined): string {
 	if (!seconds) return '0:00';

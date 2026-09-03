@@ -8,9 +8,10 @@
 	import { markdown_blocks } from '../lib/blocks.ts';
 	import { playback, toggle_play } from '../lib/capture.svelte.ts';
 	import { write_text } from '../lib/clipboard.ts';
-	import { ago, data, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
+	import { ago, blob_src, data, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
+	import { choose_save_path } from '../lib/dialogs.ts';
 	import { back, push } from '../lib/router.svelte.ts';
-	import { open_url, reveal } from '../lib/shell.ts';
+	import { open_url } from '../lib/shell.ts';
 	import { blur } from 'gpuix-svelte';
 	import type { SearchHit } from '../lib/search.ts';
 	import { toast } from '../lib/ui.svelte.ts';
@@ -77,6 +78,18 @@
 		toast('Deleted');
 	}
 
+	/** The database is the only copy, so there is nothing on disk to reveal — save one out instead. */
+	async function export_file() {
+		const app = get_app();
+		const blob = app.blobs.info(item!.file_blob!);
+		if (!blob) throw new Error('no file on this item');
+		const suggested = item!.meta.original_name?.replace(/\.[^.]+$/, '') || item!.title || `substrate-${item!.id}`;
+		const dest = await choose_save_path(`${suggested}.${blob.ext}`);
+		if (!dest) return;
+		await Bun.write(dest, app.blobs.bytes(blob.id)!);
+		toast(`Exported to ${dest}`);
+	}
+
 	async function run(label: string, fn: () => Promise<unknown>) {
 		working = label;
 		try {
@@ -112,7 +125,7 @@
 					<Button label="Open" icon="external" small onclick={() => open_url(item.source_url)} />
 					<Button label="Re-read page" icon="refresh" small disabled={busy} onclick={() => { get_app().rescrape(id); toast('Reading the page again'); }} />
 				{/if}
-				{#if item.kind === 'audio' && item.file_path}
+				{#if item.kind === 'audio' && item.file_blob}
 					<Button label={playback.id === item.id ? 'Stop' : 'Play'} icon={playback.id === item.id ? 'stop' : 'play'} small onclick={() => toggle_play(item)} />
 				{/if}
 				{#if item.kind === 'image' && vision}
@@ -121,8 +134,8 @@
 				{#if llm && item.body}
 					<Button label={working === 'summarize' ? 'Summarizing…' : 'Summarize'} icon="sparkles" small disabled={working !== null} onclick={() => run('summarize', () => get_app().summarize(id))} />
 				{/if}
-				{#if item.file_path}
-					<Button label="Reveal" icon="folder" small onclick={() => reveal(item.file_path)} />
+				{#if item.file_blob}
+					<Button label={working === 'export' ? 'Exporting…' : 'Export…'} icon="folder" small disabled={working !== null} onclick={() => run('export', export_file)} />
 				{/if}
 				{#if item.body}
 					<Button label="Copy" icon="copy" small onclick={() => write_text(item.body).then(() => toast('Copied'))} />
@@ -170,11 +183,11 @@
 					{/if}
 				</div>
 
-				{#if item.kind === 'image' && item.file_path}
-					<div class="row"><img src={item.meta.display_path ?? item.file_path} objectFit="contain" class="hero" /></div>
+				{#if item.kind === 'image' && blob_src(item.meta.display_blob ?? item.file_blob)}
+					<div class="row"><img src={blob_src(item.meta.display_blob ?? item.file_blob)} objectFit="contain" class="hero" /></div>
 				{/if}
-				{#if item.kind === 'link' && item.thumb_path}
-					<div class="row"><img src={item.thumb_path} objectFit="cover" class="og" /></div>
+				{#if item.kind === 'link' && blob_src(item.thumb_blob)}
+					<div class="row"><img src={blob_src(item.thumb_blob)} objectFit="cover" class="og" /></div>
 				{/if}
 
 				{#if item.meta.summary}
