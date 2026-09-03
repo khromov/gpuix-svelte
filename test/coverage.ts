@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { mount, flushSync } from 'svelte';
 import renderer, { set_native, create_root, commit } from '../src/renderer.ts';
+import { check, finish } from 'gpuix-svelte/test';
 
 const SOURCE = process.env.SVELTE_SAMPLES_DIR;
 if (!SOURCE || !existsSync(SOURCE)) {
@@ -83,3 +84,16 @@ for (const [label, list] of [
 }
 console.log('\nrefused by design:', results.expected_compile_error.join(', '));
 console.log('\nmounted:', results.ok.join(', '));
+
+// Floors and named failures rather than an exact tally: the upstream suite grows,
+// but nothing that mounts today may stop mounting.
+check('the samples directory was not empty', total > 0);
+check('nothing we should support fails to compile', results.compile_error, []);
+check(
+	'only the two known runtime failures',
+	results.runtime_error.map((entry) => entry.split(':')[0]).sort(),
+	['boundary-pending', 'raw-snippet']
+);
+check('at least the recorded baseline still mounts', results.ok.length >= 32);
+
+finish('coverage', 4);

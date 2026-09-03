@@ -6,7 +6,7 @@
 import type { App } from './app.ts';
 import type { capabilities } from './capabilities.ts';
 import type { MlStatus } from './ml-client.ts';
-import type { Item, Store } from './store.ts';
+import type { Feed, Item, Store } from './store.ts';
 
 export interface Progress {
 	step: string | null;
@@ -25,6 +25,8 @@ export type Capabilities = Awaited<ReturnType<typeof capabilities>>;
 
 export interface Data {
 	items: Item[];
+	feeds: Feed[];
+	feed_counts: Record<number, number>;
 	progress: Record<number, Progress>;
 	counts: Counts;
 	queue: QueueStats;
@@ -37,8 +39,10 @@ export interface Data {
 
 export const data = $state<Data>({
 	items: [],
+	feeds: [],
+	feed_counts: {},
 	progress: {},
-	counts: { total: 0, by_kind: { text: 0, link: 0, image: 0, audio: 0 }, pending: 0, error: 0 },
+	counts: { total: 0, by_kind: { text: 0, link: 0, image: 0, audio: 0 }, pending: 0, error: 0, feeds: 0 },
 	queue: { pending: 0, active: 0, done: 0, failed: 0, active_ids: [] },
 	stuck: 0,
 	memory: process.memoryUsage().rss,
@@ -72,6 +76,11 @@ function refresh_counts() {
 	data.stuck = app!.stuck_count();
 }
 
+function refresh_feeds() {
+	data.feeds = app!.feeds.list();
+	data.feed_counts = app!.feeds.counts();
+}
+
 /** Idempotent: a hot remount calls it again with the same app. */
 export function bind_app(next: App) {
 	if (app === next) return;
@@ -79,6 +88,7 @@ export function bind_app(next: App) {
 	data.items = app.list({ limit: 500 });
 	data.ml = app.ml.status;
 	refresh_counts();
+	refresh_feeds();
 	data.queue = app.ingest.stats;
 	data.ready = true;
 	app.capabilities().then((caps) => {
@@ -113,6 +123,9 @@ export function bind_app(next: App) {
 		} else if (event.type === 'queue') {
 			data.queue = { pending: event.pending, active: event.active, done: event.done, failed: event.failed, active_ids: event.active_ids ?? [] };
 			data.stuck = app!.stuck_count();
+		} else if (event.type === 'feed') {
+			refresh_feeds();
+			refresh_counts();
 		} else if (event.type === 'ml') {
 			data.ml = { ...event.status };
 		} else if (event.type === 'settings' && event.key.startsWith('llm.')) {

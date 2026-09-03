@@ -24,8 +24,8 @@ to run.
 ## What it does
 
 - **Capture**: a note (Enter saves, Shift+Enter is a newline), a URL (scraped to readable text with
-  its title and preview image), images via the macOS file chooser or straight from the clipboard,
-  audio via the microphone or an imported WAV or MP3.
+  its title and preview image), images via the file chooser or straight from the clipboard,
+  audio via the microphone (macOS and Windows) or an imported WAV or MP3.
 - **On-device models**, all through [transformers.js](https://huggingface.co/docs/transformers.js)
   in a child Bun process: `nomic-ai/nomic-embed-text-v1.5` for text embeddings (768-d, 8k-token
   context), `onnx-community/whisper-base` for transcription, `Xenova/clip-vit-base-patch32` so a
@@ -37,9 +37,27 @@ to run.
   `kind:image` and `kind:audio` narrow a query or, alone, list a kind; the search box completes
   them as you type (arrows choose, Tab completes, Enter searches). A pasted URL finds its item.
   Every item also gets a "Related" list from its stored vectors.
+- **Feeds**: subscribe to an RSS or Atom address (or a blog's homepage — the `<link rel="alternate">`
+  it advertises is followed) and its entries are ingested like any link you save. Each feed has its
+  own check interval — hourly, every 4 or 12 hours, or daily (croner under the hood) — a
+  **full article** switch — off, only what the document
+  itself carries is stored and no page is fetched per entry — and optional retention (keep the
+  newest *n*, or *n* days; anything you have edited is never pruned). A missed poll is caught up
+  shortly after launch. Because a feed brings in far more than you do, feed items are **kept out of
+  search, Ask and Related** until *Include feeds* is ticked — the checkbox sits beside the kind
+  filters on the search page, and in Settings; a single query overrides it with `feeds:on`. The
+  timeline has its own *Include feeds* switch (on by default), so you can read a feed there while
+  keeping it out of search. Both choices are remembered. An entry whose URL you had already saved is adopted rather
+  than duplicated, and an entry you delete is never fetched again.
 - **Ask**: retrieval-augmented chat over the corpus with any OpenAI-compatible endpoint (Ollama,
   LM Studio, OpenAI, OpenRouter). Answers stream in as markdown; `[n]` citations become chips that
   open the item. A vision model, when configured, describes images on import.
+- **Right-click anything**: an item, a feed, a sidebar entry, an answer, a citation, or empty space.
+  Each offers what applies to it — a failed link gets *Retry* and *Re-read page*, an audio item gets
+  *Play*, empty space gets the capture actions — with the arrow keys and Enter working through it and
+  a confirmation in front of anything destructive. On macOS ctrl+click opens the same menu on
+  anything that was already clickable — GPUI routes it to `click`, not `auxClick`, so only a
+  surface with a primary handler can see it.
 - **Light and dark**, following the system or fixed, with the palette in `lib/theme.ts`.
 - **Settings → Pipeline** shows what is being scraped, transcribed and embedded right now, with
   requeue and retry buttons; **Settings → On-device models** shows each model's state, download
@@ -53,14 +71,20 @@ examples/second-brain/
   standalone.ts          the compiled entry: static imports, render() instead of render_hot()
   App.svelte             root layout, window-level shortcuts, the palette → set_css_vars, route table
   RouteView.svelte       resolves the route and lazy-loads the page component
-  routes/                Everything, Kind, Search, Item, Ask, Settings, NotFound; Item renders a
+  routes/                Everything, Kind, Search, Item, Ask, Feeds, Settings, NotFound; Item renders a
                          page one <markdown> block per virtual row (lib/blocks.ts), since a native
                          markdown element lays out its whole document every frame
-  components/            Sidebar, ItemCard, CaptureBox, Field, Modal (a <Portal>), …; scrolling
+  components/            Sidebar, ItemCard, CaptureBox, Field, …; Modal is a <Portal> rendered from
+                         whoever needs a dialog, ContextMenu one mounted once by App; scrolling
                          is the package's Scroller
-  lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules)
+  lib/                   the data layer (plain TS) and the UI state (.svelte.ts runes modules);
+                         menus.ts is what each right click offers
+  lib/feeds/             the poller (poll.ts, croner) over a source registry; rss.ts reads RSS 2.0,
+                         RDF and Atom, and another kind is a module plus an entry in SOURCES
   ml/worker.ts           the child process that owns the models; ml/doctor.ts is the spike
-  native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use
+  native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use (macOS);
+                         lib/recorder-win.ts and lib/player-win.ts are the winmm equivalents,
+                         over the shared FFI surface in lib/winmm.ts
   scripts/import-hn.ts   the Hacker News importer; frame-cost.ts prints GPUI draw times per route
                          (npm run brain:frames), against a copy of the data
   test/                  brain.ts (data + native, no models) and smoke.ts (headless UI)
@@ -117,9 +141,10 @@ All optional, all `GPUIX_BRAIN_*`:
 | `STUB=1` | seeded fake data and a stub worker — no models; used for screenshots and tests |
 | `START=/settings` | initial route |
 | `THEME=light\|dark` | ignore the stored theme and the system setting |
-| `ML=wasm\|off` | force transformers.js onto onnxruntime-web, or disable the worker entirely |
+| `ML=off` | disable the ML worker entirely |
 | `OFFLINE=1` | never download models |
-| `RECORDER=0` | don't compile or load the microphone shim |
+| `RECORDER=0` | don't load the microphone backend (nor compile the shim, on macOS) |
+| `FEEDS=0` | no scheduled feed polling (manual refresh still works); implied by `OFFLINE=1` |
 | `LLM_URL`, `LLM_KEY`, `LLM_MODEL` | override Settings; the key never has to be stored |
 | `RESOURCES=/path` | where a compiled app's worker and shim live (auto-detected inside a .app) |
 | `DEBUG=1` | verbose logging |
@@ -131,16 +156,17 @@ All optional, all `GPUIX_BRAIN_*`:
 
 | Need | Stand-in |
 |---|---|
-| microphone | `native/recorder-shim.m`: AVAudioRecorder writing 16 kHz mono WAV, loaded with `bun:ffi` (macOS; from a checkout the terminal you launch from is what gets the permission prompt, the .app asks in its own name) |
-| file picker | `osascript … choose file` |
-| clipboard | `pbpaste`/`pbcopy` for text, `Bun.Image.fromClipboard()` for images |
-| audio playback | `afplay` |
-| system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
+| microphone | two backends behind one interface (`lib/recorder.ts`), both writing 16 kHz mono WAV over `bun:ffi`. macOS: `native/recorder-shim.m`, AVAudioRecorder, compiled by clang on first use. Windows: `lib/recorder-win.ts`, winmm's waveIn with WAVE_MAPPER converting to that format for us — a flat C ABI, so there is nothing to compile. Permission belongs to the process that asks, which from a checkout is your terminal on macOS and `bun.exe` on Windows; the .app asks in its own name |
+| file picker | `osascript … choose file` (macOS and Linux; on Windows you type a path) |
+| clipboard | `pbpaste`/`pbcopy` on macOS and `Get-Clipboard`/`Set-Clipboard` on Windows for text, `Bun.Image.fromClipboard()` for images |
+| audio playback | `afplay` on macOS, `paplay`/`ffplay`/`aplay` on Linux; on Windows the clip is decoded in-process and pushed to winmm's waveOut (`lib/player-win.ts`), since nothing ships with Windows that plays an MP3 from a command line without opening a window |
+| system dark mode | `defaults read -g AppleInterfaceStyle` on macOS, `gsettings` on Linux, a `reg query` on Windows; polled every 3 s |
 | decoding audio | a hand-written WAV parser (`lib/wav.ts`) and mpg123 as WebAssembly for MP3 (`lib/mp3.ts`). WAV and MP3 are the two formats Substrate imports, and both are handled in-process — there is no ffmpeg to install |
 | readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.ts`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.ts` shows the way around |
 | AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) stores a WebP display copy beside the original |
 | shrinking a recording | LAME as WebAssembly (`wasm-media-encoders`, `lib/mp3.ts`): once the transcript exists, a memo the app recorded itself is re-encoded from 16 kHz PCM to 32 kbps MP3 in place, about eight times smaller, and mpg123 decodes it back if it is ever re-transcribed. An imported file is the user's master and is never rewritten |
 | search-hit highlighting | GPUI's native `highlight={{ ranges }}` prop, unlocked in the renderer for this app |
+| reading a feed | a small XML scanner (`lib/feeds/xml.ts`) rather than `HTMLRewriter`, which is an HTML parser: it voids `<link/>`, lowercases and reshapes the tree, so Atom's `<link href>` and `<content type="html">` do not survive it. The HTML *inside* an entry does go through `extract()` |
 
 ## About client-side routers
 
@@ -183,6 +209,8 @@ for one.
 
 `npm run test:brain` (Bun; also part of `npm run bun:test`) runs `test/brain.ts` — the WAV codec,
 the page extractor, the SSE parser, the chunker, the vector index, the store and pipeline with a
-stub worker, and the real IPC client against a fake worker, including a forced crash — and
-`test/smoke.ts`, which mounts the app headlessly and captures, opens, and deletes a note through
-GPUI's real hit testing. Neither needs a model or the network.
+stub worker, the feed parser and poller against fixture documents, the Windows microphone consent
+parser, and the real IPC client against a fake worker, including a forced crash — and
+`test/smoke.ts`, which mounts the app headlessly and
+captures, opens, and deletes a note through GPUI's real hit testing. Neither needs a model or the
+network.

@@ -46,6 +46,29 @@ drain();
 settle();
 check('and the release takes the overlay away', find_test_id('list-overlay'), null);
 
+// Each thumb restyle is a full native frame, so a sustained scroll has to pay one per
+// throttle window rather than one per wheel event.
+({ native } = mount_headless(Tall, { width: 400, height: 300 }));
+await wait(300);
+{
+	const [bx, by, bw, bh] = bounds(column())!;
+	const thumb_id = thumb().id;
+	let restyles = 0;
+	const applyBatch = native.applyBatch.bind(native);
+	native.applyBatch = (json) => {
+		if ((JSON.parse(json) as [string, number][]).some(([op, id]) => op === 'setStyle' && id === thumb_id)) restyles++;
+		return applyBatch(json);
+	};
+	for (let i = 0; i < 24; i++) {
+		native.simulateScrollWheel(bx + bw / 2, by + bh / 2, 0, -30);
+		drain();
+		await wait(10);
+	}
+	await wait(80);
+	native.applyBatch = applyBatch;
+	check('a sustained scroll restyles the thumb on the throttle, not once per event', restyles > 0 && restyles <= 12, true);
+}
+
 ({ native } = mount_headless(Tall, { props: { follow: true }, width: 400, height: 300 }));
 await wait(200);
 check('follow pins the bottom while content grows', Math.round(offset()), 200 - 30 * 40);
@@ -95,4 +118,4 @@ drain();
 settle();
 check('and the rows it left are no longer painted', painted().includes('row 0'), false);
 
-finish('scroller');
+finish('scroller', 21);

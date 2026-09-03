@@ -2,6 +2,7 @@
 	import { on_window_key, set_css_vars, set_window_title, type GpuixEvent } from 'gpuix-svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import { untrack } from 'svelte';
+	import ContextMenu from './components/ContextMenu.svelte';
 	import Sidebar from './components/Sidebar.svelte';
 	import Toasts from './components/Toasts.svelte';
 	import TopBar from './components/TopBar.svelte';
@@ -18,6 +19,8 @@
 	untrack(() => {
 		bind_app(app);
 		bind_theme(app);
+		// Before the template below is styled; the $effect only carries later switches.
+		set_css_vars(tokens());
 	});
 
 	const ROUTES: RouteEntry[] = [
@@ -26,6 +29,7 @@
 		{ path: '/links', load: () => import('./routes/Kind.svelte'), props: { kind: 'link' }, title: 'Links' },
 		{ path: '/images', load: () => import('./routes/Kind.svelte'), props: { kind: 'image' }, title: 'Images' },
 		{ path: '/audio', load: () => import('./routes/Kind.svelte'), props: { kind: 'audio' }, title: 'Audio' },
+		{ path: '/feeds', load: () => import('./routes/Feeds.svelte'), title: 'Feeds' },
 		{ path: '/search', load: () => import('./routes/Search.svelte'), title: 'Search' },
 		{ path: '/item/:id', load: () => import('./routes/Item.svelte'), title: 'Item' },
 		{ path: '/ask', load: () => import('./routes/Ask.svelte'), title: 'Ask' },
@@ -50,8 +54,8 @@
 		}
 		if (cmd && e.key === ',') return push('/settings');
 		if (e.key === 'escape') {
-			// An open dialog and a focused text field each get the same key and handle it themselves.
-			if (ui.modals > 0 || e.editing) return;
+			// An open dialog, menu or focused text field each get the same key and handle it themselves.
+			if (ui.modals > 0 || ui.menu || e.editing) return;
 			if (route.path !== '/') back();
 		}
 	}
@@ -68,6 +72,7 @@
 		</div>
 	</div>
 	<Portal><Toasts /></Portal>
+	<Portal><ContextMenu /></Portal>
 </div>
 
 <style>

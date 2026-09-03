@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { TranscribeSegment } from './ml-client.ts';
+import { DEFAULT_SCHEDULE } from './feeds/schedules.ts';
 import { to_blob } from './vectors.ts';
 
 /** The JSON `meta` column; every key is optional because each pipeline step adds its own. */
@@ -32,6 +33,11 @@ export interface ItemMeta {
 	language?: string | null;
 	embed_model?: string;
 	embedded_at?: number;
+	/** Brought in by a feed poll rather than by hand. */
+	feed?: boolean;
+	author?: string;
+	/** Edited by hand, so retention leaves it alone. */
+	edited?: boolean;
 }
 
 export type Kind = 'text' | 'link' | 'image' | 'audio';
@@ -52,9 +58,37 @@ export type Item = {
 	error: string | null;
 	attempts: number;
 	meta: ItemMeta;
+	feed_id: number | null;
 	created_at: number;
 	updated_at: number;
 };
+
+export interface Feed {
+	id: number;
+	type: string;
+	url: string;
+	title: string;
+	site_url: string | null;
+	schedule: string;
+	full_text: boolean;
+	enabled: boolean;
+	retention_days: number | null;
+	retention_max: number | null;
+	etag: string | null;
+	last_modified: string | null;
+	last_polled_at: number | null;
+	last_ok_at: number | null;
+	last_error: string | null;
+	created_at: number;
+}
+
+/** An entry the poller has seen, whether or not its item still exists. */
+export interface FeedEntryRow {
+	feed_id: number;
+	guid: string;
+	item_id: number | null;
+	seen_at: number;
+}
 
 export interface Chunk {
 	id: number;
@@ -82,6 +116,7 @@ export interface Counts {
 	by_kind: Record<Kind, number>;
 	pending: number;
 	error: number;
+	feeds: number;
 }
 
 export type Store = ReturnType<typeof create_store>;
@@ -89,13 +124,22 @@ export type Store = ReturnType<typeof create_store>;
 type ItemRow = Omit<Item, 'meta'> & { meta: string };
 type IdRow = { id: number };
 type VectorRow = { id: number; group: number; embedding: Uint8Array };
-type CountRow = { total: number; text: number | null; link: number | null; image: number | null; audio: number | null; pending: number | null; error: number | null };
+type CountRow = { total: number; text: number | null; link: number | null; image: number | null; audio: number | null; pending: number | null; error: number | null; feeds: number | null };
+type FeedRow = Omit<Feed, 'full_text' | 'enabled'> & { full_text: number; enabled: number };
 type Param = string | number | bigint | boolean | null | Uint8Array;
 type Params = Record<string, Param>;
 
 const ITEM_COLS =
-	'id, kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, attempts, meta, created_at, updated_at';
-const PATCHABLE = new Set(['kind', 'title', 'body', 'source_url', 'file_blob', 'thumb_blob', 'width', 'height', 'duration', 'status', 'error', 'attempts']);
+	'id, kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, attempts, meta, feed_id, created_at, updated_at';
+const PATCHABLE = new Set(['kind', 'title', 'body', 'source_url', 'file_blob', 'thumb_blob', 'width', 'height', 'duration', 'status', 'error', 'attempts', 'feed_id']);
+
+const FEED_COLS =
+	'id, type, url, title, site_url, schedule, full_text, enabled, retention_days, retention_max, etag, last_modified, last_polled_at, last_ok_at, last_error, created_at';
+const FEED_PATCHABLE = new Set([
+	'type', 'url', 'title', 'site_url', 'schedule', 'full_text', 'enabled', 'retention_days', 'retention_max', 'etag', 'last_modified', 'last_polled_at', 'last_ok_at', 'last_error'
+]);
+
+const to_feed = (row: FeedRow | null | undefined): Feed | null => (row ? { ...row, full_text: !!row.full_text, enabled: !!row.enabled } : null);
 
 const parse_meta = (s: string): ItemMeta => {
 	try {
@@ -111,8 +155,8 @@ export function create_store(db: Database) {
 	const q = <Row>(sql: string) => db.query<Row, Params[]>(sql);
 
 	const insert_stmt = q<never>(
-		`INSERT INTO items (kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, meta, created_at, updated_at)
-		 VALUES ($kind, $title, $body, $source_url, $file_blob, $thumb_blob, $width, $height, $duration, $status, $error, $meta, $now, $now)`
+		`INSERT INTO items (kind, title, body, source_url, file_blob, thumb_blob, width, height, duration, status, error, meta, feed_id, created_at, updated_at)
+		 VALUES ($kind, $title, $body, $source_url, $file_blob, $thumb_blob, $width, $height, $duration, $status, $error, $meta, $feed_id, $created_at, $now)`
 	);
 	const get_stmt = q<ItemRow>(`SELECT ${ITEM_COLS} FROM items WHERE id = $id`);
 	const by_url_stmt = q<ItemRow>(`SELECT ${ITEM_COLS} FROM items WHERE source_url = $url`);
@@ -156,9 +200,33 @@ export function create_store(db: Database) {
 	const count_stmt = q<CountRow>(
 		`SELECT COUNT(*) AS total,
 		        SUM(kind = 'text') AS text, SUM(kind = 'link') AS link, SUM(kind = 'image') AS image, SUM(kind = 'audio') AS audio,
-		        SUM(status IN ('pending', 'processing')) AS pending, SUM(status = 'error') AS error
+		        SUM(status IN ('pending', 'processing')) AS pending, SUM(status = 'error') AS error,
+		        SUM(feed_id IS NOT NULL) AS feeds
 		 FROM items`
 	);
+
+	const feed_insert_stmt = q<never>(
+		`INSERT INTO feeds (type, url, title, site_url, schedule, full_text, enabled, retention_days, retention_max, created_at)
+		 VALUES ($type, $url, $title, $site_url, $schedule, $full_text, $enabled, $retention_days, $retention_max, $now)`
+	);
+	const feeds_stmt = q<FeedRow>(`SELECT ${FEED_COLS} FROM feeds ORDER BY created_at ASC`);
+	const feed_stmt = q<FeedRow>(`SELECT ${FEED_COLS} FROM feeds WHERE id = $id`);
+	const feed_by_url_stmt = q<FeedRow>(`SELECT ${FEED_COLS} FROM feeds WHERE url = $url`);
+	const feed_delete_stmt = q<never>(`DELETE FROM feeds WHERE id = $id`);
+	const feed_items_stmt = q<IdRow>(`SELECT id FROM items WHERE feed_id = $feed_id`);
+	const feed_item_ids_stmt = q<IdRow>(`SELECT id FROM items WHERE feed_id IS NOT NULL`);
+	const feed_entry_stmt = q<FeedEntryRow>(`SELECT feed_id, guid, item_id, seen_at FROM feed_entries WHERE feed_id = $feed_id AND guid = $guid`);
+	const feed_entry_insert_stmt = q<never>(
+		`INSERT INTO feed_entries (feed_id, guid, item_id, seen_at) VALUES ($feed_id, $guid, $item_id, $now)
+		 ON CONFLICT(feed_id, guid) DO UPDATE SET item_id = excluded.item_id`
+	);
+	// Newest first, so retention counts from the end of the list.
+	const feed_entry_items_stmt = q<ItemRow>(
+		`SELECT ${ITEM_COLS.split(', ').map((c) => `i.${c}`).join(', ')} FROM feed_entries e JOIN items i ON i.id = e.item_id
+		 WHERE e.feed_id = $feed_id ORDER BY i.created_at DESC, i.id DESC`
+	);
+	const feed_entry_by_item_stmt = q<FeedEntryRow>(`SELECT feed_id, guid, item_id, seen_at FROM feed_entries WHERE item_id = $item_id`);
+	const feed_counts_stmt = q<{ feed_id: number; n: number }>(`SELECT feed_id, COUNT(*) AS n FROM items WHERE feed_id IS NOT NULL GROUP BY feed_id`);
 
 	const store = {
 		insert_item(fields: Partial<Item> & { kind: Kind }): Item {
@@ -176,6 +244,9 @@ export function create_store(db: Database) {
 				status: fields.status ?? 'pending',
 				error: fields.error ?? null,
 				meta: JSON.stringify(fields.meta ?? {}),
+				feed_id: fields.feed_id ?? null,
+				// A feed entry keeps its publish date, so the timeline stays chronological.
+				created_at: fields.created_at ?? now,
 				now
 			});
 			return store.get_item(Number(lastInsertRowid))!;
@@ -263,15 +334,16 @@ export function create_store(db: Database) {
 		all_image_vectors: () => image_vectors_stmt.iterate(),
 
 		/** bm25 is lower-is-better; the title column counts three times. `match` is an FTS5 query. */
-		search_fts(match: string, { limit = 50, kinds = null }: { limit?: number; kinds?: Kind[] | null } = {}): FtsHit[] {
+		search_fts(match: string, { limit = 50, kinds = null, feeds = true }: { limit?: number; kinds?: Kind[] | null; feeds?: boolean } = {}): FtsHit[] {
 			const kind_filter = kinds?.length ? ` AND items.kind IN (${kinds.map((k) => `'${k}'`).join(',')})` : '';
+			const feed_filter = feeds ? '' : ' AND items.feed_id IS NULL';
 			try {
 				return db
 					.query<FtsHit, Params>(
 						`SELECT items_fts.rowid AS id, bm25(items_fts, 3.0, 1.0) AS rank,
 						        snippet(items_fts, 1, '', '', '…', 14) AS snippet
 						 FROM items_fts JOIN items ON items.id = items_fts.rowid
-						 WHERE items_fts MATCH $match${kind_filter}
+						 WHERE items_fts MATCH $match${kind_filter}${feed_filter}
 						 ORDER BY rank LIMIT $limit`
 					)
 					.all({ match, limit });
@@ -324,9 +396,64 @@ export function create_store(db: Database) {
 				total: row.total ?? 0,
 				by_kind: { text: row.text ?? 0, link: row.link ?? 0, image: row.image ?? 0, audio: row.audio ?? 0 },
 				pending: row.pending ?? 0,
-				error: row.error ?? 0
+				error: row.error ?? 0,
+				feeds: row.feeds ?? 0
 			};
-		}
+		},
+
+		list_feeds: (): Feed[] => feeds_stmt.all().map(to_feed) as Feed[],
+		get_feed: (id: number): Feed | null => to_feed(feed_stmt.get({ id })),
+		get_feed_by_url: (url: string): Feed | null => to_feed(feed_by_url_stmt.get({ url })),
+
+		insert_feed(fields: Partial<Feed> & { url: string }): Feed {
+			const { lastInsertRowid } = feed_insert_stmt.run({
+				type: fields.type ?? 'rss',
+				url: fields.url,
+				title: fields.title ?? '',
+				site_url: fields.site_url ?? null,
+				schedule: fields.schedule ?? DEFAULT_SCHEDULE,
+				full_text: fields.full_text === false ? 0 : 1,
+				enabled: fields.enabled === false ? 0 : 1,
+				retention_days: fields.retention_days ?? null,
+				retention_max: fields.retention_max ?? null,
+				now: Date.now()
+			});
+			return store.get_feed(Number(lastInsertRowid))!;
+		},
+
+		update_feed(id: number, patch: Partial<Feed>): Feed | null {
+			const sets: string[] = [];
+			const params: Params = { id };
+			for (const [key, value] of Object.entries(patch)) {
+				if (!FEED_PATCHABLE.has(key)) continue;
+				sets.push(`${key} = $${key}`);
+				params[key] = typeof value === 'boolean' ? (value ? 1 : 0) : ((value ?? null) as Param);
+			}
+			if (!sets.length) return store.get_feed(id);
+			db.query<never, Params>(`UPDATE feeds SET ${sets.join(', ')} WHERE id = $id`).run(params);
+			return store.get_feed(id);
+		},
+
+		/** The items outlive the feed row; their `feed_id` goes null on its own. */
+		delete_feed(id: number) {
+			feed_delete_stmt.run({ id });
+		},
+		feed_items: (feed_id: number): number[] => feed_items_stmt.all({ feed_id }).map((r) => r.id),
+
+		seen_entry: (feed_id: number, guid: string): boolean => feed_entry_stmt.get({ feed_id, guid }) != null,
+		record_entry(feed_id: number, guid: string, item_id: number | null) {
+			feed_entry_insert_stmt.run({ feed_id, guid, item_id, now: Date.now() });
+		},
+		entry_of: (item_id: number): FeedEntryRow | null => feed_entry_by_item_stmt.get({ item_id }) ?? null,
+		feed_entry_items: (feed_id: number): Item[] => feed_entry_items_stmt.all({ feed_id }).map(to_item) as Item[],
+		feed_counts(): Record<number, number> {
+			const out: Record<number, number> = {};
+			for (const row of feed_counts_stmt.all()) out[row.feed_id] = row.n;
+			return out;
+		},
+
+		/** The exclusion set the in-memory vector indexes filter against. */
+		feed_item_ids: (): Set<number> => new Set(feed_item_ids_stmt.all().map((r) => r.id))
 	};
 
 	return store;

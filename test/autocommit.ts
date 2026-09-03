@@ -38,4 +38,4 @@ check('on: the timer update commits itself', await mount_and_wait(true), ['1']);
 	check('auto-commit does not outlive the run', native.getRetainedElementCount(), 0);
 }
 
-finish('autocommit');
+finish('autocommit', 3);

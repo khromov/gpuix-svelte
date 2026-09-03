@@ -19,6 +19,7 @@ check('so does an <img>', pe('pic'), 'none');
 check('a child with its own listener keeps its hitbox', pe('button'), null);
 check("while that child's decoration loses it", pe('inner'), 'none');
 check('an <input> keeps it', pe('field'), null);
+check('so does a painted element that is merely focusable', pe('focusable'), null);
 check('a scroll container keeps it', pe('scroller'), null);
 
 click_test_id('badge');
@@ -75,4 +76,4 @@ check('and still leaves the other alone', find_test_id('own')!.style!.color, 'bl
 	check('removing the attribute restores the default', badge_pe(), null);
 }
 
-finish('hitbox');
+finish('hitbox', 19);

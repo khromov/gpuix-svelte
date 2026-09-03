@@ -13,6 +13,9 @@
 	import { set_mode, theme } from '../lib/theme.svelte.ts';
 	import { toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
+	import Toggle from '../components/Toggle.svelte';
+	import { push } from '../lib/router.svelte.ts';
+	import { SCHEDULES } from '../lib/feeds/schedules.ts';
 
 	const app = get_app();
 	const settings = app.settings;
@@ -24,6 +27,8 @@
 		visionModel: settings.get('llm.visionModel') ?? ''
 	});
 	let language = $state(settings.get('stt.language') ?? '');
+	let include_feeds = $state(settings.get('search.includeFeeds') === true);
+	let schedule = $state(settings.get('feeds.schedule'));
 	let testing = $state(false);
 
 	const save = (key: SettingKey, prop: keyof typeof llm, value: string) => {
@@ -173,6 +178,24 @@
 			<div class="row">
 				<Button label={data.stuck > 0 ? `Requeue ${data.stuck} unfinished` : 'Requeue unfinished'} icon="refresh" small disabled={data.stuck === 0} onclick={requeue} />
 				<Button label={data.counts.error > 0 ? `Retry ${data.counts.error} failed` : 'Retry failed'} icon="refresh" small disabled={data.counts.error === 0} onclick={retry_failed} />
+			</div>
+		</div>
+
+		<div class="section">
+			<div class="heading">Feeds</div>
+			<div class="hint">Subscriptions bring in far more than you do by hand, so what they bring is kept out of the way until you ask for it.</div>
+			<Toggle
+				label="Include feeds when you search"
+				hint="Also covers Ask and an item's Related list. A single query can override it with feeds:on."
+				checked={include_feeds}
+				onchange={(v) => { include_feeds = v; settings.set('search.includeFeeds', v); }}
+				testid="include-feeds"
+			/>
+			<div class="hint">How often a new feed checks for entries — each feed can be given its own on the Feeds page.</div>
+			<Segmented options={SCHEDULES} value={schedule} onchange={(v) => { schedule = v; settings.set('feeds.schedule', v); }} />
+			<div class="row">
+				<Button label={data.feeds.length ? `Manage ${data.feeds.length} feed${data.feeds.length === 1 ? '' : 's'}` : 'Add a feed'} icon="rss" small onclick={() => push('/feeds')} />
+				<div class="hint">{data.counts.feeds} item{data.counts.feeds === 1 ? '' : 's'} came from feeds.</div>
 			</div>
 		</div>
 

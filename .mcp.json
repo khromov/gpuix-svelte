@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "svelte": {
+      "type": "http",
+      "url": "https://mcp.svelte.dev/mcp"
+    },
+    "bun-docs": {
+      "type": "http",
+      "url": "https://bun.com/docs/mcp"
+    },
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": [
+        "chrome-devtools-mcp@latest",
+        "--headless=true",
+        "--chrome-arg=--no-sandbox",
+        "--chrome-arg=--disable-setuid-sandbox"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -52,4 +52,4 @@ process.on('message', async (msg: WorkerRequest) => {
 });
 process.on('disconnect', () => process.exit(0));
 
-send({ type: 'hello', pid: process.pid, versions: { transformers: 'fake' }, device: 'fake' });
+send({ type: 'hello', pid: process.pid, versions: { transformers: 'fake' } });

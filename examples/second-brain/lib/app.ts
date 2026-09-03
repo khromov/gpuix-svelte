@@ -12,6 +12,7 @@ import { create_bus } from './bus.ts';
 import { capabilities as get_capabilities } from './capabilities.ts';
 import { read_image } from './clipboard.ts';
 import { open_db } from './db.ts';
+import { create_feeds } from './feeds/poll.ts';
 import { create_ingestor } from './ingest.ts';
 import { install_exit_handlers } from './lifecycle.ts';
 import { create_llm } from './llm.ts';
@@ -61,7 +62,6 @@ export function default_ml({ models_dir, autoload = true, on_status }: { models_
 	return new MlClient({
 		worker_path: WORKER,
 		models_dir,
-		device: process.env.GPUIX_BRAIN_ML === 'wasm' ? 'wasm' : null,
 		autoload,
 		on_status
 	});
@@ -90,7 +90,21 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 	ml.on_status = on_status;
 
 	const ingest = create_ingestor({ store, blobs, vectors, images, ml, media, settings, bus, fetch: fetch_fn });
-	const search = create_search({ store, vectors, images, ml });
+	const search = create_search({ store, vectors, images, ml, settings });
+
+	// Retention and "remove a feed with its items" reuse the whole teardown, blobs included.
+	const delete_item = (id: number): boolean => {
+		const gone = store.delete_item(id);
+		if (!gone) return false;
+		vectors.remove(gone.chunk_ids);
+		images.remove([id]);
+		blobs.forget(gone.blob_ids);
+		store.reclaim();
+		bus.emit({ type: 'item', id, status: 'deleted' });
+		return true;
+	};
+
+	const feeds = create_feeds({ store, settings, bus, ingest, delete_item, fetch: fetch_fn });
 
 	// Items added while the worker was down get their vectors once it comes up.
 	let embed_ready = false;
@@ -134,6 +148,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		ingest,
 		media,
 		bus,
+		feeds,
 
 		add_note({ title = '', body }: { title?: string; body: string }): Item {
 			const text = body.trim();
@@ -218,16 +233,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 			return store.get_item(id);
 		},
 
-		delete_item(id: number): boolean {
-			const gone = store.delete_item(id);
-			if (!gone) return false;
-			vectors.remove(gone.chunk_ids);
-			images.remove([id]);
-			blobs.forget(gone.blob_ids);
-			store.reclaim();
-			bus.emit({ type: 'item', id, status: 'deleted' });
-			return true;
-		},
+		delete_item,
 
 		/** Replaces an image's body with a vision model's description. */
 		async describe_image(id: number): Promise<string> {
@@ -278,6 +284,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		snapshot: () => ({ ml: ml.status, queue: ingest.stats, counts: store.counts() }),
 		close() {
 			clearInterval(heal);
+			feeds.stop();
 			ml.stop_sync();
 			db.close();
 		}
@@ -307,6 +314,7 @@ export async function create_app({ data_dir = null, ml = null, fetch: fetch_fn =
 		})
 		.catch((err) => warn('ML worker failed to start:', (err as Error).message));
 	ingest.resume();
+	feeds.start();
 	log(`data dir ${dirs.root} · ${store.counts().total} items · ${vectors.size} vectors`);
 	return app;
 }

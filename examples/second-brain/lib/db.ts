@@ -69,6 +69,40 @@ CREATE TRIGGER items_au AFTER UPDATE OF title, body ON items BEGIN
   INSERT INTO items_fts(items_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
   INSERT INTO items_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
 END;
+`,
+	`
+CREATE TABLE feeds (
+  id             INTEGER PRIMARY KEY,
+  type           TEXT NOT NULL DEFAULT 'rss',
+  url            TEXT NOT NULL UNIQUE,
+  title          TEXT NOT NULL DEFAULT '',
+  site_url       TEXT,
+  schedule       TEXT NOT NULL DEFAULT '0 0 */4 * * *',
+  full_text      INTEGER NOT NULL DEFAULT 1,
+  enabled        INTEGER NOT NULL DEFAULT 1,
+  retention_days INTEGER,
+  retention_max  INTEGER,
+  etag           TEXT,
+  last_modified  TEXT,
+  last_polled_at INTEGER,
+  last_ok_at     INTEGER,
+  last_error     TEXT,
+  created_at     INTEGER NOT NULL
+);
+
+-- One row per entry ever seen. It outlives its item (ON DELETE SET NULL), so an entry
+-- you deleted or retention pruned is never fetched again.
+CREATE TABLE feed_entries (
+  feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
+  guid    TEXT NOT NULL,
+  item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  seen_at INTEGER NOT NULL,
+  PRIMARY KEY (feed_id, guid)
+);
+CREATE INDEX feed_entries_item ON feed_entries(item_id) WHERE item_id IS NOT NULL;
+
+ALTER TABLE items ADD COLUMN feed_id INTEGER REFERENCES feeds(id) ON DELETE SET NULL;
+CREATE INDEX items_feed ON items(feed_id) WHERE feed_id IS NOT NULL;
 `
 ];
 

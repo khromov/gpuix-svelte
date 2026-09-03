@@ -1,5 +1,8 @@
 <script lang="ts">
+	import type { GpuixEvent } from 'gpuix-svelte';
 	import type { ChatMessage } from '../lib/chat.svelte.ts';
+	import { message_actions } from '../lib/menus.ts';
+	import { open_menu } from '../lib/ui.svelte.ts';
 	import Markdown from './Markdown.svelte';
 	import SourceChip from './SourceChip.svelte';
 	import Spinner from './Spinner.svelte';
@@ -7,15 +10,16 @@
 	let { message }: { message: ChatMessage } = $props();
 
 	const user = $derived(message.role === 'user');
+	const show = (e: GpuixEvent) => open_menu(e, message_actions(message), user ? 'Your question' : 'Answer');
 </script>
 
 {#if user}
 	<div class="row user">
-		<div class="bubble user">{message.content}</div>
+		<div class="bubble user" onauxclick={show}>{message.content}</div>
 	</div>
 {:else}
 	<div class="row">
-		<div class="answer">
+		<div class="answer" onauxclick={show}>
 			{#if message.content}
 				<Markdown source={message.content} />
 			{:else if message.streaming}

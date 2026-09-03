@@ -134,10 +134,15 @@ export function resample(samples: Float32Array, fromRate: number, toRate: number
 	return out;
 }
 
-/** 16-bit PCM with the classic 44-byte header; `samples` are interleaved when `channels > 1`. */
-export function encode_wav(samples: Float32Array, sampleRate = 16000, channels = 1): Uint8Array {
-	const dataLength = samples.length * 2;
-	const bytes = new Uint8Array(44 + dataLength);
+export const WAV_HEADER_SIZE = 44;
+
+/**
+ * Builds the classic 44-byte 16-bit PCM header — the counterpart to `wav_header`, which
+ * parses one. A recorder streaming to disk writes it with `dataLength` 0 and rewrites it
+ * once the total is known.
+ */
+export function build_wav_header(dataLength: number, sampleRate = 16000, channels = 1): Uint8Array {
+	const bytes = new Uint8Array(WAV_HEADER_SIZE);
 	const view = new DataView(bytes.buffer);
 	const str = (at: number, s: string) => {
 		for (let i = 0; i < s.length; i++) bytes[at + i] = s.charCodeAt(i);
@@ -156,11 +161,26 @@ export function encode_wav(samples: Float32Array, sampleRate = 16000, channels =
 	view.setUint16(34, 16, true);
 	str(36, 'data');
 	view.setUint32(40, dataLength, true);
+	return bytes;
+}
 
+/** Interleaved 16-bit little-endian PCM, clamped to the representable range. */
+export function pcm16_from_float(samples: Float32Array): Uint8Array {
+	const bytes = new Uint8Array(samples.length * 2);
+	const view = new DataView(bytes.buffer);
 	for (let i = 0; i < samples.length; i++) {
 		const s = Math.max(-1, Math.min(1, samples[i]));
-		view.setInt16(44 + i * 2, Math.round(s * 32767), true);
+		view.setInt16(i * 2, Math.round(s * 32767), true);
 	}
+	return bytes;
+}
+
+/** 16-bit PCM with the classic 44-byte header; `samples` are interleaved when `channels > 1`. */
+export function encode_wav(samples: Float32Array, sampleRate = 16000, channels = 1): Uint8Array {
+	const pcm = pcm16_from_float(samples);
+	const bytes = new Uint8Array(WAV_HEADER_SIZE + pcm.length);
+	bytes.set(build_wav_header(pcm.length, sampleRate, channels));
+	bytes.set(pcm, WAV_HEADER_SIZE);
 	return bytes;
 }
 

@@ -4,7 +4,6 @@
 	let board = $state<(Mark | null)[]>(Array(9).fill(null));
 	let xIsNext = $state(true);
 	let scores = $state<Record<Mark | 'draws', number>>({ X: 0, O: 0, draws: 0 });
-	let counted = $state(false);
 
 	const LINES = [
 		[0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -19,27 +18,19 @@
 		winner ? `${winner} wins!` : isDraw ? "It's a draw" : `${xIsNext ? 'X' : 'O'} to move`
 	);
 
-	$effect(() => {
-		if (counted) return;
-		if (winner) {
-			scores[winner]++;
-			counted = true;
-		} else if (isDraw) {
-			scores.draws++;
-			counted = true;
-		}
-	});
-
 	function play(i: number) {
 		if (board[i] || winner) return;
 		board[i] = xIsNext ? 'X' : 'O';
 		xIsNext = !xIsNext;
+		// Reading the deriveds back after the move is what scores the round exactly once: the
+		// guard above refuses any further move into a won board.
+		if (winner) scores[winner]++;
+		else if (isDraw) scores.draws++;
 	}
 
 	function newRound() {
 		board = Array(9).fill(null);
 		xIsNext = true;
-		counted = false;
 	}
 
 	function resetScores() {

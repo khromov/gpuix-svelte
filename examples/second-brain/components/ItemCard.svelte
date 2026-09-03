@@ -1,8 +1,12 @@
 <script lang="ts">
-	import { ago, display_title, get_app, preview, status_text } from '../lib/data.svelte.ts';
+	import type { GpuixEvent } from 'gpuix-svelte';
+	import { ago, data, display_title, get_app, preview, status_text } from '../lib/data.svelte.ts';
+	import { feed_actions, item_actions } from '../lib/menus.ts';
+	import { push } from '../lib/router.svelte.ts';
 	import { match_ranges } from '../lib/rank.ts';
 	import type { Item } from '../lib/store.ts';
 	import { resolved } from '../lib/theme.svelte.ts';
+	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import KindBadge from './KindBadge.svelte';
@@ -39,11 +43,22 @@
 		const ranges = match_ranges(s, terms);
 		return ranges.length ? { ranges, color: MARK[mode], radius: 3 } : null;
 	};
+	const feed = $derived(item.feed_id == null ? null : (data.feeds.find((f) => f.id === item.feed_id) ?? null));
 	const title_mark = $derived(mark(title));
 	const text_mark = $derived(mark(text));
+
+	const show = (e: GpuixEvent) => open_menu(e, item_actions(item), title);
 </script>
 
-<div class="card" class:failed class:compact hitbox="self" onclick={onopen} testId="item-{item.id}">
+<div
+	class="card"
+	class:failed
+	class:compact
+	hitbox="self"
+	onclick={(e: GpuixEvent) => (is_secondary(e) ? show(e) : onopen(item))}
+	onauxclick={show}
+	testId="item-{item.id}"
+>
 	<Thumb {item} size={compact ? 40 : 52} />
 	<div class="body">
 		{#if title_mark}
@@ -60,6 +75,17 @@
 		{/if}
 		<div class="meta">
 			<KindBadge kind={item.kind} />
+			{#if feed}
+				<div
+					class="feed"
+					hitbox="self"
+					onclick={(e: GpuixEvent) => (is_secondary(e) ? open_menu(e, feed_actions(feed), feed.title) : push('/feeds'))}
+					onauxclick={(e: GpuixEvent) => open_menu(e, feed_actions(feed), feed.title)}
+				>
+					<Icon name="rss" size={11} tone="faint" />
+					<div class="feed-name">{feed.title}</div>
+				</div>
+			{/if}
 			{#if busy}
 				<Spinner size={11} />
 				<div class="status">{status_text(item)}</div>
@@ -92,6 +118,8 @@
 	.snippet { font-size: 13px; line-height: 18px; line-clamp: 3; color: var(--inkMuted); }
 	.meta { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 11px; line-height: 16px; color: var(--inkFaint); }
 	.error { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--danger); }
+	.feed { display: flex; flex-direction: row; align-items: center; gap: 4px; max-width: 160px; cursor: pointer; }
+	.feed-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--inkFaint); }
 	.signal { display: flex; flex-direction: row; align-items: center; gap: 4px; padding: 0 6px; border-width: 1px; border-radius: 4px; border-color: var(--border); color: var(--inkMuted); }
 	.signal.clip { background-color: var(--plumSoft); border-color: var(--plumBorder); color: var(--plum); font-weight: 600; }
 	.actions { display: flex; flex-direction: row; align-items: center; }

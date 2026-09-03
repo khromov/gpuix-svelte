@@ -8,16 +8,17 @@
 	import { markdown_blocks } from '../lib/blocks.ts';
 	import { playback, toggle_play } from '../lib/capture.svelte.ts';
 	import { write_text } from '../lib/clipboard.ts';
-	import { ago, blob_src, data, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
-	import { choose_save_path } from '../lib/dialogs.ts';
-	import { back, push } from '../lib/router.svelte.ts';
+	import { ago, blob_src, data, display_title, format_duration, get_app, status_text } from '../lib/data.svelte.ts';
+	import { export_item, item_actions } from '../lib/menus.ts';
+	import { back, push, replace } from '../lib/router.svelte.ts';
 	import { open_url } from '../lib/shell.ts';
-	import { blur } from 'gpuix-svelte';
+	import { blur, type GpuixEvent } from 'gpuix-svelte';
+	import { untrack } from 'svelte';
 	import type { SearchHit } from '../lib/search.ts';
-	import { toast } from '../lib/ui.svelte.ts';
+	import { open_menu, toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
 
-	let { params }: { params: Record<string, string> } = $props();
+	let { params, query }: { params: Record<string, string>; query: Record<string, string> } = $props();
 
 	const id = $derived(Number(params.id));
 	const item = $derived(data.items.find((i) => i.id === id) ?? get_app().get_item(id));
@@ -33,6 +34,17 @@
 	// One <markdown> per block: a native markdown element lays out its whole document every
 	// frame, and a virtual row is only built near the viewport.
 	const blocks = $derived(markdown_blocks(body_view));
+	const feed = $derived(item?.feed_id == null ? null : (data.feeds.find((f) => f.id === item.feed_id) ?? null));
+	// A feed entry whose page was never fetched still knows when the poll picked it up.
+	const entry = $derived(item?.feed_id == null ? null : get_app().feeds.entry(item.id));
+	// An entry that carried no date was created at the poll, so only a clearly older one is a publish date.
+	const published = $derived(entry != null && item != null && item.created_at < entry.seen_at - 60_000);
+	const fetched = $derived.by(() => {
+		if (!item) return '';
+		if (item.meta.fetched_at) return `Fetched ${ago(item.meta.fetched_at)}`;
+		if (entry) return `Received ${ago(entry.seen_at)}`;
+		return '';
+	});
 	const llm = $derived(data.capabilities?.llm?.ok ?? false);
 	const vision = $derived(llm && !!get_app().settings.get('llm.visionModel'));
 
@@ -42,6 +54,7 @@
 	let related = $state<SearchHit[]>([]);
 	let working = $state<string | null>(null);
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let generation = 0;
 
 	function start_edit() {
 		draft = { title: item!.title, body: item!.body };
@@ -78,18 +91,6 @@
 		toast('Deleted');
 	}
 
-	/** The database is the only copy, so there is nothing on disk to reveal — save one out instead. */
-	async function export_file() {
-		const app = get_app();
-		const blob = app.blobs.info(item!.file_blob!);
-		if (!blob) throw new Error('no file on this item');
-		const suggested = item!.meta.original_name?.replace(/\.[^.]+$/, '') || item!.title || `substrate-${item!.id}`;
-		const dest = await choose_save_path(`${suggested}.${blob.ext}`);
-		if (!dest) return;
-		await Bun.write(dest, app.blobs.bytes(blob.id)!);
-		toast(`Exported to ${dest}`);
-	}
-
 	async function run(label: string, fn: () => Promise<unknown>) {
 		working = label;
 		try {
@@ -102,19 +103,35 @@
 	}
 
 	$effect(() => {
-		if (item?.status === 'ready') {
-			get_app()
-				.related(id)
-				.then((r) => (related = r))
-				.catch(() => (related = []));
-		}
+		if (item?.status !== 'ready') return;
+		// An edit or a pipeline status change re-runs this with a fetch already in flight.
+		const gen = ++generation;
+		get_app()
+			.related(id)
+			.then((r) => {
+				if (gen === generation) related = r;
+			})
+			.catch(() => {
+				if (gen === generation) related = [];
+			});
 	});
+
+	// Where a card's Edit action lands; the flag is dropped from the URL so leaving the editor sticks.
+	$effect(() => {
+		if (query.edit !== '1' || !item) return;
+		untrack(() => {
+			if (!editing) start_edit();
+			replace(`/item/${id}`);
+		});
+	});
+
+	const show = (e: GpuixEvent) => open_menu(e, item_actions(item!, { on_item: true }), display_title(item!));
 </script>
 
 {#if !item}
 	<div class="missing">This item no longer exists.</div>
 {:else}
-	<div class="route">
+	<div class="route" onauxclick={show}>
 		<div class="bar">
 			{#if editing}
 				<Button label="Done" icon="check" variant="primary" small onclick={done} testid="edit-done" />
@@ -135,7 +152,7 @@
 					<Button label={working === 'summarize' ? 'Summarizing…' : 'Summarize'} icon="sparkles" small disabled={working !== null} onclick={() => run('summarize', () => get_app().summarize(id))} />
 				{/if}
 				{#if item.file_blob}
-					<Button label={working === 'export' ? 'Exporting…' : 'Export…'} icon="folder" small disabled={working !== null} onclick={() => run('export', export_file)} />
+					<Button label={working === 'export' ? 'Exporting…' : 'Export…'} icon="folder" small disabled={working !== null} onclick={() => run('export', () => export_item(item))} />
 				{/if}
 				{#if item.body}
 					<Button label="Copy" icon="copy" small onclick={() => write_text(item.body).then(() => toast('Copied'))} />
@@ -162,13 +179,15 @@
 			</div>
 		{:else}
 			<Scroller virtual estimate={44} pad="0 24px 32px 24px" testid="item-body">
-				<div class="row header">
+				<div class="row header" onauxclick={show}>
 					<div class="meta">
 						<KindBadge kind={item.kind} />
-						<div>{ago(item.created_at)}</div>
+						<div>{published ? `Published ${ago(item.created_at)}` : ago(item.created_at)}</div>
 						{#if item.kind === 'audio' && item.duration}<div>{format_duration(item.duration)}</div>{/if}
 						{#if item.kind === 'image' && item.width}<div>{item.width} × {item.height}</div>{/if}
 						{#if item.meta.site_name}<div>{item.meta.site_name}</div>{/if}
+						{#if feed && feed.title !== item.meta.site_name}<div>{feed.title}</div>{/if}
+						{#if fetched}<div>{fetched}</div>{/if}
 						{#if busy}<Spinner size={11} /><div>{status_text(item)}</div>{/if}
 					</div>
 					<div class="title">{item.title || 'Untitled'}</div>

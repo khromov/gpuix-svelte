@@ -2,6 +2,7 @@
 	import type { AnyComponent } from 'gpuix-svelte';
 	import Static from './HotChild.svelte';
 	import './HotSideEffect.svelte';
+	import './ModuleStore.svelte.ts';
 	import Shipped from 'gpuix-svelte/components/Scroller.svelte';
 
 	// import Commented from './HotComment.svelte';

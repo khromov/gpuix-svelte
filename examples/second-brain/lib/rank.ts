@@ -47,10 +47,16 @@ const KIND_ALIASES: Record<string, Kind> = {
 };
 
 /** `kind:link`, `kind:image,audio` and `is:note` narrow a query; the rest is the text. */
-export function parse_query(query: string | null | undefined): { text: string; kinds: Kind[] | null; unknown: string[] } {
+export function parse_query(query: string | null | undefined): { text: string; kinds: Kind[] | null; unknown: string[]; feeds: boolean | null } {
 	const kinds = new Set<Kind>();
 	const unknown: string[] = [];
+	let feeds: boolean | null = null;
 	const text = (query ?? '')
+		// `feeds:on` looks inside subscriptions the setting normally keeps out of the way.
+		.replace(/(?:^|\s)feeds:(on|off|only|yes|no)/gi, (_, value: string) => {
+			feeds = /^(on|only|yes)$/i.test(value);
+			return ' ';
+		})
 		.replace(/(?:^|\s)(?:kind|is|type):([\w,]*)/gi, (_, list: string) => {
 			for (const word of list.split(',').filter(Boolean)) {
 				const kind = KIND_ALIASES[word.toLowerCase()];
@@ -61,7 +67,7 @@ export function parse_query(query: string | null | undefined): { text: string; k
 		})
 		.replace(/\s+/g, ' ')
 		.trim();
-	return { text, kinds: kinds.size ? [...kinds] : null, unknown };
+	return { text, kinds: kinds.size ? [...kinds] : null, unknown, feeds };
 }
 
 /** The query's words, longest first, without FTS syntax. */

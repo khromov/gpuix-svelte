@@ -14,6 +14,7 @@
 			<div class="inner" testId="inner">button</div>
 		</div>
 		<input testId="field" />
+		<div class="focusable" tabindex="0" testId="focusable">focusable</div>
 		<div class="scroller" testId="scroller"><div class="tall">tall</div></div>
 	</div>
 
@@ -33,6 +34,7 @@
 	.pic { width: 20px; height: 20px; }
 	.button { padding: 4px; background-color: #777777; }
 	.inner { padding: 4px 8px; background-color: #999999; }
+	.focusable { padding: 4px; background-color: #444444; }
 	.scroller { height: 30px; width: 60px; overflow-y: scroll; }
 	.tall { height: 100px; }
 	.parent { display: flex; flex-direction: row; gap: 8px; }

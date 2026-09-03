@@ -20,4 +20,4 @@ bump();
 settle();
 check('a direct mutation re-renders the component', all_text().includes('count is 2'), true);
 
-finish('module');
+finish('module', 4);

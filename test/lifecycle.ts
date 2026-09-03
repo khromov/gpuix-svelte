@@ -89,4 +89,4 @@ import { check, finish } from 'gpuix-svelte/test';
 
 set_auto_commit(false);
 
-finish('lifecycle');
+finish('lifecycle', 7);
