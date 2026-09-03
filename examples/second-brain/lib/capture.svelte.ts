@@ -8,7 +8,7 @@ import { get_app } from './data.svelte.ts';
 import { choose_files } from './dialogs.ts';
 import { warn } from './log.ts';
 import { play, stop_all } from './player.ts';
-import { init_recorder } from './recorder.ts';
+import { init_recorder, permission_hint } from './recorder.ts';
 import { looks_like_url } from './scrape.ts';
 import type { Item } from './store.ts';
 import { toast } from './ui.svelte.ts';
@@ -99,7 +99,7 @@ export async function start_recording() {
 	const status = await rec.requestPermission();
 	capture.busy = false;
 	if (status !== 'authorized') {
-		toast(`Microphone ${status} — allow your terminal under System Settings → Privacy & Security → Microphone`, 'error');
+		toast(`Microphone ${status} — ${permission_hint()}`, 'error');
 		return;
 	}
 	const path = `${app.dirs.tmp}/recording-${Date.now()}.wav`;
@@ -131,7 +131,10 @@ export async function stop_recording() {
 		return;
 	}
 	await get_app().add_audio(recording.path, { move: true, recorded: true });
-	toast('Recording saved — transcribing', 'success');
+	// A muted or wrong default input records perfect silence with no error anywhere; without
+	// this the first sign is an empty transcript minutes later.
+	if (rec.peak?.() === 0) toast('Recording saved, but it is silent — check the input device and microphone permission', 'error');
+	else toast('Recording saved — transcribing', 'success');
 }
 
 export function toggle_play(item: Item) {

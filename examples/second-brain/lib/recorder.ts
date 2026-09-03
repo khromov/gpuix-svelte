@@ -1,7 +1,9 @@
 /**
- * GPUI has no microphone, so recording goes through AVFoundation in this process:
- * an Objective-C shim compiled on first run and loaded over bun:ffi, as
- * examples/liquid-glass-ffi does for AppKit. A compiled .app ships the dylib prebuilt.
+ * GPUI has no microphone, so recording happens in this process over bun:ffi: AVFoundation
+ * through an Objective-C shim compiled on first run (a compiled .app ships the dylib
+ * prebuilt), as examples/liquid-glass-ffi does for AppKit, and winmm on Windows, which
+ * needs no shim at all. Both write a 16 kHz mono WAV to a path and answer level/elapsed
+ * while running; no audio bytes cross FFI.
  */
 
 import { existsSync, mkdirSync, statSync } from 'node:fs';
@@ -23,7 +25,13 @@ export type AuthStatus = 'notDetermined' | 'authorized' | 'denied' | 'restricted
 export type PermissionResult = 'authorized' | 'denied' | 'restricted' | 'timeout';
 
 const STATUS: AuthStatus[] = ['notDetermined', 'authorized', 'denied', 'restricted'];
-const HINT = 'allow your terminal under System Settings → Privacy & Security → Microphone, then relaunch';
+
+// Windows attributes the access to bun.exe, the runtime the bin spawns — the same wrinkle
+// as macOS granting it to the terminal rather than to Substrate.
+const WINDOWS_HINT = 'allow desktop apps under Settings → Privacy & security → Microphone (Windows grants it to bun.exe, not to Substrate)';
+const MACOS_HINT = 'allow your terminal under System Settings → Privacy & Security → Microphone, then relaunch';
+
+export const permission_hint = () => (process.platform === 'win32' ? WINDOWS_HINT : MACOS_HINT);
 
 export interface Recorder {
 	available: boolean;
@@ -35,6 +43,8 @@ export interface Recorder {
 	level: () => number;
 	elapsed: () => number;
 	isRecording: () => boolean;
+	/** Loudest sample of the last recording, 0..1; absent where the backend can't tell. */
+	peak?: () => number;
 }
 
 const unavailable = (reason: string): Recorder => ({
@@ -61,15 +71,22 @@ export function init_recorder(): Promise<Recorder> {
 
 export function recorder_available(): { ok: boolean; reason?: string } {
 	if (result) return result.available ? { ok: true } : { ok: false, reason: result.reason };
-	return { ok: false, reason: promise ? 'microphone shim still loading' : 'microphone shim not initialised' };
+	return { ok: false, reason: promise ? 'microphone still starting up' : 'microphone not initialised' };
 }
 
 async function build(): Promise<Recorder> {
-	if (process.platform !== 'darwin') return unavailable(`recording needs macOS (AVFoundation); not available on ${process.platform}`);
-	if (process.env.GPUIX_BRAIN_RECORDER === '0') return unavailable('microphone shim disabled by GPUIX_BRAIN_RECORDER=0');
+	if (process.platform !== 'darwin' && process.platform !== 'win32') {
+		return unavailable(`recording needs macOS or Windows; not available on ${process.platform}`);
+	}
+	if (process.env.GPUIX_BRAIN_RECORDER === '0') return unavailable('microphone disabled by GPUIX_BRAIN_RECORDER=0');
 	if (!process.versions.bun) return unavailable('recording needs Bun (bun:ffi)');
 
 	try {
+		if (process.platform === 'win32') {
+			const { build_windows_recorder } = await import('./recorder-win.ts');
+			return build_windows_recorder(permission_hint());
+		}
+
 		if (RESOURCES) {
 			if (!existsSync(DYLIB)) throw new Error('the app bundle has no recorder shim');
 		} else if (!existsSync(DYLIB) || statSync(DYLIB).mtimeMs < statSync(SRC).mtimeMs) {
@@ -116,11 +133,11 @@ async function build(): Promise<Recorder> {
 			start(path: string) {
 				const status = STATUS[s.substrate_rec_auth_status()];
 				if (status !== 'authorized') {
-					throw new Error(status === 'notDetermined' ? 'microphone permission not granted yet' : `microphone access ${status} — ${HINT}`);
+					throw new Error(status === 'notDetermined' ? 'microphone permission not granted yet' : `microphone access ${status} — ${MACOS_HINT}`);
 				}
 				mkdirSync(dirname(path), { recursive: true });
 				const code = s.substrate_rec_start(path);
-				if (code !== 0) throw new Error(`${s.substrate_rec_last_error()} — ${HINT}`);
+				if (code !== 0) throw new Error(`${s.substrate_rec_last_error()} — ${MACOS_HINT}`);
 				current = path;
 			},
 

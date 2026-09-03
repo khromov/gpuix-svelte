@@ -24,8 +24,8 @@ to run.
 ## What it does
 
 - **Capture**: a note (Enter saves, Shift+Enter is a newline), a URL (scraped to readable text with
-  its title and preview image), images via the macOS file chooser or straight from the clipboard,
-  audio via the microphone or an imported WAV or MP3.
+  its title and preview image), images via the file chooser or straight from the clipboard,
+  audio via the microphone (macOS and Windows) or an imported WAV or MP3.
 - **On-device models**, all through [transformers.js](https://huggingface.co/docs/transformers.js)
   in a child Bun process: `nomic-ai/nomic-embed-text-v1.5` for text embeddings (768-d, 8k-token
   context), `onnx-community/whisper-base` for transcription, `Xenova/clip-vit-base-patch32` so a
@@ -82,7 +82,9 @@ examples/second-brain/
   lib/feeds/             the poller (poll.ts, croner) over a source registry; rss.ts reads RSS 2.0,
                          RDF and Atom, and another kind is a module plus an entry in SOURCES
   ml/worker.ts           the child process that owns the models; ml/doctor.ts is the spike
-  native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use
+  native/recorder-shim.m AVAudioRecorder over bun:ffi, compiled by clang on first use (macOS);
+                         lib/recorder-win.ts and lib/player-win.ts are the winmm equivalents,
+                         over the shared FFI surface in lib/winmm.ts
   scripts/import-hn.ts   the Hacker News importer; frame-cost.ts prints GPUI draw times per route
                          (npm run brain:frames), against a copy of the data
   test/                  brain.ts (data + native, no models) and smoke.ts (headless UI)
@@ -141,7 +143,7 @@ All optional, all `GPUIX_BRAIN_*`:
 | `THEME=light\|dark` | ignore the stored theme and the system setting |
 | `ML=off` | disable the ML worker entirely |
 | `OFFLINE=1` | never download models |
-| `RECORDER=0` | don't compile or load the microphone shim |
+| `RECORDER=0` | don't load the microphone backend (nor compile the shim, on macOS) |
 | `FEEDS=0` | no scheduled feed polling (manual refresh still works); implied by `OFFLINE=1` |
 | `LLM_URL`, `LLM_KEY`, `LLM_MODEL` | override Settings; the key never has to be stored |
 | `RESOURCES=/path` | where a compiled app's worker and shim live (auto-detected inside a .app) |
@@ -154,11 +156,11 @@ All optional, all `GPUIX_BRAIN_*`:
 
 | Need | Stand-in |
 |---|---|
-| microphone | `native/recorder-shim.m`: AVAudioRecorder writing 16 kHz mono WAV, loaded with `bun:ffi` (macOS; from a checkout the terminal you launch from is what gets the permission prompt, the .app asks in its own name) |
-| file picker | `osascript … choose file` |
-| clipboard | `pbpaste`/`pbcopy` for text, `Bun.Image.fromClipboard()` for images |
-| audio playback | `afplay` |
-| system dark mode | `defaults read -g AppleInterfaceStyle`, polled every 3 s |
+| microphone | two backends behind one interface (`lib/recorder.ts`), both writing 16 kHz mono WAV over `bun:ffi`. macOS: `native/recorder-shim.m`, AVAudioRecorder, compiled by clang on first use. Windows: `lib/recorder-win.ts`, winmm's waveIn with WAVE_MAPPER converting to that format for us — a flat C ABI, so there is nothing to compile. Permission belongs to the process that asks, which from a checkout is your terminal on macOS and `bun.exe` on Windows; the .app asks in its own name |
+| file picker | `osascript … choose file` (macOS and Linux; on Windows you type a path) |
+| clipboard | `pbpaste`/`pbcopy` on macOS and `Get-Clipboard`/`Set-Clipboard` on Windows for text, `Bun.Image.fromClipboard()` for images |
+| audio playback | `afplay` on macOS, `paplay`/`ffplay`/`aplay` on Linux; on Windows the clip is decoded in-process and pushed to winmm's waveOut (`lib/player-win.ts`), since nothing ships with Windows that plays an MP3 from a command line without opening a window |
+| system dark mode | `defaults read -g AppleInterfaceStyle` on macOS, `gsettings` on Linux, a `reg query` on Windows; polled every 3 s |
 | decoding audio | a hand-written WAV parser (`lib/wav.ts`) and mpg123 as WebAssembly for MP3 (`lib/mp3.ts`). WAV and MP3 are the two formats Substrate imports, and both are handled in-process — there is no ffmpeg to install |
 | readable text from a page | one synchronous `HTMLRewriter` pass (`lib/scrape.ts`) that scores candidate containers. lol-html keeps one `onEndTag` callback per element and the element handle is dead inside it — `scrape.ts` shows the way around |
 | AVIF / HEIC on screen | GPUI's image crate cannot decode them; `Bun.Image` (ImageIO) stores a WebP display copy beside the original |
@@ -207,7 +209,8 @@ for one.
 
 `npm run test:brain` (Bun; also part of `npm run bun:test`) runs `test/brain.ts` — the WAV codec,
 the page extractor, the SSE parser, the chunker, the vector index, the store and pipeline with a
-stub worker, the feed parser and poller against fixture documents, and the real IPC client against
-a fake worker, including a forced crash — and `test/smoke.ts`, which mounts the app headlessly and
+stub worker, the feed parser and poller against fixture documents, the Windows microphone consent
+parser, and the real IPC client against a fake worker, including a forced crash — and
+`test/smoke.ts`, which mounts the app headlessly and
 captures, opens, and deletes a note through GPUI's real hit testing. Neither needs a model or the
 network.
