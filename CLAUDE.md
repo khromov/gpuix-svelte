@@ -137,6 +137,20 @@ npm run consume            # the consumer path: pack, install the tarball into a
 npm run compile            # tic-tac-toe → dist/tictactoe (.exe on Windows) via Bun.build({ compile });
                            # Bun-only, so no twin — it refuses to run under Node
 npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its icon (macOS only)
+
+npm run linux:build        # the amd64 Ubuntu image (docker/Dockerfile) and a fresh
+                           # node_modules volume. See "Running on Linux"
+npm run linux:demos        # all four demos in a sway session inside it, opened in a
+                           # browser tab over noVNC at http://localhost:6080
+npm run linux:demos -- --desktop   # the same under labwc: floating windows with
+                           # draggable titlebars and minimise/maximise/close buttons
+npm run linux:demo -- counter   # one of counter, tictactoe, hn, glass, styling, tutorial
+npm run linux:shot -- counter   # a PNG out of the running session into .linux-out/
+npm run linux:test         # binding load, typecheck, lint, compile, test:window-smoke
+npm run linux:shell        # interactive bash in the container (no ports, so it can sit
+                           # alongside a running demo)
+npm run test:window-smoke  # single test — mount a real window, assert on what was painted;
+                           # the only suite that runs on Linux. NOT chained into `test`
 ```
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
@@ -163,13 +177,29 @@ size you asked for; read `native.getWindowSize()` (`test/portal.ts` does).
 `src/window.ts` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
 renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
 
-Tests are plain scripts: `check(label, actual, expected)` and `finish(name, expected)` from the same
-module, exit 1 on any failure — no test runner. **`finish`'s second argument is how many `check`
-calls should have run**, and a mismatch (zero included) fails: nothing else counts them, so
-assertions that stop executing would otherwise take the file green with them — adding or removing a
-check means bumping that number. `brain.ts` computes its own, since `brain.ts:596` gates three
-recorder checks on darwin. Adding a test means adding a `test:*` script and chaining it into `test`.
-CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two macOS jobs.
+`gpuix-svelte/test-window` (`src/test-window.ts`) is the same shape against a **real window**, which
+is the only way to assert on GPUI where the headless renderer does not exist. It wraps `render()`,
+so it is the demos' own path, and reads `getAutomationTree()` — `getTreeJson()` without `style`,
+`events` and `customProps` (skipped so a long list is not 100 ms of JSON) but **with every node's
+painted `bounds`**, which is what `click()` measures against. The window paints on its own schedule
+and events arrive on the native callback rather than a `drainEvents()` queue, so there is no
+`flush()` and `settle`/`click*`/`press`/`type` are all **async**. Suites that assert on `style`
+cannot move here. Neither can simulated input on macOS: `init_macos` runs GPUI on the JS thread and
+every `simulate*` enters `update_window_without_view`, so the handler it fires re-enters through
+`handle_event`'s inline `commit()` and GPUI aborts the process ("cannot update GpuixView while it is
+already being updated") — Linux and Windows send the input over a channel to their UI thread and are
+fine. `can_simulate_input` is that check; gate on it rather than discovering it as an abort.
+
+Tests are plain scripts: `check(label, actual, expected)` and `finish(name, expected)` — they live in
+`src/assert.ts` and are re-exported from both harnesses, so the two share one counter — and exit 1 on
+any failure, with no test runner. **`finish`'s second argument is how many `check` calls should have
+run**, and a mismatch (zero included) fails: nothing else counts them, so assertions that stop
+executing would otherwise take the file green with them — adding or removing a check means bumping
+that number. `brain.ts` computes its own, since `brain.ts:596` gates three recorder checks on darwin,
+and so does `window-smoke.ts`. Adding a test means adding a `test:*` script and chaining it into
+`test` — `test:window-smoke` is the deliberate exception, since chaining it would open a window in
+CI's `npm test`. CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two
+macOS jobs.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -211,6 +241,89 @@ emits CJS). The window needs the Bash sandbox off, like every other renderer run
 route ~5 ms since its Scroller went virtual (it was ~10 ms with a 12-character note and ~18 ms
 with a 226-block page before). Open: `/settings` blocks ~90 ms per simulated wheel event although
 its draw is ~9 ms.
+
+### Running on Linux
+
+`docker/Dockerfile` + `scripts/linux.ts` (the `linux:*` scripts) run the demos and what of the
+suite can run on a real Ubuntu 24.04, from macOS. Four things decide the shape of it:
+
+- **amd64 only.** `@gpuix/native`'s napi targets are `aarch64-apple-darwin`,
+  `x86_64-unknown-linux-gnu` and `x86_64-pc-windows-msvc` — there is no linux-arm64 and no musl
+  build — so the image is `--platform=linux/amd64` (OrbStack runs it under Rosetta) and glibc;
+  Alpine fails in the napi loader's `isMusl()`. `npm ci` therefore has to run *inside* the
+  container: a named volume shadows `/app/node_modules` so the host's darwin-only install never
+  reaches it. `linux:build` drops that volume, which is the fix for "module not found" there.
+- **No `TestGpuixRenderer`.** gpuix builds it only where `render_to_image` exists, so the Linux
+  prebuild ships without one, `hasTestGpuixRenderer()` is false and `src/test.ts` throws by design.
+  All 15 headless suites are unrunnable; `linux:test` prints why rather than failing. What runs is
+  the binding load, `typecheck`, `lint`, `compile` and `test:window-smoke`.
+- **A missing display fails silently.** GPUI's `guess_compositor()` goes `ZED_HEADLESS` →
+  `WAYLAND_DISPLAY` → `DISPLAY` → *headless*, and its headless window has no surface and no GPU —
+  the demo runs, paints nothing, and reports no error. `docker/entrypoint.sh` therefore waits for
+  the compositor's socket before exporting the variable and starting the app. Wayland also wins
+  whenever `WAYLAND_DISPLAY` is non-empty, which is why the `GPUIX_LINUX_DISPLAY=x11` path unsets
+  it. Rendering is wgpu with `VULKAN | GL` and adapter selection accepts a `DeviceType::Cpu`
+  adapter, so Mesa's lavapipe (`mesa-vulkan-drivers`) is enough — no GPU passthrough. Expect
+  software-rendering frame rates; `brain:frames`-style measurement stays macOS-only.
+- **The repo is bind-mounted, so container writes land on the Mac.** That is what puts `linux:shot`
+  PNGs in `.linux-out/`, but it also means `linux:test`'s `npm run compile` overwrites `dist/`
+  with a *Linux x64* binary. `dist/` is disposable; rerun `npm run compile` on macOS if you wanted
+  the host one.
+- **`captureScreenshot` throws there** ("needs a test-support build on macOS or Windows"), so
+  `GPUIX_SCREENSHOT` produces nothing and the picture has to come from the compositor:
+  `linux:shot` runs `grim` (or `import` under X11) into `.linux-out/`, which is a bind mount, so
+  the PNG lands in the repo and can be opened with the Read tool.
+
+`GPUIX_LINUX_SIZE` (default `1280x800`) sets the output, and under sway windows tile into it — one
+demo fills the output, `linux:demos` splits it four ways. `--desktop` (`GPUIX_LINUX_WM=labwc`)
+swaps sway for labwc, which floats them with draggable titlebars and minimise/maximise/close
+buttons; `GPUIX_LINUX_BORDER=normal` keeps sway but turns its title bars back on. gpuix never sets
+a Wayland `app_id`, so a sway rule would have to match on `title`. Software rendering is slow
+enough that four demos need a good ten seconds after the fourth `mount complete` before they have
+painted; a screenshot taken at mount time is black.
+
+### Window chrome on Linux is the compositor's choice
+
+There is no title bar on Ubuntu's default desktop, and that is not a container artefact.
+`gpui_linux/.../wayland/window.rs:612` starts a window at `decorations: WindowDecorations::Client`,
+and gpuix never calls `request_decorations` — its `WindowOptions.titlebar_transparent` feeds
+`gpui::TitlebarOptions`, which is the *macOS* titlebar. gpui does create a
+`zxdg_toplevel_decoration_v1` when the compositor advertises the manager, but it never calls
+`set_mode`, so the compositor decides:
+
+- **sway, labwc, KDE** implement xdg-decoration and default to server-side, so a title bar appears
+  (labwc's has buttons; sway's is a tiling bar with none). Verified here.
+- **GNOME/Mutter has never implemented server-side decorations**, so there is no manager global,
+  `decoration` stays `None`, the window stays on `WindowDecorations::Client` — and since a gpuix
+  view paints only the Svelte tree, nothing draws the chrome. **Ubuntu defaults to GNOME**, which
+  is why the window looks bare there.
+
+So an app that wants chrome on GNOME has to either draw its own (as Zed does) or gpuix has to call
+`request_decorations(Server)`. `linux:demos --desktop` reproduces the working half; reproducing the
+GNOME half needs Mutter, which this image does not install.
+
+**`GPUIX_LINUX_DISPLAY=x11` does not currently produce a window.** The session itself is fine —
+Xvfb and x11vnc start, `DISPLAY` is `:99`, `WAYLAND_DISPLAY` is unset, and Xvfb offers every
+extension gpui asserts (RANDR, RENDER, XKEYBOARD, XInputExtension, plus MIT-SHM/Present/GLX) — but
+the app logs `created native window` / `mount complete` and `xwininfo -root -children` reports
+`0 children`, so GPUI maps nothing and the capture is a blank 263-byte PNG. The path is kept
+because it is the only fallback if Wayland regresses, and because the fault is above this repo, but
+it is not usable today. Wayland is the working mode.
+
+**Clicking the app from a script is `linux:click -- <x> <y>`, which goes over RFB**, the same path
+noVNC uses. The three obvious alternatives all fail, each quietly:
+
+- `simulateClick` and friends dispatch from inside a GPUI update, so the handler they fire
+  re-enters through `handle_event`'s inline `commit()` and GPUI aborts the process. That is *not*
+  macOS-only — on Linux the `gpuix-ui` thread makes the napi callback synchronously and panics the
+  same way. It is why `gpuix-svelte/test-window` is read-only.
+- `swaymsg seat - cursor set/press` returns `success: true` and does nothing: the headless backend
+  gives seat0 no pointer device (`capabilities: 0`, `devices: []`).
+- `wlrctl pointer move` works — hover states change — but its `click left` never reaches GPUI.
+
+`getPaintedText()`/`getPaintedHighlights()` are equally misleading off macOS: they read a
+thread-local filled during painting, so on Linux, where painting is on the `gpuix-ui` thread, they
+return empty rather than failing. `getAllText()` and `getAutomationTree()` are the portable reads.
 
 ### Standalone binary
 

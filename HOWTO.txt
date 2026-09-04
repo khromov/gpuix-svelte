@@ -91,10 +91,16 @@ Notes
   Set CODESIGN_IDENTITY to a Developer ID certificate to sign the output, and
   NOTARY_PROFILE (from `xcrun notarytool store-credentials`) to also notarize
   and staple the .app; either unset means that step is skipped.
-- Linux runs the demos but not the tests: gpuix compiles TestGpuixRenderer
-  only on macOS and Windows (it needs render_to_image, which the Vulkan/wgpu
-  backend lacks); on Linux its constructor throws, so the headless suites
-  cannot run there.
+- Linux runs the demos but not the headless tests: gpuix compiles
+  TestGpuixRenderer only on macOS and Windows (it needs render_to_image, which
+  the Vulkan/wgpu backend lacks); on Linux its constructor throws, so the
+  headless suites cannot run there. npm run test:window-smoke does run: it
+  opens a real window and asserts through gpuix-svelte/test-window instead.
+- npm run linux:build then linux:demos / linux:test runs all of that on Ubuntu
+  in Docker from macOS, with the window brought back over noVNC at
+  http://localhost:6080 and PNGs via linux:shot. The image is amd64 because
+  @gpuix/native publishes no linux-arm64 prebuild. See CLAUDE.md, "Running on
+  Linux".
 - Since native 0.7.0 requiresTick() is true everywhere, so the frame loop runs
   on Windows/Linux too (tick() there only polls whether GPUI's UI thread is
   alive). Where it is false the renderer drains its mutation queue on a
