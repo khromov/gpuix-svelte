@@ -99,8 +99,32 @@ x11)
 	log "starting x11vnc"
 	x11vnc -display :99 -forever -shared -nopw -quiet -rfbport 5900 &
 	;;
+gnome)
+	# The repro for "no window chrome on Ubuntu". Mutter implements no
+	# wlr-screencopy, so it cannot feed wayvnc directly; it nests inside Xvfb
+	# instead and x11vnc exports that. The app is Mutter's *Wayland* client, so
+	# GPUI's X11 backend is never involved.
+	unset WAYLAND_DISPLAY
+	log "starting Xvfb ($SIZE) as Mutter's host"
+	Xvfb :99 -screen 0 "${SIZE}x24" -nolisten tcp -noreset &
+	wait_for "the X11 socket" test -e /tmp/.X11-unix/X99
+	export DISPLAY=:99
+
+	log "starting x11vnc"
+	x11vnc -display :99 -forever -shared -nopw -quiet -rfbport 5900 &
+
+	log "starting nested mutter"
+	dbus-run-session -- mutter --nested --wayland --wayland-display=wayland-mutter &
+	wait_for "mutter's wayland socket" test -S "$XDG_RUNTIME_DIR/wayland-mutter"
+
+	# guess_compositor prefers Wayland only while DISPLAY is unset, and mutter
+	# --nested refuses to start when DISPLAY is set but empty — so it is dropped
+	# entirely rather than blanked.
+	unset DISPLAY
+	export WAYLAND_DISPLAY=wayland-mutter
+	;;
 *)
-	log "GPUIX_LINUX_DISPLAY must be 'wayland' or 'x11', got '$MODE'"
+	log "GPUIX_LINUX_DISPLAY must be 'wayland', 'x11' or 'gnome', got '$MODE'"
 	exit 1
 	;;
 esac
@@ -109,9 +133,18 @@ esac
 # anything joining the session later (linux:shot) has to read it back from here.
 {
 	echo "export XDG_RUNTIME_DIR='$XDG_RUNTIME_DIR'"
-	echo "export WAYLAND_DISPLAY='${WAYLAND_DISPLAY:-}'"
-	echo "export SWAYSOCK='${SWAYSOCK:-}'"
-	echo "export DISPLAY='${DISPLAY:-}'"
+	# Only what is actually set: an exported but empty DISPLAY is not the same as
+	# an unset one — mutter --nested rejects the first and accepts the second.
+	[ -n "${WAYLAND_DISPLAY:-}" ] && echo "export WAYLAND_DISPLAY='$WAYLAND_DISPLAY'"
+	[ -n "${SWAYSOCK:-}" ] && echo "export SWAYSOCK='$SWAYSOCK'"
+	[ -n "${DISPLAY:-}" ] && echo "export DISPLAY='$DISPLAY'"
+	# grim speaks wlr-screencopy, which only the wlroots compositors have; under
+	# gnome the picture comes from the Xvfb that Mutter is nested in.
+	if [ "$MODE" = wayland ]; then
+		echo 'gpuix_shot() { grim "$1"; }'
+	else
+		echo 'gpuix_shot() { import -display :99 -window root "$1"; }'
+	fi
 } >"$ENV_FILE"
 
 log "starting novnc on 6080"

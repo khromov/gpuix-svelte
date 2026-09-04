@@ -18,8 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # sway tiles (good for viewing several demos); labwc floats with real titlebar
 # buttons, which is what GPUIX_LINUX_WM=labwc gives you.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	sway labwc wlr-randr wayvnc grim xwayland \
+	sway labwc wlr-randr wayvnc grim xwayland wayland-utils \
 	xvfb x11vnc x11-utils imagemagick \
+	mutter dbus-x11 \
 	novnc websockify \
 	&& rm -rf /var/lib/apt/lists/*
 

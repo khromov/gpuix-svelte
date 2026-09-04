@@ -36,7 +36,10 @@ const bun = rest.includes('--bun');
 // sway tiles, which suits looking at four demos at once; --desktop swaps in labwc,
 // which floats them with draggable titlebars and min/max/close buttons.
 const desktop = rest.includes('--desktop');
-const args = rest.filter((a) => a !== '--bun' && a !== '--desktop');
+// The "no window chrome on Ubuntu" repro: GNOME's Mutter, which advertises no
+// xdg-decoration global, so gpui stays on client-side decorations and paints none.
+const gnome = rest.includes('--gnome');
+const args = rest.filter((a) => a !== '--bun' && a !== '--desktop' && a !== '--gnome');
 
 function run(cmd: string, argv: string[], { check = true } = {}): number {
 	console.log(`\n[linux] ${cmd} ${argv.join(' ')}`);
@@ -69,7 +72,7 @@ function run_flags(name?: string, ports = true): string[] {
 		// Loopback only: wayvnc and x11vnc run with no authentication.
 		...(ports ? ['-p', '127.0.0.1:6080:6080', '-p', '127.0.0.1:5900:5900'] : []),
 		'-e',
-		`GPUIX_LINUX_DISPLAY=${process.env.GPUIX_LINUX_DISPLAY ?? 'wayland'}`,
+		`GPUIX_LINUX_DISPLAY=${gnome ? 'gnome' : (process.env.GPUIX_LINUX_DISPLAY ?? 'wayland')}`,
 		'-e',
 		`GPUIX_LINUX_SIZE=${process.env.GPUIX_LINUX_SIZE ?? '1280x800'}`,
 		'-e',
@@ -184,13 +187,10 @@ switch (command) {
 		const name = args[0] ?? 'shot';
 		// captureScreenshot needs a test-support build, which Linux does not get, so
 		// the picture has to come from the compositor rather than from GPUI.
-		// The entrypoint discovers the socket name and leaves it here, because a
-		// `docker exec` inherits the service's environment, not the session's.
-		const wayland = (process.env.GPUIX_LINUX_DISPLAY ?? 'wayland') === 'wayland';
-		const grab = wayland
-			? ['sh', '-c', `. /tmp/gpuix-session.env && grim /out/${name}.png`]
-			: ['sh', '-c', `. /tmp/gpuix-session.env && import -window root /out/${name}.png`];
-		run('docker', ['exec', CONTAINER, ...grab]);
+		// The entrypoint discovers the socket name and the right capture command and
+		// leaves both here, because a `docker exec` inherits the service's
+		// environment, not the session's.
+		run('docker', ['exec', CONTAINER, 'sh', '-c', `. /tmp/gpuix-session.env && gpuix_shot /out/${name}.png`]);
 		console.log(`\n[linux] .linux-out/${name}.png`);
 		break;
 	}
@@ -241,6 +241,8 @@ switch (command) {
 
   --desktop      float the windows under labwc, with draggable titlebars and
                  minimise/maximise/close buttons, instead of sway's tiling
+  --gnome        run under GNOME's Mutter instead, which is what Ubuntu ships —
+                 the repro for a window having no titlebar at all
 
   GPUIX_LINUX_SIZE sets the sway output (default 1280x800).
   GPUIX_LINUX_DISPLAY=x11 starts Xvfb instead, but GPUI maps no window there yet

@@ -144,6 +144,8 @@ npm run linux:demos        # all four demos in a sway session inside it, opened 
                            # browser tab over noVNC at http://localhost:6080
 npm run linux:demos -- --desktop   # the same under labwc: floating windows with
                            # draggable titlebars and minimise/maximise/close buttons
+npm run linux:demo -- counter --gnome   # under GNOME's Mutter, as Ubuntu ships it —
+                           # the repro for a window with no chrome at all
 npm run linux:demo -- counter   # one of counter, tictactoe, hn, glass, styling, tutorial
 npm run linux:shot -- counter   # a PNG out of the running session into .linux-out/
 npm run linux:test         # binding load, typecheck, lint, compile, test:window-smoke
@@ -292,15 +294,29 @@ and gpuix never calls `request_decorations` — its `WindowOptions.titlebar_tran
 `set_mode`, so the compositor decides:
 
 - **sway, labwc, KDE** implement xdg-decoration and default to server-side, so a title bar appears
-  (labwc's has buttons; sway's is a tiling bar with none). Verified here.
+  (labwc's has buttons; sway's is a tiling bar with none).
 - **GNOME/Mutter has never implemented server-side decorations**, so there is no manager global,
   `decoration` stays `None`, the window stays on `WindowDecorations::Client` — and since a gpuix
   view paints only the Svelte tree, nothing draws the chrome. **Ubuntu defaults to GNOME**, which
   is why the window looks bare there.
 
+Both halves are reproducible here, and `wayland-info | grep -i decoration` is the one-line proof:
+
+```bash
+npm run linux:demo -- counter --desktop   # labwc: zxdg_decoration_manager_v1 + org_kde_kwin_… → titlebar with buttons
+npm run linux:demo -- counter --gnome     # mutter 46.2: no decoration global at all  → no titlebar
+```
+
+`--gnome` (`GPUIX_LINUX_DISPLAY=gnome`) runs the same Mutter 46.2 Ubuntu 24.04 ships. Mutter
+implements no wlr-screencopy, so it cannot feed wayvnc; it nests inside Xvfb and x11vnc exports
+that instead. The app is Mutter's *Wayland* client throughout, so the X11 backend that maps no
+window is never involved. `mutter --nested` needs a host `DISPLAY` and refuses to start when
+`DISPLAY` is set but empty, which is why the session env file exports only the variables that
+actually have values.
+
 So an app that wants chrome on GNOME has to either draw its own (as Zed does) or gpuix has to call
-`request_decorations(Server)`. `linux:demos --desktop` reproduces the working half; reproducing the
-GNOME half needs Mutter, which this image does not install.
+`request_decorations(Server)` — and that second one fixes sway/KDE but still leaves GNOME bare,
+because Mutter has nothing to honour it with.
 
 **`GPUIX_LINUX_DISPLAY=x11` does not currently produce a window.** The session itself is fine —
 Xvfb and x11vnc start, `DISPLAY` is `:99`, `WAYLAND_DISPLAY` is unset, and Xvfb offers every
