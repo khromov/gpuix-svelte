@@ -114,7 +114,10 @@ gnome)
 	x11vnc -display :99 -forever -shared -nopw -quiet -rfbport 5900 &
 
 	log "starting nested mutter"
-	dbus-run-session -- mutter --nested --wayland --wayland-display=wayland-mutter &
+	# Mutter's nested output is 800x600 unless told otherwise, which would letterbox
+	# the app inside its Xvfb host.
+	MUTTER_DEBUG_DUMMY_MODE_SPECS="$SIZE" \
+		dbus-run-session -- mutter --nested --wayland --wayland-display=wayland-mutter &
 	wait_for "mutter's wayland socket" test -S "$XDG_RUNTIME_DIR/wayland-mutter"
 
 	# guess_compositor prefers Wayland only while DISPLAY is unset, and mutter
