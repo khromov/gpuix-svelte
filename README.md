@@ -1,7 +1,8 @@
 # gpuix-svelte
 
 > **Work in progress.** Experimental — built on Svelte's unreleased
-> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Tested on macOS / Windows, also compatible with Linux.
+> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511). Tested on macOS / Windows, and on
+> Linux through `npm run linux:demos` (Ubuntu in Docker, the window brought back over noVNC).
 
 > [!IMPORTANT]
 > Needs **Node.js >= 24** or **Bun >= 1.4.0**. The liquid-glass FFI demo alone needs **Node 26.1**,

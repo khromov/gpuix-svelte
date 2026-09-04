@@ -54,3 +54,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # the custom-renderer svelte build, see CLAUDE.md
 !vendor/*.tgz
+
+# screenshots grabbed out of the Linux container
+.linux-out
