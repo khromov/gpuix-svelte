@@ -68,7 +68,8 @@ Notes
 - GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter writes a PNG on every
   (re)mount (use a single demo — all four would overwrite the same file);
   Preview.app reloads on write.
-- @gpuix/native accepts ">=0.7.0 <=0.8.0" (installs 0.7.0). The renderer
+- @gpuix/native accepts ">=0.7.0 <0.8.0" (0.8.0 made getElementBounds
+  return { x, y, width, height } instead of [x, y, w, h]). The renderer
   speaks its contract — applyBatch only, no removeChild op (reinserts
   reparent implicitly; detached nodes are destroyed at commit), setCustomProp
   instead of setCustomPropValue, commitMutations() called only when present.

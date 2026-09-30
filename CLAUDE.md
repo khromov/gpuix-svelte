@@ -329,7 +329,7 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   svelte checkout's `packages/svelte` and drop the tarball in by hand under the same name. `.gitignore` un-ignores
   `vendor/*.tgz` for this; `files` keeps it out of the npm package (the bundled `node_modules`
   copy is what ships).
-- **`@gpuix/native` range is `>=0.7.0 <=0.8.0`** (installs 0.7.0) and the renderer speaks its
+- **`@gpuix/native` range is `>=0.7.0 <0.8.0`** (0.8.0 made `getElementBounds` return `{ x, y, width, height }`, and every caller here destructures `[x, y, w, h]`) and the renderer speaks its
   mutation contract: applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes
   that leave the live tree are destroyed at commit and re-materialize if shown again),
   `setCustomProp` not `setCustomPropValue`, and `commitMutations?.()` only where it exists.
