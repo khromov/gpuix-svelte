@@ -1,6 +1,7 @@
-// Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages.
+// Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
+// coloured in the browser by docs/assets/prism.js, a vendored Prism build.
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
@@ -63,8 +64,8 @@ function render(source: string) {
 }
 
 const CSS = `
-:root { color-scheme: light dark; --bg: #fff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --code: #f6f8fa; --link: #0969da; --warn: #9a6700; }
-@media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --code: #151b23; --link: #4493f8; --warn: #d29922; } }
+:root { color-scheme: light dark; --bg: #fff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --code: #f6f8fa; --link: #0969da; --warn: #9a6700; --t-comment: #59636e; --t-keyword: #cf222e; --t-string: #0a3069; --t-fn: #8250df; --t-tag: #116329; --t-attr: #0550ae; --t-num: #0550ae; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --code: #151b23; --link: #4493f8; --warn: #d29922; --t-comment: #9198a1; --t-keyword: #ff7b72; --t-string: #a5d6ff; --t-fn: #d2a8ff; --t-tag: #7ee787; --t-attr: #79c0ff; --t-num: #79c0ff; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
 .layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
@@ -89,6 +90,14 @@ blockquote { margin: 0; padding: 0 16px; border-left: 4px solid var(--line); col
 blockquote.alert { color: var(--fg); }
 blockquote.warning, blockquote.caution { border-color: var(--warn); }
 blockquote.alert strong { color: var(--warn); }
+.token.comment, .token.prolog, .token.doctype { color: var(--t-comment); font-style: italic; }
+.token.keyword, .token.important, .token.atrule .token.rule { color: var(--t-keyword); }
+.token.string, .token.attr-value, .token.regex, .token.url { color: var(--t-string); }
+.token.function, .token.class-name, .token.selector { color: var(--t-fn); }
+.token.tag, .token.builtin { color: var(--t-tag); }
+.token.attr-name, .token.property, .token.parameter, .token.variable { color: var(--t-attr); }
+.token.number, .token.boolean, .token.constant { color: var(--t-num); }
+.token.punctuation, .token.operator { color: var(--muted); }
 details { margin: 1em 0; }
 summary { cursor: pointer; font-weight: 600; }
 @media (max-width: 760px) {
@@ -108,6 +117,7 @@ function page(current: (typeof PAGES)[number], body: string) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title === 'gpuix-svelte' ? title : `${title} — gpuix-svelte`)}</title>
 <style>${CSS}</style>
+<script src="prism.js" defer></script>
 </head>
 <body>
 <div class="layout">
@@ -128,4 +138,5 @@ ${body}
 rmSync(out_dir, { recursive: true, force: true });
 mkdirSync(out_dir, { recursive: true });
 for (const p of PAGES) writeFileSync(join(out_dir, p.out), page(p, render(p.source)));
+copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
 console.log(`[docs] ${PAGES.length} pages → ${out_dir}`);
