@@ -25,6 +25,10 @@ export const GPUI_EVENTS: readonly string[] = [
 	'focus',
 	'blur',
 	'scroll',
+	// a Finder / OS file drop on this element; `paths` are absolute
+	'fileDrop',
+	// a native `motion` track reached its target
+	'motionComplete',
 	// `highlight={{ query }}` on div/text reports its match count
 	'highlight',
 	// `<virtual-list>` reports the rows it has in view instead of a scroll offset

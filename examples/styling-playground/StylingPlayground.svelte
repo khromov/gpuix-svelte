@@ -46,6 +46,14 @@
 					kind: 'lines',
 					css: 'width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis',
 					note: 'ellipsis works on a fixed-width box'
+				},
+				{
+					css: 'text-decoration: underline',
+					note: 'underline, line-through and none'
+				},
+				{
+					css: 'visibility: hidden',
+					note: 'paints nothing but keeps its box, and drops out of the tab order'
 				}
 			]
 		},
@@ -89,8 +97,8 @@
 					note: 'parsed as a colour and fails; gradients are object-only'
 				},
 				{
-					css: 'box-shadow: 0 2px 8px #000; text-decoration: underline; letter-spacing: 2px',
-					note: 'shadow dropped with a warning, the other two vanish silently'
+					css: 'box-shadow: 0 2px 8px #000; letter-spacing: 2px',
+					note: 'shadow dropped with a warning, letter-spacing vanishes silently'
 				}
 			]
 		},

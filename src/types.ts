@@ -99,12 +99,33 @@ export interface NativeSink {
 	applyBatch(json: string): number[];
 	commitMutations?(): void;
 	setWindowKeyEvents?(keyDown: boolean, keyUp: boolean, eventId: number): void;
+	setWindowSelectionChange?(enabled: boolean, eventId: number): void;
 }
 
 export type Native = GpuixRenderer | TestGpuixRenderer;
 
-/** The window-only calls `window.ts` makes, each optional because the test renderer lacks them. */
-export type WindowNative = Partial<Pick<GpuixRenderer, 'setWindowTitle' | 'activateWindow' | 'blur' | 'focusElement'>>;
+/** The calls `window.ts` makes, each optional because the test renderer or the wasm build lacks some. */
+export type WindowNative = Partial<
+	Pick<
+		GpuixRenderer,
+		| 'setWindowTitle'
+		| 'activateWindow'
+		| 'blur'
+		| 'focusElement'
+		| 'minimizeWindow'
+		| 'zoomWindow'
+		| 'toggleFullscreen'
+		| 'promptForPaths'
+		| 'scrollIntoView'
+		| 'getFocusedElementId'
+		| 'focusNextWithin'
+		| 'focusPreviousWithin'
+	>
+> & {
+	// napi's `Buffer` parameters take any Uint8Array, and the wasm build declares Uint8Array.
+	setImage?(elementId: number, bytes: Uint8Array): void;
+	setImagePixels?(elementId: number, width: number, height: number, pixels: Uint8Array): void;
+};
 
 export interface RenderOptions extends WindowOptions {
 	props?: Record<string, unknown>;
@@ -113,4 +134,6 @@ export interface RenderOptions extends WindowOptions {
 	/** `on_window_key` handlers kept across remounts. */
 	onKeyDown?: (event: GpuixEvent) => void;
 	onKeyUp?: (event: GpuixEvent) => void;
+	/** `on_selection_change` kept across remounts. */
+	onSelectionChange?: (event: GpuixEvent) => void;
 }

@@ -17,7 +17,7 @@ check("the portal's content is the root's last native child", holds(last_root_ch
 check('and no longer sits under its shadow parent natively', holds(find_test_id('inner'), 'over'), false);
 // Windows ignores the requested headless size, so the window is whatever native says it is.
 const { width, height } = native.getWindowSize();
-check('the wrapper covers the window without a hitbox', [last_root_child().style!.pointerEvents, native.getElementBounds(last_root_child().id)], ['none', [0, 0, width, height]]);
+check('the wrapper covers the window without a hitbox', [last_root_child().style!.pointerEvents, native.getElementBounds(last_root_child().id)], ['none', { x: 0, y: 0, width, height }]);
 
 click_test_id('over');
 check('a click where both overlap reaches the portal, not the later sibling', hits(), '0-1-0');

@@ -39,7 +39,21 @@ const GPUI_TAGS = new Set([
 
 /** GPUI only forwards a handful of props to `div`/`text`. */
 const BUILT_IN_TAGS = new Set(['div', 'text']);
-const UNIVERSAL_PROPS = new Set(['autoFocus', 'tabIndex', 'testId', 'motion', 'highlight']);
+const UNIVERSAL_PROPS = new Set([
+	'autoFocus',
+	'tabIndex',
+	'testId',
+	'motion',
+	'highlight',
+	'role',
+	'aria-label',
+	'aria-description',
+	'aria-id',
+	'aria-expanded',
+	'aria-selected',
+	'aria-valuetext',
+	'aria-level'
+]);
 
 /** Attributes that feed `setStyle` rather than a custom prop — `class` via the component's `<style>` rules. */
 const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
@@ -92,6 +106,9 @@ let portals = new Set<ShadowNode>();
 
 /** Portals met while materialising a subtree, appended once that subtree is attached. */
 let pending_portals: ShadowNode[] = [];
+
+/** Native calls on a node whose `createElement` is still queued, run once the batch has shipped. */
+let after_commit: Array<() => void> = [];
 
 const is_portal = (n: ShadowNode) => 'portal' in n.attrs;
 
@@ -314,8 +331,9 @@ function reparent(el: ShadowNode) {
 const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 
 function normalize_prop(name: string, value: unknown) {
-	if (name === 'autoFocus') return value !== false && value !== 'false';
-	if (name === 'tabIndex') return Number(value);
+	// Svelte hands `aria-expanded={open}` over as is but `aria-expanded="true"` as text, and native reads JSON types.
+	if (name === 'autoFocus' || name === 'aria-expanded' || name === 'aria-selected') return value !== false && value !== 'false';
+	if (name === 'tabIndex' || name === 'aria-level') return Number(value);
 	return value;
 }
 
@@ -615,23 +633,41 @@ export function set_native(instance: NativeSink) {
 	root_node = null;
 	portals = new Set();
 	pending_portals = [];
+	after_commit = [];
 	dirty = false;
 	commit_scheduled = false;
 
-	// The id map is new, so the window key listeners need a fresh registration.
+	// The id map is new, so the window listeners need a fresh registration.
 	window_node.nativeId = null;
-	if (window_node.listeners.size > 0) sync_window_keys();
+	if (window_node.listeners.size > 0) sync_window_events();
 }
 
-function sync_window_keys() {
-	if (typeof native?.setWindowKeyEvents !== 'function') return;
+function sync_window_events() {
 	if (window_node.nativeId === null) window_node.nativeId = ++next_id;
 	by_id.set(window_node.nativeId, window_node);
-	native.setWindowKeyEvents(
+	native?.setWindowKeyEvents?.(
 		window_node.listeners.has('windowKeyDown'),
 		window_node.listeners.has('windowKeyUp'),
 		window_node.nativeId
 	);
+	native?.setWindowSelectionChange?.(window_node.listeners.has('selectionChange'), window_node.nativeId);
+}
+
+function on_window_event(event: string, handler: (event: GpuixEvent) => void): () => void {
+	let handlers = window_node.listeners.get(event);
+	if (!handlers) {
+		handlers = [];
+		window_node.listeners.set(event, handlers);
+	}
+	handlers.push(handler);
+	sync_window_events();
+
+	return () => {
+		const index = handlers.indexOf(handler);
+		if (index !== -1) handlers.splice(index, 1);
+		if (handlers.length === 0) window_node.listeners.delete(event);
+		sync_window_events();
+	};
 }
 
 /**
@@ -642,25 +678,16 @@ function sync_window_keys() {
 export function on_window_key(type: WindowKeyType, handler: (event: GpuixEvent) => void): () => void {
 	const event = WINDOW_KEY_EVENTS[type.toLowerCase()];
 	if (!event) throw new Error(`[gpuix-svelte] on_window_key: unknown type "${type}" (keydown or keyup)`);
-
-	let handlers = window_node.listeners.get(event);
-	if (!handlers) {
-		handlers = [];
-		window_node.listeners.set(event, handlers);
-	}
-	handlers.push(handler);
-	sync_window_keys();
-
-	return () => {
-		const index = handlers.indexOf(handler);
-		if (index !== -1) handlers.splice(index, 1);
-		if (handlers.length === 0) window_node.listeners.delete(event);
-		sync_window_keys();
-	};
+	return on_window_event(event, handler);
 }
+
+/** Fires once per change of the window's text selection, a clear included; `event.value` is the selected text. */
+export const on_selection_change = (handler: (event: GpuixEvent) => void) => on_window_event('selectionChange', handler);
 
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
 export const get_native = (): Native | null => native as Native | null;
+
+export const node_of = (id: number | null | undefined): ShadowNode | null => (id == null ? null : (by_id.get(id) ?? null));
 
 /** `position: relative`, so a portal's `inset: 0` means the window. */
 export function create_root(style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' }): ShadowNode {
@@ -709,6 +736,7 @@ export function commit() {
 
 	if (queue.length === 0) {
 		dirty = false;
+		run_after_commit();
 		return;
 	}
 
@@ -733,6 +761,22 @@ export function commit() {
 
 	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
 	native!.commitMutations?.();
+	run_after_commit();
+}
+
+function run_after_commit() {
+	const calls = after_commit;
+	after_commit = [];
+	for (const call of calls) call();
+}
+
+/** Runs `call` with the node's id once native has the element, which is now unless mutations are queued. */
+export function with_native_id(node: { nativeId?: number | null } | null | undefined, call: (id: number) => void) {
+	const run = () => {
+		if (node?.nativeId != null) call(node.nativeId);
+	};
+	if (dirty) after_commit.push(run);
+	else run();
 }
 
 export function dispatch(payload: EventPayload) {

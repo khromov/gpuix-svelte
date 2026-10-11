@@ -38,7 +38,7 @@
 	function slide(e: GpuixEvent) {
 		const bounds = get_native()?.getElementBounds(drag!.trackId);
 		if (!bounds) return;
-		const value = Math.min(1, Math.max(0, (e.x! - bounds[0]) / bounds[2]));
+		const value = Math.min(1, Math.max(0, (e.x! - bounds.x) / bounds.width));
 		if (drag!.key === 'brightness') brightness = value;
 		else volume = value;
 	}

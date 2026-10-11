@@ -57,7 +57,7 @@ function fresh(width?: number, height?: number) {
 	});
 
 	settle();
-	const x = (n: ShadowNode) => Math.round(native.getElementBounds(n.nativeId!)![0]);
+	const x = (n: ShadowNode) => Math.round(native.getElementBounds(n.nativeId!)!.x);
 	const b_before = x(texts[1]);
 	const c_before = x(texts[2]);
 	check('row laid out left to right', b_before < c_before, true);

@@ -6,6 +6,7 @@
 
 import { plugin, type OnLoadArgs, type OnLoadResult, type PluginBuilder } from 'bun';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
 
 export { RENDERER_MODULE } from './compile.ts';
@@ -28,6 +29,10 @@ export function load_module(args: OnLoadArgs): OnLoadResult {
 
 	return { contents: compile_module(path, source), loader: 'js' };
 }
+
+// The ESM loader finds its `.node` through `createRequire(import.meta.url)`, which
+// `Bun.build` can't trace, so a compiled binary would ship without the addon.
+export const resolve_native_cjs = () => ({ path: createRequire(import.meta.url).resolve('@gpuix/native') });
 
 /**
  * svelte is bundled inside this package, but a runtime `onResolve` never sees a bare

@@ -37,6 +37,9 @@ npm run demo:glass-ffi     # same app on real Liquid Glass (NSGlassEffectView, m
 npm run demo:styling       # styling playground: three columns of style strings next to what GPUI
                            # made of them (reads like CSS / looks like CSS but is not / GPUI-only);
                            # NOT part of `npm run demo`
+npm run demo:desktop       # desktop APIs (examples/desktop-apis): window controls, prompt_for_paths,
+                           # onfiledrop, set_image/set_image_pixels (a live waveform), selection,
+                           # scroll_into_view, focus walking, aria props; NOT part of `npm run demo`
 npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU build — bundles it to
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
@@ -93,7 +96,7 @@ npm run brain:frames       # draw-time stats per route (idle and while scrolling
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal
+                           # test:portal, test:host
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -110,6 +113,9 @@ npm run test:hitbox        # single test — hitbox="self" shielding through rea
 npm run test:auxclick      # single test — a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
+npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
+                           # motionComplete, on_selection_change, focus walk, scroll_into_view, image
+                           # uploads (including one from an {@attach}, before the element exists)
 npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.ts
                            # (WAV codec incl. the streamed header the Windows recorder writes,
                            # page extractor, SSE parser, chunker, vector index, store +
@@ -151,8 +157,8 @@ either way. Adding a script means adding both halves — except the Bun-only one
 Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
 `tree()` over `getTreeJson()` (nodes carry `testId` and `events`), and `click_text` /
-`click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)`, which run GPUI's real hit
-testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`; `drain()` alone is the
+`click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)` / `drop_files(node, paths)`,
+which run GPUI's real hit testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`; `drain()` alone is the
 last two). Prefer those over calling `dispatch()` directly, which injects an event at an element
 and *bypasses* hit testing, so it can pass while the real window fails — the renderer's own tests
 do it only where the batching itself is under test. The headless viewport width follows
@@ -160,8 +166,11 @@ do it only where the batching itself is under test. The headless viewport width 
 out below that can't be hit (`click` throws; shift the layout up inside an absolute wrapper to reach
 them) — and Windows ignores the request and opens a 1024×749 viewport, so never assert against the
 size you asked for; read `native.getWindowSize()` (`test/portal.ts` does).
-`src/window.ts` (`set_window_title`, `activate_window`, `blur`, `focus_element`) no-ops on the test
-renderer, which lacks those methods, so app code never needs `get_native()?.x?.()` guards.
+`src/window.ts` (window title/activate/minimize/zoom/fullscreen, `prompt_for_paths`, `blur`, the focus
+helpers, `scroll_into_view`, `set_image`/`set_image_pixels`) no-ops wherever the renderer lacks the
+method, so app code never needs `get_native()?.x?.()` guards. Its node-taking helpers go through
+`with_native_id`, which defers the call past the next commit while mutations are queued — from an
+`{@attach}` the element's `createElement` has not shipped yet and native throws `GenericFailure`.
 
 Tests are plain scripts: `check(label, actual, expected)` and `finish(name, expected)` from the same
 module, exit 1 on any failure — no test runner. **`finish`'s second argument is how many `check`
@@ -329,14 +338,23 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   svelte checkout's `packages/svelte` and drop the tarball in by hand under the same name. `.gitignore` un-ignores
   `vendor/*.tgz` for this; `files` keeps it out of the npm package (the bundled `node_modules`
   copy is what ships).
-- **`@gpuix/native` range is `>=0.7.0 <0.8.0`** (0.8.0 made `getElementBounds` return `{ x, y, width, height }`, and every caller here destructures `[x, y, w, h]`) and the renderer speaks its
+- **`@gpuix/native` range is `>=0.10.0 <0.11.0`** (pre-1.0, so every minor may break; upstream
+  recommends an exact pin for its own adapters) and the renderer speaks its
   mutation contract: applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes
   that leave the live tree are destroyed at commit and re-materialize if shown again),
   `setCustomProp` not `setCustomPropValue`, and `commitMutations?.()` only where it exists.
   Prebuilds exist for darwin-arm64 / linux-x64 / win32-x64 only. On Linux `TestGpuixRenderer` is
   a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix builds it with
   `--no-default-features` until wgpu grows image readback — so CI there can only check that the
-  binding loads.
+  binding loads. Since 0.10.0 the package is ESM (`"type": "module"`, an `exports` map, and an
+  `index.cjs` under the `require` condition). Its ESM loader finds the `.node` through
+  `createRequire(import.meta.url)`, which `Bun.build` cannot trace, so `scripts/compile*.ts`
+  resolve `@gpuix/native` to `index.cjs` (`resolve_native_cjs` in `plugin.ts`); without it a
+  compiled binary ships without the addon and dies at launch, which the size floor catches. The
+  new `@gpuix/native/host`, `/runtime` and `/testing` entry points are the framework-neutral layer
+  `@gpuix/react` and `@gpuix/solid` share; this renderer keeps its own `render.ts` / `renderer.ts`
+  / `test.ts`, because that layer's event map and mutation queue would replace the batching here
+  rather than simplify it.
 
 ## Architecture
 
@@ -352,7 +370,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
-  window.ts    title / activate / blur / focus helpers  ─ no-ops headlessly
+  window.ts    window, picker, focus, image helpers     ─ no-ops headlessly
   components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
 
@@ -499,7 +517,8 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
   struct (`BoxShadowValue`, `BackgroundValue::Gradient`) is unreachable from CSS text. Its
   `parse_cursor` is the cursor keyword list.
 - `renderer.rs`, `fn apply_styles` — the keywords each `String` key actually matches; a key that is
-  in `StyleDesc` but not here is accepted and ignored (`visibility`, `display: none`).
+  in `StyleDesc` but not here is accepted and ignored (`display: none`; `visibility: hidden` is
+  handled further down, as `invisible()`).
   `sed -n '/fn apply_styles/,/^}/p' renderer.rs | grep -n 'Some("'` lists them all. `parse_font_weight`
   is the weight names; `overflow: scroll` is handled separately in `build_host_container`.
 - `color.rs` — colour syntax (`csscolorparser` since 0.7.0, so names and `hsl()` work).
@@ -527,7 +546,8 @@ the two stay in sync. Unknown events are dropped silently.
   `display: none` have the same problems in a class rule as inline (see the styling playground).
 - Only GPUI tags exist (`div`, `text`, `img`, `input`, `textarea`, `code`, `diff`, `markdown`,
   `virtual-list`, ...); anything else degrades to `div` with a one-time warning. `<img src>` is a
-  filesystem path or a `data:` URL, never http. `<markdown>` is rebuilt and laid out in full on
+  filesystem path, a `data:` URL or (since 0.8.0) an http(s) URL GPUI fetches in the background, so
+  give it both a width and a height. `<markdown>` is rebuilt and laid out in full on
   every frame, on screen or not, and the cost follows its block count, not its bytes (a 226-block
   page cost ~7 ms a frame headless, ~18 ms in Substrate's window), so a long document goes one
   block per row under `<Scroller virtual>`, which brought it under 1 ms headless and the window
@@ -550,7 +570,10 @@ the two stay in sync. Unknown events are dropped silently.
   on `<input>`/`<textarea>`; the window emits them (programmatic `focusElement` and `blur()`
   included) but the headless renderer never does, which is what `gpuix-svelte/test`'s
   `focus()`/`unfocus()` stand in for. `blur()` from the package hands focus back from a field;
-  `focus_element(node)` focuses one.
+  `focus_element(node)` focuses one. `on_selection_change(handler)` (and `render`'s
+  `onSelectionChange`) rides the same window pseudo-node as `on_window_key`, through
+  `setWindowSelectionChange` on the same id. `<textarea>` Enter inserts a newline unless the element
+  has `onsubmit` (since 0.8.0; before that Enter only ever submitted).
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` on that panel reports its content box, so it sits inset by
@@ -581,14 +604,19 @@ the two stay in sync. Unknown events are dropped silently.
   it is needed; its children position against the window. The native `<anchored>` element is
   the popover primitive when the content should sit beside a trigger instead (README lists its
   props); its child sizes to content, so it is no use for a scrim.
-- `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight` as props;
+- `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role` and
+  `aria-label` / `-description` / `-id` / `-expanded` / `-selected` / `-valuetext` / `-level` as props;
   other attributes are dropped for built-ins and forwarded for custom element types.
+  `normalize_prop` turns the string forms Svelte hands over for static attributes into the JSON
+  types native reads (`aria-expanded="true"` → `true`, `aria-level="2"` → `2`); native ignores a
+  mistyped one silently. GPUI reports roles as AccessKit names (`Button`, `Heading`), which is
+  what `getA11yTree()` on the test renderer shows.
   `highlight={{ query } | { ranges: [[start, end], …], color, radius }}` paints GPUI's native
   search highlight behind the matching text (character offsets into the element's text) and
   fires `onhighlight` with `e.matchCount`; Substrate's search results use it.
 - `bind:` is refused by the compiler under `customRenderer`. To get hold of an element use
   `{@attach (node) => ...}` (or `use:`); the node is the renderer's shadow node, and `node.nativeId`
-  is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()` (`[x, y, w, h]`,
+  is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()` (`{ x, y, width, height }`,
   a clipped child still reports its full size). GPUI paints no scrollbars; the styling playground
   draws its own thumb this way, refreshed from the column's `onscroll` a frame later, since the
   offset moves after the wheel event returns.
@@ -668,8 +696,9 @@ compiler strips the types itself, and svelte-check is not part of the gate.
   answered as one-message SSE) rather than pulling in a client library, and the npm script passes
   `--use-env-proxy` so it works behind one. Its `FILTERS` table drops two classes that can never
   apply here, each shown with its reason in the run's header: `a11y_*` for the reason
-  `svelte.config.js` filters them (no DOM, and `apply_prop` drops `role`/`aria-*` before they
-  ship), and the autofixer's "you are calling `x` inside an `$effect`" heuristic, which fires on
+  `svelte.config.js` filters them (they are DOM advice — keyboard handlers beside click handlers,
+  roles on static elements — and the examples were not written against them; `role`/`aria-*` do
+  ship since native 0.8.0), and the autofixer's "you are calling `x` inside an `$effect`" heuristic, which fires on
   *any* call in an effect and so hits every `on_window_key` / `use_ticker` / `setInterval`
   subscription — all of which need the teardown `$derived` has no way to hold. Matching is on
   message text, since suggestions carry no error code, so a reworded message fails open. The

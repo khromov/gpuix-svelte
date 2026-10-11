@@ -34,6 +34,8 @@ npm run demo:glass        # liquid-glass control center (GPUI's blurred transluc
 npm run demo:glass-ffi    # same app on REAL Liquid Glass — NSGlassEffectView via FFI
                           # (macOS 26+; falls back to the window blur elsewhere)
 npm run demo:styling      # styling playground — which CSS text reaches GPUI and which is dropped
+npm run demo:desktop      # desktop APIs — window controls, file picker and drops, live image
+                          # pixels, selection, focus walking, accessibility props
 npm run demo:web          # tic-tac-toe in a browser, on GPUI's WebAssembly/WebGPU build (Bun only)
 npm run tutorial          # interactive onboarding guide — 12 steps with live samples and quizzes
 npm run brain             # Substrate, a "second brain": notes, links, images and voice memos,
@@ -233,7 +235,8 @@ same way.
   [Theming with CSS variables](#theming-with-css-variables).
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
 - `display: flex | grid` and the flexbox properties, `position: absolute`, `overflow: hidden | scroll`,
-  `opacity`, `cursor`, `white-space`, `text-overflow`, `font-*`, `text-align`.
+  `opacity`, `cursor`, `white-space`, `text-overflow`, `font-*`, `text-align`, `text-decoration`,
+  `visibility: hidden`.
 
 **What doesn't work**
 
@@ -242,10 +245,10 @@ same way.
 - Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1`), `border: 1px solid #fff` (use
   `border-width` + `border-color`), `background: linear-gradient(...)`, `box-shadow`.
 - `line-height: 1.5` means 1.5 px. Always give it a unit.
-- `display: none` and `visibility` do nothing. Use `{#if}`.
+- `display: none` does nothing. Use `{#if}`, or `visibility: hidden` to keep the box.
 - Other selectors: descendant combinators, `:global`, attribute selectors, `@media`, nesting.
   Refused at compile time with a warning.
-- `transform`, `transition`, `z-index`, `text-decoration`, `letter-spacing` are silently ignored.
+- `transform`, `transition`, `z-index`, `letter-spacing` are silently ignored.
   Only text properties (colour, font) inherit from a parent.
 - Probably a lot of other things from CSS.
 
@@ -268,7 +271,8 @@ Values are logical pixels unless noted. Only the listed keywords are recognised.
   `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value shorthands.
 - Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
   `text-align: left | center | right | start`; `line-height` in px; `white-space: nowrap | normal`;
-  `text-overflow: ellipsis`.
+  `text-overflow: ellipsis`; `text-decoration: underline | line-through | none`.
+- Visibility: `visibility: hidden` paints nothing, keeps the layout box and leaves the tab order.
 - Interaction: `cursor` with the CSS keyword set (`pointer`, `text`, `grab`, `grabbing`, `move`,
   `crosshair`, `not-allowed`, the `*-resize` family, `copy`, `alias`, `context-menu`, `default`);
   `pointer-events: none | auto`; `user-select: none`; `:hover` and `:active` rules in `<style>`.
@@ -435,8 +439,37 @@ The handler fires whatever has focus and returns its unsubscribe, which is why r
 an `$effect` is the natural place; `render()` takes `onKeyDown` / `onKeyUp` for the same thing. A
 text field keeps receiving the keys typed into it, and `e.editing` says one has focus, so a handler
 can step aside. `blur()` hands focus back from a field and `focus_element(node)` focuses one;
-`set_window_title()` and `activate_window()` round out the window helpers. All of them are no-ops
-under the headless test renderer, which has no window.
+`focused_element()` returns the focused shadow node, and `focus_next_within(node)` /
+`focus_previous_within(node)` cycle the tab stops inside one element, wrapping there.
+
+## Window and desktop helpers
+
+All of these come from `gpuix-svelte`, take shadow nodes (from `{@attach}`) where they take an
+element, and are no-ops where the renderer lacks the call — the headless test renderer has no
+window, the browser build no file system. `examples/desktop-apis` (`npm run demo:desktop`) uses
+every one of them.
+
+- `set_window_title(title)`, `activate_window()`, `minimize_window()`, `zoom_window()`,
+  `toggle_fullscreen()`.
+- `prompt_for_paths({ files, directories, multiple, prompt })` opens the system picker and resolves
+  to absolute paths, or `null` on cancel (and headlessly). It rejects in a browser. There is no
+  file-type filter.
+- `on_selection_change(handler)` hears every change of the window's text selection, a clear
+  included; `e.value` is the selected text. It returns its unsubscribe, and `render()` takes
+  `onSelectionChange` for the same thing.
+- `scroll_into_view(node)` scrolls the nearest scroll container or `<virtual-list>` until `node`
+  shows.
+- `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`
+  without a data URL, and `set_image_pixels(node, width, height, rgba)` packed straight-alpha RGBA,
+  scaled into the element's box, so upload 2× for retina. Native forgets them when the element is
+  destroyed or its `src` changes. Called from `{@attach}`, they wait for the element to exist.
+
+Elements also take `onfiledrop` (Finder drops; `e.paths` are absolute, `e.x` / `e.y` the drop
+point; not on `<virtual-list>`, wrap it) and `onmotioncomplete` (a `motion` track reached its
+target). `role` and the `aria-label`, `aria-description`, `aria-id`, `aria-expanded`,
+`aria-selected`, `aria-valuetext` and `aria-level` attributes reach VoiceOver and other
+accessibility clients through GPUI; `<text>` is a label by default, and an element needs a `role`
+to appear at all.
 
 ## Forms
 
@@ -449,7 +482,11 @@ payload carries the value, since there is no DOM element to read:
 ```
 
 To get hold of an element use `{@attach (node) => …}` (or `use:`); `node.nativeId` is what
-`get_native()`'s methods take, for `getElementBounds()` and `getScrollOffset()`.
+`get_native()`'s methods take, for `getElementBounds()` (`{ x, y, width, height }`) and
+`getScrollOffset()`.
+
+In a `<textarea>`, Enter inserts a newline unless it has `onsubmit`; then Enter submits and
+Shift+Enter is the newline. In an `<input>`, Enter always submits.
 
 ## State that survives hot reload
 
@@ -484,8 +521,9 @@ finish('counter'); // prints the verdict; exits 1 on any failed check
 `mount_headless` mounts and settles; `settle()` runs Svelte's effects, ships the batch and lets
 GPUI paint (`await wait(ms)` first for timers and promises); `find_text`, `find_test_id`,
 `element_of` and `tree()` read `getTreeJson()`, where every node carries its `testId`; `click`,
-`click_text`, `click_test_id`, `click_at`, `press` and `type` go through GPUI's real hit testing
-and input pipeline; `painted()`, `all_text()`, `bounds()` and `screenshot(path)` read back. The
+`click_text`, `click_test_id`, `click_at`, `press`, `type` and `drop_files(target, paths)` go
+through GPUI's real hit testing and input pipeline; `painted()`, `all_text()`, `bounds()`
+(`{ x, y, width, height }`) and `screenshot(path)` read back. The
 headless viewport is at most 538 px tall, so keep test layouts short (`click` says when a target is
 outside), and Windows ignores the requested size, so read `native.getWindowSize()` rather than
 asserting the numbers you passed. The headless renderer emits no `focus`/`blur` events (a window does), so `focus()` and

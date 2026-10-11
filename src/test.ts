@@ -145,7 +145,7 @@ export function element_of(text: string, { last = false }: FindOptions = {}): Tr
 
 const id_of = (target: Target): number => (typeof target === 'number' ? target : (target?.id ?? target?.nativeId)) as number;
 
-/** `[x, y, width, height]` in logical px, from a tree node, a shadow node or an id. */
+/** `{ x, y, width, height }` in logical px, from a tree node, a shadow node or an id. */
 export const bounds = (target: Target) => native().getElementBounds(id_of(target));
 
 /** Hands every event native queued to the renderer, as the window's callback would. */
@@ -158,20 +158,31 @@ export function drain() {
  * `dispatch()` straight at an element skips that, and can pass while the window fails.
  */
 export function click(target: Target, { button, modifiers }: ClickOptions = {}) {
+	const [x, y] = centre_of(target);
+	click_at(x, y, { button, modifiers });
+}
+
+function centre_of(target: Target): [number, number] {
 	const box = bounds(target);
 	if (!box) throw new Error(`[gpuix-svelte/test] element ${id_of(target)} has no painted bounds`);
 
-	const [x, y, w, h] = box;
-	const cx = x + w / 2;
-	const cy = y + h / 2;
+	const cx = box.x + box.width / 2;
+	const cy = box.y + box.height / 2;
 	const { width, height } = native().getWindowSize();
 	if (cx > width || cy > height) {
 		throw new Error(
 			`[gpuix-svelte/test] element ${id_of(target)} is at (${Math.round(cx)}, ${Math.round(cy)}), outside the ${width}×${height} headless viewport (its height caps at ${MAX_HEADLESS_HEIGHT})`
 		);
 	}
+	return [cx, cy];
+}
 
-	click_at(cx, cy, { button, modifiers });
+/** A Finder-style drop of `paths` on the element's centre, hit-tested like a click. */
+export function drop_files(target: Target, paths: string[]) {
+	const [x, y] = centre_of(target);
+	native().simulateFileDrop(x, y, paths);
+	drain();
+	settle();
 }
 
 /** A click at window coordinates, through the same hit testing. */

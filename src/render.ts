@@ -14,7 +14,8 @@ import renderer, {
 	dispatch,
 	set_auto_commit,
 	queue_destroy,
-	on_window_key
+	on_window_key,
+	on_selection_change
 } from './renderer.ts';
 import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 
@@ -107,7 +108,7 @@ export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 't
 
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
-	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, ...window_options } = options;
+	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, ...window_options } = options;
 	const slot = host();
 	const remount = slot.component != null;
 
@@ -156,6 +157,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	slot.keys = [];
 	if (onKeyDown) slot.keys.push(on_window_key('keydown', onKeyDown));
 	if (onKeyUp) slot.keys.push(on_window_key('keyup', onKeyUp));
+	if (onSelectionChange) slot.keys.push(on_selection_change(onSelectionChange));
 
 	const root = create_root(rootStyle);
 	// Queued after `setRoot`, so the tree is never rootless mid-batch — on

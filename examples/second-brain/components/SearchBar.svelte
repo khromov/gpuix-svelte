@@ -66,8 +66,8 @@
 		}
 		const bounds = get_native()?.getElementBounds(node.nativeId);
 		if (!bounds) return;
-		const [x, y, w, h] = bounds;
-		ui.suggest = { items, active: 0, left: x - 12, top: y + h + 6, width: w + 24 };
+		const { x, y, width, height } = bounds;
+		ui.suggest = { items, active: 0, left: x - 12, top: y + height + 6, width: width + 24 };
 	}
 
 	function change(text: string) {

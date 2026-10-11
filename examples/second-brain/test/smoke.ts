@@ -106,13 +106,13 @@ check('escape goes back', route.path, '/');
 
 // GPUI sends a right click to auxClick, so the card's own onclick must not fire.
 const card = native.getElementBounds(find_test_id(`item-${note.id}`)!.id)!;
-const [cx, cy] = [card[0] + 40, card[1] + 20];
+const [cx, cy] = [card.x + 40, card.y + 20];
 click_at(cx, cy, { button: 2 });
 await wait();
 // The event's window coordinates and the <Portal>'s are the same space, or the menu misses the cursor.
 // getElementBounds reports the content box, so the panel's 1px border and 6px padding are the whole gap.
 const box = native.getElementBounds(find_test_id('menu')!.id)!;
-check('the menu opens at the cursor', box[0] - cx === 7 && box[1] - cy === 7, true);
+check('the menu opens at the cursor', box.x - cx === 7 && box.y - cy === 7, true);
 check('right-clicking a card opens its menu', painted().includes('Copy text'));
 check('with the destructive action in it', painted().includes('Delete'));
 check('and it does not open the item', route.path, '/');
@@ -131,7 +131,7 @@ click_at(width - 20, 200, { button: 2 });
 await wait();
 check('empty space offers the capture actions', painted().includes('Paste from clipboard'));
 const edge = native.getElementBounds(find_test_id('menu')!.id)!;
-check('and a menu at the right edge flips inward', edge[0] + edge[2] < width);
+check('and a menu at the right edge flips inward', edge.x + edge.width < width);
 press('escape');
 await wait();
 

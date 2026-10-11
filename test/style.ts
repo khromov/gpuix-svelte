@@ -131,6 +131,6 @@ check('commit survives a shorthand-heavy style', threw && threw.message, null);
 
 native.flush();
 const box_bounds = native.getElementBounds(label.nativeId!);
-check('padding actually applied (x, y)', box_bounds && box_bounds.slice(0, 2).map(Math.round), [24, 12]);
+check('padding actually applied (x, y)', box_bounds && [box_bounds.x, box_bounds.y].map(Math.round), [24, 12]);
 
 finish('style', 24);

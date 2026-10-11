@@ -27,7 +27,7 @@ svelte-autofixer tool on the Svelte MCP server.
 const FILTERS = [
 	{
 		id: 'a11y',
-		why: 'GPUI has no DOM and no accessibility tree, and renderer.ts drops role/aria-* before they ship',
+		why: 'DOM advice (keyboard handlers beside clicks, roles on static elements) the examples were not written against; role/aria-* do ship',
 		match: (f: Finding) => f.code?.startsWith('a11y_') === true
 	},
 	{

@@ -62,8 +62,8 @@
 		}
 
 		if (!content?.nativeId) return null;
-		const viewport = native.getElementBounds(column.nativeId)?.[3];
-		const total = native.getElementBounds(content.nativeId)?.[3];
+		const viewport = native.getElementBounds(column.nativeId)?.height;
+		const total = native.getElementBounds(content.nativeId)?.height;
 		if (!viewport || !total) return null;
 
 		return { native, viewport, total, offset: native.getScrollOffset(column.nativeId)?.[1] ?? 0, per: 0 };
