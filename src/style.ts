@@ -237,11 +237,44 @@ function expand(out: GpuiStyle, key: string, value: string) {
 	return true;
 }
 
+// Splits the way Svelte's `style:` read-modify-write does, so a `;` inside quotes, `(...)` or a comment stays in its value.
+function split_declarations(css: string): string[] {
+	const out: string[] = [];
+	let quote = '';
+	let depth = 0;
+	let comment = false;
+	let start = 0;
+
+	for (let i = 0; i < css.length; i++) {
+		const c = css[i];
+		if (comment) {
+			if (c === '/' && css[i - 1] === '*') comment = false;
+		} else if (c === '\\') {
+			i++;
+		} else if (quote) {
+			if (c === quote) quote = '';
+		} else if (c === '/' && css[i + 1] === '*') {
+			comment = true;
+		} else if (c === '"' || c === "'") {
+			quote = c;
+		} else if (c === '(') {
+			depth++;
+		} else if (c === ')') {
+			if (depth > 0) depth--;
+		} else if (c === ';' && depth === 0) {
+			out.push(css.slice(start, i));
+			start = i + 1;
+		}
+	}
+	out.push(css.slice(start));
+	return out;
+}
+
 export function parse_css_text(css: string | null | undefined): GpuiStyle {
 	const out: GpuiStyle = {};
 	if (!css) return out;
 
-	for (const decl of css.split(';')) {
+	for (const decl of split_declarations(css)) {
 		const colon = decl.indexOf(':');
 		if (colon === -1) continue;
 

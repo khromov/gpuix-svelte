@@ -56,6 +56,11 @@ check('keywords, percents and colors stay strings', parse_css_text('width: 50%; 
 	height: 'auto',
 	backgroundColor: '#1e1e2e'
 });
+check('a ; inside quotes or parens stays in its value', parse_css_text('font-family: "a;b"; color: rgb(1, 2, 3); background-color: url(x;y)'), {
+	fontFamily: '"a;b"',
+	color: 'rgb(1, 2, 3)',
+	backgroundColor: 'url(x;y)'
+});
 check('negative lengths survive', parse_css_text('margin-top: -4px'), { marginTop: -4 });
 // GPUI reads longhands over the shorthand, so the later shorthand has to clear them.
 check('a later shorthand clears the earlier longhands', parse_css_text('padding: 12px 24px; padding: 20px'), { padding: 20 });
@@ -133,4 +138,4 @@ native.flush();
 const box_bounds = native.getElementBounds(label.nativeId!);
 check('padding actually applied (x, y)', box_bounds && [box_bounds.x, box_bounds.y].map(Math.round), [24, 12]);
 
-finish('style', 24);
+finish('style', 25);
