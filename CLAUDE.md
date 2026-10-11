@@ -131,6 +131,10 @@ npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP serv
                            # warnings and --all every filtered class, --json, --jobs N, --url.
                            # Exits 1 on issues, never on suggestions. Network, not a runtime
                            # script, so no bun twin
+npm run docs               # README.md + docs/*.md → static HTML in dist/docs via marked
+                           # (scripts/docs.ts; links to other repo files go to GitHub);
+                           # .github/workflows/docs.yml deploys it to GitHub Pages on push.
+                           # Not a runtime script, so no bun twin
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and

@@ -95,3 +95,9 @@ PR titles must be [conventional commits](https://www.conventionalcommits.org) (`
 PR open on `main`; merging it tags the release, runs the tests and the consumer path on macOS, and
 publishes `gpuix-svelte` and `create-gpuix-svelte` to npm with npm trusted publishing (OIDC, with provenance).
 `npm run pack -- <dir>` builds the same tarball locally.
+
+## Docs site
+
+`npm run docs` renders the README and `docs/*.md` to static HTML in `dist/docs`; the `docs`
+workflow publishes it to GitHub Pages on every push to `main` that touches them. A new page goes in
+`PAGES` in [`scripts/docs.ts`](../scripts/docs.ts).

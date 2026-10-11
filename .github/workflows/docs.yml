@@ -1,0 +1,37 @@
+name: docs
+
+# Renders README.md and docs/*.md to static HTML (scripts/docs.ts) and deploys it to GitHub Pages.
+# Settings → Pages → Source must be "GitHub Actions".
+on:
+  push:
+    branches: [main]
+    paths: [README.md, docs/**, scripts/docs.ts, .github/workflows/docs.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm run docs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/docs
+      - uses: actions/deploy-pages@v4
+        id: deployment

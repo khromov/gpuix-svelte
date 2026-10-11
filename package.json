@@ -84,6 +84,7 @@
 		"test:teardown": "node bin/gpuix-svelte.js test/teardown.ts",
 		"test:style": "node bin/gpuix-svelte.js test/style.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
+		"docs": "node --import tsx scripts/docs.ts",
 		"vendor": "node --use-env-proxy --import tsx scripts/vendor-svelte.ts",
 		"pack": "node --import tsx scripts/publish.ts pack",
 		"publish:npm": "node --import tsx scripts/publish.ts publish",
