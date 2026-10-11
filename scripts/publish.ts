@@ -2,8 +2,8 @@
 // manifest even with the bundle in place, so the registry range exists only for the length
 // of `npm pack` / `npm publish` — a wrapper rather than prepack/postpack, because
 // `npm publish` re-reads the manifest after postpack has restored it. The same window
-// emits declarations into dts/ and points `types` conditions at them, so consumers can
-// typecheck without `allowImportingTsExtensions` while the runtime still loads src/*.ts.
+// emits declarations into dts/ and points `types` conditions at them, so consumers typecheck
+// against plain .d.ts files while the runtime loads src/*.ts.
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

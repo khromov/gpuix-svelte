@@ -299,7 +299,7 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   is declarations, and only inside the tarball: `scripts/publish.ts` runs `tsc -p
   tsconfig.dts.json` into a gitignored `dts/`, rewrites their `./x.ts` specifiers to `./x.js`,
   and adds a `types` condition per `src/*.ts` export (plus top-level `types`) to the manifest for
-  the length of `npm pack`/`npm publish`, so consumers need no `allowImportingTsExtensions`.
+  the length of `npm pack`/`npm publish`, so consumers typecheck against plain declarations.
   The one `.js` in the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
   cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `typecheck` is
   `tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings`: tsc never
@@ -648,7 +648,7 @@ PR open from the conventional commits since the last release (`release-please-co
 released version), and merging that PR tags, creates the GitHub release, runs `npm test` +
 `npm run consume` on macOS, then `npm run publish:npm` and `npm publish` in
 `packages/create-gpuix-svelte` on Linux with npm trusted publishing (OIDC, `id-token: write`;
-provenance is automatic, no token). Each package has its own trusted publisher on npmjs.com:
+provenance is automatic). Each package has its own trusted publisher on npmjs.com:
 `khromov/gpuix-svelte`, workflow file `release.yml`. release-please's `extra-files` keeps
 `packages/create-gpuix-svelte/package.json`'s version equal to the root's, and the scaffolder
 writes `^<its own version>` into the app it creates. **PR titles must be

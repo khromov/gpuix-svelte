@@ -1,5 +1,5 @@
 // @ts-check
-// prepack: npm cannot publish files from outside the package directory, so starter/ is copied in.
+// prepack: npm publishes what is inside the package directory, so starter/ is copied in.
 
 import { cpSync, rmSync } from 'node:fs';
 import { basename } from 'node:path';

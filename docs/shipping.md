@@ -7,16 +7,16 @@ at your own entry. Both need [Bun](https://bun.com).
 
 ## Build a standalone binary
 
-Bun can compile an app into one executable that runs without Node, Bun or `node_modules`. In a clone
-of the repo:
+Bun can compile an app into one self-contained executable carrying the Bun runtime, Svelte and the
+GPUI addon. In a clone of the repo:
 
 ```bash
 npm run compile        # tic-tac-toe → dist/tictactoe (dist\tictactoe.exe on Windows)
 npm run compile:app    # macOS: additionally wraps it as dist/Tic-tac-toe.app
 ```
 
-A binary cannot hot-reload — there is no source on disk to re-import — so its entry mounts the
-component with `render` and a static import instead of `render_hot`
+A binary carries compiled code rather than source files, so its entry mounts the component with
+`render` and a static import (`render_hot` is for development, where it re-imports from disk)
 ([`examples/tic-tac-toe/standalone.ts`](../examples/tic-tac-toe/standalone.ts)):
 
 ```ts
@@ -26,7 +26,7 @@ import App from './App.svelte';
 render(App, { title: 'My app', width: 480, height: 640 });
 ```
 
-`Bun.build` never sees the `.svelte` plugin a `bunfig.toml` preloads, so the build script passes
+`Bun.build` takes its plugins as options, so the build script passes
 `load_svelte` / `load_module` from `gpuix-svelte/plugin` itself, adds `custom-renderer` to its
 `conditions`, and resolves `@gpuix/native` through `resolve_native_cjs` so the addon is embedded.
 
@@ -41,8 +41,7 @@ under System Settings → Privacy & Security. See [Signing](#signing).
 ## Run it in a browser
 
 The same components run on the web, because GPUI itself compiles to WebAssembly and paints a
-WebGPU canvas. This is not a DOM renderer — no HTML elements are produced — so what you get is the
-desktop app, pixel for pixel, inside a `<canvas>`:
+WebGPU canvas. What you get is the desktop app, pixel for pixel, inside a `<canvas>`:
 
 ```bash
 npm run demo:web                  # → http://localhost:4173
@@ -52,15 +51,15 @@ npm run demo:web -- --production  # minified, Svelte's production runtime
 [`examples/tic-tac-toe/web.ts`](../examples/tic-tac-toe/web.ts) is the entry, and it is the same two lines as the desktop one — the
 component, the renderer and your styles are unchanged. Only the plumbing differs:
 
-- **Bun only.** `@gpuix/native` ships the wasm and points its `browser` field at it, and the loader
-  imports the binary with `with { type: 'file' }` — an attribute only Bun's bundler reads.
+- **Built with Bun.** `@gpuix/native` ships the wasm and points its `browser` field at it, and the
+  loader imports the binary with `with { type: 'file' }`, an attribute Bun's bundler reads.
 - **The page must be cross-origin isolated.** GPUI's wasm uses shared memory, so whatever serves it
   has to send `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp`, and serve `.wasm` as `application/wasm`.
-  `scripts/web.ts` does this; opening the HTML from disk will not work.
-- **The window options are ignored.** `title`, `width` and `height` mean nothing to the wasm
-  renderer — the canvas fills the page, so size it with CSS in `index.html`.
-- **It is a 19.9 MB download**, uncompressed. Serve it with compression in anything real.
+  `scripts/web.ts` does this, so serve the page over HTTP.
+- **The page sizes the canvas.** It fills the page, styled by CSS in `index.html`; `title`,
+  `width` and `height` apply to desktop windows.
+- **It is a 19.9 MB download** uncompressed, so serve it with compression.
 
 ## Signing
 

@@ -7,8 +7,8 @@ and the constraints any change has to respect, are written down in [CLAUDE.md](.
 ## Setup
 
 Needs Node >= 24 (26.1 for `demo:glass-ffi`) or Bun >= 1.4, on macOS (arm64), Windows (x64) or
-Linux (x64). No Rust or other toolchain: `@gpuix/native` comes prebuilt from npm, and Svelte comes
-from `vendor/svelte-<version>-<sha>.tgz`, a build of the unreleased custom-renderer PR.
+Linux (x64). `npm install` is the whole setup: `@gpuix/native` comes prebuilt from npm, and Svelte
+comes from `vendor/svelte-<version>-<sha>.tgz`, a build of the unreleased custom-renderer PR.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
@@ -68,9 +68,8 @@ A demo that starts cleanly prints
 and `GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter` writes a PNG on every (re)mount — use a
 single demo, since they would all overwrite the same file.
 
-Linux runs the demos but not the tests: gpuix builds `TestGpuixRenderer` only on macOS and Windows
-(it needs `render_to_image`, which the Vulkan/wgpu backend lacks), so CI on Linux only checks that
-the binding loads.
+The demos run on all three platforms. The tests run on macOS and Windows, where gpuix builds
+`TestGpuixRenderer`; CI on Linux checks that the binding loads.
 
 `npm run test:coverage` mounts Svelte's own custom-renderer samples when `SVELTE_SAMPLES_DIR`
 points at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`; it skips otherwise.
@@ -79,7 +78,7 @@ points at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`; 
 
 `npm run vendor` looks up the custom-renderer PR's head commit, downloads that commit's build from
 pkg.svelte.dev into `vendor/`, repoints `package.json` and reinstalls. Run `npm test` and
-`npm run bun:test` afterwards — the PR changes without notice, which is why each release of the
+`npm run bun:test` afterwards — the PR moves on its own schedule, which is why each release of the
 package ships exactly the build it was tested against.
 
 ## The consumer path
@@ -94,5 +93,5 @@ does the same with Bun, and `consume:open` opens the window instead. CI runs bot
 PR titles must be [conventional commits](https://www.conventionalcommits.org) (`feat:`, `fix:`,
 `docs:`, `chore:` …), since squash merges make the title the commit. release-please keeps a release
 PR open on `main`; merging it tags the release, runs the tests and the consumer path on macOS, and
-publishes `gpuix-svelte` and `create-gpuix-svelte` to npm with trusted publishing (OIDC, no token).
+publishes `gpuix-svelte` and `create-gpuix-svelte` to npm with npm trusted publishing (OIDC, with provenance).
 `npm run pack -- <dir>` builds the same tarball locally.

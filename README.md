@@ -1,7 +1,7 @@
 # gpuix-svelte
 
-Write desktop apps in Svelte and render them into a native, GPU-accelerated window — no webview, no
-DOM, no Electron. gpuix-svelte is a Svelte custom renderer for [GPUI](https://www.gpui.rs/), the UI
+Write desktop apps in Svelte and render them straight into a native, GPU-accelerated window.
+gpuix-svelte is a Svelte custom renderer for [GPUI](https://www.gpui.rs/), the UI
 framework behind the Zed editor, via [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native).
 
 ![Four gpuix-svelte demos running as native macOS windows](https://raw.githubusercontent.com/khromov/gpuix-svelte/main/.github/resources/demos.png)
@@ -24,7 +24,7 @@ npm start
 A counter opens in its own window. Edit `App.svelte` and save — the window hot-reloads.
 
 Requirements: **Node.js >= 24** or **Bun >= 1.4**, on macOS (Apple Silicon), Windows (x64) or Linux
-(x64). The GPUI binary comes prebuilt from npm; there is no Rust toolchain to install. With Bun,
+(x64). The GPUI binary comes prebuilt from npm, so `npm install` is the whole setup. With Bun,
 `bun create gpuix-svelte my-app` then `bun run start`.
 
 ## What it looks like
@@ -62,35 +62,34 @@ npx gpuix-svelte --bun app.ts    # Bun
 ```
 
 Runes, snippets, `{#each}`, `{#if}`, `{#await}`, `<svelte:boundary>`, `.svelte.ts` state modules
-and scoped `<style>` blocks all work as usual. What is different is the platform underneath: there
-is no browser, so there is no DOM, no CSS engine and no web APIs beyond what Node or Bun provide —
-and in exchange you get the whole of Node or Bun (files, processes, SQLite, native addons) in the
-same process as the UI.
+and scoped `<style>` blocks all work as usual. Underneath is GPUI's element tree, painted on the
+GPU, with the whole of Node or Bun (files, processes, SQLite, native addons) in the same process
+as the UI.
 
 ## Coming from Svelte on the web
 
-The short list of what works differently. Each links to the full story.
+The short list of what to know. Each links to the full story.
 
-- **Elements are GPUI's**, not HTML: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`,
-  `markdown`, `virtual-list`, `anchored` and a few more. Anything else renders as a `div` with a
-  warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
-- **Styling is a subset of CSS**, flexbox in logical pixels. `px` only — no `rem`, `em` or `vh` —
-  and `%`/`auto` only for sizes. Class rules in `<style>` work, including `:hover` and `:active`;
-  descendant selectors and media queries do not. Unsupported values are dropped with a warning.
+- **Elements are GPUI's**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `markdown`,
+  `virtual-list`, `anchored` and a few more. Other tags render as a `div`, with a warning.
+  `<img src>` takes a file path, a `data:` URL or an http(s) URL.
+- **Styling is CSS text for a flexbox layout in logical pixels.** Lengths are `px`; sizes
+  (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class
+  rules with `:hover` and `:active`. Values GPUI can't use are dropped with a warning.
   → [docs/styling.md](docs/styling.md)
 - **Theming** is `var(--token)` in your styles plus one `set_css_vars({ token: '#fff' })` call.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
-- **Events do not bubble**, and a child with a background swallows clicks meant for its parent.
-  Put `hitbox="self"` on the clickable element. `onclick` is the primary button; right and middle
-  clicks are `onauxclick`. → [docs/styling.md](docs/styling.md) (non-standard semantics)
-- **No `bind:`.** Inputs report through events whose payload carries the value:
-  `<input value={text} onchange={(e) => (text = e.value)} />`. To reach an element, use
-  `{@attach}`. → [docs/guide.md](docs/guide.md)
-- **Keyboard shortcuts** go through `on_window_key('keydown', handler)` rather than a listener on a
-  root element. → [docs/guide.md](docs/guide.md#keyboard-shortcuts-and-focus)
-- **No scrollbars are painted** by GPUI, and anything that must sit on top has to come last in the
-  tree. The package ships `Scroller` and `Portal` for exactly that. →
-  [docs/components.md](docs/components.md)
+- **Events go to the element under the pointer.** Put `hitbox="self"` on a clickable element and
+  clicks on its decoration reach it. `onclick` is the primary button; right and middle clicks are
+  `onauxclick`. → [docs/styling.md](docs/styling.md) (non-standard semantics)
+- **Inputs report through events** whose payload carries the value:
+  `<input value={text} onchange={(e) => (text = e.value)} />`. `{@attach}` hands you the element.
+  → [docs/guide.md](docs/guide.md)
+- **Keyboard shortcuts** go through `on_window_key('keydown', handler)`, which hears every key
+  whatever has focus. → [docs/guide.md](docs/guide.md#keyboard-shortcuts-and-focus)
+- **`Scroller` and `Portal` ship with the package**: a scroll column with a drawn scrollbar
+  (virtualised on request), and a wrapper that paints modals, menus and toasts on top from
+  anywhere in the tree. → [docs/components.md](docs/components.md)
 - **Window and desktop APIs** — title, fullscreen, file picker, file drops, images from raw pixels,
   focus, accessibility attributes. → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
 
@@ -112,8 +111,8 @@ The [examples](examples) are the best reference for real code — see [Examples]
 npm install gpuix-svelte
 ```
 
-Do **not** add `svelte` to your dependencies; see [About the Svelte version](#about-the-svelte-version).
-Then run your entry through the package's bin, typically from `package.json`:
+`gpuix-svelte` brings its own Svelte, so it is the only dependency you add (see [About the Svelte
+version](#about-the-svelte-version)). Then run your entry through the package's bin, typically from `package.json`:
 
 ```json
 {
@@ -126,8 +125,8 @@ Then run your entry through the package's bin, typically from `package.json`:
 ```
 
 The bin starts Node (or Bun, with `--bun` or under `bun run`) with three things in place before
-your entry loads: the `custom-renderer` module condition, without which `svelte` resolves to its
-server build; the `.svelte` loader; and, on Node, [tsx](https://tsx.is) for TypeScript. Flags
+your entry loads: the `custom-renderer` module condition, which selects Svelte's client build with
+the renderer API; the `.svelte` loader; and, on Node, [tsx](https://tsx.is) for TypeScript. Flags
 before the entry go to the runtime (`gpuix-svelte --experimental-ffi app.ts`), arguments after it
 to your script. Spelled out, it runs
 
@@ -142,8 +141,7 @@ On Bun, `preload = ["gpuix-svelte/plugin"]` in a `bunfig.toml` replaces the `--p
 ### TypeScript
 
 The package ships type declarations. Your `tsconfig.json` needs a `paths` entry pointing at the
-Svelte build nested inside the package — `tsc` does not look there on its own — and, for the
-editor and `svelte-check` to type markup as GPUI elements rather than DOM ones, the `gpuixHTML`
+Svelte build nested inside the package and, for the editor and `svelte-check` to type markup as GPUI elements rather than DOM ones, the `gpuixHTML`
 namespace:
 
 ```jsonc
@@ -195,38 +193,35 @@ Every command also runs on Bun under a `bun:` prefix (`npm run bun:demo:counter`
 
 ## About the Svelte version
 
-Custom renderers are not in a released Svelte yet. They live on an open pull request that changes
-without notice and has no version numbers of its own, so this package does not depend on Svelte
-from the registry at all: each release **bundles** the exact build of that pull request it was
-tested against, inside `node_modules/gpuix-svelte/node_modules/svelte`, and its loaders resolve
-every `svelte` import — yours, the compiled components', its own — to that copy.
+Custom renderers live on an open Svelte pull request that moves on its own schedule. So each release
+of this package **bundles** the exact build of that pull request it was tested against, inside
+`node_modules/gpuix-svelte/node_modules/svelte`, and its loaders resolve every `svelte` import —
+yours, the compiled components', its own — to that copy.
 
 In practice:
 
-- Don't install `svelte` yourself. The registry's `svelte` has a similar version number and none
-  of the renderer API, and it would be ignored anyway.
+- `gpuix-svelte` is your one dependency; the Svelte you import is the one it brings.
 - Upgrading `gpuix-svelte` may move the Svelte build underneath you, so read the changelog before
   a minor bump.
-- Tooling that loads Svelte on its own (`svelte-check`, editor plugins) uses the registry's Svelte
-  for type information. That is fine for checking, but not for running.
+- `svelte-check` and editor plugins read types from the registry's Svelte, which is what checking
+  needs.
 
-## Known limitations
+## Good to know
 
-- GPUI paints no scrollbar, hence `Scroller`; and no right-click menu, so context menus are drawn
-  by the app (a `<Portal>` at the `onauxclick` coordinates).
-- `left`, `top`, `right` and `bottom` are pixel-only, so `left: 50%` is dropped; size a progress
-  bar's fill with `width: 50%` instead.
-- `<svg>` inherits no `color` natively. The renderer copies the nearest ancestor's onto it, but a
-  parent's `:hover` colour does not reach it.
-- Headless tests run on macOS and Windows only; Linux has no headless renderer yet.
-- Building a standalone binary or a web bundle needs Bun and a build script of your own, modelled
-  on the repository's — see [docs/shipping.md](docs/shipping.md).
+- Scrollbars come from `Scroller`, and context menus are drawn by the app: a `<Portal>` placed at
+  the `onauxclick` coordinates.
+- `left`, `top`, `right` and `bottom` take pixels; a progress bar's fill sizes with `width: 50%`.
+- `<svg>` takes its `color` from the nearest ancestor's style, copied over by the renderer; give
+  hover tones to the `<svg>` itself.
+- Headless tests run on macOS and Windows.
+- Standalone binaries and web bundles are built with Bun, from a script modelled on the
+  repository's — see [docs/shipping.md](docs/shipping.md).
 
 ## How it works
 
 Svelte's custom renderer API hands the renderer DOM-shaped operations — create an element, insert
-it before an anchor, set an attribute, add a comment node. GPUI's tree is flat, keyed by numeric id
-and knows nothing about fragments or comments. gpuix-svelte keeps a lightweight shadow tree in
+it before an anchor, set an attribute, add a comment node. GPUI's tree is flat, keyed by numeric id,
+and holds elements and text. gpuix-svelte keeps a lightweight shadow tree in
 JavaScript and projects it onto GPUI: only elements and non-empty text get native nodes, created
 lazily once they are attached to the window, and every change in a frame is queued and shipped as
 one batch, applied by Rust before the next paint.

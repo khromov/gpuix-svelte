@@ -46,7 +46,7 @@ const json = JSON.parse(readFileSync(manifest, 'utf8'));
 json.name = basename(target).toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
 json.dependencies['gpuix-svelte'] = `^${own.version}`;
 writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
-// npm strips .gitignore from published tarballs, so it cannot travel inside template/.
+// npm strips .gitignore from published tarballs, so the scaffolder writes it.
 writeFileSync(join(target, '.gitignore'), 'node_modules\n.DS_Store\n');
 
 const agent = process.env.npm_config_user_agent?.split('/')[0] ?? 'npm';
