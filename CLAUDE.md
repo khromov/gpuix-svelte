@@ -715,8 +715,10 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   message text, since suggestions carry no error code, so a reworded message fails open. The
   surviving "stateful variable X is assigned inside an `$effect`" class is deliberately **not**
   filtered: every current hit is an async fetch, a timer or a two-way sync, but it is the class
-  that caught tic-tac-toe's score tally. Baseline on 2026-09-03: 72 files, 0 issues, 6
-  suggestions, 143 a11y + 29 call-in-effect hidden.
+  that caught tic-tac-toe's score tally. A one-shot subscription with nothing reactive in it
+  (`on_selection_change` in `examples/desktop-apis`) goes through `onDestroy` instead of an
+  `$effect`, which keeps it out of that class. Baseline on 2026-10-11: 75 files, 0 issues, 6
+  suggestions, 174 a11y + 36 call-in-effect hidden.
 - `demo:glass-ffi` renders as an opaque dark slab over bright backdrops on every native version
   tested: attaching the NSGlassEffectView itself turns the window opaque (the shim never opts into
   behind-window sampling), not a renderer regression.

@@ -16,6 +16,7 @@
 		type ShadowNode
 	} from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
+	import { onDestroy } from 'svelte';
 
 	set_css_vars({
 		bg: '#11111b',
@@ -87,7 +88,7 @@
 	});
 
 	let selected = $state('');
-	$effect(() => on_selection_change((e) => (selected = e.value ?? '')));
+	onDestroy(on_selection_change((e) => (selected = e.value ?? '')));
 
 	const ROWS = Array.from({ length: 60 }, (_, i) => i + 1);
 	const row_nodes: ShadowNode[] = [];
