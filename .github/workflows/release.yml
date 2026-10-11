@@ -47,5 +47,9 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - run: npm ci
-      # OIDC trusted publishing: no token, and provenance is generated automatically.
+      # OIDC trusted publishing: no token, and provenance is generated automatically. Each
+      # package needs its own trusted publisher on npmjs.com, naming this workflow file.
       - run: npm run publish:npm
+      # The scaffolder pins ^<its own version>, which release-please keeps equal to the root's.
+      - run: npm publish
+        working-directory: packages/create-gpuix-svelte

@@ -8,7 +8,6 @@
 		"types": ["node", "gpuix-svelte/html"],
 		"strict": true,
 		"noEmit": true,
-		"allowImportingTsExtensions": true,
 		"skipLibCheck": true,
 		"paths": {
 			"svelte": ["./node_modules/gpuix-svelte/node_modules/svelte"],

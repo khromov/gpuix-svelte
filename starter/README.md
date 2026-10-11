@@ -1,7 +1,7 @@
 # gpuix-svelte starter
 
 The smallest project that consumes `gpuix-svelte` from npm: a counter in a native GPUI window.
-Copy this directory anywhere and:
+`npm create gpuix-svelte@latest` copies it into a new directory; then:
 
 ```bash
 npm install          # gpuix-svelte brings its own Svelte build — do not add svelte yourself
@@ -24,13 +24,14 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
 ## Files
 
 - `app.ts` — the entry: `render_hot` opens the window and remounts `App.svelte` on every save.
-- `App.svelte` — the component. Styling is a `<style>` block of class rules; see the package
-  README for what CSS reaches GPUI.
+- `App.svelte` — the component. Styling is a `<style>` block of class rules; see
+  [docs/styling.md](https://github.com/khromov/gpuix-svelte/blob/main/docs/styling.md) for what
+  CSS reaches GPUI.
 - `test.ts` — a headless test through `gpuix-svelte/test`; plain script, exits 1 on failure.
   macOS and Windows only — the headless renderer is not built for Linux.
 - `svelte.d.ts` — declares `*.svelte` modules for `tsc`.
-- `tsconfig.json` — `allowImportingTsExtensions` and `nodenext`, because the package ships
-  `.ts` sources, and a `paths` entry so `tsc` finds the Svelte that is nested inside the package.
+- `tsconfig.json` — `nodenext`, and a `paths` entry so `tsc` finds the Svelte that is nested
+  inside the package.
   `svelteOptions.namespace` and the `gpuix-svelte/html` type entry make the editor and
   svelte-check type `App.svelte`'s markup as GPUI elements rather than DOM ones.
 - `svelte.config.js` — editor and svelte-check only: switches off Svelte's DOM a11y advice.

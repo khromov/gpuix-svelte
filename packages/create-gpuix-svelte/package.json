@@ -1,0 +1,39 @@
+{
+	"name": "create-gpuix-svelte",
+	"version": "0.1.0",
+	"description": "Scaffold a gpuix-svelte app: Svelte components in a native GPUI window",
+	"type": "module",
+	"license": "MIT",
+	"author": "Stanislav Khromov",
+	"bin": {
+		"create-gpuix-svelte": "index.js"
+	},
+	"files": [
+		"index.js",
+		"template"
+	],
+	"scripts": {
+		"prepack": "node sync-template.js"
+	},
+	"engines": {
+		"node": ">=24.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/khromov/gpuix-svelte.git",
+		"directory": "packages/create-gpuix-svelte"
+	},
+	"homepage": "https://github.com/khromov/gpuix-svelte#readme",
+	"keywords": [
+		"svelte",
+		"gpui",
+		"gpuix",
+		"create",
+		"scaffold",
+		"desktop"
+	],
+	"publishConfig": {
+		"registry": "https://registry.npmjs.org/",
+		"access": "public"
+	}
+}

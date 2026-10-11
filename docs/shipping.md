@@ -1,0 +1,93 @@
+# Shipping an app
+
+How the repo's own examples are turned into a standalone binary, a signed macOS app and a web page.
+These are scripts in the repository rather than commands in the package — copy
+[`scripts/compile.ts`](../scripts/compile.ts) or [`scripts/web.ts`](../scripts/web.ts) and point them
+at your own entry. Both need [Bun](https://bun.com).
+
+## Build a standalone binary
+
+Bun can compile an app into one executable that runs without Node, Bun or `node_modules`. In a clone
+of the repo:
+
+```bash
+npm run compile        # tic-tac-toe → dist/tictactoe (dist\tictactoe.exe on Windows)
+npm run compile:app    # macOS: additionally wraps it as dist/Tic-tac-toe.app
+```
+
+A binary cannot hot-reload — there is no source on disk to re-import — so its entry mounts the
+component with `render` and a static import instead of `render_hot`
+([`examples/tic-tac-toe/standalone.ts`](../examples/tic-tac-toe/standalone.ts)):
+
+```ts
+import { render } from 'gpuix-svelte';
+import App from './App.svelte';
+
+render(App, { title: 'My app', width: 480, height: 640 });
+```
+
+`Bun.build` never sees the `.svelte` plugin a `bunfig.toml` preloads, so the build script passes
+`load_svelte` / `load_module` from `gpuix-svelte/plugin` itself, adds `custom-renderer` to its
+`conditions`, and resolves `@gpuix/native` through `resolve_native_cjs` so the addon is embedded.
+
+The result is ~80 MB — the Bun runtime, the Svelte runtime and the 17 MB GPUI addon. It is built
+for the machine it runs on: run the same command on macOS (arm64), Linux (x64) or Windows (x64) to
+get that platform's binary. There is no cross-compiling, since npm only installs the addon prebuilt
+for the host.
+
+The output is unsigned by default, and macOS blocks a downloaded unsigned copy until it is allowed
+under System Settings → Privacy & Security. See [Signing](#signing).
+
+## Run it in a browser
+
+The same components run on the web, because GPUI itself compiles to WebAssembly and paints a
+WebGPU canvas. This is not a DOM renderer — no HTML elements are produced — so what you get is the
+desktop app, pixel for pixel, inside a `<canvas>`:
+
+```bash
+npm run demo:web                  # → http://localhost:4173
+npm run demo:web -- --production  # minified, Svelte's production runtime
+```
+
+[`examples/tic-tac-toe/web.ts`](../examples/tic-tac-toe/web.ts) is the entry, and it is the same two lines as the desktop one — the
+component, the renderer and your styles are unchanged. Only the plumbing differs:
+
+- **Bun only.** `@gpuix/native` ships the wasm and points its `browser` field at it, and the loader
+  imports the binary with `with { type: 'file' }` — an attribute only Bun's bundler reads.
+- **The page must be cross-origin isolated.** GPUI's wasm uses shared memory, so whatever serves it
+  has to send `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp`, and serve `.wasm` as `application/wasm`.
+  `scripts/web.ts` does this; opening the HTML from disk will not work.
+- **The window options are ignored.** `title`, `width` and `height` mean nothing to the wasm
+  renderer — the canvas fills the page, so size it with CSS in `index.html`.
+- **It is a 19.9 MB download**, uncompressed. Serve it with compression in anything real.
+
+## Signing
+
+### macOS
+
+`compile` signs when `CODESIGN_IDENTITY` names a Developer ID Application certificate in your
+keychain; `compile:app` also notarizes and staples the bundle when `NOTARY_PROFILE` names a
+`notarytool` keychain profile, and leaves `dist/Tic-tac-toe.zip` ready to ship. One-time setup:
+
+1. Create an app-specific password at https://account.apple.com → Sign-In and Security →
+   App-Specific Passwords.
+2. Store it under a profile name, with the team ID from your certificate:
+
+   ```bash
+   xcrun notarytool store-credentials notary --apple-id you@example.com --team-id TEAMID --password xxxx-xxxx-xxxx-xxxx
+   ```
+
+   A 403 "required agreement is missing or has expired" means the Account Holder has to accept the
+   current Program License Agreement at https://appstoreconnect.apple.com/agreements; it can take a
+   while to propagate after that.
+3. Put both variables in a `.env` at the repo root — gitignored, and Bun loads it when it runs the
+   script — so plain `npm run compile:app` signs from now on:
+
+   ```
+   CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+   NOTARY_PROFILE=notary
+   ```
+
+If Apple rejects a submission the script prints the submission output and exits;
+`xcrun notarytool log <submission-id> --keychain-profile notary` has the reason.

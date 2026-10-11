@@ -133,13 +133,14 @@ npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP serv
                            # script, so no bun twin
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
-npm run pack -- <dir>      # the npm tarball, with svelte bundled and the published spec —
-                           # scripts/publish.ts wraps `npm pack`; `publish:npm` wraps
-                           # `npm publish` the same way (the release workflow's last step)
-npm run consume            # the consumer path: pack, install the tarball into a copy of
-                           # starter/ under $TMPDIR, `tsc --noEmit`, run its headless test
-                           # through the installed bin. bun:consume installs and runs with
-                           # Bun; consume:open / bun:consume:open open the window instead
+npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and
+                           # declarations in dts/ — scripts/publish.ts wraps `npm pack`;
+                           # `publish:npm` wraps `npm publish` the same way (release workflow)
+npm run consume            # the consumer path: pack, scaffold an app under $TMPDIR with
+                           # packages/create-gpuix-svelte, install the tarball into it,
+                           # `tsc --noEmit`, run its headless test through the installed bin.
+                           # bun:consume installs and runs with Bun; consume:open /
+                           # bun:consume:open open the window instead
 npm run compile            # tic-tac-toe → dist/tictactoe (.exe on Windows) via Bun.build({ compile });
                            # Bun-only, so no twin — it refuses to run under Node
 npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its icon (macOS only)
@@ -288,14 +289,18 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
 
 ## Hard constraints
 
-- **TypeScript sources run as-is; no build step, no emit.** `exports` points straight at
+- **TypeScript sources run as-is; no build step.** `exports` points straight at
   `src/*.ts`; Node runs them through tsx (a runtime dependency, injected by the bin — Node's own
   type stripping refuses files under `node_modules`, so consumers need it), Bun natively.
   `tsc --noEmit` (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`, explicit `./x.ts`
   specifiers) gates `npm test`, `npm run bun:test` and CI over src, bin, scripts, test and every
   example; `types/*.d.ts` hold the ambient shims (`*.svelte` modules, `node:ffi`'s missing names).
-  Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The one `.js` in
-  the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
+  Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The only emit
+  is declarations, and only inside the tarball: `scripts/publish.ts` runs `tsc -p
+  tsconfig.dts.json` into a gitignored `dts/`, rewrites their `./x.ts` specifiers to `./x.js`,
+  and adds a `types` condition per `src/*.ts` export (plus top-level `types`) to the manifest for
+  the length of `npm pack`/`npm publish`, so consumers need no `allowImportingTsExtensions`.
+  The one `.js` in the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
   cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `typecheck` is
   `tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings`: tsc never
   opens a `.svelte` file, so markup and `<script>` bodies are only checked by svelte-check.
@@ -307,8 +312,8 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   both. It splits blocks on a literal `<style>`/`<script>` even inside a comment or string. And it
   always loads `lib: dom`, so a `.ts` file must also typecheck against DOM's `ReadableStream`/`Blob`.
   The CSS diagnostic source is left out because it flags GPUI-only properties (`selection-color`).
-  Consumers typechecking against the package need `allowImportingTsExtensions` (hence `noEmit`),
-  `@types/node`, and for markup `"types": ["gpuix-svelte/html"]` plus the namespace, as README says.
+  Consumers typechecking against the package need `@types/node`, the `paths` to the nested svelte,
+  and for markup `"types": ["gpuix-svelte/html"]` plus the namespace, as README says.
   svelte-check pulls the registry's svelte in as its peer, which lacks `customRenderer`, so the
   starter's `svelte.config.js` sets only the a11y `warningFilter`.
   The `.` export is conditional — `browser` → `src/web.ts`, `default` → `src/index.ts` — and only a
@@ -516,9 +521,9 @@ are `f64`, so `1rem`, `50%` and `auto` are all fatal there; only `width`/`height
 that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
 even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
 
-### Regenerating README's styling reference
+### Regenerating the styling reference
 
-The two `<details>` lists under README's "Styling" heading are transcribed from the native side,
+The two `<details>` lists in `docs/styling.md` are transcribed from the native side,
 so redo them whenever `@gpuix/native` moves. The npm package ships no Rust; read the release tag on
 upstream (`https://raw.githubusercontent.com/remorses/gpuix/@gpuix/native@<version>/packages/native/src/<file>`,
 tags exist for every release; the sibling `../gpuix` checkout lags and is not a source of truth):
@@ -537,7 +542,7 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
 Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION` in `src/style.ts`,
 add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
 mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
-`StyleDesc`, with unknown keys already dropped, which is exactly what README claims.
+`StyleDesc`, with unknown keys already dropped, which is exactly what `docs/styling.md` claims.
 
 **`events.ts`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
@@ -613,7 +618,7 @@ the two stay in sync. Unknown events are dropped silently.
 - Paint order is document order, so anything that must sit on top (a modal, a toast, a popover)
   goes inside `<Portal>` from `gpuix-svelte/components/Portal.svelte`, rendered from wherever
   it is needed; its children position against the window. The native `<anchored>` element is
-  the popover primitive when the content should sit beside a trigger instead (README lists its
+  the popover primitive when the content should sit beside a trigger instead (`docs/components.md` lists its
   props); its child sizes to content, so it is no use for a scrim.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role` and
   `aria-label` / `-description` / `-id` / `-expanded` / `-selected` / `-valuetext` / `-level` as props;
@@ -641,15 +646,20 @@ PR open from the conventional commits since the last release (`release-please-co
 `release-type: node`, `bump-minor-pre-major` so a pre-1.0 breaking change bumps the minor,
 `include-component-in-tag: false` for `vX.Y.Z` tags; `.release-please-manifest.json` is the last
 released version), and merging that PR tags, creates the GitHub release, runs `npm test` +
-`npm run consume` on macOS, then `npm run publish:npm` on Linux with npm trusted publishing
-(OIDC, `id-token: write`; provenance is automatic, no token). The trusted publisher on
-npmjs.com is `khromov/gpuix-svelte`, workflow file `release.yml`. **PR titles must be
+`npm run consume` on macOS, then `npm run publish:npm` and `npm publish` in
+`packages/create-gpuix-svelte` on Linux with npm trusted publishing (OIDC, `id-token: write`;
+provenance is automatic, no token). Each package has its own trusted publisher on npmjs.com:
+`khromov/gpuix-svelte`, workflow file `release.yml`. release-please's `extra-files` keeps
+`packages/create-gpuix-svelte/package.json`'s version equal to the root's, and the scaffolder
+writes `^<its own version>` into the app it creates. **PR titles must be
 conventional commits** (`feat:`, `fix:`, `docs:`, `chore:` …) — squash merges make the title the
 commit, and release-please ignores anything else. With the default `GITHUB_TOKEN` the release PR
 does not trigger `test.yml`; a `RELEASE_PLEASE_TOKEN` PAT secret fixes that.
 
-`starter/` is the consumer package `npm run consume` installs the packed tarball into (a copy under
-`$TMPDIR`, so the checked-in one stays pristine). It depends on `gpuix-svelte` by version, has its
+`starter/` is the template `create-gpuix-svelte` copies (its `prepack` syncs it into the package's
+gitignored `template/`; run from the repo, `index.js` reads `starter/` directly) and so the app
+`npm run consume` installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays
+pristine). It depends on `gpuix-svelte` by version, has its
 own tsconfig with the `paths` for the nested svelte, and is excluded from the root `tsconfig`,
 eslint and `files`.
 
@@ -677,7 +687,7 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   safeguards: chunk length capped by characters, embedding batches of 8, `enableCpuMemArena:
   false`, idle unload of Whisper/CLIP, the worker's orphan watchdog.
 - Sibling checkouts: `../gpuix` is the fork this repo was extracted from (2026-08-30) and lags at
-  native 0.4.0 — read upstream release tags instead (see "Regenerating README's styling
+  native 0.4.0 — read upstream release tags instead (see "Regenerating the styling
   reference"); `../svelte` (khromov/svelte, branch `custom-condition`) is the local copy of the
   custom-renderer PR stack, force-pushed about weekly.
 - npm does not verify lock integrity for `file:` tarballs and says "up to date" when a same-named

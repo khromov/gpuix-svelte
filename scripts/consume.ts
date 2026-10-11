@@ -1,9 +1,10 @@
-// Installs the packed tarball into a copy of starter/ the way a consumer would — a
-// tarball, not a symlink, so the bundled svelte and the bin's own resolution are what
-// gets tested — then typechecks and runs its headless test (or opens the window).
+// Scaffolds an app with create-gpuix-svelte and installs the packed tarball into it the way
+// a consumer would — a tarball, not a symlink, so the bundled svelte, the emitted declarations
+// and the bin's own resolution are what gets tested — then typechecks and runs its headless
+// test (or opens the window).
 
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,7 @@ const open = process.argv.includes('--open');
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'gpuix-svelte-consume-'));
-const consumer = join(dir, 'starter');
+const consumer = join(dir, 'app');
 
 function run(command: string, args: string[], cwd: string) {
 	console.log(`\n[consume] ${command} ${args.join(' ')}`);
@@ -28,7 +29,8 @@ run(process.execPath, ['--import', 'tsx', join(root, 'scripts/publish.ts'), 'pac
 const tarball = readdirSync(dir).find((f) => f.endsWith('.tgz'));
 if (!tarball) throw new Error(`npm pack left no tarball in ${dir}`);
 
-cpSync(join(root, 'starter'), consumer, { recursive: true, filter: (src) => !src.includes('node_modules') });
+run(process.execPath, [join(root, 'packages/create-gpuix-svelte/index.js'), consumer], dir);
+if (!existsSync(join(consumer, '.gitignore'))) throw new Error('create-gpuix-svelte wrote no .gitignore');
 const manifest = join(consumer, 'package.json');
 const json = JSON.parse(readFileSync(manifest, 'utf8'));
 json.dependencies['gpuix-svelte'] = `file:${join(dir, tarball)}`;
