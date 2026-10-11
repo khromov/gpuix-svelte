@@ -1,0 +1,12 @@
+# vendor/*.tgz is the svelte build the install depends on — never exclude it.
+node_modules
+**/node_modules
+dist
+out
+.git
+.linux-out
+.data
+examples/second-brain/.data
+test/.samples-tmp
+*.dylib
+.DS_Store
