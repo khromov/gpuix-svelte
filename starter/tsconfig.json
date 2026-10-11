@@ -5,7 +5,7 @@
 		"module": "nodenext",
 		"moduleResolution": "nodenext",
 		"customConditions": ["custom-renderer", "development"],
-		"types": ["node"],
+		"types": ["node", "gpuix-svelte/html"],
 		"strict": true,
 		"noEmit": true,
 		"allowImportingTsExtensions": true,
@@ -15,5 +15,6 @@
 			"svelte/*": ["./node_modules/gpuix-svelte/node_modules/svelte/*"]
 		}
 	},
-	"include": ["*.ts"]
+	"svelteOptions": { "namespace": "gpuixHTML" },
+	"include": ["*.ts", "*.svelte"]
 }

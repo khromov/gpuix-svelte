@@ -14,6 +14,7 @@
 	import { push, replace } from '../lib/router.svelte.ts';
 	import { open_menu } from '../lib/ui.svelte.ts';
 	import type { App } from '../lib/app.ts';
+	import type { Kind } from '../lib/store.ts';
 
 	let { query }: { query: Record<string, string> } = $props();
 
@@ -21,7 +22,7 @@
 	const model_states = $derived(`${data.ml.embed?.state}/${data.ml.clip?.state}`);
 	const total = $derived(data.counts.total);
 
-	const FILTERS = [
+	const FILTERS: Array<{ value: Kind | 'all'; label: string }> = [
 		{ value: 'all', label: 'All' },
 		{ value: 'text', label: 'Notes' },
 		{ value: 'link', label: 'Links' },
@@ -31,7 +32,7 @@
 	const KIND_WORD: Record<string, string> = { text: 'note', link: 'link', image: 'image', audio: 'audio' };
 	const q = $derived((query?.q ?? '').trim());
 	const parsed = $derived(parse_query(q));
-	let filter = $state('all');
+	let filter = $state<Kind | 'all'>('all');
 	// `feeds:on` in the query is the filter; the checkbox mirrors it, as the kinds do.
 	const feeds_on = $derived(parsed.feeds ?? include_feeds());
 
@@ -45,7 +46,7 @@
 	let loading = $state(false);
 	let generation = 0;
 
-	function choose(value: string) {
+	function choose(value: Kind | 'all') {
 		if (parsed.kinds) {
 			const text = value === 'all' ? parsed.text : `${parsed.text} kind:${KIND_WORD[value]}`.trim();
 			replace(`/search?q=${encodeURIComponent(text)}`);

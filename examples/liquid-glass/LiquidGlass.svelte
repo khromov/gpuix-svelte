@@ -218,8 +218,8 @@
 			onmouseup={release}
 		>
 			{#each [
-				{ key: 'brightness', label: 'Brightness', get value() { return brightness; } },
-				{ key: 'volume', label: 'Volume', get value() { return volume; } }
+				{ key: 'brightness' as const, label: 'Brightness', get value() { return brightness; } },
+				{ key: 'volume' as const, label: 'Volume', get value() { return volume; } }
 			] as slider (slider.key)}
 				<div style="display: flex; flex-direction: column; gap: 6px">
 					<div style="display: flex; flex-direction: row; justify-content: space-between">

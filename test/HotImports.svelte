@@ -12,4 +12,4 @@
 	const lazy = async () => (loaded = (await import('./HotLazy.svelte')).default);
 </script>
 
-<div>{Static ? 'static' : ''}{loaded ? 'lazy' : ''}{lazy ? '' : ''}{sample ? '' : ''}{Shipped ? '' : ''}</div>
+<div>{typeof Static === 'function' ? 'static' : ''}{loaded ? 'lazy' : ''}{typeof lazy === 'function' ? '' : ''}{sample ? '' : ''}{typeof Shipped === 'function' ? '' : ''}</div>

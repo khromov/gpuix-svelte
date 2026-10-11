@@ -23,7 +23,7 @@
 				ids.slice(0, COUNT).map(async (id): Promise<Story | null> => (await fetch(`${API}/item/${id}.json`)).json())
 			);
 			if (gen !== generation) return;
-			stories = items.filter(Boolean);
+			stories = items.filter((s): s is Story => s !== null);
 		} catch (err) {
 			if (gen !== generation) return;
 			error = (err as Error).message;

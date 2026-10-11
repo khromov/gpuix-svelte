@@ -52,3 +52,4 @@ export type {
 	WindowKeyType,
 	AnyComponent
 } from './types.ts';
+export type { GpuixTheme, HighlightSpec, MotionProps } from '@gpuix/native/host';

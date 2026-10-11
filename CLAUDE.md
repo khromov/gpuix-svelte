@@ -296,10 +296,21 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   example; `types/*.d.ts` hold the ambient shims (`*.svelte` modules, `node:ffi`'s missing names).
   Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The one `.js` in
   the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
-  cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `.svelte`
-  script bodies are outside the gate too — the compiler strips their types, svelte-check never
-  runs — so an annotation there is documentation, not a check. Consumers typechecking against
-  the package need `allowImportingTsExtensions` (hence `noEmit`) and `@types/node`, as README says.
+  cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `typecheck` is
+  `tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings`: tsc never
+  opens a `.svelte` file, so markup and `<script>` bodies are only checked by svelte-check.
+  tsconfig's `"svelteOptions": { "namespace": "gpuixHTML" }` makes svelte-check and the editor
+  type markup against `src/html.d.ts` (GPUI's tags, Svelte-spelled attributes, `GpuixEvent`
+  handlers) instead of Svelte's DOM `svelteHTML`; without it every `hover=` and `onkeydown` is a
+  DOM type error. Mind three svelte2tsx quirks. It lowercases attribute names except `on*`, names
+  on hyphenated tags and the `{shorthand}` form, so `html.d.ts` declares `minrows` and `minRows`
+  both. It splits blocks on a literal `<style>`/`<script>` even inside a comment or string. And it
+  always loads `lib: dom`, so a `.ts` file must also typecheck against DOM's `ReadableStream`/`Blob`.
+  The CSS diagnostic source is left out because it flags GPUI-only properties (`selection-color`).
+  Consumers typechecking against the package need `allowImportingTsExtensions` (hence `noEmit`),
+  `@types/node`, and for markup `"types": ["gpuix-svelte/html"]` plus the namespace, as README says.
+  svelte-check pulls the registry's svelte in as its peer, which lacks `customRenderer`, so the
+  starter's `svelte.config.js` sets only the a11y `warningFilter`.
   The `.` export is conditional — `browser` → `src/web.ts`, `default` → `src/index.ts` — and only a
   browser bundler ever picks the first, so Node, Bun's runtime and `tsc` all still resolve
   `index.ts`.
@@ -649,7 +660,7 @@ Keep the source runtime-agnostic — `node:*` builtins only, no `Bun.*` calls an
 outside `src/plugin.ts` and `scripts/compile*.ts` (Bun is the compiler there). Import types with
 `import type`, and components import the renderer's types (`ShadowNode` for `{@attach}`,
 `GpuixEvent` for handlers) from `'gpuix-svelte'`; `.svelte` files use `<script lang="ts">` — the
-compiler strips the types itself, and svelte-check is not part of the gate.
+compiler strips the types itself, and svelte-check (part of `typecheck`) checks them.
 
 ## Working in this repo
 

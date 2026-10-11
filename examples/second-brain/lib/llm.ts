@@ -89,7 +89,8 @@ export async function* parse_sse(body: ReadableStream<Uint8Array>): AsyncGenerat
 		return null;
 	};
 
-	for await (const chunk of body) {
+	// DOM's ReadableStream type (which svelte-check loads) lacks the async iterator Node and Bun have.
+	for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
 		buf += decoder.decode(chunk, { stream: true });
 		let nl;
 		while ((nl = buf.indexOf('\n')) !== -1) {

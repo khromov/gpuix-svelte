@@ -2,7 +2,8 @@
 	import { data } from '../lib/data.svelte.ts';
 	import { brand_actions } from '../lib/menus.ts';
 	import { push, route } from '../lib/router.svelte.ts';
-	import { set_mode, theme } from '../lib/theme.svelte.ts';
+	import { set_mode, theme, type ThemeMode } from '../lib/theme.svelte.ts';
+	import type { IconName } from '../lib/icons.ts';
 	import { is_secondary, open_menu } from '../lib/ui.svelte.ts';
 	import { blur, type GpuixEvent } from 'gpuix-svelte';
 	import Icon from './Icon.svelte';
@@ -18,7 +19,7 @@
 
 	const show = (e: GpuixEvent) => open_menu(e, brand_actions(), 'Substrate');
 
-	const THEMES = [
+	const THEMES: Array<{ value: ThemeMode; icon: IconName }> = [
 		{ value: 'light', icon: 'sun' },
 		{ value: 'dark', icon: 'moon' },
 		{ value: 'system', icon: 'monitor' }

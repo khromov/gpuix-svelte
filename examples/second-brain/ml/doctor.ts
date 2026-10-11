@@ -85,7 +85,7 @@ const tokenizer = await AutoTokenizer.from_pretrained(CLIP);
 const text = await CLIPTextModelWithProjection.from_pretrained(CLIP, { dtype: 'q8', progress_callback: progress });
 lap('clip load', s);
 s = performance.now();
-const image = await RawImage.fromBlob(new Blob([png]));
+const image = await RawImage.fromBlob(new Blob([new Uint8Array(png)]));
 const { image_embeds } = await vision(await processor(image));
 const { text_embeds } = await text(tokenizer(['an orange square'], { padding: true, truncation: true }));
 console.log(`[doctor] clip image dims ${JSON.stringify(image_embeds.dims)} | text dims ${JSON.stringify(text_embeds.dims)}`);

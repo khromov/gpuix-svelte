@@ -11,7 +11,8 @@
 	import { MODEL_IDS, type ModelName } from '../lib/ml-client.ts';
 	import type { SettingKey } from '../lib/settings.ts';
 	import { reveal } from '../lib/shell.ts';
-	import { set_mode, theme } from '../lib/theme.svelte.ts';
+	import { set_mode, theme, type ThemeMode } from '../lib/theme.svelte.ts';
+	import type { IconName } from '../lib/icons.ts';
 	import { toast } from '../lib/ui.svelte.ts';
 	import Modal from '../components/Modal.svelte';
 	import Toggle from '../components/Toggle.svelte';
@@ -64,7 +65,7 @@
 		toast('Reindexing in the background');
 	}
 
-	const in_flight = $derived(data.queue.active_ids.map((id) => item_by_id(id)).filter(Boolean));
+	const in_flight = $derived(data.queue.active_ids.map((id) => item_by_id(id)).filter((item) => item !== null));
 	const outstanding = $derived(data.queue.pending + data.queue.active);
 	const session_total = $derived(outstanding + data.queue.done + data.queue.failed);
 	const pipeline_pct = $derived(session_total > 0 ? ((data.queue.done + data.queue.failed) / session_total) * 100 : 100);
@@ -84,7 +85,7 @@
 		{ key: 'whisper', label: 'Speech to text', note: 'transcribes recordings' },
 		{ key: 'clip', label: 'Image understanding', note: 'finds images by what is in them' }
 	];
-	const THEMES = [
+	const THEMES: Array<{ value: ThemeMode; icon: IconName; label: string }> = [
 		{ value: 'light', icon: 'sun', label: 'Light' },
 		{ value: 'dark', icon: 'moon', label: 'Dark' },
 		{ value: 'system', icon: 'monitor', label: 'System' }

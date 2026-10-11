@@ -188,19 +188,24 @@ The package ships TypeScript sources, not declaration files, so to typecheck you
 it `tsc` needs `"allowImportingTsExtensions": true` (which implies `"noEmit": true` — a tsx or
 bundler workflow), `@types/node`, a `paths` entry pointing at the bundled Svelte (it is nested
 inside the package, where `tsc` would not look from your files) and a `*.svelte` module
-declaration — `starter/tsconfig.json` and `starter/svelte.d.ts` are the copy-and-paste versions:
+declaration. For the markup itself — the editor, and `svelte-check` — point Svelte's typings at
+GPUI's elements with `"svelteOptions": { "namespace": "gpuixHTML" }` and `gpuix-svelte/html` in
+`types`; otherwise every tag is typed as a DOM element and `hover=` or `onkeydown={(e: GpuixEvent) => …}`
+show up as errors. `starter/tsconfig.json`, `starter/svelte.d.ts` and `starter/svelte.config.js`
+are the copy-and-paste versions:
 
 ```jsonc
 // tsconfig.json
 {
   "compilerOptions": {
     "module": "nodenext", "strict": true, "noEmit": true, "allowImportingTsExtensions": true,
-    "customConditions": ["custom-renderer", "development"], "types": ["node"],
+    "customConditions": ["custom-renderer", "development"], "types": ["node", "gpuix-svelte/html"],
     "paths": {
       "svelte": ["./node_modules/gpuix-svelte/node_modules/svelte"],
       "svelte/*": ["./node_modules/gpuix-svelte/node_modules/svelte/*"]
     }
-  }
+  },
+  "svelteOptions": { "namespace": "gpuixHTML" }
 }
 ```
 

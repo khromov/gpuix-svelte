@@ -19,6 +19,9 @@
 		"./register": "./src/register.ts",
 		"./test": "./src/test.ts",
 		"./components/*": "./src/components/*",
+		"./html": {
+			"types": "./src/html.d.ts"
+		},
 		"./package.json": "./package.json"
 	},
 	"files": [
@@ -43,7 +46,7 @@
 		"node"
 	],
 	"scripts": {
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json --diagnostic-sources js,svelte --fail-on-warnings --output human",
 		"lint": "eslint .",
 		"check:svelte": "node --use-env-proxy --import tsx scripts/svelte-mcp.ts",
 		"demo": "node --import tsx scripts/demo-all.ts",
@@ -140,6 +143,7 @@
 		"globals": "^17.12.0",
 		"marked": "^18.0.11",
 		"mpg123-decoder": "^1.0.3",
+		"svelte-check": "^4.7.6",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.69.0",
 		"wasm-media-encoders": "^0.7.0"

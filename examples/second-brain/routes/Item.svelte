@@ -139,7 +139,7 @@
 			{:else}
 				<Button label="Edit" icon="edit" small onclick={start_edit} testid="edit" />
 				{#if item.kind === 'link' && item.source_url}
-					<Button label="Open" icon="external" small onclick={() => open_url(item.source_url)} />
+					<Button label="Open" icon="external" small onclick={() => open_url(item.source_url!)} />
 					<Button label="Re-read page" icon="refresh" small disabled={busy} onclick={() => { get_app().rescrape(id); toast('Reading the page again'); }} />
 				{/if}
 				{#if item.kind === 'audio' && item.file_blob}
@@ -192,7 +192,7 @@
 					</div>
 					<div class="title">{item.title || 'Untitled'}</div>
 					{#if item.kind === 'link' && item.source_url}
-						<div class="url" onclick={() => open_url(item.source_url)}>{item.source_url}</div>
+						<div class="url" onclick={() => open_url(item.source_url!)}>{item.source_url}</div>
 					{/if}
 					{#if item.status === 'error'}
 						<div class="error">

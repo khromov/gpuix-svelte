@@ -1,5 +1,7 @@
+import type { GpuixTheme } from 'gpuix-svelte';
+
 /** Catppuccin Mocha, like the other examples; handed to every `<code>` and `<markdown>`. */
-export const THEME = {
+export const THEME: GpuixTheme = {
 	appearance: 'dark',
 	bg: '#181825',
 	border: '#313244',
@@ -23,6 +25,8 @@ export const THEME = {
 		functionBuiltin: '#89b4fa',
 		typeName: '#f9e2af',
 		typeBuiltin: '#f9e2af',
+		// Named, or the literal's inherited Object.prototype.constructor fails SyntaxTheme's `constructor?: string`.
+		constructor: '#f9e2af',
 		property: '#94e2d5',
 		variable: '#cdd6f4',
 		parameter: '#eba0ac',

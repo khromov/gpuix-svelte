@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="ts" generics="V extends string">
 	import type { IconName } from '../lib/icons.ts';
 	import Icon from './Icon.svelte';
 
@@ -7,7 +7,7 @@
 		value,
 		onchange,
 		small = false
-	}: { options?: Array<{ value: string; label?: string; icon?: IconName }>; value: string; onchange: (value: string) => void; small?: boolean } = $props();
+	}: { options?: Array<{ value: V; label?: string; icon?: IconName }>; value: V; onchange: (value: V) => void; small?: boolean } = $props();
 
 </script>
 

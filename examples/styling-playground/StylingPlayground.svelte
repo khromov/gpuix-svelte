@@ -19,7 +19,7 @@
 				},
 				{
 					kind: 'class',
-					label: 'class="chip"  (.chip and .chip:hover in <style>)',
+					label: 'class="chip"  (.chip and .chip:hover class rules)',
 					note: 'class rules are compiled into a GPUI style; hover the chip'
 				},
 				{

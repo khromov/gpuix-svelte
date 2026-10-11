@@ -2,7 +2,7 @@
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
 	import { blur, on_window_key, type AnyComponent, type GpuixEvent } from 'gpuix-svelte';
-	import { CHAPTERS, STEPS as RAW_STEPS, type LiveKey, type Step } from './steps.ts';
+	import { CHAPTERS, STEPS as RAW_STEPS, type CodeSample, type LiveKey, type Step } from './steps.ts';
 	import { THEME } from './theme.ts';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import CodePanel from './CodePanel.svelte';
@@ -22,10 +22,10 @@
 	// Read here rather than in steps.ts: a hot reload re-evaluates this module but
 	// not plain JS, so a saved sample shows its new source.
 	const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
-	const STEPS: Step[] = RAW_STEPS.map((step) => ({
+	const STEPS: Array<Step & { code: Array<CodeSample & { source: string }> }> = RAW_STEPS.map((step) => ({
 		...step,
 		prose: read(step.prose),
-		code: step.code.map((c) => (c.file ? { ...c, source: read(c.file).trimEnd() } : c))
+		code: step.code.map((c) => ({ ...c, source: c.file ? read(c.file).trimEnd() : (c.source ?? '') }))
 	}));
 
 	// The slot outlives a remount (render.ts keeps the window the same way), so the

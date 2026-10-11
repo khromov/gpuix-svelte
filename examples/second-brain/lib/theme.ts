@@ -1,3 +1,4 @@
+import type { GpuixTheme } from 'gpuix-svelte';
 /**
  * The palette. `App.svelte` hands the active one to `set_css_vars`, so a component's
  * `<style>` reads `var(--surface)` and a theme switch is one restyle; this is also
@@ -5,7 +6,7 @@
  */
 
 export const LIGHT = {
-	appearance: 'light',
+	appearance: 'light' as 'light' | 'dark',
 	bg: '#f5efe4',
 	surface: '#fbf7ef',
 	raised: '#ffffff',
@@ -111,7 +112,7 @@ export const KIND_COLOR = {
 
 export const FONT = { sans: 'IBM Plex Sans', mono: 'Lilex' };
 
-function md(t: Palette) {
+function md(t: Palette): GpuixTheme {
 	return {
 		appearance: t.appearance,
 		bg: t.surface,

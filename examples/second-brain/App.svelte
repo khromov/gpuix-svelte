@@ -40,7 +40,7 @@
 	];
 
 	$effect(() => start_system_poll());
-	// The palette is the only theme: every `var(--…)` in a <style> below resolves against it.
+	// The palette is the only theme: every `var(--…)` in the style block below resolves against it.
 	$effect(() => set_css_vars(tokens()));
 	$effect(() => {
 		set_window_title(ui.title === 'Everything' ? 'Substrate' : `Substrate — ${ui.title}`);

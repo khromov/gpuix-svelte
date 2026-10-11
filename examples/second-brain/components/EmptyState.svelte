@@ -8,7 +8,7 @@
 		title,
 		body = '',
 		action = null
-	}: { icon?: IconName; title: string; body?: string; action?: { label: string; onclick: () => void } | null } = $props();
+	}: { icon?: IconName; title: string; body?: string; action?: { label: string; icon?: IconName; onclick: () => void } | null } = $props();
 </script>
 
 <div class="empty">

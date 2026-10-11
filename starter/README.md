@@ -7,7 +7,7 @@ Copy this directory anywhere and:
 npm install          # gpuix-svelte brings its own Svelte build — do not add svelte yourself
 npm start            # opens the window; edit App.svelte and save to hot-reload
 npm test             # headless: mounts App.svelte, clicks through GPUI's real hit testing
-npm run typecheck    # tsc --noEmit against the package's TypeScript sources
+npm run typecheck    # tsc --noEmit, then svelte-check over App.svelte against GPUI's element types
 ```
 
 Every script runs through the `gpuix-svelte` bin, which starts Node (or Bun, under
@@ -31,5 +31,8 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
 - `svelte.d.ts` — declares `*.svelte` modules for `tsc`.
 - `tsconfig.json` — `allowImportingTsExtensions` and `nodenext`, because the package ships
   `.ts` sources, and a `paths` entry so `tsc` finds the Svelte that is nested inside the package.
+  `svelteOptions.namespace` and the `gpuix-svelte/html` type entry make the editor and
+  svelte-check type `App.svelte`'s markup as GPUI elements rather than DOM ones.
+- `svelte.config.js` — editor and svelte-check only: switches off Svelte's DOM a11y advice.
 
 Needs Node >= 24 or Bun >= 1.4.
