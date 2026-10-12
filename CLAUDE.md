@@ -58,7 +58,7 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal, test:host
+                           # test:portal, test:host, test:window
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -74,6 +74,7 @@ npm run test:scroller      # single test — the shipped Scroller: wheel, thumb 
 npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # single test — a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
+npm run test:window        # single test — window_size / window_insets: polled only while read, restarted on remount
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
@@ -340,7 +341,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
-  window.ts    window, picker, focus, image helpers     ─ no-ops headlessly
+  window.ts    window, picker, focus, image helpers     ─ no-ops headlessly; window_size / window_insets poll
   components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
 
@@ -544,6 +545,15 @@ the two stay in sync. Unknown events are dropped silently.
   `onSelectionChange`) rides the same window pseudo-node as `on_window_key`, through
   `setWindowSelectionChange` on the same id. `<textarea>` Enter inserts a newline unless the element
   has `onsubmit` (since 0.8.0; before that Enter only ever submitted).
+- `window_size` / `window_insets` are reactive getter objects, not runes: `window.ts` wraps
+  `@gpuix/native/host`'s `observeWindowSize` / `observeWindowInsets` (100 ms poll, structural
+  compare) in `createSubscriber`, because native 0.10 still has no resize event. The poll starts on
+  the first tracking read and stops a microtask after the last reader's effect is destroyed; a
+  read outside an effect is one fresh native call, and the host object resolves `get_native()` on
+  every call so a poll that outlives a remount follows the new native. Insets keep upstream's
+  camelCase fields (`safeArea`, `keyboardVisible`, …), like every other native payload. Headlessly
+  the size is the real viewport and the insets are zero (`TestGpuixRenderer` has no
+  `getWindowInsets`); with no native at all it is upstream's 800×600 fallback.
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` on that panel reports its content box, so it sits inset by

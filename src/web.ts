@@ -53,3 +53,5 @@ export type {
 	AnyComponent
 } from './types.ts';
 export type { GpuixTheme, HighlightSpec, MotionProps } from '@gpuix/native/host';
+export { window_size, window_insets } from './window.ts';
+export type { WindowSize, WindowInsets, EdgeInsets } from '@gpuix/native/host';
