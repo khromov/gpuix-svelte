@@ -1,6 +1,6 @@
 # Guide
 
-Input, focus, window helpers and state. Everything here is exported from `gpuix-svelte` unless
+Input, search, focus, window helpers and state. Everything here is exported from `gpuix-svelte` unless
 noted.
 
 ## Forms
@@ -19,6 +19,31 @@ To get hold of an element use `{@attach (node) => …}` (or `use:`); `node.nativ
 
 In a `<textarea>`, Enter inserts a newline unless it has `onsubmit`; then Enter submits and
 Shift+Enter is the newline. In an `<input>`, Enter always submits.
+
+## Text search
+
+`div` and `text` take `highlight`, which GPUI paints natively behind matching text, and report the
+match count through `onhighlight`. `TextSearch` keeps that state for a find bar:
+
+```svelte
+<script lang="ts">
+  import { TextSearch } from 'gpuix-svelte';
+  const search = new TextSearch({ color: '#f9e2af55', active_color: '#f9e2af' });
+</script>
+
+<input value={search.query} onchange={(e) => (search.query = e.value)} onsubmit={search.next} />
+<text>{search.total ? search.active + 1 : 0}/{search.total}</text>
+<div highlight={search.spec} onhighlight={search.on_highlight}>{body}</div>
+```
+
+`query`, `case_sensitive` and `whole_word` can be set at any time; `total` is the count native
+reported, `active` the current match, and `next()` / `prev()` wrap while `go_to(i)` ignores an
+index outside the matches. An empty query makes `spec` `null`, which clears the highlight. It is
+`@gpuix/native/host`'s `createTextSearchController` underneath.
+
+`find_ranges(text, query, { case_sensitive, whole_word })` is native's matcher in JS, returning
+the `[start, end)` pairs `highlight={{ ranges }}` takes. It is for text native has not mounted,
+such as a virtual list's offscreen rows when counting a `matchIndexOffset`.
 
 ## Keyboard shortcuts and focus
 

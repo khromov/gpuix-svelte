@@ -35,6 +35,7 @@ export {
 	set_image,
 	set_image_pixels
 } from './window.ts';
+export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
 export type {
 	ShadowNode,
 	ShadowAttrs,

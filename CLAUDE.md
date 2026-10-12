@@ -58,7 +58,7 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal, test:host
+                           # test:portal, test:host, test:search
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -78,6 +78,7 @@ npm run test:portal        # single test — <Portal> paints on top, tears down 
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
                            # uploads (including one from an {@attach}, before the element exists)
+npm run test:search        # single test — TextSearch: native match count, next/prev wrap, flags, find_ranges
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -341,6 +342,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   window.ts    window, picker, focus, image helpers     ─ no-ops headlessly
+  search.ts    TextSearch, find_ranges                  ─ createSubscriber, so no runes in src/
   components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
 
@@ -584,6 +586,12 @@ the two stay in sync. Unknown events are dropped silently.
   `highlight={{ query } | { ranges: [[start, end], …], color, radius }}` paints GPUI's native
   search highlight behind the matching text (character offsets into the element's text) and
   fires `onhighlight` with `e.matchCount`; Substrate's search results use it.
+  A find bar is `TextSearch` from `src/search.ts` (`highlight={search.spec}
+  onhighlight={search.on_highlight}`, then `query`, `total`, `active`, `next`/`prev`/`go_to`):
+  native's `createTextSearchController` behind `createSubscriber`. Its `getSnapshot()` both
+  builds a fresh spec and records the options `next()` counts against, so `search.ts` calls it
+  once per change, before every move, and keeps an unchanged spec's identity — Svelte's
+  `set_attribute` skips an identical value, which spares a `setCustomProp` per reported count.
 - `bind:` is refused by the compiler under `customRenderer`. To get hold of an element use
   `{@attach (node) => ...}` (or `use:`); the node is the renderer's shadow node, and `node.nativeId`
   is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()` (`{ x, y, width, height }`,
