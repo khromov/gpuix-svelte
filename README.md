@@ -88,9 +88,10 @@ The short list of what to know. Each links to the full story.
   → [docs/guide.md](docs/guide.md)
 - **Keyboard shortcuts** go through `on_window_key('keydown', handler)`, which hears every key
   whatever has focus. → [docs/guide.md](docs/guide.md#keyboard-shortcuts-and-focus)
-- **`Scroller` and `Portal` ship with the package**: a scroll column with a drawn scrollbar
-  (virtualised on request), and a wrapper that paints modals, menus and toasts on top from
-  anywhere in the tree. → [docs/components.md](docs/components.md)
+- **`Scroller`, `Portal`, `Tooltip` and `Popover` ship with the package**: a scroll column with a
+  drawn scrollbar (virtualised on request), a wrapper that paints modals, menus and toasts on top
+  from anywhere in the tree, and a hover tip and a controlled panel that hang beside their trigger.
+  → [docs/components.md](docs/components.md)
 - **Window and desktop APIs** — title, fullscreen, file picker, file drops, images from raw pixels,
   focus, accessibility attributes. → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
 
@@ -99,7 +100,7 @@ The short list of what to know. Each links to the full story.
 | | |
 |---|---|
 | [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
-| [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, and the native `<anchored>` popover |
+| [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
 | [Guide](docs/guide.md) | Forms, keyboard and focus, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, and screenshots |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |

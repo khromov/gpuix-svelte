@@ -58,7 +58,8 @@ every mount and hot reload.
   from an `$effect` so it unsubscribes.
 - Scrolling content goes in `Scroller` (`gpuix-svelte/components/Scroller.svelte`), which draws the
   scrollbar; modals, menus and toasts go in `Portal` (`gpuix-svelte/components/Portal.svelte`),
-  which paints on top.
+  which paints on top; hover tips and dropdowns that sit beside a trigger go in `Tooltip` and
+  `Popover` from the same directory.
 - State that should survive a hot reload goes in a `.svelte.ts` module; editing one needs a restart.
 - Handlers take `GpuixEvent` and `{@attach}` gets a `ShadowNode`, both importable as types from
   `gpuix-svelte`.
