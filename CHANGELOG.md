@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1](https://github.com/khromov/gpuix-svelte/compare/v0.1.0...v0.1.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* docs ([9475a0c](https://github.com/khromov/gpuix-svelte/commit/9475a0cfc5d02f641791fd91544a9a5f390edc38))
+* docs ([ad1b041](https://github.com/khromov/gpuix-svelte/commit/ad1b04181072e238b7535d48a0fd03e68072fa7f))
+* fix build ([4f6c938](https://github.com/khromov/gpuix-svelte/commit/4f6c9388c376d771ef5cb31905133f60ab95e4a9))
+
 ## [0.1.0](https://github.com/khromov/gpuix-svelte/compare/v0.0.1...v0.1.0) (2026-10-11)
 
 
