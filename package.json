@@ -59,7 +59,7 @@
 		"demo:desktop": "node bin/gpuix-svelte.js examples/desktop-apis/main.ts",
 		"demo:web": "bun scripts/web.ts",
 		"tutorial": "node bin/gpuix-svelte.js examples/tutorial/main.ts",
-		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:portal && npm run test:host && npm run test:overlay",
+		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window",
 		"test:vars": "node bin/gpuix-svelte.js test/vars.ts",
 		"test:scroller": "node bin/gpuix-svelte.js test/scroller.ts",
 		"test:hitbox": "node bin/gpuix-svelte.js test/hitbox.ts",
@@ -77,6 +77,7 @@
 		"test:teardown": "node bin/gpuix-svelte.js test/teardown.ts",
 		"test:overlay": "node bin/gpuix-svelte.js test/overlay.ts",
 		"test:style": "node bin/gpuix-svelte.js test/style.ts",
+		"test:window": "node bin/gpuix-svelte.js test/window.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
 		"docs": "node --import tsx scripts/docs.ts",
 		"vendor": "node --use-env-proxy --import tsx scripts/vendor-svelte.ts",
@@ -98,7 +99,7 @@
 		"bun:demo:styling": "node bin/gpuix-svelte.js --bun examples/styling-playground/main.ts",
 		"bun:demo:desktop": "node bin/gpuix-svelte.js --bun examples/desktop-apis/main.ts",
 		"bun:tutorial": "node bin/gpuix-svelte.js --bun examples/tutorial/main.ts",
-		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay",
+		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window",
 		"bun:test:vars": "node bin/gpuix-svelte.js --bun test/vars.ts",
 		"bun:test:scroller": "node bin/gpuix-svelte.js --bun test/scroller.ts",
 		"bun:test:hitbox": "node bin/gpuix-svelte.js --bun test/hitbox.ts",
@@ -116,6 +117,7 @@
 		"bun:test:teardown": "node bin/gpuix-svelte.js --bun test/teardown.ts",
 		"bun:test:overlay": "node bin/gpuix-svelte.js --bun test/overlay.ts",
 		"bun:test:style": "node bin/gpuix-svelte.js --bun test/style.ts",
+		"bun:test:window": "node bin/gpuix-svelte.js --bun test/window.ts",
 		"bun:test:coverage": "node bin/gpuix-svelte.js --bun test/coverage.ts"
 	},
 	"dependencies": {

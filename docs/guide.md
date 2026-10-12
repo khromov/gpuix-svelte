@@ -49,6 +49,33 @@ can step aside. `blur()` hands focus back from a field and `focus_element(node)`
 `focused_element()` returns the focused shadow node, and `focus_next_within(node)` /
 `focus_previous_within(node)` cycle the tab stops inside one element, wrapping there.
 
+## Window size and insets
+
+`window_size` and `window_insets` from `gpuix-svelte` are reactive wherever a template, `$derived`
+or `$effect` reads them:
+
+```svelte
+<script>
+  import { window_size, window_insets } from 'gpuix-svelte';
+  const columns = $derived(window_size.width < 600 ? 1 : 2);
+</script>
+
+<div style:padding-top="{window_insets.safeArea.top}px">
+  {columns} column(s) at {window_size.width}×{window_size.height}
+</div>
+```
+
+GPUI has no resize event, so they poll native every 100 ms, and only while something reactive
+reads them: the first read starts the poll and it stops once the last component reading it is
+destroyed. A read anywhere else (a click handler, module code) gets the last polled value while
+something reactive is reading, and one fresh native call otherwise. Keep a `$derived` over them in
+a component: one in a `.svelte.ts` module that is first read outside an effect starts a poll that
+nothing ever stops.
+`window_insets` carries `safeArea`, `ime` and `effective` (each `{ top, right, bottom, left }`)
+plus `keyboardTop`, `keyboardVisible` and `visibleHeight`, camelCase like every other value that
+comes from native. The headless test renderer reports its real viewport size and zero insets;
+before any window exists the size reads as 800×600.
+
 ## Window and desktop helpers
 
 All of these come from `gpuix-svelte`, take shadow nodes (from `{@attach}`) where they take an

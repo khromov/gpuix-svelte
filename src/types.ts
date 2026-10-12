@@ -134,6 +134,8 @@ export type WindowNative = Partial<
 		| 'getDebugFrameOverlay'
 		| 'resetDebugFrameOverlayStats'
 		| 'getDebugFrameOverlayStats'
+		| 'getWindowSize'
+		| 'getWindowInsets'
 	>
 >;
 
