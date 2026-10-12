@@ -114,7 +114,9 @@ try {
 } catch (error) {
 	outside = (error as Error).message;
 }
-check('center() outside the viewport names the cap', /outside the \d+×\d+ headless viewport \(its height caps at 538\)$/.test(outside), true);
+// Windows ignores the requested size altogether, so only macOS has a cap to name.
+const tail = process.platform === 'darwin' ? 'headless viewport (its height caps at 538)' : 'headless viewport';
+check('center() outside the viewport says so, naming the cap where there is one', /outside the \d+×\d+ /.test(outside) && outside.endsWith(tail), true);
 check('point_of passes a point through and centres a node', [point_of({ x: 3, y: 4 }), point_of(node('pad'))], [{ x: 3, y: 4 }, pad]);
 
 finish('helpers', 21);
