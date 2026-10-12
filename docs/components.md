@@ -25,8 +25,8 @@ instead: every direct child is one row (wrap each item in a `div` with `width: 1
 size to their content and the list has no `gap`), GPUI builds and paints only the rows near the viewport, `estimate` is the
 height hint for rows it has not measured yet, and `follow` becomes the list's own tail-following.
 The thumb then works in rows rather than pixels, from `getListScrollTop` and the `visibleRange`
-event, and a drag scrolls with `scrollToItem`. Substrate's timeline is the example: 50 cards went
-from ~24 ms to ~1.4 ms per frame.
+event, and a drag scrolls with `scrollToItem`. In Substrate, a second-brain app built on this
+renderer, a timeline of 50 cards went from ~24 ms to ~1.4 ms per frame.
 
 **`Portal`** — paint order is document order, so a modal, toast or menu had to be the root's last
 child. `<Portal>` renders from wherever the overlay is needed and still paints on top: the renderer
