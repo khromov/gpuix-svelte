@@ -36,8 +36,8 @@ gpuix-solid ports the upstream chat and timeline workloads and adds a serializat
   through a UTF-8 `Buffer`, and a style-interning variant that replaces repeated `setStyle`
   objects with `defineStyle`/`setStyleRef` refs. Interning is measured, not implemented.
 
-Prior art here: `examples/second-brain/scripts/frame-cost.ts` (CLAUDE.md, "Measuring frame
-cost") boots Substrate in a live window, visits routes, and prints GPUI draw times from the
+Prior art here: Substrate's `scripts/frame-cost.ts` (`../substrate-gpuix-svelte`; CLAUDE.md,
+"Measuring frame cost") boots Substrate in a live window, visits routes, and prints GPUI draw times from the
 debug overlay at idle and while 90 wheel events scroll. It is Bun-only and app-specific.
 Baselines recorded 2026-09-03: timeline ~4.6 ms a frame, settings ~7-9 ms. Nothing measures the
 package itself, and nothing measures the JS side of a commit.
@@ -95,7 +95,7 @@ upstream. Do not implement interning in the renderer.
 
 `bench:list`, `bench:serialization` and their `bun:` twins; not chained into `test`. CLAUDE.md:
 the Commands block, and a paragraph under "Measuring frame cost" that names the two scripts as
-the package-level counterpart of `brain:frames`, with the first baselines. README: one line under
+the package-level counterpart of Substrate's `bun run frames`, with the first baselines. README: one line under
 "Testing headlessly" or "Known limitations".
 
 ## Constraints

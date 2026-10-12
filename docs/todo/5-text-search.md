@@ -31,7 +31,7 @@ JS reimplementation of the native matcher with a UTF-16 case-fold index map so s
 map back to original offsets.
 
 Here, every app writes the spec by hand. Substrate computes its own multi-term ranges in
-`examples/second-brain/lib/rank.ts` (`match_ranges`) and passes the `{ ranges, color, radius }`
+its `lib/rank.ts` (`match_ranges`) and passes the `{ ranges, color, radius }`
 form from `components/ItemCard.svelte`. There is no shared `HighlightSpec` type.
 
 ## Design
