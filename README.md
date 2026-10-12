@@ -125,14 +125,15 @@ version](#about-the-svelte-version)). Then run your entry through the package's 
 }
 ```
 
-The bin starts Node (or Bun, with `--bun` or under `bun run`) with three things in place before
+The bin starts Node (or Bun, with `--bun` or under `bun run`) with two things in place before
 your entry loads: the `custom-renderer` module condition, which selects Svelte's client build with
-the renderer API; the `.svelte` loader; and, on Node, [tsx](https://tsx.is) for TypeScript. Flags
+the renderer API; and the `.svelte` loader. TypeScript needs no loader of its own: the package ships
+as plain JavaScript, and Node and Bun both strip types from your `.ts` files natively. Flags
 before the entry go to the runtime (`gpuix-svelte --experimental-ffi app.ts`), arguments after it
 to your script. Spelled out, it runs
 
 ```bash
-node --conditions custom-renderer --conditions development --import tsx --import gpuix-svelte/register app.ts
+node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.ts
 bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
 ```
 
@@ -151,6 +152,9 @@ namespace:
     "module": "nodenext",
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
     "customConditions": ["custom-renderer", "development"],
     "types": ["node", "gpuix-svelte/html"],
     "skipLibCheck": true,
@@ -164,7 +168,11 @@ namespace:
 ```
 
 plus a `*.svelte` module declaration and a `svelte.config.js` that turns off Svelte's DOM
-accessibility advice. [`starter/`](starter) has all three, ready to copy.
+accessibility advice. [`starter/`](starter) has all three, ready to copy. `erasableSyntaxOnly`,
+`verbatimModuleSyntax` and `allowImportingTsExtensions` make `tsc` reject what Node's built-in type
+stripping cannot run (enums, a type imported without `import type`, an extensionless relative
+import); an app that needs those can still run `node --import tsx --import gpuix-svelte/register`
+itself, with tsx installed.
 
 Event handlers take a `GpuixEvent` and `{@attach}` gets a `ShadowNode`, both exported as types:
 
