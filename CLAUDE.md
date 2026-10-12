@@ -563,9 +563,11 @@ the two stay in sync. Unknown events are dropped silently.
 - `window_size` / `window_insets` are reactive getter objects, not runes: `window.ts` wraps
   `@gpuix/native/host`'s `observeWindowSize` / `observeWindowInsets` (100 ms poll, structural
   compare) in `createSubscriber`, because native 0.10 still has no resize event. The poll starts on
-  the first tracking read and stops a microtask after the last reader's effect is destroyed; a
-  read outside an effect is one fresh native call, and the host object resolves `get_native()` on
-  every call so a poll that outlives a remount follows the new native. Insets keep upstream's
+  the first tracking read and stops a microtask after the last reader's effect is destroyed. A
+  read outside an effect gets the last polled value while a poll is live and one fresh native call
+  otherwise, and a module-level `$derived` first read outside any effect owns its poll forever
+  (`createSubscriber` semantics; Svelte's `MediaQuery` does the same). The host object resolves
+  `get_native()` on every call, so a poll that outlives a remount follows the new native. Insets keep upstream's
   camelCase fields (`safeArea`, `keyboardVisible`, …), like every other native payload. Headlessly
   the size is the real viewport and the insets are zero (`TestGpuixRenderer` has no
   `getWindowInsets`); with no native at all it is upstream's 800×600 fallback.

@@ -27,6 +27,7 @@ let calls = 0;
 first.native.getWindowSize = () => (calls++, { width: 321, height: 123 });
 await until(() => size_text() === '321x123');
 check('a resize reaches the template within a poll', size_text(), '321x123');
+await until(() => insets_text() === '123/false/0');
 check('and the insets derive from the new height', insets_text(), '123/false/0');
 
 const edges = (top: number, bottom: number) => ({ top, right: 0, bottom, left: 0 });

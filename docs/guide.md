@@ -67,7 +67,10 @@ or `$effect` reads them:
 
 GPUI has no resize event, so they poll native every 100 ms, and only while something reactive
 reads them: the first read starts the poll and it stops once the last component reading it is
-destroyed. A read anywhere else (a click handler, module code) is one fresh native call.
+destroyed. A read anywhere else (a click handler, module code) gets the last polled value while
+something reactive is reading, and one fresh native call otherwise. Keep a `$derived` over them in
+a component: one in a `.svelte.ts` module that is first read outside an effect starts a poll that
+nothing ever stops.
 `window_insets` carries `safeArea`, `ime` and `effective` (each `{ top, right, bottom, left }`)
 plus `keyboardTop`, `keyboardVisible` and `visibleHeight`, camelCase like every other value that
 comes from native. The headless test renderer reports its real viewport size and zero insets;
