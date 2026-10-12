@@ -29,7 +29,7 @@ gpuix-solid takes `debugFrameOverlay` as a [`render()` option][solid-render] and
 [`capabilities.ts`][solid-caps] (its whole content is that one call). Nothing binds a key to
 cycle it.
 
-Prior art here: `examples/second-brain/scripts/frame-cost.ts` (the "Measuring frame cost"
+Prior art here: Substrate's `scripts/frame-cost.ts` (`../substrate-gpuix-svelte`, the "Measuring frame cost"
 section of CLAUDE.md) already calls `setDebugFrameOverlay('full')`,
 `resetDebugFrameOverlayStats()` and `getDebugFrameOverlayStats()` on the live renderer through
 `get_native()`. The package itself wires none of it: no render option, no environment variable,
@@ -73,8 +73,8 @@ if (overlay) set_debug_overlay(overlay as DebugOverlay);
   The environment variable wins, sits beside `GPUIX_SCREENSHOT` (line 174), and is re-applied on
   every remount (idempotent).
 - `src/index.ts`: export the four functions and the `DebugOverlay` type.
-- Optional: `examples/second-brain/scripts/frame-cost.ts` can switch to the wrappers. Not
-  required; it is Bun-only and already works.
+- Optional: Substrate's `scripts/frame-cost.ts` can switch to the wrappers once a release carries
+  them. Not required; it lives in its own repo and already works.
 
 ## Tests
 

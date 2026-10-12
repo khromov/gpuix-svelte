@@ -144,6 +144,6 @@ whose values are all already in force is a no-op. A `var()` works on any propert
 included, and inside inline `style=` too. `var(--name, fallback)` uses the fallback while the
 variable is unset; without one the declaration is dropped, and the name is warned about once when
 the frame that read it ships — the `$effect` above runs after Svelte has styled the tree, so
-variables it defines are never reported. Keys are accepted with or without the `--`. Substrate
-(`examples/second-brain/lib/theme.ts`) is the worked example: one palette object per mode, handed
-over from `App.svelte` in an `$effect`.
+variables it defines are never reported. Keys are accepted with or without the `--`. Substrate, a
+second-brain app built on this renderer, themes itself exactly this way: one palette object per
+mode, handed over from its root component in an `$effect`.

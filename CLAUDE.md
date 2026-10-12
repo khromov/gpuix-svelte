@@ -54,44 +54,6 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
                            # Bun: the bin picks the runtime from --bun or npm_config_user_agent
                            # (Bun's script runner executes `node ...` on real Node otherwise).
                            # NOT part of `npm run demo`
-npm run brain              # Substrate, the "second brain" example (examples/second-brain): notes, links
-                           # (scraped with HTMLRewriter), images, voice memos; hybrid search
-                           # (nomic embeddings + FTS5 + CLIP, fused with RRF); RSS/Atom feeds
-                           # polled on a per-feed cron (croner, in-process — the ML worker takes one
-                           # job at a time and does not exist without the ML deps), in or out of the
-                           # timeline/search/Ask/Related behind one feeds.include switch; RAG chat over any
-                           # OpenAI-compatible endpoint; right-click menus on every surface
-                           # (components/ContextMenu.svelte draws them, lib/menus.ts says what is
-                           # in them); light/dark. Recording and playback work on macOS
-                           # (AVFoundation via the clang-built native/recorder-shim.m) and on
-                           # Windows (winmm's waveIn/waveOut straight over bun:ffi, no shim to
-                           # compile — lib/winmm.ts, recorder-win.ts, player-win.ts). BUN ONLY
-                           # (bun:sqlite,
-                           # Bun.spawn IPC, Bun.Image, bun:ffi), so no node twin — `bun run brain`
-                           # is the same script. Models run in a child process (ml/worker.ts).
-                           # substrate.sqlite is the master record: media are blob rows, and
-                           # <data-dir>/cache is a disposable extraction of them (lib/blobs.ts).
-                           # Env: GPUIX_BRAIN_DIR, _STUB=1 (fake data, no models — screenshots),
-                           # _START=/settings, _THEME=light|dark, _ML=off, _OFFLINE=1,
-                           # _RECORDER=0 (no microphone backend), _FEEDS=0,
-                           # _LLM_URL/_LLM_KEY/_LLM_MODEL. See its README.
-npm run brain:install      # once: `npm install --prefix examples/second-brain/ml` — the ML deps
-                           # (transformers.js → onnxruntime-node, sharp; ~380 MB of prebuilds) live
-                           # in that nested package so the root and CI stay lean
-npm run brain:doctor       # feasibility spike: loads all three models under Bun and runs one
-                           # inference each; first run downloads ~380 MB into .data/models
-npm run brain:compile      # dist/substrate + dist/Substrate.app via scripts/compile-brain.ts (macOS
-                           # only). transformers.js can't be compiled into a Bun binary
-                           # (huggingface/transformers.js#1672), so the worker ships as source with
-                           # its node_modules in Contents/Resources and the app runs it on its own
-                           # embedded Bun (BUN_BE_BUN=1); onnxruntime-node ships every platform's
-                           # prebuilt runtime, so the copy is pruned to the host's (176 MB of
-                           # win32+linux, 460 -> 284 MB). Data goes to ~/Library/Application
-                           # Support/Substrate. CODESIGN_IDENTITY / NOTARY_PROFILE as for compile.
-npm run brain:import-hn    # pours the Hacker News front page into the real brain (scrape smoke test)
-npm run brain:frames       # draw-time stats per route (idle and while scrolling) from GPUI's debug
-                           # frame overlay, against a copy of the data; `-- --keep /item/36` leaves
-                           # the window open with the overlay on. See "Measuring frame cost"
 
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
@@ -116,14 +78,6 @@ npm run test:portal        # single test — <Portal> paints on top, tears down 
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
                            # uploads (including one from an {@attach}, before the element exists)
-npm run test:brain         # Bun-only, chained into bun:test not test — examples/second-brain/test/brain.ts
-                           # (WAV codec incl. the streamed header the Windows recorder writes,
-                           # page extractor, SSE parser, chunker, vector index, store +
-                           # pipeline with a stub worker, the feed parser/poller over fixture
-                           # documents, the Windows mic consent parser, real IPC client vs a
-                           # fake worker incl. a crash)
-                           # and test/smoke.ts (headless mount; capture, open, Esc, delete via real hit
-                           # testing; a long page paints only the rows in view). No models, no network.
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -157,7 +111,7 @@ running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`),
 loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
 `bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `npm install`
 either way. Adding a script means adding both halves — except the Bun-only ones (`compile`,
-`demo:web`, `brain:*` other than `brain`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
+`demo:web`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
 `bun:` twin is an alias. Repo-local scripts that run on plain `node` (`demo`, `vendor`, `pack`,
 `consume`, `check:svelte`) take `--import tsx` themselves.
 
@@ -183,8 +137,7 @@ Tests are plain scripts: `check(label, actual, expected)` and `finish(name, expe
 module, exit 1 on any failure — no test runner. **`finish`'s second argument is how many `check`
 calls should have run**, and a mismatch (zero included) fails: nothing else counts them, so
 assertions that stop executing would otherwise take the file green with them — adding or removing a
-check means bumping that number. `brain.ts` computes its own, since `brain.ts:596` gates three
-recorder checks on darwin. Adding a test means adding a `test:*` script and chaining it into `test`.
+check means bumping that number. Adding a test means adding a `test:*` script and chaining it into `test`.
 CI (`.github/workflows/test.yml`) runs `npm test` and `npm run bun:test` as two macOS jobs.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
@@ -199,7 +152,7 @@ A window can't be inspected from a terminal, but a PNG can:
 ```bash
 GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter    # writes a PNG after every mount/remount
                                                     # (single demo — all four share the path)
-GPUIX_FPS=1 npm run brain                           # GPUI's draw-time overlay top right: CUR / 1% /
+GPUIX_FPS=1 npm run demo:hn                         # GPUI's draw-time overlay top right: CUR / 1% /
                                                     # 10% / MAX ms and a frame count (=minimal shows
                                                     # the last draw only). Draw time, not fps:
                                                     # 8.3 ms is 120 Hz
@@ -210,23 +163,16 @@ Then open the PNG with the Read tool (Preview.app also reloads on write). Headle
 
 ### Measuring frame cost
 
-Scroll lag here is native per-frame layout, not JS, so measure before reasoning. `npm run
-brain:frames -- [--keep] [route ...]` (`examples/second-brain/scripts/frame-cost.ts`) boots
-Substrate against a `VACUUM INTO` copy of the data — self-contained since the media became blob
-rows, where it used to paint out of the original tree — visits each route (default: `/`, `/settings`
-and the item with the longest body), and prints a table of GPUI's own draw times — idle frames
-over 2 s, then p90/p99/max and fps while 90 wheel events scroll the content column; `--keep`
-leaves the window open with the overlay on for scrolling by hand. It is a thin script over the
-API both `GpuixRenderer` and `TestGpuixRenderer` expose: `setDebugFrameOverlay('full')`,
+Scroll lag here is native per-frame layout, not JS, so measure before reasoning. Both
+`GpuixRenderer` and `TestGpuixRenderer` expose GPUI's own draw times: `setDebugFrameOverlay('full')`,
 `resetDebugFrameOverlayStats()`, `getDebugFrameOverlayStats()` (cur/p90/p99/max draw ms and a
 frame count) and `simulateScrollWheel(x, y, dx, dy)` — so a headless bench of one component is
-the same calls around `mount_headless` (from outside the repo it needs a `node_modules` of
+those calls around `mount_headless` (from outside the repo it needs a `node_modules` of
 symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json, or tsx
-emits CJS). The window needs the Bash sandbox off, like every other renderer run. Baselines on
-2026-09-03 (native 0.7.0, 1180×780): the timeline ~4.6 ms a frame, settings ~7–9 ms, the item
-route ~5 ms since its Scroller went virtual (it was ~10 ms with a 12-character note and ~18 ms
-with a 226-block page before). Open: `/settings` blocks ~90 ms per simulated wheel event although
-its draw is ~9 ms.
+emits CJS). The window needs the Bash sandbox off, like every other renderer run. Substrate's
+`scripts/frame-cost.ts` (`bun run frames` in `../substrate-gpuix-svelte`) is the worked example over
+a real window: it boots the app against a `VACUUM INTO` copy of its data and prints idle and
+while-scrolling draw times per route; its AGENTS.md keeps the baselines.
 
 ### Standalone binary
 
@@ -283,8 +229,8 @@ The wasm class differs from the napi one in ways worth knowing before reusing de
 carries every commit) and `tick()` is a no-op; `init(options)` **ignores** its argument, so
 `title`/`width`/`height` do nothing and the page's CSS sizes the canvas; and it has no
 `captureScreenshot`, `activateWindow`, `simulateKeystrokes`, `simulateKeyDown`/`Up`, or the
-`resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair — so `brain:frames`-style
-measurement is desktop-only. `getAutomationTree()` stands in for `getTreeJson()`. Everything
+`resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair — so frame-cost measurement is
+desktop-only. `getAutomationTree()` stands in for `getTreeJson()`. Everything
 `Scroller` needs (`getElementBounds`, `getScrollOffset`, `getListScrollTop`, `scrollTo`,
 `scrollToItem`) is present, so a scrolling demo should port too.
 
@@ -684,18 +630,18 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   reading, running scripts and tests, and scratch files under `$TMPDIR`. Anything worth
   remembering goes in this file, not in Claude Code's memory directory.
 - The headless renderer (Metal) crashes under Claude Code's Bash sandbox ("Swift Fatal error:
-  Array index out of range", hiservices XPC errors) — run `npm test`, `test:brain` and `consume`
-  with the sandbox disabled.
-- The machine has 16 GB of RAM and each `ml/worker.ts` loads ~1 GB of ONNX models with ORT's arena
-  on top: run one model-loading process at a time (the app, `brain:doctor`, the HN import — never
-  in parallel), check `ps -axo pid,rss,command | grep worker` after background runs and kill
-  orphans, and prefer `GPUIX_BRAIN_STUB=1` or `MlStub` for screenshots and tests. Keep the
-  safeguards: chunk length capped by characters, embedding batches of 8, `enableCpuMemArena:
-  false`, idle unload of Whisper/CLIP, the worker's orphan watchdog.
+  Array index out of range", hiservices XPC errors) — run `npm test` and `consume` with the
+  sandbox disabled.
 - Sibling checkouts: `../gpuix` is the fork this repo was extracted from (2026-08-30) and lags at
   native 0.4.0 — read upstream release tags instead (see "Regenerating the styling
   reference"); `../svelte` (khromov/svelte, branch `custom-condition`) is the local copy of the
-  custom-renderer PR stack, force-pushed about weekly.
+  custom-renderer PR stack, force-pushed about weekly; `../substrate-gpuix-svelte`
+  (khromov/substrate-gpuix-svelte, private) is Substrate, the "second brain" app that lived in
+  `examples/second-brain` until 2026-10-12 and now consumes the published package. Wherever this
+  file says "Substrate's `x`", the path is relative to that checkout. Its `bun run test` is the
+  largest consumer suite there is; to run it against this checkout, swap its
+  `node_modules/gpuix-svelte` for a symlink to `../../gpuix-svelte`, and `bun install` there
+  restores the published copy.
 - npm does not verify lock integrity for `file:` tarballs and says "up to date" when a same-named
   tarball changes bytes; if one is ever replaced under the same name, delete
   `packages['node_modules/svelte']` from package-lock.json and `npm install`. `npm install` never
@@ -711,7 +657,8 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   exact tally, since the upstream suite grows; with `SVELTE_SAMPLES_DIR` unset it still skips at
   exit 0.
 - Mutation-swept on 2026-09-03 (native 0.7.0). Inverting each of the 460 assertions one at a time
-  — 186 node, 274 bun — failed its run in all 460 cases, and every static `check(` site executes.
+  — 186 node, 274 bun, the bun runs then also carrying Substrate's suites — failed its run in all
+  460 cases, and every static `check(` site executes.
   Two guards survive source mutation because no reachable state distinguishes them, both verified
   by instrumenting the branch and running the whole suite: `first_native_after`'s `n.attached`
   (`renderer.ts:206` — every id-bearing node the scan reaches is attached or a portal, and
@@ -733,8 +680,8 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   filtered: every current hit is an async fetch, a timer or a two-way sync, but it is the class
   that caught tic-tac-toe's score tally. A one-shot subscription with nothing reactive in it
   (`on_selection_change` in `examples/desktop-apis`) goes through `onDestroy` instead of an
-  `$effect`, which keeps it out of that class. Baseline on 2026-10-11: 75 files, 0 issues, 6
-  suggestions, 174 a11y + 36 call-in-effect hidden.
+  `$effect`, which keeps it out of that class. Baseline on 2026-10-12, after Substrate moved out: 34
+  files, 0 issues, 2 suggestions, 138 a11y + 15 call-in-effect hidden.
 - `demo:glass-ffi` renders as an opaque dark slab over bright backdrops on every native version
   tested: attaching the NSGlassEffectView itself turns the window opaque (the shim never opts into
   behind-window sampling), not a renderer regression.
