@@ -6,12 +6,14 @@
 	"scripts": {
 		"start": "gpuix-svelte app.ts",
 		"test": "gpuix-svelte test.ts",
+		"build": "bun build.ts",
 		"typecheck": "tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings"
 	},
 	"dependencies": {
 		"gpuix-svelte": "^0.1.0"
 	},
 	"devDependencies": {
+		"@types/bun": "^1.4.0",
 		"@types/node": "^26.4.1",
 		"svelte-check": "^4.7.6",
 		"typescript": "^5.9.3"

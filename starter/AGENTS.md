@@ -15,11 +15,27 @@ Fetch https://khromov.github.io/gpuix-svelte/llms.txt, then the pages it links f
 npm start            # opens the window; saving a .svelte file hot-reloads it
 npm test             # headless test (test.ts) through GPUI's real hit testing; macOS and Windows
 npm run typecheck    # tsc, then svelte-check against GPUI's element types
+npm run build        # dist/app (dist/app.exe on Windows): the app as one executable; needs Bun
 ```
 
 With Bun: `bun run start`, `bun run test`. After a change, run `npm run typecheck` and `npm test`.
 To see what the window draws, run `GPUIX_SCREENSHOT=/tmp/app.png npm start`: it writes a PNG after
 every mount and hot reload.
+
+## Building
+
+`npm run build` runs `build.ts`, which compiles `standalone.ts` with Bun into a single executable
+(about 95 MB) that carries the Bun runtime, Svelte and the GPUI addon. It needs Bun installed, even
+in a project that uses npm.
+
+- The executable is for the platform it was built on: macOS arm64, Windows x64 or Linux x64, the
+  three GPUI ships prebuilt. To release for all three, run `npm run build` on each, for example in a
+  GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
+- `standalone.ts` mounts `App.svelte` with `render` and a static import, since a binary has no
+  source files to hot-reload. Keep its window options in step with `app.ts`.
+- macOS keeps a downloaded, unsigned executable from opening until it is allowed under System
+  Settings → Privacy & Security. Signing, notarizing and wrapping it as a `.app` are covered on the
+  Shipping page of the docs.
 
 ## Writing components
 
@@ -56,4 +72,5 @@ every `svelte` import to it. Keep `svelte` itself out of `package.json`.
 - `app.ts` — the entry: `render_hot` opens the window and remounts `App.svelte` on save.
 - `App.svelte` — the root component.
 - `test.ts` — the headless test (`gpuix-svelte/test`); a plain script that exits 1 on failure.
+- `standalone.ts`, `build.ts` — the entry and the Bun build script behind `npm run build`.
 - `tsconfig.json`, `svelte.d.ts`, `svelte.config.js` — TypeScript and svelte-check setup.

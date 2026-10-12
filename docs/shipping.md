@@ -29,7 +29,7 @@ render(App, { title: 'My app', width: 480, height: 640 });
 `Bun.build` takes its plugins as options, so the build script wires up `gpuix-svelte/plugin`
 itself: `load_svelte` / `load_module` compile components, `resolve_svelte` pins every `svelte`
 import to the build the package bundles, and `resolve_native_cjs` embeds the GPUI addon. A
-complete `build.ts` for a project made with `npm create gpuix-svelte`, run with `bun build.ts`:
+project made with `npm create gpuix-svelte` ships this as `build.ts`, behind `npm run build`:
 
 ```ts
 import type { BunPlugin } from 'bun';
