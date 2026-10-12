@@ -147,7 +147,7 @@ Markup: the wrapper **without** `hitbox="self"` (popover content must keep its h
 trigger's own click toggles; otherwise close-then-reopen races, which gpuix-solid works around
 with a `dismissedByOutsidePress` latch) and calls `onclose()` otherwise.
 `$effect(() => open && on_window_key('keydown', (e) => e.key === 'escape' && onclose()))`
-(the `examples/second-brain/components/Modal.svelte:29` pattern). `mouseDownOutside` is a
+(the pattern in Substrate's `components/Modal.svelte`). `mouseDownOutside` is a
 per-element native listener, hence on `.panel`.
 
 ## Tests
