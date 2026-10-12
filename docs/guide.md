@@ -78,6 +78,15 @@ target). `role` and the `aria-label`, `aria-description`, `aria-id`, `aria-expan
 accessibility clients through GPUI; `<text>` is a label by default, and an element needs a `role`
 to appear at all.
 
+GPUI's draw-time overlay sits top right: current, 1% and 10% worst and max draw ms, plus a frame
+count (`minimal` shows the last draw only). Draw time is not fps; 8.3 ms is 120 Hz. Turn it on with
+`render(App, { debugFrameOverlay: 'full' })`, or on any app without touching code with `GPUIX_FPS=1`
+(or `=minimal`), which wins over the option. At runtime `set_debug_overlay(mode)`,
+`cycle_debug_overlay()` (hidden → minimal → full, for a key binding) and `debug_overlay()` drive it,
+and `debug_overlay_stats()` / `reset_debug_overlay_stats()` read and clear the same numbers for a
+script or a headless bench; they are recorded while the overlay is hidden too. A hot reload keeps
+whatever mode is showing.
+
 ## State that survives hot reload
 
 `render_hot` remounts the root on every `.svelte` save, so component state resets. A `.svelte.ts`

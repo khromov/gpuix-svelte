@@ -58,7 +58,7 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal, test:host
+                           # test:portal, test:host, test:overlay
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -78,6 +78,8 @@ npm run test:portal        # single test — <Portal> paints on top, tears down 
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
                            # uploads (including one from an {@attach}, before the element exists)
+npm run test:overlay       # single test — the debug frame overlay wrappers, and how render() picks
+                           # between GPUIX_FPS and the debugFrameOverlay option across remounts
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -163,12 +165,19 @@ GPUIX_FPS=1 npm run demo:hn                         # GPUI's draw-time overlay t
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls
 `TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.ts`.
 
+From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
+applies once per window; the option is re-applied only when a later `render()` changes it, since
+`render_hot` remounts with the same options and must not undo a runtime `cycle_debug_overlay()`.
+An unknown mode from either warns once (native would throw out of `render()`).
+
 ### Measuring frame cost
 
 Scroll lag here is native per-frame layout, not JS, so measure before reasoning. Both
-`GpuixRenderer` and `TestGpuixRenderer` expose GPUI's own draw times: `setDebugFrameOverlay('full')`,
-`resetDebugFrameOverlayStats()`, `getDebugFrameOverlayStats()` (cur/p90/p99/max draw ms and a
-frame count) and `simulateScrollWheel(x, y, dx, dy)` — so a headless bench of one component is
+`GpuixRenderer` and `TestGpuixRenderer` expose GPUI's own draw times, wrapped by the package (in
+`src/window.ts`) as `set_debug_overlay(mode)`, `cycle_debug_overlay()`, `debug_overlay()`,
+`reset_debug_overlay_stats()` and `debug_overlay_stats()` (cur/p90/p99/max draw ms and a frame
+count, recorded even while the overlay is hidden), plus `simulateScrollWheel(x, y, dx, dy)` on the
+raw handle — so a headless bench of one component is
 those calls around `mount_headless` (from outside the repo it needs a `node_modules` of
 symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json, or tsx
 emits CJS). The window needs the Bash sandbox off, like every other renderer run. Substrate's
@@ -230,9 +239,9 @@ The wasm class differs from the napi one in ways worth knowing before reusing de
 `requiresTick()` is hardcoded `false` (so the frame loop never starts and `set_auto_commit(true)`
 carries every commit) and `tick()` is a no-op; `init(options)` **ignores** its argument, so
 `title`/`width`/`height` do nothing and the page's CSS sizes the canvas; and it has no
-`captureScreenshot`, `activateWindow`, `simulateKeystrokes`, `simulateKeyDown`/`Up`, or the
-`resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair — so frame-cost measurement is
-desktop-only. `getAutomationTree()` stands in for `getTreeJson()`. Everything
+`captureScreenshot`, `activateWindow`, `simulateKeystrokes`, `simulateKeyDown`/`Up`,
+`cycleDebugFrameOverlay`, or the `resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair —
+so frame-cost measurement is desktop-only (`set_debug_overlay` still shows the overlay). `getAutomationTree()` stands in for `getTreeJson()`. Everything
 `Scroller` needs (`getElementBounds`, `getScrollOffset`, `getListScrollTop`, `scrollTo`,
 `scrollToItem`) is present, so a scrolling demo should port too.
 
