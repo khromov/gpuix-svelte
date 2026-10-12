@@ -1,5 +1,6 @@
 // Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
-// coloured in the browser by docs/assets/prism.js, a vendored Prism build.
+// coloured in the browser by docs/assets/prism.js, a vendored Prism build. Beside each page goes a
+// standalone markdown copy, indexed by llms.txt (https://llmstxt.org) for coding agents.
 
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
@@ -7,15 +8,16 @@ import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
 
 const REPO = 'https://github.com/khromov/gpuix-svelte';
+const SITE = 'https://khromov.github.io/gpuix-svelte/';
 
 const PAGES = [
-	{ source: 'README.md', out: 'index.html', nav: 'Overview' },
-	{ source: 'docs/styling.md', out: 'styling.html', nav: 'Styling' },
-	{ source: 'docs/components.md', out: 'components.html', nav: 'Components' },
-	{ source: 'docs/guide.md', out: 'guide.html', nav: 'Guide' },
-	{ source: 'docs/testing.md', out: 'testing.html', nav: 'Testing' },
-	{ source: 'docs/shipping.md', out: 'shipping.html', nav: 'Shipping' },
-	{ source: 'docs/contributing.md', out: 'contributing.html', nav: 'Contributing' }
+	{ source: 'README.md', name: 'index', nav: 'Overview', about: 'what the package is, setup, how it differs from Svelte on the web, TypeScript config' },
+	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var() and set_css_vars' },
+	{ source: 'docs/components.md', name: 'components', nav: 'Components', about: 'Scroller (scrollbars, virtual lists), Portal (modals, menus, toasts) and the native <anchored> popover' },
+	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
+	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot' },
+	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
+	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -32,21 +34,54 @@ const slug = (text: string) =>
 		.trim()
 		.replace(/\s/g, '-');
 
-// Links between published pages stay on the site; everything else in the repo goes to GitHub.
-function rewrite(href: string, from: string) {
+// Links between published pages stay on the site (as absolute .md URLs in the markdown copies,
+// which are read on their own); everything else in the repo goes to GitHub.
+function rewrite(href: string, from: string, as: 'html' | 'md') {
 	if (/^[a-z]+:/i.test(href) || href.startsWith('#')) return href;
 	const [path, hash = ''] = href.split('#');
+	const anchor = hash ? `#${hash}` : '';
 	const target = posix.normalize(posix.join(posix.dirname(from), path)).replace(/\/$/, '');
 	const page = PAGES.find((p) => p.source === target);
-	if (page) return page.out + (hash ? `#${hash}` : '');
-	return `${REPO}/blob/main/${target}${hash ? `#${hash}` : ''}`;
+	if (page) return as === 'html' ? `${page.name}.html${anchor}` : `${SITE}${page.name}.md${anchor}`;
+	return `${REPO}/blob/main/${target}${anchor}`;
+}
+
+// Fenced code is left alone, since a `](` inside an example is not a link.
+const markdown = (source: string) =>
+	readFileSync(join(root, source), 'utf8')
+		.split(/(^```[\s\S]*?^```)/m)
+		.map((part, i) => (i % 2 ? part : part.replace(/\]\(([^)\s]+)\)/g, (_, href: string) => `](${rewrite(href, source, 'md')})`)))
+		.join('');
+
+function llms_txt() {
+	const entry = (p: (typeof PAGES)[number]) => `- [${p.nav}](${SITE}${p.name}.md): ${p.about}`;
+	return `# gpuix-svelte
+
+> A Svelte custom renderer for GPUI, the GPU-accelerated UI framework behind the Zed editor: Svelte 5
+> components rendered straight into a native desktop window on Node.js >= 24 or Bun >= 1.4.
+
+Elements are GPUI's (\`div\`, \`text\`, \`img\`, \`input\`, \`textarea\`, \`virtual-list\`, ...), styling is CSS
+text for a flexbox layout in logical pixels, events go to the element under the pointer (\`hitbox="self"\`
+hands a clickable element the clicks on its children), and inputs report their value in event
+payloads. Read the Styling page before writing CSS. The package bundles its own Svelte build, so
+a project depends on \`gpuix-svelte\` alone and runs its entry through the \`gpuix-svelte\` bin.
+
+## Docs
+
+${PAGES.filter((p) => !p.optional).map(entry).join('\n')}
+
+## Optional
+
+${PAGES.filter((p) => p.optional).map(entry).join('\n')}
+- [Everything in one file](${SITE}llms-full.txt): all of the pages above, concatenated
+`;
 }
 
 function render(source: string) {
 	const marked = new Marked({
 		gfm: true,
 		walkTokens(token) {
-			if (token.type === 'link' || token.type === 'image') token.href = rewrite(token.href, source);
+			if (token.type === 'link' || token.type === 'image') token.href = rewrite(token.href, source, 'html');
 		},
 		renderer: {
 			heading({ tokens, depth }: Tokens.Heading) {
@@ -109,7 +144,7 @@ summary { cursor: pointer; font-weight: 600; }
 
 function page(current: (typeof PAGES)[number], body: string) {
 	const title = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
-	const nav = PAGES.map((p) => `<a href="${p.out}"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a>`).join('\n');
+	const nav = PAGES.map((p) => `<a href="${p.name}.html"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a>`).join('\n');
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -117,6 +152,7 @@ function page(current: (typeof PAGES)[number], body: string) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title === 'gpuix-svelte' ? title : `${title} — gpuix-svelte`)}</title>
 <style>${CSS}</style>
+<link rel="alternate" type="text/markdown" href="${current.name}.md">
 <script src="prism.js" defer></script>
 </head>
 <body>
@@ -137,6 +173,11 @@ ${body}
 
 rmSync(out_dir, { recursive: true, force: true });
 mkdirSync(out_dir, { recursive: true });
-for (const p of PAGES) writeFileSync(join(out_dir, p.out), page(p, render(p.source)));
+for (const p of PAGES) {
+	writeFileSync(join(out_dir, `${p.name}.html`), page(p, render(p.source)));
+	writeFileSync(join(out_dir, `${p.name}.md`), markdown(p.source));
+}
+writeFileSync(join(out_dir, 'llms.txt'), llms_txt());
+writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source).trim()).join('\n\n---\n\n') + '\n');
 copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
-console.log(`[docs] ${PAGES.length} pages → ${out_dir}`);
+console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt → ${out_dir}`);

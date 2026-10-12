@@ -29,8 +29,12 @@ run(process.execPath, ['--import', 'tsx', join(root, 'scripts/publish.ts'), 'pac
 const tarball = readdirSync(dir).find((f) => f.endsWith('.tgz'));
 if (!tarball) throw new Error(`npm pack left no tarball in ${dir}`);
 
+// The scaffolder prefers its own template/ over starter/, so refresh it the way prepack would.
+run(process.execPath, [join(root, 'packages/create-gpuix-svelte/sync-template.js')], root);
 run(process.execPath, [join(root, 'packages/create-gpuix-svelte/index.js'), consumer], dir);
-if (!existsSync(join(consumer, '.gitignore'))) throw new Error('create-gpuix-svelte wrote no .gitignore');
+for (const file of ['.gitignore', 'AGENTS.md', 'CLAUDE.md']) {
+	if (!existsSync(join(consumer, file))) throw new Error(`create-gpuix-svelte wrote no ${file}`);
+}
 const manifest = join(consumer, 'package.json');
 const json = JSON.parse(readFileSync(manifest, 'utf8'));
 json.dependencies['gpuix-svelte'] = `file:${join(dir, tarball)}`;

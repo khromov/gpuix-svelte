@@ -34,6 +34,8 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
   inside the package.
   `svelteOptions.namespace` and the `gpuix-svelte/html` type entry make the editor and
   svelte-check type `App.svelte`'s markup as GPUI elements rather than DOM ones.
+- `AGENTS.md` — instructions for coding agents, pointing at the docs' `llms.txt`; `CLAUDE.md`
+  imports it for Claude Code.
 - `svelte.config.js` — editor and svelte-check only: switches off Svelte's DOM a11y advice.
 
 Needs Node >= 24 or Bun >= 1.4.

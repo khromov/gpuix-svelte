@@ -132,7 +132,9 @@ npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP serv
                            # Exits 1 on issues, never on suggestions. Network, not a runtime
                            # script, so no bun twin
 npm run docs               # README.md + docs/*.md → static HTML in dist/docs via marked
-                           # (scripts/docs.ts; links to other repo files go to GitHub);
+                           # (scripts/docs.ts; links to other repo files go to GitHub), plus a
+                           # markdown copy of each page with absolute links, llms.txt indexing
+                           # them and llms-full.txt — starter/AGENTS.md points agents there;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
                            # Not a runtime script, so no bun twin
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
