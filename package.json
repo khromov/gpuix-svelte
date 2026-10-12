@@ -79,6 +79,7 @@
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
 		"docs": "node --import tsx scripts/docs.ts",
 		"vendor": "node --use-env-proxy --import tsx scripts/vendor-svelte.ts",
+		"parity": "node --import tsx scripts/native-parity.ts",
 		"pack": "node --import tsx scripts/publish.ts pack",
 		"publish:npm": "node --import tsx scripts/publish.ts publish",
 		"consume": "node --import tsx scripts/consume.ts",

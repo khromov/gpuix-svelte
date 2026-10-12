@@ -285,11 +285,8 @@ overlay.
 
 ## Native surface neither renderer exposes
 
-For completeness, what the 0.7.0 napi surface offers that both projects leave alone:
-`focusNext()` and `focusPrevious()` (Tab no longer moves focus since 0.7, so an app has to call
-these itself), `clearSelection()`, and the application menu (fixed Quit, Hide and Services items
-in `app_menu.rs`, not configurable from JS). Clipboard and cursor APIs do not exist natively;
-Substrate shells out to `pbcopy` and `pbpaste`.
+[native-parity.md](native-parity.md) lists every `@gpuix/native` renderer method, window option,
+event and element prop, alongside how gpuix-svelte exposes each one. A "—" there marks a gap.
 
 ## Sources
 
