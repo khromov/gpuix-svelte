@@ -239,11 +239,11 @@ export const STEPS: Step[] = [
 		prose: 'content/styling.md',
 		diagram: {
 			kind: 'pipeline',
-			title: 'style="padding: 8px 16px; flex: 1; font-size: 1rem"',
+			title: 'style="padding: 8px 16px; flex: 1; font-size: 1em"',
 			nodes: [
 				{ label: 'parse_css_text', caption: 'camelCase keys, 8px → 8' },
 				{ label: 'expand shorthands', caption: 'paddingTop/Right/Bottom/Left' },
-				{ label: 'type gate', caption: 'fontSize: 1rem → warned, dropped', color: '#f38ba8' },
+				{ label: 'type gate', caption: 'fontSize: 1em → warned, dropped', color: '#f38ba8' },
 				{ label: 'setStyle {…}', caption: 'flex: 1 → serde ignores the key' },
 				{ label: 'GPUI Style', caption: 'what actually paints', color: '#a6e3a1' }
 			]
@@ -252,10 +252,10 @@ export const STEPS: Step[] = [
 		live: 'styled',
 		quiz: {
 			question: 'Which of these reaches GPUI as written?',
-			options: ['margin: 0 auto', 'padding: 8px 16px', 'border: 1px solid #fff', 'font-size: 1rem'],
+			options: ['margin: 0 auto', 'padding: 8px 16px', 'border: 1px solid #fff', 'font-size: 1em'],
 			answer: 1,
 			explanation:
-				'Box shorthands expand to the four longhands. auto is only valid on width/height/min-*/max-*, border has no field to land in, and rem is not a pixel.'
+				'Box shorthands expand to the four longhands. auto is only valid on width/height/min-*/max-*, border has no field to land in, and em needs the inherited font size, which the renderer never sees (rem is fine: 16 px).'
 		}
 	},
 	{
