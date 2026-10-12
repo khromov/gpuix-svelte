@@ -4,7 +4,7 @@
  * is also exported for `scripts/compile.ts` to wire up itself.
  */
 
-import { plugin, type OnLoadArgs, type OnLoadResult, type PluginBuilder } from 'bun';
+import { plugin, type OnLoadArgs, type OnLoadResult, type OnResolveArgs, type PluginBuilder } from 'bun';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
@@ -33,6 +33,34 @@ export function load_module(args: OnLoadArgs): OnLoadResult {
 // The ESM loader finds its `.node` through `createRequire(import.meta.url)`, which
 // `Bun.build` can't trace, so a compiled binary would ship without the addon.
 export const resolve_native_cjs = () => ({ path: createRequire(import.meta.url).resolve('@gpuix/native') });
+
+type ExportTarget = string | { [condition: string]: ExportTarget };
+
+function pick(target: ExportTarget | undefined, accepted: Set<string>): string | undefined {
+	if (typeof target !== 'object') return target;
+	for (const [condition, inner] of Object.entries(target)) {
+		const found = accepted.has(condition) ? pick(inner, accepted) : undefined;
+		if (found) return found;
+	}
+}
+
+/**
+ * `Bun.build` resolves `svelte` from the importer, and in a consumer's project that can be the
+ * registry build svelte-check hoists, so this pins it to the copy bundled here, under the build's
+ * own conditions. Use as `build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(conditions))`.
+ */
+export function resolve_svelte(conditions: string[]) {
+	const manifest_path = createRequire(import.meta.url).resolve('svelte/package.json');
+	const dir = manifest_path.slice(0, -'package.json'.length);
+	const exports: Record<string, ExportTarget> = JSON.parse(readFileSync(manifest_path, 'utf8')).exports;
+	if (!exports['./renderer']) throw new Error(WRONG_SVELTE);
+	const accepted = new Set([...conditions, 'import', 'default']);
+
+	return (args: OnResolveArgs) => {
+		const target = pick(exports[args.path === 'svelte' ? '.' : `./${args.path.slice('svelte/'.length)}`], accepted);
+		return target ? { path: dir + target.slice(2) } : undefined;
+	};
+}
 
 /**
  * svelte is bundled inside this package, but a runtime `onResolve` never sees a bare

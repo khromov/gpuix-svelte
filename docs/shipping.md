@@ -26,9 +26,41 @@ import App from './App.svelte';
 render(App, { title: 'My app', width: 480, height: 640 });
 ```
 
-`Bun.build` takes its plugins as options, so the build script passes
-`load_svelte` / `load_module` from `gpuix-svelte/plugin` itself, adds `custom-renderer` to its
-`conditions`, and resolves `@gpuix/native` through `resolve_native_cjs` so the addon is embedded.
+`Bun.build` takes its plugins as options, so the build script wires up `gpuix-svelte/plugin`
+itself: `load_svelte` / `load_module` compile components, `resolve_svelte` pins every `svelte`
+import to the build the package bundles, and `resolve_native_cjs` embeds the GPUI addon. A
+complete `build.ts` for a project made with `npm create gpuix-svelte`, run with `bun build.ts`:
+
+```ts
+import type { BunPlugin } from 'bun';
+import { load_module, load_svelte, resolve_native_cjs, resolve_svelte } from 'gpuix-svelte/plugin';
+
+const conditions = ['custom-renderer', 'production'];
+
+const plugin: BunPlugin = {
+  name: 'gpuix-svelte',
+  setup(build) {
+    build.onResolve({ filter: /^@gpuix\/native$/ }, resolve_native_cjs);
+    build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(conditions));
+    build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
+    build.onLoad({ filter: /\.svelte$/ }, load_svelte);
+  }
+};
+
+const result = await Bun.build({
+  entrypoints: ['./standalone.ts'],
+  target: 'bun',
+  conditions,
+  define: { 'process.env.NODE_ENV': '"production"' },
+  minify: true,
+  plugins: [plugin],
+  compile: { outfile: './dist/app', autoloadBunfig: false, autoloadDotenv: false }
+});
+if (!result.success) {
+  for (const log of result.logs) console.error(log);
+  process.exit(1);
+}
+```
 
 The result is ~80 MB — the Bun runtime, the Svelte runtime and the 17 MB GPUI addon. It is built
 for the machine it runs on: run the same command on macOS (arm64), Linux (x64) or Windows (x64) to

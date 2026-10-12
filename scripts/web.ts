@@ -26,7 +26,7 @@ const out = join(root, 'dist/web');
 const page = join(example, 'index.html');
 
 // Imported after the guard: a static import would hoist `bun` above it.
-const { load_module, load_svelte } = await import('../src/plugin.ts');
+const { load_module, load_svelte, resolve_svelte } = await import('../src/plugin.ts');
 
 // `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
 // no plugin silently becomes a file asset, so count what actually went through it.
@@ -34,6 +34,7 @@ let components = 0;
 const svelte_plugin: BunPlugin = {
 	name: 'gpuix-svelte',
 	setup(build) {
+		build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['custom-renderer', 'browser']));
 		build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 		build.onLoad({ filter: /\.svelte$/ }, (args) => {
 			components++;
