@@ -188,7 +188,6 @@ Clone the repository to run them (`npm install`, then the command):
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
-| `npm run brain` | [Substrate](examples/second-brain), a complete "second brain" app: notes, links, voice memos, semantic search, chat (Bun) |
 
 Every command also runs on Bun under a `bun:` prefix (`npm run bun:demo:counter`).
 
