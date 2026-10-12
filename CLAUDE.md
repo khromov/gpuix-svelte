@@ -58,7 +58,7 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal, test:host
+                           # test:portal, test:host, test:helpers
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -78,6 +78,8 @@ npm run test:portal        # single test — <Portal> paints on top, tears down 
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
                            # uploads (including one from an {@attach}, before the element exists)
+npm run test:helpers       # single test — every gpuix-svelte/test input helper through real hit testing:
+                           # hover, mouse_*, wheel, drag, drag_select, key_up, the clock, wait_for
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -121,8 +123,14 @@ Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(C
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
 `tree()` over `getTreeJson()` (nodes carry `testId` and `events`), and `click_text` /
 `click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)` / `drop_files(node, paths)`,
-which run GPUI's real hit testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`; `drain()` alone is the
-last two). Prefer those over calling `dispatch()` directly, which injects an event at an element
+plus `hover` / `mouse_move` / `mouse_down` / `mouse_up` / `wheel` / `drag` / `drag_select` / `key_up`
+(targets are a node or a `{ x, y }` point, via `center()` / `point_of()`), which run GPUI's real hit
+testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`) and end in `pump()`,
+which drains and settles until a paint queues nothing more (`drain()` alone is one drain and the
+dispatch). `selected_text` / `clear_selection` / `painted_highlights` / `automation_tree` read back,
+`clock_pause` / `clock_set` / `clock_fast_forward` / `clock_resume` drive `motion`'s clock,
+`advance_time` GPUI's executor timers, and `await wait_for(pred, { timeout, label })` polls instead of a
+fixed `wait`. Prefer those over calling `dispatch()` directly, which injects an event at an element
 and *bypasses* hit testing, so it can pass while the real window fails — the renderer's own tests
 do it only where the batching itself is under test. The headless viewport width follows
 `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px — elements laid
