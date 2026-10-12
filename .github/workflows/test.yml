@@ -18,11 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm ci
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: npm test
 
-  # The consumer path: pack the tarball, install it into a copy of starter/ with npm and
-  # with Bun, then typecheck and run the starter's headless test through the installed bin.
+  # The consumer path: pack the tarball, scaffold an app, install the tarball into it with npm
+  # and with Bun, then typecheck, run its headless test, and (Bun pass) build it.
   consume:
     strategy:
       fail-fast: false
@@ -34,9 +35,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm ci
-      - run: npm run consume
       - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: npm run consume
       - run: npm run bun:consume
 
   bun:
@@ -47,12 +48,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      # Deps come from npm either way — one lockfile, and Bun runs against it.
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-      - run: npm ci
       - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: npm run bun:test
 
   # gpuix compiles TestGpuixRenderer only on macOS and Windows — it needs
@@ -65,7 +65,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-      - run: npm ci
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: npm run typecheck
       - run: npm run lint
       - run: npm pack --dry-run
@@ -85,6 +86,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-      - run: npm ci
       - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: npm run compile

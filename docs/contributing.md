@@ -7,13 +7,15 @@ and the constraints any change has to respect, are written down in [CLAUDE.md](.
 ## Setup
 
 Needs Node >= 24 (26.1 for `demo:glass-ffi`) or Bun >= 1.4, on macOS (arm64), Windows (x64) or
-Linux (x64). `npm install` is the whole setup: `@gpuix/native` comes prebuilt from npm, and Svelte
-comes from `vendor/svelte-<version>-<sha>.tgz`, a build of the unreleased custom-renderer PR.
+Linux (x64). Dependencies install with [Bun](https://bun.com), whose `bun.lock` is the lockfile;
+`bun install` is the whole setup. `@gpuix/native` comes prebuilt from npm, and Svelte comes from
+`vendor/svelte-<version>-<sha>.tgz`, a build of the unreleased custom-renderer PR. Scripts run
+through `npm run` on either runtime.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
 cd gpuix-svelte
-npm install
+bun install
 ```
 
 ## Demos and tests
@@ -21,7 +23,7 @@ npm install
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
 cd gpuix-svelte
-npm install
+bun install
 npm run demo              # all four demos at once
 npm run demo:counter      # counter — edit examples/counter/Counter.svelte and save to hot-reload
 npm run demo:tictactoe    # tic-tac-toe with score tracking
@@ -43,8 +45,8 @@ small component and that component running live, and ends with a quiz.
 
 Every command has a [Bun](https://bun.com) twin under a `bun:` prefix — `npm run bun:test`,
 `npm run bun:demo`, `npm run bun:demo:counter`, and so on. They run the same entry points through
-Bun, which gets the `.svelte` loader as a `--preload` instead of an `--import`. Dependencies
-still come from `npm install` either way; there is one lockfile, and CI runs both runtimes.
+Bun, which gets the `.svelte` loader as a `--preload` instead of an `--import`. Dependencies come
+from `bun install` either way, and CI runs both runtimes.
 
 Substrate, the "second brain" app that used to live in `examples/second-brain`, moved to its own
 repository on 2026-10-12, where it consumes the published package like any other app.

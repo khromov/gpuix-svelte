@@ -22,7 +22,7 @@ with the same conditions and `--preload ./src/plugin.ts`. Flags before the entry
 the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
 ```bash
-npm install                # entire setup; @gpuix/native ships prebuilt, no Rust toolchain
+bun install                # entire setup (bun.lock is the lockfile); @gpuix/native ships prebuilt
 npm run typecheck          # tsc --noEmit over everything (strict); the first step of `test`
 npm run demo               # all four demos at once (via scripts/demo-all.ts —
                            # cmd.exe has no `&` ... `wait`)
@@ -109,8 +109,10 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
 running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`), which takes the
 loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
-`bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `npm install`
-either way. Adding a script means adding both halves — except the Bun-only ones (`compile`,
+`bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun install`
+either way, but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks
+its runtime from the launching package manager's user agent, so `bun run test` would run the Node
+suite on Bun. Adding a script means adding both halves — except the Bun-only ones (`compile`,
 `demo:web`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
 `bun:` twin is an alias. Repo-local scripts that run on plain `node` (`demo`, `vendor`, `pack`,
 `consume`, `check:svelte`) take `--import tsx` themselves.
@@ -301,7 +303,7 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   so a `https://pkg.svelte.dev/svelte/c/<sha>` pin 404s as soon as the PR is pushed again
   (pkg.pr.new's `svelte@18511` still resolves, but is frozen at the July build, 5.56.7). `npm run vendor` moves the pin: it looks up the PR head on GitHub, downloads that
   commit's tarball from pkg.svelte.dev (`/svelte/c/<sha>`; it errors if the build isn't up yet),
-  swaps the tarball, repoints `package.json` and runs `npm install`. Then run `npm test` and
+  swaps the tarball, repoints `package.json` and runs `bun install`. Then run `npm test` and
   `npm run bun:test`. For a commit pkg.svelte.dev no longer has, `pnpm build && pnpm pack` in a
   svelte checkout's `packages/svelte` and drop the tarball in by hand under the same name. `.gitignore` un-ignores
   `vendor/*.tgz` for this; `files` keeps it out of the npm package (the bundled `node_modules`
@@ -617,7 +619,9 @@ eslint and `files`.
 
 ## Runtime
 
-Node 26 (`.nvmrc`; `nvm use` before anything), via `npm`: `npm install`, `npm run <script>`, `npx`.
+Node 26 (`.nvmrc`; `nvm use` before anything). Install with `bun install` (CI: `--frozen-lockfile`),
+run scripts with `npm run <script>`; packing and publishing stay on npm (`npm pack` bundles the
+vendored svelte and its dependencies, and `npm publish` does the OIDC trusted publishing).
 Keep the source runtime-agnostic — `node:*` builtins only, no `Bun.*` calls and no `bun` imports
 outside `src/plugin.ts` and `scripts/compile*.ts` (Bun is the compiler there). Import types with
 `import type`, and components import the renderer's types (`ShadowNode` for `{@attach}`,
@@ -642,10 +646,11 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   largest consumer suite there is; to run it against this checkout, swap its
   `node_modules/gpuix-svelte` for a symlink to `../../gpuix-svelte`, and `bun install` there
   restores the published copy.
-- npm does not verify lock integrity for `file:` tarballs and says "up to date" when a same-named
-  tarball changes bytes; if one is ever replaced under the same name, delete
-  `packages['node_modules/svelte']` from package-lock.json and `npm install`. `npm install` never
-  moves a locked version because a range widened — use `npm update <pkg>`.
+- `bun.lock` records the vendored svelte tarball's sha512, and `npm run vendor` names each tarball
+  after its commit, so a new build is a new lockfile entry. A locked version moves within its
+  range with `bun update <pkg>`. Switching from package-lock.json went through Bun's migration
+  (`bun install` with the old lock present), which kept every resolved version; `npm run pack`
+  from that install was byte-identical to the npm-installed one.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. tsx, Bun and tsc all
