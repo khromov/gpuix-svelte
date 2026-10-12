@@ -58,7 +58,7 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal, test:host
+                           # test:portal, test:host, test:automation
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -78,6 +78,10 @@ npm run test:portal        # single test — <Portal> paints on top, tears down 
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
                            # uploads (including one from an {@attach}, before the element exists)
+npm run test:automation    # single test — gpuix-svelte/automation's Locator over test_app(), and the
+                           # live server's two-frame reply against a stub frame loop
+npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
+                           # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -162,6 +166,39 @@ GPUIX_FPS=1 npm run demo:hn                         # GPUI's draw-time overlay t
 
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls
 `TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.ts`.
+
+### Driving a running app
+
+`gpuix-svelte/automation` (`src/automation.ts`) re-exports `@gpuix/native/automation`'s `App` /
+`Locator` / `AutomationError` rather than porting them; zod and eventsource-parser come with
+`@gpuix/native`, so it adds no dependency. `launch({ entry, bun?, args?, cwd?, env? })` spawns
+`process.execPath bin/gpuix-svelte.js entry` with `GPUIX_AUTOMATION=1` and stderr inherited
+(upstream's own `launch` pipes stderr and never drains it, and its `close()` SIGTERMs), connects
+with upstream's `connectStdio`, and its `close()` ends the app's stdin; `app.process` is the child.
+`test_app()` is the same `App` over `TestGpuixRenderer`, through `headless_renderer()`, upstream's
+`TestAutomationRenderer` written with test.ts's simulate → drain → settle discipline; its reads
+settle first, so `waitFor` sees a timer's update. Its mouse, wheel and clock calls are raw native
+calls until the test.ts helpers for them exist.
+
+`GPUIX_AUTOMATION=1` (`0` or empty is off) is deliberately explicit, not upstream
+`createNativeRenderer`'s stdin-is-not-a-TTY sniffing: stdin is not a TTY under CI, `nohup`, an
+agent's shell or `demo-all.ts`'s four children, and the env var is what lets stdin ending mean
+"exit". Under it `render()` rebinds `console.log`/`info`/`debug` to stderr before creating the window
+(stdout is the wire; upstream's SSE decoder does skip non-`data:` lines, but a write without a
+trailing newline would swallow the next frame) and imports `src/automation-server.ts` through a
+computed specifier, so neither the web bundle nor the normal app path loads it, and a compiled
+binary cannot serve. The server is started where the window is created, so `render_hot` remounts
+reuse it. It owns its stdio loop (upstream's `createSseDecoder` + `handleAutomationRequest`) to
+answer an unparseable request that has an id with a `Protocol` error (upstream drops it, and the
+driver waits forever) and to answer what is in flight before stdin's end exits the process.
+
+Spike finding (macOS, native 0.10.0): upstream's `liveRendererAsTest` ticks synchronously after
+each input, which is not enough here — the napi callback carrying the event runs on a later loop
+turn, so a `getTree` right after a `click` missed a just-shown `{#if}` node in 2 of 5 sequential
+runs and in every pipelined one. `automation-server.ts` therefore hides `tick` from it and wraps
+the backend (`frame_synced`) so requests run one at a time and every input replies only after two
+of the frame loop's own ticks (`next_frame()` in `render.ts`); one frame was always enough in
+testing, two is the margin. An input costs ~14 ms; reads and `screenshot` do not wait.
 
 ### Measuring frame cost
 
@@ -340,6 +377,8 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
+  automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
+  automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts
   window.ts    window, picker, focus, image helpers     ─ no-ops headlessly
   components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
@@ -445,7 +484,10 @@ that thread is still alive — and it returns false once the last window closes,
 loop and the process. Where it is false, `set_auto_commit(true)` makes the renderer schedule its
 own commit on a microtask instead — otherwise a mutation with no native event behind it (a
 resolved `fetch`, a timer) would sit in the queue until the next click. Native events run
-`dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame. It reads
+`dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame.
+`next_frame()` resolves after the loop's next `tick()` (a timer where there is no loop), which is
+what the automation server waits on; `GPUIX_AUTOMATION=1` starts that server alongside the window
+(see "Driving a running app"). It reads
 env through a `globalThis.process?.env` helper and keeps no `node:*` import, so it bundles for the
 browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches the entry's
 directory and re-imports with a `?v=N` cache-buster; `compile.ts` propagates that query to child
