@@ -43,6 +43,10 @@
 					note: '% and auto survive on width/height/min*/max* only'
 				},
 				{
+					css: 'font-size: 1.5rem; padding: 0.5rem 1rem',
+					note: "rem is 16 px, GPUI's fixed rem size"
+				},
+				{
 					kind: 'lines',
 					css: 'width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis',
 					note: 'ellipsis works on a fixed-width box'
@@ -88,8 +92,8 @@
 					note: '% is dropped on pixel-only keys — a square, not a circle'
 				},
 				{
-					css: 'font-size: 1rem; padding: 1em',
-					note: 'rem/em/vh are dropped with a warning'
+					css: 'font-size: 2em; padding: 1em',
+					note: 'em/vh/vw are dropped with a warning; the text stays small'
 				},
 				{
 					bare: true,

@@ -4,6 +4,7 @@
  */
 
 import type { EventPayload, GpuixRenderer, TestGpuixRenderer, WindowOptions } from '@gpuix/native';
+import type { DebugFrameOverlayMode } from '@gpuix/native/host';
 import type { Component } from 'svelte';
 
 /** Any component at all: a `Component<{ a: 1 }>` is not a `Component<{}>`, so a mixed set has no other common type. */
@@ -125,7 +126,18 @@ export type WindowNative = Partial<
 	// napi's `Buffer` parameters take any Uint8Array, and the wasm build declares Uint8Array.
 	setImage?(elementId: number, bytes: Uint8Array): void;
 	setImagePixels?(elementId: number, width: number, height: number, pixels: Uint8Array): void;
-} & Partial<Pick<GpuixRenderer, 'getWindowSize' | 'getWindowInsets'>>;
+} & Partial<
+	Pick<
+		GpuixRenderer,
+		| 'setDebugFrameOverlay'
+		| 'cycleDebugFrameOverlay'
+		| 'getDebugFrameOverlay'
+		| 'resetDebugFrameOverlayStats'
+		| 'getDebugFrameOverlayStats'
+		| 'getWindowSize'
+		| 'getWindowInsets'
+	>
+>;
 
 export interface RenderOptions extends WindowOptions {
 	props?: Record<string, unknown>;
@@ -136,4 +148,6 @@ export interface RenderOptions extends WindowOptions {
 	onKeyUp?: (event: GpuixEvent) => void;
 	/** `on_selection_change` kept across remounts. */
 	onSelectionChange?: (event: GpuixEvent) => void;
+	/** GPUI's draw-time readout, top right; `GPUIX_FPS` outranks it. */
+	debugFrameOverlay?: DebugFrameOverlayMode;
 }

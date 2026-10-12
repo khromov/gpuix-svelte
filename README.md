@@ -74,7 +74,7 @@ The short list of what to know. Each links to the full story.
 - **Elements are GPUI's**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `markdown`,
   `virtual-list`, `anchored` and a few more. Other tags render as a `div`, with a warning.
   `<img src>` takes a file path, a `data:` URL or an http(s) URL.
-- **Styling is CSS text for a flexbox layout in logical pixels.** Lengths are `px`; sizes
+- **Styling is CSS text for a flexbox layout in logical pixels.** Lengths are `px` or `rem` (16 px); sizes
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class
   rules with `:hover` and `:active`. Values GPUI can't use are dropped with a warning.
   → [docs/styling.md](docs/styling.md)
