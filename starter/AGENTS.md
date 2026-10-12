@@ -44,7 +44,7 @@ every mount and hot reload.
   `virtual-list`, `anchored`. `<img src>` takes a file path, a `data:` URL or an http(s) URL, plus
   a width and a height.
 - Style with `<style>` class rules (`.btn`, `.btn.primary`, `.btn:hover`, `.btn:active`) and inline
-  `style=`. Layout is flexbox in logical pixels: lengths in `px`, and `%`/`auto` for `width`,
+  `style=`. Layout is flexbox in logical pixels: lengths in `px` or `rem` (16 px), and `%`/`auto` for `width`,
   `height`, `min-*` and `max-*`. Use `flex-grow: 1` for `flex: 1`, and `border-width` plus
   `border-color` for `border`. The styling page lists every property.
 - Colours go in `var(--token)`, with the palette set once from the root through

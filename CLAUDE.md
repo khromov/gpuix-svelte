@@ -470,10 +470,16 @@ GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and 
 the whole frame. So multi-value box shorthands (`padding`, `margin`, `border-width`,
 `border-radius`, `gap`, `inset`) expand to the longhands GPUI actually has, and each value is then
 checked against the key's Rust type: `NUMBER_ONLY` keys (all the spacing, border and font metrics)
-are `f64`, so `1rem`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
+are `f64`, so `1em`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
 `DimensionValue` and take `%` or `auto`; `boxShadow` is a struct CSS text can never build. Anything
 that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
 even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
+Three spellings are rewritten before that check: `Nrem` becomes `N × 16` (GPUI's rem size, which
+gpuix never changes), `overflow*: auto` becomes `scroll` (native matches only `scroll`/`hidden`
+and would ignore it), and `max-content`/`min-content`/`fit-content(...)` become `auto` on the
+dimension keys. `em` stays dropped because it means the inherited font size, which the renderer
+cannot see, and `vh`/`vw` because a class rule is parsed at compile time and nothing re-resolves
+on resize.
 
 ### Regenerating the styling reference
 
@@ -505,7 +511,7 @@ the two stay in sync. Unknown events are dropped silently.
 ## Writing components for this renderer
 
 - Style with inline `style="..."` (and `style:` directives). Box shorthands like
-  `padding: 12px 24px` work; `rem`/`em`/`vh` units do not — GPUI lengths are logical pixels — and
+  `padding: 12px 24px` work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths are logical pixels — and
   neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
   `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning.
 - `<style>` blocks work for class rules: `.btn { }`, `.btn.primary { }`, `.a, .b { }`, a tag
