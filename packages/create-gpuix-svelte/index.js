@@ -52,12 +52,15 @@ writeFileSync(join(target, '.gitignore'), 'node_modules\ndist\n.DS_Store\n');
 const agent = process.env.npm_config_user_agent?.split('/')[0] ?? 'npm';
 const pm = ['bun', 'pnpm', 'yarn'].includes(agent) ? agent : 'npm';
 const cd = relative(process.cwd(), target) || '.';
+const script = (/** @type {string} */ name) => (pm === 'npm' && name !== 'build' ? `npm ${name}` : `${pm} run ${name}`);
+const width = script('build').length + 2;
 
 console.log(`
 Created ${cd}. Next:
 
   cd ${cd}
   ${pm} install
-  ${pm === 'npm' ? 'npm start' : `${pm} run start`}      # opens the window; edit App.svelte to hot-reload
-  ${pm === 'npm' ? 'npm test' : `${pm} run test`}       # headless test (macOS and Windows)
+  ${script('start').padEnd(width)}# opens the window; edit App.svelte to hot-reload
+  ${script('test').padEnd(width)}# headless test (macOS and Windows)
+  ${script('build').padEnd(width)}# standalone executable in dist/ (requires Bun)
 `);
