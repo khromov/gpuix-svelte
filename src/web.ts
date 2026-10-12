@@ -53,3 +53,11 @@ export type {
 	AnyComponent
 } from './types.ts';
 export type { GpuixTheme, HighlightSpec, MotionProps } from '@gpuix/native/host';
+export {
+	set_debug_overlay,
+	cycle_debug_overlay,
+	debug_overlay,
+	debug_overlay_stats,
+	reset_debug_overlay_stats
+} from './window.ts';
+export type { DebugFrameOverlayMode, DebugFrameOverlayStats } from '@gpuix/native/host';

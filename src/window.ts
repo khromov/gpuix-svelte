@@ -5,6 +5,7 @@
  */
 
 import type { PathPromptOptions } from '@gpuix/native';
+import type { DebugFrameOverlayMode, DebugFrameOverlayStats } from '@gpuix/native/host';
 import { get_native, node_of, with_native_id } from './renderer.ts';
 import type { ShadowNode, WindowNative } from './types.ts';
 
@@ -64,3 +65,29 @@ export function set_image(node: NodeRef, bytes: Uint8Array) {
 export function set_image_pixels(node: NodeRef, width: number, height: number, rgba: Uint8Array) {
 	with_native_id(node, (id) => win()?.setImagePixels?.(id, width, height, rgba));
 }
+
+const OVERLAY_MODES = new Set<string>(['hidden', 'minimal', 'full']);
+const warned_overlays = new Set<string>();
+
+export function set_debug_overlay(mode: DebugFrameOverlayMode): DebugFrameOverlayMode | undefined {
+	if (!OVERLAY_MODES.has(mode)) {
+		// Native throws on it, and `GPUIX_FPS` carries any typo straight into `render()`.
+		if (!warned_overlays.has(mode)) {
+			warned_overlays.add(mode);
+			console.warn(`[gpuix-svelte] unknown debug frame overlay "${mode}", expected hidden, minimal or full`);
+		}
+		return undefined;
+	}
+	return win()?.setDebugFrameOverlay?.(mode) as DebugFrameOverlayMode | undefined;
+}
+
+/** Hidden → minimal → full → hidden. */
+export const cycle_debug_overlay = () => win()?.cycleDebugFrameOverlay?.() as DebugFrameOverlayMode | undefined;
+
+export const debug_overlay = () => win()?.getDebugFrameOverlay?.() as DebugFrameOverlayMode | undefined;
+
+/** Recorded whether or not the overlay is showing; the wasm build has none. */
+export const debug_overlay_stats = (): DebugFrameOverlayStats | undefined => win()?.getDebugFrameOverlayStats?.();
+
+/** Clears the draw samples behind the percentiles; the frame count keeps going. */
+export const reset_debug_overlay_stats = () => win()?.resetDebugFrameOverlayStats?.();
