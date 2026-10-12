@@ -28,7 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-      - run: npm ci
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: npm run docs
       - uses: actions/upload-pages-artifact@v3
         with:

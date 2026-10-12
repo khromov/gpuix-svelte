@@ -32,7 +32,7 @@ if (json.dependencies.svelte !== vendored_spec) throw new Error(`package.json ha
 if (!json.bundleDependencies?.includes('svelte')) throw new Error('svelte is not in bundleDependencies');
 
 const installed = JSON.parse(readFileSync(join(root, 'node_modules/svelte/package.json'), 'utf8'));
-if (!installed.exports?.['./renderer']) throw new Error('node_modules/svelte is not the custom-renderer build — run npm install');
+if (!installed.exports?.['./renderer']) throw new Error('node_modules/svelte is not the custom-renderer build — run bun install');
 
 function run(cmd: string, args: string[]) {
 	const { status } = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });

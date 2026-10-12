@@ -176,7 +176,7 @@ Event handlers take a `GpuixEvent` and `{@attach}` gets a `ShadowNode`, both exp
 
 ## Examples
 
-Clone the repository to run them (`npm install`, then the command):
+Clone the repository to run them (`bun install`, then the command):
 
 | | |
 |---|---|
