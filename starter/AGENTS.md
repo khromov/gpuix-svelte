@@ -24,9 +24,10 @@ every mount and hot reload.
 
 ## Building
 
+**Building standalone executables requires Bun** (>= 1.4), even in a project that uses npm and Node.
+
 `npm run build` runs `build.ts`, which compiles `standalone.ts` with Bun into a single executable
-(about 95 MB) that carries the Bun runtime, Svelte and the GPUI addon. It needs Bun installed, even
-in a project that uses npm.
+(about 95 MB) that carries the Bun runtime, Svelte and the GPUI addon.
 
 - The executable is for the platform it was built on: macOS arm64, Windows x64 or Linux x64, the
   three GPUI ships prebuilt. To release for all three, run `npm run build` on each, for example in a
