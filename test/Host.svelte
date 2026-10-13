@@ -7,7 +7,12 @@
 	let dropped = $state('none');
 	let open = $state(false);
 	let moved = $state(0);
+	let late = $state(false);
 	const rows = Array.from({ length: 30 }, (_, i) => i);
+
+	export function show_late() {
+		late = true;
+	}
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px">
@@ -26,11 +31,15 @@
 		onmotioncomplete={() => moved++}
 	></div>
 	<text>{`moved: ${moved}`}</text>
+	<div tabindex="0" testid="f0" style="width: 10px; height: 10px"></div>
 	<div {@attach on_group} testid="group" style="display: flex; flex-direction: row; gap: 4px">
 		<div tabindex="0" testid="f1" style="width: 10px; height: 10px"></div>
 		<div tabindex="0" testid="f2" style="width: 10px; height: 10px"></div>
 		<div tabindex="0" testid="f3" style="width: 10px; height: 10px"></div>
 	</div>
+	{#if late}
+		<div tabindex="0" testid="late" style="width: 10px; height: 10px"></div>
+	{/if}
 	<img {@attach on_img} testid="img" style="width: 8px; height: 8px" />
 	<div testid="list" style="height: 60px; overflow: scroll; display: flex; flex-direction: column">
 		{#each rows as i (i)}

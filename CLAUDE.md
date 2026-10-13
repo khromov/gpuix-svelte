@@ -635,7 +635,9 @@ the two stay in sync. Unknown events are dropped silently.
   call), `style:` only for measured values. Shared reactive state goes in `.svelte.ts` modules
   (see above).
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or `autofocus`);
-  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus. For
+  since native 0.7.0 Tab reaches `keyDown` as an ordinary key and no longer moves focus, so an app
+  wires `e.key === 'tab'` to `focus_next()` / `focus_previous()`, which walk the window's tab stops
+  as of the last painted frame (a stop rendered this tick joins after it paints). For
   shortcuts use `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s
   `onKeyDown`/`onKeyUp` options are the same thing kept across remounts) — it fires whatever has
   focus, so no root `div` needs to hold it, and `e.editing` says a text field has focus and is

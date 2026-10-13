@@ -74,6 +74,20 @@ can step aside. `blur()` hands focus back from a field and `focus_element(node)`
 `focused_element()` returns the focused shadow node, and `focus_next_within(node)` /
 `focus_previous_within(node)` cycle the tab stops inside one element, wrapping there.
 
+Tab itself moves nothing: since native 0.7 it reaches `keydown` as an ordinary key. An app that
+wants Tab order wires it to `focus_next()` / `focus_previous()`, which walk every tab stop in the
+window in document order and wrap at the ends:
+
+```js
+on_window_key('keydown', (e) => {
+  if (e.key === 'tab') e.modifiers.shift ? focus_previous() : focus_next();
+});
+```
+
+Both walk the tab stops of the last painted frame, so one that an `{#if}` has just rendered joins
+the order once it has painted. To focus a particular new element, give it `autofocus` or call
+`focus_element(node)`.
+
 ## Window size and insets
 
 `window_size` and `window_insets` from `gpuix-svelte` are reactive wherever a template, `$derived`

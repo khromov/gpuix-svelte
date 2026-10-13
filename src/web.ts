@@ -29,6 +29,8 @@ export {
 	blur,
 	focus_element,
 	focused_element,
+	focus_next,
+	focus_previous,
 	focus_next_within,
 	focus_previous_within,
 	scroll_into_view,
