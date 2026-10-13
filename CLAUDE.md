@@ -60,7 +60,7 @@ npm test                   # test:reorder, test:smoke, test:autocommit, test:sty
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
                            # test:portal, test:host, test:overlay, test:window, test:helpers,
-                           # test:search
+                           # test:search, test:tooltip
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -86,6 +86,8 @@ npm run test:overlay       # single test — the debug frame overlay wrappers, a
 npm run test:helpers       # single test — every gpuix-svelte/test input helper through real hit testing:
                            # hover, mouse_*, wheel, drag, drag_select, key_up, the clock, wait_for
 npm run test:search        # single test — TextSearch: native match count, next/prev wrap, flags, find_ranges
+npm run test:tooltip       # single test — native <anchored> placement and its center quirk; Tooltip hover
+                           # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -369,7 +371,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   window.ts    window, picker, focus, image helpers     ─ no-ops headlessly; window_size / window_insets poll
   search.ts    TextSearch, find_ranges                  ─ createSubscriber, so no runes in src/
-  components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
+  components/  Scroller, Portal, Tooltip, Popover .svelte  ─ `gpuix-svelte/components/*`
 ```
 
 `src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
@@ -394,6 +396,21 @@ are not in their shadow parent's native child list, and `commit()` destroys any 
 longer `live`, because its ancestor's `destroyElement` never reaches it. Substrate's `Modal`
 renders through it from whichever component needs a dialog (no `ui.confirm()` promise store), and
 so do its toasts and search completions.
+
+`Tooltip` and `Popover` are the first users of the native `<anchored>`, which hangs a deferred
+layer off its parent. Both wrap the trigger in a box that hugs it (an outer `align-items: start`
+flex absorbs the parent's stretch) and hang the layer from a 0×0 dot that a `pointer-events: none`
+overlay's flex alignment puts on the trigger's edge, with `align="start"` and the `anchor` corner
+named explicitly, because native 0.10's `align: center` centres the content-sized layer box and
+then anchors its centre again, landing half a layer off (`test:tooltip` asserts the quirk, so it
+fails once upstream fixes it). The layer carries `background-color: #00000001`, or native paints
+`#1a1a1a` behind it. `Tooltip` tracks hover per source (wrapper, spread trigger handlers, tip)
+because a pointer jumping onto the tip gets the tip's `mouseEnter` before the trigger's
+`mouseLeave`; the tip is shielded by `hitbox="self"` and `occlude={false}`, so clicks fall through.
+`Popover`'s `mouseDownOutside` sits on the panel (`<anchored>` only hears `click`, `mouseEnter`,
+`mouseLeave` and `fileDrop`) and ignores presses inside the trigger's bounds, which the trigger's
+own click handles. Both forward a `style` prop to the tip or panel: `var()` resolves from one global
+map and a parent's scoped rules cannot reach in, so inline style is the only per-instance hook.
 
 **`compile.ts`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.
@@ -616,9 +633,10 @@ the two stay in sync. Unknown events are dropped silently.
   example.
 - Paint order is document order, so anything that must sit on top (a modal, a toast, a popover)
   goes inside `<Portal>` from `gpuix-svelte/components/Portal.svelte`, rendered from wherever
-  it is needed; its children position against the window. The native `<anchored>` element is
-  the popover primitive when the content should sit beside a trigger instead (`docs/components.md` lists its
-  props); its child sizes to content, so it is no use for a scrim.
+  it is needed; its children position against the window. Content that should sit beside a
+  trigger instead goes in `Tooltip` / `Popover` from the same directory, or the native `<anchored>`
+  they build on (`docs/components.md` lists its props and quirks: give it a background, and don't
+  trust its `align="center"`); its child sizes to content, so it is no use for a scrim.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role` and
   `aria-label` / `-description` / `-id` / `-expanded` / `-selected` / `-valuetext` / `-level` as props;
   other attributes are dropped for built-ins and forwarded for custom element types.
