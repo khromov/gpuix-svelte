@@ -13,12 +13,13 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 
 Everything goes through the package scripts, and those go through `bin/gpuix-svelte.js`
 (`node bin/gpuix-svelte.js [--bun] [runtime flags] <entry> [args]`, published as the `gpuix-svelte`
-bin). It runs `node --conditions custom-renderer --conditions development --import <tsx>
---import ./src/register.ts <entry>` — the conditions are **mandatory**, without them `svelte`
-resolves to its server build and `mount()` does not exist; the first `--import` is tsx (resolved
-with `import.meta.resolve`, so it is found from under a consumer's `node_modules`) for the `.ts`
-sources, the second installs the `.svelte` loader — or, under `--bun` / when invoked by Bun, `bun`
-with the same conditions and `--preload ./src/plugin.ts`. Flags before the entry are forwarded to
+bin). It runs `node --conditions custom-renderer --conditions development --import
+gpuix-svelte/register <entry>` — the conditions are **mandatory**, without them `svelte`
+resolves to its server build and `mount()` does not exist; the `--import` installs the `.svelte`
+loader, resolved through the package's own `exports` (so `src/register.ts` here and
+`lib/register.js` once packed), and Node strips the types of every `.ts` itself — or, under
+`--bun` / when invoked by Bun, `bun` with the same conditions and `--preload gpuix-svelte/plugin`.
+Flags before the entry are forwarded to
 the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
 ```bash
@@ -97,7 +98,7 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and
-                           # declarations in dts/ — scripts/publish.ts wraps `npm pack`;
+                           # JS + declarations in lib/ — scripts/publish.ts wraps `npm pack`;
                            # `publish:npm` wraps `npm publish` the same way (release workflow)
 npm run consume            # the consumer path: pack, scaffold an app under $TMPDIR with
                            # packages/create-gpuix-svelte, install the tarball into it,
@@ -111,14 +112,14 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
 running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`), which takes the
-loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
+loader as a `--preload` rather than an `--import`;
 `bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun install`
 either way, but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks
 its runtime from the launching package manager's user agent, so `bun run test` would run the Node
 suite on Bun. Adding a script means adding both halves — except the Bun-only ones (`compile`,
 `demo:web`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
-`bun:` twin is an alias. Repo-local scripts that run on plain `node` (`demo`, `vendor`, `pack`,
-`consume`, `check:svelte`) take `--import tsx` themselves.
+`bun:` twin is an alias. Repo-local scripts that need no loader (`demo`, `vendor`, `pack`,
+`consume`, `check:svelte`, `docs`) run on plain `node`, which strips their types itself.
 
 Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
@@ -180,8 +181,7 @@ Scroll lag here is native per-frame layout, not JS, so measure before reasoning.
 count, recorded even while the overlay is hidden), plus `simulateScrollWheel(x, y, dx, dy)` on the
 raw handle — so a headless bench of one component is
 those calls around `mount_headless` (from outside the repo it needs a `node_modules` of
-symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json, or tsx
-emits CJS). The window needs the Bash sandbox off, like every other renderer run. Substrate's
+symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json). The window needs the Bash sandbox off, like every other renderer run. Substrate's
 `scripts/frame-cost.ts` (`bun run frames` in `../substrate-gpuix-svelte`) is the worked example over
 a real window: it boots the app against a `VACUUM INTO` copy of its data and prints idle and
 while-scrolling draw times per route; its AGENTS.md keeps the baselines.
@@ -253,19 +253,26 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
 
 ## Hard constraints
 
-- **TypeScript sources run as-is; no build step.** `exports` points straight at
-  `src/*.ts`; Node runs them through tsx (a runtime dependency, injected by the bin — Node's own
-  type stripping refuses files under `node_modules`, so consumers need it), Bun natively.
+- **TypeScript sources run as-is; no build step in the repo.** `exports` points straight at
+  `src/*.ts`, and Node and Bun both strip the types natively — no tsx, no loader for `.ts`.
   `tsc --noEmit` (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`, explicit `./x.ts`
   specifiers) gates `npm test`, `npm run bun:test` and CI over src, bin, scripts, test and every
   example; `types/*.d.ts` hold the ambient shims (`*.svelte` modules, `node:ffi`'s missing names).
   Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The only emit
-  is declarations, and only inside the tarball: `scripts/publish.ts` runs `tsc -p
-  tsconfig.dts.json` into a gitignored `dts/`, rewrites their `./x.ts` specifiers to `./x.js`,
-  and adds a `types` condition per `src/*.ts` export (plus top-level `types`) to the manifest for
-  the length of `npm pack`/`npm publish`, so consumers typecheck against plain declarations.
-  The one `.js` in the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
-  cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `typecheck` is
+  is inside the tarball, because Node refuses to strip types under `node_modules`:
+  `scripts/publish.ts` runs `tsc -p tsconfig.lib.json` into a gitignored `lib/` (JS with
+  `rewriteRelativeImportExtensions`, declarations beside it, plus a copy of `src/html.d.ts`),
+  rewrites the declarations' `./x.ts` specifiers to `./x.js`, and for the length of `npm
+  pack`/`npm publish` points `main` and every `src/*.ts` export at `lib/*.js` (TypeScript finds
+  each `.d.ts` beside its `.js`, so there are no `types` conditions) and ships `lib`,
+  `src/components` and `bin` only. `npm run consume` fails if the installed package carries a
+  `.ts` that is not a declaration, or if tsx lands in the consumer. tsc wraps `render_hot`'s
+  computed `import()` in an inlined `__rewriteRelativeImportExtension` helper; it only touches a
+  relative `.ts` specifier, never the `file://` URL that is always there. The starter's tsconfig
+  carries `erasableSyntaxOnly`, `verbatimModuleSyntax` and `allowImportingTsExtensions`, so an
+  app's `tsc` rejects what Node's stripping cannot run. `bin/gpuix-svelte.js` is plain JS
+  (checked via `checkJs`) because it is what starts the runtime (`svelte.config.js` is
+  editor-only and outside the tsc program). `typecheck` is
   `tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings`: tsc never
   opens a `.svelte` file, so markup and `<script>` bodies are only checked by svelte-check.
   tsconfig's `"svelteOptions": { "namespace": "gpuixHTML" }` makes svelte-check and the editor
@@ -413,15 +420,15 @@ also honours shorthands: a later `padding: 20px` clears the longhands an earlier
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both must
-be installed before the entry module resolves — Node via `--import tsx --import ./src/register.ts`,
-Bun via `--preload ./src/plugin.ts` (or `bunfig.toml`'s `preload`), both supplied by
-`bin/gpuix-svelte.js`. On Node, tsx must be registered *first*: a `.ts` `--import` ahead of it flips
-tsx onto async off-thread hooks, and sync hooks (LIFO, so `register.ts`'s runs first) can't chain
-into those; a `.ts` `--import` in `NODE_OPTIONS` has the same effect, whatever the bin does. Tests rely on that registration rather than importing a loader themselves. Both also
+be installed before the entry module resolves — Node via `--import gpuix-svelte/register`,
+Bun via `--preload gpuix-svelte/plugin` (or `bunfig.toml`'s `preload`), both supplied by
+`bin/gpuix-svelte.js`. An app that wants tsx anyway puts `--import tsx` *ahead* of the register
+import: a `.ts` `--import` before tsx flips it onto async off-thread hooks, which sync hooks can't
+chain into. Tests rely on that registration rather than importing a loader themselves. Both also
 compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
 `svelte/compiler`, no renderer option) — which does **not** strip types, so the loaders do it
-first: `register.ts` hands the URL to `nextLoad` (tsx returns JS; without tsx, Node's
-`module-typescript` source goes through `stripTypeScriptTypes`), `plugin.ts` runs
+first: `register.ts` hands the URL to `nextLoad` and puts Node's `module-typescript` source
+through `stripTypeScriptTypes` (a user's tsx ahead of it would already have returned JS), `plugin.ts` runs
 `Bun.Transpiler`. Those modules are deliberately **not** cache-busted: a module is one instance
 per process, so state kept in one survives a hot remount (that is how Substrate keeps its route
 and theme), and editing one needs a restart.
@@ -461,7 +468,7 @@ browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches th
 directory and re-imports with a `?v=N` cache-buster; `compile.ts` propagates that query to child
 `.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
-`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native` and tsx) and
+`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
 splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
 comment is left alone and the rest of the output stays byte-identical. Only relative, absolute and
 `file:` specifiers are busted: Node refuses a bare one with a query
@@ -680,9 +687,9 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   from that install was byte-identical to the npm-installed one.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
-  `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. tsx, Bun and tsc all
-  silently map a stale `./x.js` specifier onto `x.ts`, so grep for `.js'` imports rather than
-  trusting the tests.
+  `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
+  map a stale `./x.js` specifier onto `x.ts`; Node's own stripping does not, so only the Node
+  suite catches one.
 - `test:coverage` baseline: 33/47 samples mount, 13 refused by design, 1 runtime error
   (raw-snippet, whose `_config.js` declares `error:` rather than `compile_error`, so the throw it
   asks for is bucketed as a failure). It asserts those as floors and named failures rather than an

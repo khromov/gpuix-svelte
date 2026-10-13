@@ -48,8 +48,8 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json --diagnostic-sources js,svelte --fail-on-warnings --output human",
 		"lint": "eslint .",
-		"check:svelte": "node --use-env-proxy --import tsx scripts/svelte-mcp.ts",
-		"demo": "node --import tsx scripts/demo-all.ts",
+		"check:svelte": "node --use-env-proxy scripts/svelte-mcp.ts",
+		"demo": "node scripts/demo-all.ts",
 		"demo:counter": "node bin/gpuix-svelte.js examples/counter/main.ts",
 		"demo:tictactoe": "node bin/gpuix-svelte.js examples/tic-tac-toe/main.ts",
 		"demo:hn": "node bin/gpuix-svelte.js examples/hacker-news/main.ts",
@@ -79,18 +79,18 @@
 		"test:style": "node bin/gpuix-svelte.js test/style.ts",
 		"test:window": "node bin/gpuix-svelte.js test/window.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
-		"docs": "node --import tsx scripts/docs.ts",
-		"vendor": "node --use-env-proxy --import tsx scripts/vendor-svelte.ts",
-		"pack": "node --import tsx scripts/publish.ts pack",
-		"publish:npm": "node --import tsx scripts/publish.ts publish",
-		"consume": "node --import tsx scripts/consume.ts",
-		"consume:open": "node --import tsx scripts/consume.ts --open",
+		"docs": "node scripts/docs.ts",
+		"vendor": "node --use-env-proxy scripts/vendor-svelte.ts",
+		"pack": "node scripts/publish.ts pack",
+		"publish:npm": "node scripts/publish.ts publish",
+		"consume": "node scripts/consume.ts",
+		"consume:open": "node scripts/consume.ts --open",
 		"compile": "bun scripts/compile.ts",
 		"compile:app": "bun scripts/compile.ts --app",
 		"bun:typecheck": "npm run typecheck",
-		"bun:consume": "node --import tsx scripts/consume.ts --bun",
-		"bun:consume:open": "node --import tsx scripts/consume.ts --bun --open",
-		"bun:demo": "node --import tsx scripts/demo-all.ts --bun",
+		"bun:consume": "node scripts/consume.ts --bun",
+		"bun:consume:open": "node scripts/consume.ts --bun --open",
+		"bun:demo": "node scripts/demo-all.ts --bun",
 		"bun:demo:counter": "node bin/gpuix-svelte.js --bun examples/counter/main.ts",
 		"bun:demo:tictactoe": "node bin/gpuix-svelte.js --bun examples/tic-tac-toe/main.ts",
 		"bun:demo:hn": "node bin/gpuix-svelte.js --bun examples/hacker-news/main.ts",
@@ -123,8 +123,7 @@
 	"dependencies": {
 		"@gpuix/native": ">=0.10.0 <0.11.0",
 		"acorn": "^8.18.0",
-		"svelte": "file:vendor/svelte-5.57.2-694f791.tgz",
-		"tsx": "^4.23.13"
+		"svelte": "file:vendor/svelte-5.57.2-694f791.tgz"
 	},
 	"bundleDependencies": [
 		"svelte"

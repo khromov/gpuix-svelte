@@ -63,6 +63,12 @@ every mount and hot reload.
 - Handlers take `GpuixEvent` and `{@attach}` gets a `ShadowNode`, both importable as types from
   `gpuix-svelte`.
 
+## TypeScript
+
+`.ts` files run through Node's and Bun's built-in type stripping, not a compiler, and `tsconfig.json`
+enforces what that allows: no enums, namespaces or constructor parameter properties, `import type`
+for anything that is only a type, and relative imports spelled with their extension (`./util.ts`).
+
 ## Dependencies
 
 `gpuix-svelte` brings its own build of Svelte, the one with the custom renderer API, and resolves

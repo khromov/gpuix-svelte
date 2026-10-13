@@ -75,7 +75,7 @@ Sections, each a table with columns "native", "type or signature", "gpuix-svelte
 Keeps the method table honest: parse `index.d.ts` for method names on the two classes (a regex
 over `^  name(` lines is enough), grep `src/` and `src/components/` for `.name(` or `.name?.(`,
 and print the methods with no hit. Run it while writing the doc and before a native bump. Plain
-`node --import tsx` script like `demo` and `vendor`; no Bun twin needed.
+`node` script like `demo` and `vendor`; no Bun twin needed.
 
 ## Docs
 

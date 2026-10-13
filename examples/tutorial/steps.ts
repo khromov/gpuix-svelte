@@ -100,7 +100,7 @@ export const STEPS: Step[] = [
 			kind: 'pipeline',
 			title: 'How a .svelte import becomes a module',
 			nodes: [
-				{ label: '--import tsx --import gpuix-svelte/register', caption: 'before the entry resolves' },
+				{ label: '--import gpuix-svelte/register', caption: 'before the entry resolves' },
 				{ label: 'module.registerHooks', caption: 'intercepts *.svelte' },
 				{ label: 'compile_svelte()', caption: 'svelte/compiler, customRenderer' },
 				{ label: 'ES module', caption: 'imports gpuix-svelte/renderer' },
@@ -120,7 +120,7 @@ export const STEPS: Step[] = [
 					'',
 					'# which is short for (both --conditions flags and the loader are required)',
 					`node ${CONDITIONS} \\`,
-					'     --import tsx --import gpuix-svelte/register app.ts',
+					'     --import gpuix-svelte/register app.ts',
 					`bun ${CONDITIONS} \\`,
 					'     --preload gpuix-svelte/plugin app.ts'
 				].join('\n')
@@ -143,7 +143,7 @@ export const STEPS: Step[] = [
 		],
 		live: null,
 		quiz: {
-			question: 'You run `node --import tsx app.ts` without the two --conditions flags. What happens?',
+			question: 'You run `node --import gpuix-svelte/register app.ts` without the two --conditions flags. What happens?',
 			options: [
 				'Nothing changes; the flags only make startup faster',
 				'svelte resolves to its server build, mount() is missing and the app fails before a window opens',
