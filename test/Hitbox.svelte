@@ -16,6 +16,7 @@
 		<input testId="field" />
 		<div class="focusable" tabindex="0" testId="focusable">focusable</div>
 		<div class="scroller" testId="scroller"><div class="tall">tall</div></div>
+		<div class="scroller auto" testId="auto-scroller"><div class="tall">tall</div></div>
 	</div>
 
 	<div class="parent {tone}" testId="parent">
@@ -36,6 +37,7 @@
 	.inner { padding: 4px 8px; background-color: #999999; }
 	.focusable { padding: 4px; background-color: #444444; }
 	.scroller { height: 30px; width: 60px; overflow-y: scroll; }
+	.scroller.auto { overflow-y: auto; }
 	.tall { height: 100px; }
 	.parent { display: flex; flex-direction: row; gap: 8px; }
 	.parent.red { color: red; }

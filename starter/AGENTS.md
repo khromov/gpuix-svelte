@@ -44,7 +44,7 @@ every mount and hot reload.
   `virtual-list`, `anchored`. `<img src>` takes a file path, a `data:` URL or an http(s) URL, plus
   a width and a height.
 - Style with `<style>` class rules (`.btn`, `.btn.primary`, `.btn:hover`, `.btn:active`) and inline
-  `style=`. Layout is flexbox in logical pixels: lengths in `px`, and `%`/`auto` for `width`,
+  `style=`. Layout is flexbox in logical pixels: lengths in `px` or `rem` (16 px), and `%`/`auto` for `width`,
   `height`, `min-*` and `max-*`. Use `flex-grow: 1` for `flex: 1`, and `border-width` plus
   `border-color` for `border`. The styling page lists every property.
 - Colours go in `var(--token)`, with the palette set once from the root through
@@ -58,10 +58,17 @@ every mount and hot reload.
   from an `$effect` so it unsubscribes.
 - Scrolling content goes in `Scroller` (`gpuix-svelte/components/Scroller.svelte`), which draws the
   scrollbar; modals, menus and toasts go in `Portal` (`gpuix-svelte/components/Portal.svelte`),
-  which paints on top.
+  which paints on top; hover tips and dropdowns that sit beside a trigger go in `Tooltip` and
+  `Popover` from the same directory.
 - State that should survive a hot reload goes in a `.svelte.ts` module; editing one needs a restart.
 - Handlers take `GpuixEvent` and `{@attach}` gets a `ShadowNode`, both importable as types from
   `gpuix-svelte`.
+
+## TypeScript
+
+`.ts` files run through Node's and Bun's built-in type stripping, not a compiler, and `tsconfig.json`
+enforces what that allows: no enums, namespaces or constructor parameter properties, `import type`
+for anything that is only a type, and relative imports spelled with their extension (`./util.ts`).
 
 ## Dependencies
 

@@ -1,13 +1,15 @@
 # Components
 
-The two components that ship in the package, and GPUI's native `<anchored>` popover element.
+The four components that ship in the package, and GPUI's native `<anchored>` popover element.
 
-Two `.svelte` files ship in the package and compile through your loader like your own:
+Four `.svelte` files ship in the package and compile through your loader like your own:
 
 ```svelte
 <script>
   import Scroller from 'gpuix-svelte/components/Scroller.svelte';
   import Portal from 'gpuix-svelte/components/Portal.svelte';
+  import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
+  import Popover from 'gpuix-svelte/components/Popover.svelte';
 </script>
 ```
 
@@ -44,9 +46,58 @@ clickable:
 {/if}
 ```
 
-Later portals paint over earlier ones. For a popover beside a trigger, GPUI's native `<anchored>`
-element positions its child relative to the element it is rendered in. It sizes to its content,
-so it is no use for a scrim; its props:
+Later portals paint over earlier ones.
+
+**`Tooltip`** — a hover tip beside its trigger, on the native `<anchored>` below. It shows after
+`delay` ms of hover and stays open while the pointer crosses onto the tip, with an 80 ms grace for
+the gap. The tip takes no clicks: they land on whatever lies beneath it. Props: `content` (a string
+or a snippet), `side` (default `top`), `align` (`center`), `gap` (`6`), `delay` (`300`), `open` to
+force it shown or hidden (`null`, the default, leaves it to hover) and `testid` (the tip gets
+`<testid>-tip`). Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, set for the
+whole app with `set_css_vars`; `style` takes inline CSS for one tip, which wins over its own rules
+(`style="padding: 8px 12px; border-radius: 0; background-color: #1e66f5"`).
+
+A decorative trigger (text, an icon, a badge) needs nothing more: the wrapper hears the hover
+through `hitbox="self"`. A trigger with a listener of its own keeps its hitbox and hides the
+wrapper's, so it spreads the handlers the `children` snippet is passed:
+
+```svelte
+<Tooltip content="Save (⌘S)">
+  {#snippet children(hover)}
+    <div class="btn" {...hover} onclick={save}>Save</div>
+  {/snippet}
+</Tooltip>
+```
+
+**`Popover`** — a controlled panel beside its trigger. You own `open` and the trigger toggles it;
+`onclose` fires on a press outside both the panel and the trigger (any button) and on Escape. A
+press on the trigger is left to the trigger's own click, so it closes without reopening. Props:
+`open`, `onclose`, `content` (the panel's snippet), `side` (`bottom`), `align` (`start`), `gap`
+(`4`), `position` (`{ x, y }` in window coordinates instead of the trigger: an `onauxclick`'s
+`e.x`/`e.y` puts a context menu at the cursor) and `testid` (the panel gets `<testid>-panel`).
+Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--popover-ink)`, and
+`style` styles one panel the same way as `Tooltip`'s: padding, radius, border, surface.
+
+```svelte
+<Popover open={menu} onclose={() => (menu = false)}>
+  <div class="btn" onclick={() => (menu = !menu)}>Menu</div>
+  {#snippet content()}
+    <div class="item" onclick={rename}>Rename</div>
+  {/snippet}
+</Popover>
+```
+
+Both wrap the trigger in a box that hugs it, at the start of whatever space the parent gives them,
+and hang the layer off that box.
+
+For anything else beside a trigger, GPUI's native `<anchored>` element positions its child
+relative to the element it is rendered in: it hangs off its parent's box, zero-sized and out of
+flow. It sizes to its content, so it is no use for a scrim. Its own `style` styles the layer, and
+it hears only `click`, `mouseenter`, `mouseleave` and `filedrop`, so `onmousedownoutside` goes on
+a child. Two native quirks, as of 0.10: give `<anchored>` itself a background (`#00000001` will
+do) or GPUI paints an opaque `#1a1a1a` behind it, and `align="center"` lands half the layer's own
+width (or height) short of centre, which is why the components hang theirs from a zero-sized box
+that flex puts on the trigger's edge, with the `anchor` corner named explicitly. Its props:
 
 | prop | values | default |
 |---|---|---|

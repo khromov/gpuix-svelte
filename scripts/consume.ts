@@ -25,7 +25,7 @@ function run(command: string, args: string[], cwd: string) {
 	}
 }
 
-run(process.execPath, ['--import', 'tsx', join(root, 'scripts/publish.ts'), 'pack', dir], root);
+run(process.execPath, [join(root, 'scripts/publish.ts'), 'pack', dir], root);
 const tarball = readdirSync(dir).find((f) => f.endsWith('.tgz'));
 if (!tarball) throw new Error(`npm pack left no tarball in ${dir}`);
 
@@ -42,6 +42,14 @@ writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
 
 const pm = bun ? 'bun' : 'npm';
 run(pm, bun ? ['install'] : ['install', '--no-audit', '--no-fund'], consumer);
+
+// Node refuses to strip types under node_modules, so the installed package must run as plain JS.
+const installed = join(consumer, 'node_modules/gpuix-svelte');
+if (existsSync(join(consumer, 'node_modules/tsx'))) throw new Error('tsx was installed into the consumer');
+const typescript = (readdirSync(installed, { recursive: true }) as string[]).filter(
+	(f) => /\.(c|m)?ts$/.test(f) && !f.endsWith('.d.ts') && !f.startsWith('node_modules')
+);
+if (typescript.length) throw new Error(`the package ships TypeScript Node cannot run: ${typescript.join(', ')}`);
 run(pm, ['run', 'typecheck'], consumer);
 run(pm, ['run', open ? 'start' : 'test'], consumer);
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.

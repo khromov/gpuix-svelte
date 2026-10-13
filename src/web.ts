@@ -35,6 +35,7 @@ export {
 	set_image,
 	set_image_pixels
 } from './window.ts';
+export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
 export type {
 	ShadowNode,
 	ShadowAttrs,
@@ -53,3 +54,13 @@ export type {
 	AnyComponent
 } from './types.ts';
 export type { GpuixTheme, HighlightSpec, MotionProps } from '@gpuix/native/host';
+export {
+	set_debug_overlay,
+	cycle_debug_overlay,
+	debug_overlay,
+	debug_overlay_stats,
+	reset_debug_overlay_stats
+} from './window.ts';
+export type { DebugFrameOverlayMode, DebugFrameOverlayStats } from '@gpuix/native/host';
+export { window_size, window_insets } from './window.ts';
+export type { WindowSize, WindowInsets, EdgeInsets } from '@gpuix/native/host';

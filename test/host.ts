@@ -18,7 +18,20 @@ import {
 	prompt_for_paths,
 	type ShadowNode
 } from 'gpuix-svelte';
-import { mount_headless, find_test_id, click, drop_files, drain, settle, bounds, all_text, check, finish } from 'gpuix-svelte/test';
+import {
+	mount_headless,
+	find_test_id,
+	click,
+	drop_files,
+	drag_select,
+	clear_selection,
+	clock_fast_forward,
+	settle,
+	bounds,
+	all_text,
+	check,
+	finish
+} from 'gpuix-svelte/test';
 
 interface A11yNode {
 	aria?: { role?: string; label?: string; expanded?: boolean; level?: number };
@@ -67,22 +80,16 @@ check('and it follows state', labelled()?.expanded, true);
 drop_files(find_test_id('drop')!, ['/tmp/a.png', '/tmp/b.txt']);
 check('onfiledrop gets the dropped paths', all_text().includes('dropped: /tmp/a.png,/tmp/b.txt'), true);
 
-native.clockFastForward(500);
-native.flush();
-drain();
-settle();
+clock_fast_forward(500);
 check('onmotioncomplete fires when the track lands', all_text().includes('moved: 1'), true);
 
 const selections: Array<string | undefined> = [];
 const off = on_selection_change((e) => selections.push(e.value));
 native.flush();
 const words = bounds(find_test_id('selectable')!)!;
-native.dragSelect(words.x + 1, words.y + words.height / 2, words.x + words.width - 1, words.y + words.height / 2);
-drain();
+drag_select({ x: words.x + 1, y: words.y + words.height / 2 }, { x: words.x + words.width - 1, y: words.y + words.height / 2 });
 check('on_selection_change reports the selected text', selections.at(-1), 'Select these words');
-native.clearSelection();
-native.flush();
-drain();
+clear_selection();
 check('and the clear', selections.length >= 2 && selections.at(-1) === undefined, true);
 off();
 

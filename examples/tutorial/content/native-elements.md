@@ -7,5 +7,6 @@ Beyond `div` and text, GPUI ships a handful of elements that would take a lot of
 - **`<svg source>`** (or `src`): a monochrome icon tinted by the element's `color`.
 - **`<virtual-list>`**: builds rows only near its viewport; needs a bounded height, and since it scrolls nothing above it may.
 - **`<diff patch wordDiff>`**: a unified git patch with per-file collapsing.
+- **`<anchored side align gap>`**: hangs its child off its parent's box and paints it above everything else, kept inside the window. Give the element itself a background, even `#00000001`, or GPUI paints an opaque `#1a1a1a` behind it. The shipped `Tooltip` and `Popover` components are built on it.
 
 `div` and text, in contrast, keep only four props: `autoFocus`, `tabIndex`, `testId` and `motion`. Everything else is dropped.
