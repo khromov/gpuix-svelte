@@ -107,6 +107,10 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # Not a runtime script, so no bun twin
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
+npm run parity             # the @gpuix/native methods nothing in src/ calls (--all: every method,
+                           # the classes that have it, its callers) plus a GPUI_EVENTS check —
+                           # what docs/native-parity.md is refreshed against. Not a runtime
+                           # script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and
                            # JS + declarations in lib/ — scripts/publish.ts wraps `npm pack`;
                            # `publish:npm` wraps `npm publish` the same way (release workflow)
@@ -129,7 +133,7 @@ its runtime from the launching package manager's user agent, so `bun run test` w
 suite on Bun. Adding a script means adding both halves — except the Bun-only ones (`compile`,
 `demo:web`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
 `bun:` twin is an alias. Repo-local scripts that need no loader (`demo`, `vendor`, `pack`,
-`consume`, `check:svelte`, `docs`) run on plain `node`, which strips their types itself.
+`consume`, `check:svelte`, `docs`, `parity`) run on plain `node`, which strips their types itself.
 
 Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
@@ -390,7 +394,9 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   new `@gpuix/native/host`, `/runtime` and `/testing` entry points are the framework-neutral layer
   `@gpuix/react` and `@gpuix/solid` share; this renderer keeps its own `render.ts` / `renderer.ts`
   / `test.ts`, because that layer's event map and mutation queue would replace the batching here
-  rather than simplify it.
+  rather than simplify it. `docs/native-parity.md` tables the whole contract (methods, window
+  options, events, element props, entry points) against what the package exposes; update it in the
+  same change as the range.
 
 ## Architecture
 
@@ -590,6 +596,10 @@ Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION`
 add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
 mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
 `StyleDesc`, with unknown keys already dropped, which is exactly what `docs/styling.md` claims.
+
+The same tag is the source for `docs/native-parity.md`: `npm run parity` re-derives its method
+tables from the installed `index.d.ts`, and its events and element props come from `renderer.rs`
+and `custom_elements/*.rs` (`emit_event_full`, `supported_props`, `supported_events`).
 
 **`events.ts`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
