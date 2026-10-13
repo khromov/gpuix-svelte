@@ -31,13 +31,13 @@ same way.
   Values come from `set_css_vars({ token: '#fff' })`; a theme switch is one call — see
   [Theming with CSS variables](#theming-with-css-variables).
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
-- `display: flex | grid` and the flexbox properties, `position: absolute`, `overflow: hidden | scroll`,
+- `display: flex | grid` and the flexbox properties, `position: absolute`, `overflow: hidden | scroll | auto`,
   `opacity`, `cursor`, `white-space`, `text-overflow`, `font-*`, `text-align`, `text-decoration`,
   `visibility: hidden`.
 
 **What doesn't work**
 
-- Units other than `px` (`rem`, `em`, `vh`), and `%` or `auto` outside `width` / `height` /
+- Units other than `px` and `rem` (`em`, `vh`, `vw`), and `%` or `auto` outside `width` / `height` /
   `min-*` / `max-*`. Dropped with a warning, so `margin: 0 auto` never centers.
 - Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1`), `border: 1px solid #fff` (use
   `border-width` + `border-color`), `background: linear-gradient(...)`, `box-shadow`.
@@ -52,7 +52,8 @@ same way.
 <details>
 <summary>Working, standard CSS semantics</summary>
 
-Values are logical pixels unless noted. Only the listed keywords are recognised.
+Values are logical pixels unless noted; `rem` is 16 px, GPUI's fixed rem size. Only the listed
+keywords are recognised.
 
 - Layout: `display: flex | grid`; `flex-direction: row | column`; `flex-wrap: wrap | wrap-reverse | nowrap`;
   `flex-grow`, `flex-shrink`, `flex-basis`; `gap`, `row-gap`, `column-gap`.
@@ -63,7 +64,8 @@ Values are logical pixels unless noted. Only the listed keywords are recognised.
 - Sizing: `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` in px, `%` or `auto`.
 - Spacing: `padding`, `margin` and their four sides, with 1 to 4 value shorthands.
 - Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
-- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll`.
+- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`; `auto` ships as
+  `scroll`, and with no scrollbars painted the two behave the same.
 - Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
   `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value shorthands.
 - Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
@@ -82,6 +84,8 @@ Values are logical pixels unless noted. Only the listed keywords are recognised.
 Accepted, but not what CSS would mean by it.
 
 - Unitless numbers are pixels: `padding: 12`, `font-size: 18`.
+- `max-content`, `min-content` and `fit-content(...)` on `width` / `height` / `min-*` / `max-*`
+  read as `auto`.
 - `grid-template-columns: 3` and `grid-template-rows: 2` take a count of equal tracks, not a track list.
   `grid-column-min` and `grid-row-min` (`min-content | max-content`) set each track's minimum; neither
   is a CSS property.

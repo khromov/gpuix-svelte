@@ -9,7 +9,14 @@ import type { GpuiStyle, ShadowAttrs, StyleRule, StyleValue } from './types.ts';
 const PX = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)px$/i;
 const NUM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
 const PERCENT = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)%$/;
+const REM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)rem$/i;
 const NUMERIC_ISH = /^[-+.\d]/;
+
+/** No GPUI sizing mode matches these, and `auto` is the nearest a `DimensionValue` can say. */
+const INTRINSIC = /^(?:max-content|min-content|fit-content)(?:\(.*\))?$/;
+
+/** Native matches only `scroll` and `hidden`, so `auto` would be accepted and then ignored. */
+const OVERFLOW = new Set(['overflow', 'overflowX', 'overflowY']);
 
 /** GPUI reads these as a bare `f64`, so any string at all fails to deserialize. */
 const NUMBER_ONLY = new Set([
@@ -187,6 +194,8 @@ function camel(key: string) {
 /** `12px` must become `12`, while `50%`, `auto` and `#1e1e2e` stay strings. */
 function coerce(value: string): StyleValue {
 	if (PX.test(value) || NUM.test(value)) return parseFloat(value);
+	// GPUI's rem size is 16 px and gpuix never changes it.
+	if (REM.test(value)) return parseFloat(value) * 16;
 	return value;
 }
 
@@ -202,12 +211,14 @@ function accepts(key: string, value: StyleValue) {
 }
 
 /**
- * A value GPUI's deserializer would reject (`1rem`, `12px 24px`, `50%` on a
+ * A value GPUI's deserializer would reject (`1em`, `12px 24px`, `50%` on a
  * pixel-only key) throws out of `applyBatch` and takes the whole frame with it,
  * so drop it and say so once per property.
  */
 function assign(out: GpuiStyle, key: string, value: string) {
-	const coerced = coerce(value);
+	let coerced = coerce(value);
+	if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
+	else if (typeof coerced === 'string' && DIMENSION.has(key) && INTRINSIC.test(coerced)) coerced = 'auto';
 
 	if (!accepts(key, coerced)) {
 		if (!warned.has(key)) {

@@ -100,8 +100,8 @@ the package-level counterpart of Substrate's `bun run frames`, with the first ba
 
 ## Constraints
 
-- Scripts run through `bin/gpuix-svelte.js` like tests (they import `gpuix-svelte/test`), so
-  no `--import tsx` of their own.
+- Scripts run through `bin/gpuix-svelte.js` like tests (they import `gpuix-svelte/test`), not
+  plain `node`.
 - No new dependencies; `node:*` only; write the fixture under `$TMPDIR`.
 - Headless runs need the Bash sandbox off.
 
