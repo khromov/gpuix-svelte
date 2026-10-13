@@ -13,6 +13,7 @@
 		gap = 6,
 		delay = 300,
 		open = null,
+		style = null,
 		testid = null
 	}: {
 		/** The trigger; one with a listener of its own occludes the wrapper, so it spreads the handlers it is passed. */
@@ -25,6 +26,8 @@
 		delay?: number;
 		/** Forces the tip shown or hidden; `null` leaves it to hover. */
 		open?: boolean | null;
+		/** Inline CSS for the tip box, which wins over its own rules: `padding: 0; border-radius: 12px`. */
+		style?: string | null;
 		testid?: string | null;
 	} = $props();
 
@@ -77,7 +80,7 @@
 			<div class="pin" style:justify-content={x} style:align-items={y}>
 				<div class="dot">
 					<anchored {side} align="start" anchor={CORNERS[side][align]} {gap} occlude={false} class="layer" {...tip}>
-						<div class="tip" testId={testid && `${testid}-tip`}>
+						<div class="tip" {style} testId={testid && `${testid}-tip`}>
 							{#if typeof content === 'string'}{content}{:else}{@render content()}{/if}
 						</div>
 					</anchored>

@@ -409,7 +409,8 @@ because a pointer jumping onto the tip gets the tip's `mouseEnter` before the tr
 `mouseLeave`; the tip is shielded by `hitbox="self"` and `occlude={false}`, so clicks fall through.
 `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>` only hears `click`, `mouseEnter`,
 `mouseLeave` and `fileDrop`) and ignores presses inside the trigger's bounds, which the trigger's
-own click handles.
+own click handles. Both forward a `style` prop to the tip or panel: `var()` resolves from one global
+map and a parent's scoped rules cannot reach in, so inline style is the only per-instance hook.
 
 **`compile.ts`** compiles `.svelte` with `experimental: { customRenderer }`, which makes the
 compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component.

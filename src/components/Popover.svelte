@@ -14,6 +14,7 @@
 		align = 'start',
 		gap = 4,
 		position = null,
+		style = null,
 		testid = null
 	}: {
 		open: boolean;
@@ -27,6 +28,8 @@
 		gap?: number;
 		/** Window coordinates to hang from instead of the trigger, e.g. a right click's `e.x`/`e.y`. */
 		position?: { x: number; y: number } | null;
+		/** Inline CSS for the panel, which wins over its own rules: `padding: 0; border-radius: 12px`. */
+		style?: string | null;
 		testid?: string | null;
 	} = $props();
 
@@ -67,7 +70,7 @@
 			<div class="pin" style:justify-content={x} style:align-items={y}>
 				<div class="dot">
 					<anchored {side} align="start" anchor={CORNERS[side][align]} {gap} {position} class="layer">
-						<div class="panel" onmousedownoutside={outside} testId={testid && `${testid}-panel`}>
+						<div class="panel" {style} onmousedownoutside={outside} testId={testid && `${testid}-panel`}>
 							{@render content()}
 						</div>
 					</anchored>

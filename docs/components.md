@@ -53,7 +53,9 @@ Later portals paint over earlier ones.
 the gap. The tip takes no clicks: they land on whatever lies beneath it. Props: `content` (a string
 or a snippet), `side` (default `top`), `align` (`center`), `gap` (`6`), `delay` (`300`), `open` to
 force it shown or hidden (`null`, the default, leaves it to hover) and `testid` (the tip gets
-`<testid>-tip`). Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`.
+`<testid>-tip`). Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, set for the
+whole app with `set_css_vars`; `style` takes inline CSS for one tip, which wins over its own rules
+(`style="padding: 8px 12px; border-radius: 0; background-color: #1e66f5"`).
 
 A decorative trigger (text, an icon, a badge) needs nothing more: the wrapper hears the hover
 through `hitbox="self"`. A trigger with a listener of its own keeps its hitbox and hides the
@@ -73,7 +75,8 @@ press on the trigger is left to the trigger's own click, so it closes without re
 `open`, `onclose`, `content` (the panel's snippet), `side` (`bottom`), `align` (`start`), `gap`
 (`4`), `position` (`{ x, y }` in window coordinates instead of the trigger: an `onauxclick`'s
 `e.x`/`e.y` puts a context menu at the cursor) and `testid` (the panel gets `<testid>-panel`).
-Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--popover-ink)`.
+Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--popover-ink)`, and
+`style` styles one panel the same way as `Tooltip`'s: padding, radius, border, surface.
 
 ```svelte
 <Popover open={menu} onclose={() => (menu = false)}>

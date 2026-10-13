@@ -77,6 +77,7 @@ function move(x: number, y: number) {
 	const tip = box(layer_of_id('deco-tip'));
 	check('centred above the trigger, 6 px clear of it', [near(mid_x(tip), mid_x(trigger)), tip.y + tip.height], [true, trigger.y - 6]);
 	check('with a near-transparent fill on the layer, so GPUI paints no #1a1a1a slab behind it', layer_of_id('deco-tip')!.style?.backgroundColor, '#00000001');
+	check('a tip without style keeps its theme colour', find_test_id('deco-tip')!.style?.backgroundColor, '#313244');
 
 	move(mid_x(tip), mid_y(tip));
 	await wait(120);
@@ -119,6 +120,8 @@ function move(x: number, y: number) {
 	check('open forces the tip without a hover, and content can be a snippet', find_text('Rich') !== null, true);
 	const tip = box(layer_of_id('pinned-tip'));
 	check('side="right" centres it beside a trigger whose wrapper the column stretched', [tip.x, near(mid_y(tip), mid_y(anchor))], [anchor.x + anchor.width + 6, true]);
+	const styled = find_test_id('pinned-tip')!.style!;
+	check("style lays inline CSS over the tip's own rules and leaves the rest", [styled.backgroundColor, styled.borderRadius, styled.paddingTop], ['#1e66f5', 0, 4]);
 }
 
 // --- Popover -----------------------------------------------------------------
@@ -128,6 +131,8 @@ function move(x: number, y: number) {
 	const anchor = box(find_test_id('menu'));
 	const panel = box(layer_of_id('menu-panel'));
 	check('below the trigger, start-aligned, 4 px clear', [panel.x, panel.y], [anchor.x, anchor.y + anchor.height + 4]);
+	const styled = find_test_id('menu-panel')!.style!;
+	check("and style does the same for the panel's", [styled.backgroundColor, styled.borderRadius, styled.borderWidth], ['#dc8a78', 0, 1]);
 
 	click_test_id('menu-item');
 	check('a click inside the panel leaves it open', [counts(), shown('menu-panel')], ['1-1-0-1-0', true]);
@@ -149,4 +154,4 @@ function move(x: number, y: number) {
 	check('a right click outside closes it too', [counts(), shown('menu-panel')], ['1-1-3-1-1', false]);
 }
 
-finish('tooltip', 24);
+finish('tooltip', 27);

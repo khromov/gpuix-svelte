@@ -31,7 +31,7 @@
 	<div class="under" onclick={() => counts.under++} testId="under">under</div>
 
 	<div class="row">
-		<Popover open={menu} onclose={() => ((menu = false), counts.closes++)} testid="menu">
+		<Popover open={menu} onclose={() => ((menu = false), counts.closes++)} style="background-color: #dc8a78; border-radius: 0" testid="menu">
 			<div class="btn" onclick={() => (menu = !menu)} testId="menu-trigger">Menu</div>
 			{#snippet content()}
 				<div class="item" onclick={() => counts.item++} testId="menu-item">Item</div>
@@ -42,7 +42,7 @@
 
 	<div testId="counts">{counts.save}-{counts.under}-{counts.closes}-{counts.item}-{counts.elsewhere}</div>
 
-	<Tooltip open side="right" testid="pinned">
+	<Tooltip open side="right" style="background-color: #1e66f5; border-radius: 0" testid="pinned">
 		<div class="badge">pinned</div>
 		{#snippet content()}
 			<div class="rich">Rich</div>
