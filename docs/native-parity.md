@@ -65,8 +65,8 @@ does nothing. It is left over from older natives.
 | `getFocusedElementId()` | R T W | `focused_element()` | Returns the shadow node |
 | `focusNextWithin(id)` | R T W | `focus_next_within(node)` | Wraps around inside the subtree. Covered by `test/host.ts` |
 | `focusPreviousWithin(id)` | R T W | `focus_previous_within(node)` | Covered by `test/host.ts` |
-| `focusNext()` | R T W | — | Walks the whole window's tab order. Since 0.7, Tab reaches `keyDown` as an ordinary key, so nothing moves focus on Tab unless the app calls this |
-| `focusPrevious()` | R T W | — | |
+| `focusNext()` | R T W | `focus_next()` | Walks the whole window's tab order, as of the last painted frame. Since 0.7, Tab reaches `keyDown` as an ordinary key, so nothing moves focus on Tab unless the app calls this ([Guide](guide.md#keyboard-shortcuts-and-focus)). Covered by `test/host.ts` |
+| `focusPrevious()` | R T W | `focus_previous()` | Covered by `test/host.ts` |
 | `setWindowKeyEvents(keyDown, keyUp, eventId)` | R T W | `on_window_key()`; `render()`'s `onKeyDown` / `onKeyUp` | The renderer listens through a window pseudo-node, which the selection channel shares |
 
 ### Selection

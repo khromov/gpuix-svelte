@@ -119,6 +119,8 @@ export type WindowNative = Partial<
 		| 'promptForPaths'
 		| 'scrollIntoView'
 		| 'getFocusedElementId'
+		| 'focusNext'
+		| 'focusPrevious'
 		| 'focusNextWithin'
 		| 'focusPreviousWithin'
 	>

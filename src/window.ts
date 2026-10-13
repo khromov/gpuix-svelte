@@ -51,6 +51,11 @@ export function focus_element(node: NodeRef) {
 
 export const focused_element = (): ShadowNode | null => node_of(win()?.getFocusedElementId?.());
 
+/** Moves focus to the next tab stop in the window, wrapping at the end; Tab itself moves nothing since native 0.7. */
+export const focus_next = () => win()?.focusNext?.();
+
+export const focus_previous = () => win()?.focusPrevious?.();
+
 /** Moves focus to the next tab stop inside `node`, wrapping within it. */
 export function focus_next_within(node: NodeRef) {
 	with_native_id(node, (id) => win()?.focusNextWithin?.(id));

@@ -7,6 +7,8 @@
 import {
 	on_selection_change,
 	scroll_into_view,
+	focus_next,
+	focus_previous,
 	focus_next_within,
 	focus_previous_within,
 	focused_element,
@@ -48,7 +50,7 @@ let img: ShadowNode | null = null;
 let img_error: unknown = null;
 
 const Host = (await import('./Host.svelte')).default;
-const { native } = mount_headless(Host, {
+const { native, component } = mount_headless(Host, {
 	width: 400,
 	height: 500,
 	props: {
@@ -103,6 +105,19 @@ check('focus_previous_within walks back', focused_element()?.nativeId, f('f1'));
 focus_previous_within(group);
 check('wrapping inside the group', focused_element()?.nativeId, f('f3'));
 
+focus_next();
+check('focus_next walks the whole window, so past the last stop it wraps to the first, not the group', focused_element()?.nativeId, f('f0'));
+focus_next();
+check('and enters the group from outside it', focused_element()?.nativeId, f('f1'));
+focus_previous();
+check('focus_previous walks back out', focused_element()?.nativeId, f('f0'));
+focus_previous();
+check('and wraps backwards to the last stop', focused_element()?.nativeId, f('f3'));
+(component as { show_late(): void }).show_late();
+settle();
+focus_next();
+check('a tab stop an {#if} adds joins the order once it has painted', focused_element()?.nativeId, f('late'));
+
 const list = find_test_id('list')!.id;
 check('the list starts at the top', native.getScrollOffset(list)?.[1], 0);
 scroll_into_view(row);
@@ -124,4 +139,4 @@ toggle_fullscreen();
 check('window controls are no-ops headlessly', true);
 check('prompt_for_paths resolves null without a picker', await prompt_for_paths({ multiple: true }).catch((e: Error) => e.message), null);
 
-finish('host', 18);
+finish('host', 23);
