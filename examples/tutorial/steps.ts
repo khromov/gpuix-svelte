@@ -100,7 +100,7 @@ export const STEPS: Step[] = [
 			kind: 'pipeline',
 			title: 'How a .svelte import becomes a module',
 			nodes: [
-				{ label: '--import tsx --import gpuix-svelte/register', caption: 'before the entry resolves' },
+				{ label: '--import gpuix-svelte/register', caption: 'before the entry resolves' },
 				{ label: 'module.registerHooks', caption: 'intercepts *.svelte' },
 				{ label: 'compile_svelte()', caption: 'svelte/compiler, customRenderer' },
 				{ label: 'ES module', caption: 'imports gpuix-svelte/renderer' },
@@ -120,7 +120,7 @@ export const STEPS: Step[] = [
 					'',
 					'# which is short for (both --conditions flags and the loader are required)',
 					`node ${CONDITIONS} \\`,
-					'     --import tsx --import gpuix-svelte/register app.ts',
+					'     --import gpuix-svelte/register app.ts',
 					`bun ${CONDITIONS} \\`,
 					'     --preload gpuix-svelte/plugin app.ts'
 				].join('\n')
@@ -143,7 +143,7 @@ export const STEPS: Step[] = [
 		],
 		live: null,
 		quiz: {
-			question: 'You run `node --import tsx app.ts` without the two --conditions flags. What happens?',
+			question: 'You run `node --import gpuix-svelte/register app.ts` without the two --conditions flags. What happens?',
 			options: [
 				'Nothing changes; the flags only make startup faster',
 				'svelte resolves to its server build, mount() is missing and the app fails before a window opens',
@@ -239,11 +239,11 @@ export const STEPS: Step[] = [
 		prose: 'content/styling.md',
 		diagram: {
 			kind: 'pipeline',
-			title: 'style="padding: 8px 16px; flex: 1; font-size: 1rem"',
+			title: 'style="padding: 8px 16px; flex: 1; font-size: 1em"',
 			nodes: [
 				{ label: 'parse_css_text', caption: 'camelCase keys, 8px → 8' },
 				{ label: 'expand shorthands', caption: 'paddingTop/Right/Bottom/Left' },
-				{ label: 'type gate', caption: 'fontSize: 1rem → warned, dropped', color: '#f38ba8' },
+				{ label: 'type gate', caption: 'fontSize: 1em → warned, dropped', color: '#f38ba8' },
 				{ label: 'setStyle {…}', caption: 'flex: 1 → serde ignores the key' },
 				{ label: 'GPUI Style', caption: 'what actually paints', color: '#a6e3a1' }
 			]
@@ -252,10 +252,10 @@ export const STEPS: Step[] = [
 		live: 'styled',
 		quiz: {
 			question: 'Which of these reaches GPUI as written?',
-			options: ['margin: 0 auto', 'padding: 8px 16px', 'border: 1px solid #fff', 'font-size: 1rem'],
+			options: ['margin: 0 auto', 'padding: 8px 16px', 'border: 1px solid #fff', 'font-size: 1em'],
 			answer: 1,
 			explanation:
-				'Box shorthands expand to the four longhands. auto is only valid on width/height/min-*/max-*, border has no field to land in, and rem is not a pixel.'
+				'Box shorthands expand to the four longhands. auto is only valid on width/height/min-*/max-*, border has no field to land in, and em needs the inherited font size, which the renderer never sees (rem is fine: 16 px).'
 		}
 	},
 	{

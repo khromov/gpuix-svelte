@@ -4,7 +4,22 @@
  * This runs the wheel, the drag and `follow` through the real hit testing.
  */
 
-import { mount_headless, find, find_test_id, bounds, wait, drain, settle, painted, all_text, check, finish } from 'gpuix-svelte/test';
+import {
+	mount_headless,
+	find,
+	find_test_id,
+	bounds,
+	center,
+	wheel,
+	mouse_down,
+	mouse_move,
+	mouse_up,
+	wait,
+	painted,
+	all_text,
+	check,
+	finish
+} from 'gpuix-svelte/test';
 
 const Tall = (await import('./Tall.svelte')).default;
 
@@ -16,34 +31,29 @@ const column = () => find_test_id('list')!;
 const thumb = () => find_test_id('list-thumb')!;
 const offset = () => native.getScrollOffset(column().id)?.[1] ?? 0;
 
-const { x: cx, y: cy, width: cw, height: ch } = bounds(column())!;
+const { y: cy, height: ch } = bounds(column())!;
 check('the column clips to its viewport', Math.round(ch), 200);
 const t0 = bounds(thumb())!;
 check('the thumb is shorter than the viewport', t0.height > 0 && t0.height < ch, true);
 check('and starts at the top', Math.round(t0.y - cy), 0);
 check('with the package colour, nothing having set --scroller-thumb', thumb().style!.backgroundColor, '#585b70');
 
-native.simulateScrollWheel(cx + cw / 2, cy + ch / 2, 0, -120);
-drain();
+// A scroll container's bounds move with its own offset, so every wheel aims at the point measured unscrolled.
+const column_at = center(column());
+wheel(column_at, 0, -120);
 // The offset moves after the wheel event returns; the thumb follows on its 50 ms throttle.
 await wait(80);
 check('a wheel scrolls the column', offset() < 0, true);
 const t1 = bounds(thumb())!;
 check('and the thumb moves down', t1.y > t0.y, true);
 
-const { x: tx, y: ty, width: tw, height: th } = t1;
-native.simulateMouseDown(tx + tw / 2, ty + th / 2);
-drain();
-settle();
+const grip = center(thumb());
+mouse_down(grip);
 check('a mousedown on the thumb shows the drag overlay', find_test_id('list-overlay') != null, true);
 const before = offset();
-native.simulateMouseMove(tx + tw / 2, ty + th / 2 + 40, 0);
-drain();
-settle();
+mouse_move({ x: grip.x, y: grip.y + 40 }, { pressed_button: 0 });
 check('dragging scrolls further', offset() < before, true);
-native.simulateMouseUp(tx + tw / 2, ty + th / 2 + 40);
-drain();
-settle();
+mouse_up({ x: grip.x, y: grip.y + 40 });
 check('and the release takes the overlay away', find_test_id('list-overlay'), null);
 
 // Each thumb restyle is a full native frame, so a sustained scroll has to pay one per
@@ -51,7 +61,7 @@ check('and the release takes the overlay away', find_test_id('list-overlay'), nu
 ({ native } = mount_headless(Tall, { width: 400, height: 300 }));
 await wait(300);
 {
-	const { x: bx, y: by, width: bw, height: bh } = bounds(column())!;
+	const at = center(column());
 	const thumb_id = thumb().id;
 	let restyles = 0;
 	const applyBatch = native.applyBatch.bind(native);
@@ -60,8 +70,7 @@ await wait(300);
 		return applyBatch(json);
 	};
 	for (let i = 0; i < 24; i++) {
-		native.simulateScrollWheel(bx + bw / 2, by + bh / 2, 0, -30);
-		drain();
+		wheel(at, 0, -30);
 		await wait(10);
 	}
 	await wait(80);
@@ -86,10 +95,10 @@ check('but paints only the rows near the viewport', painted().includes('row 0') 
 // The list host itself has no tracked bounds; its wrapper and the anchor it reports do.
 const { x: vx, y: vy, width: vw } = bounds(find((n) => n.children?.some((c) => c.type === 'virtual-list') ?? false)!)!;
 const vh = native.getListScrollTop(column().id)![2];
+const list_at = { x: vx + vw / 2, y: vy + vh / 2 };
 const v0 = bounds(thumb())!;
 check('the thumb is drawn from the row count', v0.height > 0 && v0.height < vh, true);
-native.simulateScrollWheel(vx + vw / 2, vy + vh / 2, 0, -400);
-drain();
+wheel(list_at, 0, -400);
 await wait(120);
 check('a wheel scrolls the list', native.getListScrollTop(column().id)![0] > 0, true);
 const v1 = bounds(thumb())!;
@@ -98,24 +107,17 @@ check('and the thumb moves down', v1.y > v0.y, true);
 // thumb's length must not follow that report around (it swung by 40% before).
 const lengths: number[] = [];
 for (let i = 0; i < 12; i++) {
-	native.simulateScrollWheel(vx + vw / 2, vy + vh / 2, 0, -(15 + (i % 4) * 10));
-	drain();
+	wheel(list_at, 0, -(15 + (i % 4) * 10));
 	await wait(60);
 	lengths.push(bounds(thumb())!.height);
 }
 check('the thumb keeps its length while the rows in view vary', Math.max(...lengths) - Math.min(...lengths) <= 5, true);
-const v1b = bounds(thumb())!;
-native.simulateMouseDown(v1b.x + v1b.width / 2, v1b.y + v1b.height / 2);
-drain();
-settle();
+const v_grip = center(thumb());
+mouse_down(v_grip);
 const before_index = native.getListScrollTop(column().id)![0];
-native.simulateMouseMove(v1b.x + v1b.width / 2, v1b.y + v1b.height / 2 + 60, 0);
-drain();
-settle();
+mouse_move({ x: v_grip.x, y: v_grip.y + 60 }, { pressed_button: 0 });
 check('dragging the thumb scrolls by row', native.getListScrollTop(column().id)![0] > before_index, true);
-native.simulateMouseUp(v1b.x + v1b.width / 2, v1b.y + v1b.height / 2 + 60);
-drain();
-settle();
+mouse_up({ x: v_grip.x, y: v_grip.y + 60 });
 check('and the rows it left are no longer painted', painted().includes('row 0'), false);
 
 finish('scroller', 21);

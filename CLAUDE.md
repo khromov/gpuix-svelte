@@ -13,12 +13,13 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 
 Everything goes through the package scripts, and those go through `bin/gpuix-svelte.js`
 (`node bin/gpuix-svelte.js [--bun] [runtime flags] <entry> [args]`, published as the `gpuix-svelte`
-bin). It runs `node --conditions custom-renderer --conditions development --import <tsx>
---import ./src/register.ts <entry>` — the conditions are **mandatory**, without them `svelte`
-resolves to its server build and `mount()` does not exist; the first `--import` is tsx (resolved
-with `import.meta.resolve`, so it is found from under a consumer's `node_modules`) for the `.ts`
-sources, the second installs the `.svelte` loader — or, under `--bun` / when invoked by Bun, `bun`
-with the same conditions and `--preload ./src/plugin.ts`. Flags before the entry are forwarded to
+bin). It runs `node --conditions custom-renderer --conditions development --import
+gpuix-svelte/register <entry>` — the conditions are **mandatory**, without them `svelte`
+resolves to its server build and `mount()` does not exist; the `--import` installs the `.svelte`
+loader, resolved through the package's own `exports` (so `src/register.ts` here and
+`lib/register.js` once packed), and Node strips the types of every `.ts` itself — or, under
+`--bun` / when invoked by Bun, `bun` with the same conditions and `--preload gpuix-svelte/plugin`.
+Flags before the entry are forwarded to
 the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
 ```bash
@@ -58,7 +59,8 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
 npm test                   # test:reorder, test:smoke, test:autocommit, test:style,
                            # test:teardown, test:lifecycle, test:compile, test:css, test:module,
                            # test:vars, test:scroller, test:hitbox, test:auxclick, test:window-keys,
-                           # test:portal, test:host, test:search
+                           # test:portal, test:host, test:overlay, test:window, test:helpers,
+                           # test:search
 npm run test:reorder       # single test — keyed {#each} reordering
 npm run test:smoke         # single test — mount + click Counter headlessly
 npm run test:autocommit    # single test — the microtask drain used where there is no frame loop
@@ -74,10 +76,15 @@ npm run test:scroller      # single test — the shipped Scroller: wheel, thumb 
 npm run test:hitbox        # single test — hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # single test — a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # single test — on_window_key, the editing flag, remount survival
+npm run test:window        # single test — window_size / window_insets: polled only while read, restarted on remount
 npm run test:portal        # single test — <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:host          # single test — the 0.8–0.10 helpers: aria props in GPUI's a11y tree, file drop,
                            # motionComplete, on_selection_change, focus walk, scroll_into_view, image
                            # uploads (including one from an {@attach}, before the element exists)
+npm run test:overlay       # single test — the debug frame overlay wrappers, and how render() picks
+                           # between GPUIX_FPS and the debugFrameOverlay option across remounts
+npm run test:helpers       # single test — every gpuix-svelte/test input helper through real hit testing:
+                           # hover, mouse_*, wheel, drag, drag_select, key_up, the clock, wait_for
 npm run test:search        # single test — TextSearch: native match count, next/prev wrap, flags, find_ranges
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see below)
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
@@ -95,7 +102,7 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and
-                           # declarations in dts/ — scripts/publish.ts wraps `npm pack`;
+                           # JS + declarations in lib/ — scripts/publish.ts wraps `npm pack`;
                            # `publish:npm` wraps `npm publish` the same way (release workflow)
 npm run consume            # the consumer path: pack, scaffold an app under $TMPDIR with
                            # packages/create-gpuix-svelte, install the tarball into it,
@@ -109,21 +116,27 @@ npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its 
 
 Every command has a `bun:`-prefixed twin (`npm run bun:test`, `npm run bun:demo:counter`, ...)
 running the same entry point through Bun (`node bin/gpuix-svelte.js --bun ...`), which takes the
-loader as a `--preload` rather than an `--import` (and needs no tsx: Bun runs `.ts` natively);
+loader as a `--preload` rather than an `--import`;
 `bunfig.toml` carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun install`
 either way, but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks
 its runtime from the launching package manager's user agent, so `bun run test` would run the Node
 suite on Bun. Adding a script means adding both halves — except the Bun-only ones (`compile`,
 `demo:web`), the npm-only ones (`pack`, `publish:npm`) and `typecheck`, whose
-`bun:` twin is an alias. Repo-local scripts that run on plain `node` (`demo`, `vendor`, `pack`,
-`consume`, `check:svelte`) take `--import tsx` themselves.
+`bun:` twin is an alias. Repo-local scripts that need no loader (`demo`, `vendor`, `pack`,
+`consume`, `check:svelte`, `docs`) run on plain `node`, which strips their types itself.
 
 Headless tests go through `gpuix-svelte/test` (`src/test.ts`): `mount_headless(Component, { props,
 width, height })`, `settle()` / `await wait(ms)`, `find_text` / `find_test_id` / `element_of` /
 `tree()` over `getTreeJson()` (nodes carry `testId` and `events`), and `click_text` /
 `click_test_id` / `click(node)` / `press(keystroke)` / `type(keystrokes)` / `drop_files(node, paths)`,
-which run GPUI's real hit testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`; `drain()` alone is the
-last two). Prefer those over calling `dispatch()` directly, which injects an event at an element
+plus `hover` / `mouse_move` / `mouse_down` / `mouse_up` / `wheel` / `drag` / `drag_select` / `key_up`
+(targets are a node or a `{ x, y }` point, via `center()` / `point_of()`), which run GPUI's real hit
+testing and input pipeline (`simulateClick` → `drainEvents()` → `dispatch()`) and end in `pump()`,
+which drains and settles until a paint queues nothing more (`drain()` alone is one drain and the
+dispatch). `selected_text` / `clear_selection` / `painted_highlights` / `automation_tree` read back,
+`clock_pause` / `clock_set` / `clock_fast_forward` / `clock_resume` drive `motion`'s clock,
+`advance_time` GPUI's executor timers, and `await wait_for(pred, { timeout, label })` polls instead of a
+fixed `wait`. Prefer those over calling `dispatch()` directly, which injects an event at an element
 and *bypasses* hit testing, so it can pass while the real window fails — the renderer's own tests
 do it only where the batching itself is under test. The headless viewport width follows
 `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px — elements laid
@@ -164,15 +177,21 @@ GPUIX_FPS=1 npm run demo:hn                         # GPUI's draw-time overlay t
 Then open the PNG with the Read tool (Preview.app also reloads on write). Headless code calls
 `TestGpuixRenderer.captureScreenshot(path)` — real Metal pipeline, no window; see `test/smoke.ts`.
 
+From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
+applies once per window; the option is re-applied only when a later `render()` changes it, since
+`render_hot` remounts with the same options and must not undo a runtime `cycle_debug_overlay()`.
+An unknown mode from either warns once (native would throw out of `render()`).
+
 ### Measuring frame cost
 
 Scroll lag here is native per-frame layout, not JS, so measure before reasoning. Both
-`GpuixRenderer` and `TestGpuixRenderer` expose GPUI's own draw times: `setDebugFrameOverlay('full')`,
-`resetDebugFrameOverlayStats()`, `getDebugFrameOverlayStats()` (cur/p90/p99/max draw ms and a
-frame count) and `simulateScrollWheel(x, y, dx, dy)` — so a headless bench of one component is
+`GpuixRenderer` and `TestGpuixRenderer` expose GPUI's own draw times, wrapped by the package (in
+`src/window.ts`) as `set_debug_overlay(mode)`, `cycle_debug_overlay()`, `debug_overlay()`,
+`reset_debug_overlay_stats()` and `debug_overlay_stats()` (cur/p90/p99/max draw ms and a frame
+count, recorded even while the overlay is hidden), plus `simulateScrollWheel(x, y, dx, dy)` on the
+raw handle — so a headless bench of one component is
 those calls around `mount_headless` (from outside the repo it needs a `node_modules` of
-symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json, or tsx
-emits CJS). The window needs the Bash sandbox off, like every other renderer run. Substrate's
+symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}` package.json). The window needs the Bash sandbox off, like every other renderer run. Substrate's
 `scripts/frame-cost.ts` (`bun run frames` in `../substrate-gpuix-svelte`) is the worked example over
 a real window: it boots the app against a `VACUUM INTO` copy of its data and prints idle and
 while-scrolling draw times per route; its AGENTS.md keeps the baselines.
@@ -231,9 +250,9 @@ The wasm class differs from the napi one in ways worth knowing before reusing de
 `requiresTick()` is hardcoded `false` (so the frame loop never starts and `set_auto_commit(true)`
 carries every commit) and `tick()` is a no-op; `init(options)` **ignores** its argument, so
 `title`/`width`/`height` do nothing and the page's CSS sizes the canvas; and it has no
-`captureScreenshot`, `activateWindow`, `simulateKeystrokes`, `simulateKeyDown`/`Up`, or the
-`resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair — so frame-cost measurement is
-desktop-only. `getAutomationTree()` stands in for `getTreeJson()`. Everything
+`captureScreenshot`, `activateWindow`, `simulateKeystrokes`, `simulateKeyDown`/`Up`,
+`cycleDebugFrameOverlay`, or the `resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` pair —
+so frame-cost measurement is desktop-only (`set_debug_overlay` still shows the overlay). `getAutomationTree()` stands in for `getTreeJson()`. Everything
 `Scroller` needs (`getElementBounds`, `getScrollOffset`, `getListScrollTop`, `scrollTo`,
 `scrollToItem`) is present, so a scrolling demo should port too.
 
@@ -244,19 +263,26 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
 
 ## Hard constraints
 
-- **TypeScript sources run as-is; no build step.** `exports` points straight at
-  `src/*.ts`; Node runs them through tsx (a runtime dependency, injected by the bin — Node's own
-  type stripping refuses files under `node_modules`, so consumers need it), Bun natively.
+- **TypeScript sources run as-is; no build step in the repo.** `exports` points straight at
+  `src/*.ts`, and Node and Bun both strip the types natively — no tsx, no loader for `.ts`.
   `tsc --noEmit` (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`, explicit `./x.ts`
   specifiers) gates `npm test`, `npm run bun:test` and CI over src, bin, scripts, test and every
   example; `types/*.d.ts` hold the ambient shims (`*.svelte` modules, `node:ffi`'s missing names).
   Keep it that way: no enums, namespaces or parameter properties, and no `dist/`. The only emit
-  is declarations, and only inside the tarball: `scripts/publish.ts` runs `tsc -p
-  tsconfig.dts.json` into a gitignored `dts/`, rewrites their `./x.ts` specifiers to `./x.js`,
-  and adds a `types` condition per `src/*.ts` export (plus top-level `types`) to the manifest for
-  the length of `npm pack`/`npm publish`, so consumers typecheck against plain declarations.
-  The one `.js` in the package is `bin/gpuix-svelte.js` (checked via `checkJs`): it is what installs tsx, so it
-  cannot need it (`svelte.config.js` is editor-only and outside the tsc program). `typecheck` is
+  is inside the tarball, because Node refuses to strip types under `node_modules`:
+  `scripts/publish.ts` runs `tsc -p tsconfig.lib.json` into a gitignored `lib/` (JS with
+  `rewriteRelativeImportExtensions`, declarations beside it, plus a copy of `src/html.d.ts`),
+  rewrites the declarations' `./x.ts` specifiers to `./x.js`, and for the length of `npm
+  pack`/`npm publish` points `main` and every `src/*.ts` export at `lib/*.js` (TypeScript finds
+  each `.d.ts` beside its `.js`, so there are no `types` conditions) and ships `lib`,
+  `src/components` and `bin` only. `npm run consume` fails if the installed package carries a
+  `.ts` that is not a declaration, or if tsx lands in the consumer. tsc wraps `render_hot`'s
+  computed `import()` in an inlined `__rewriteRelativeImportExtension` helper; it only touches a
+  relative `.ts` specifier, never the `file://` URL that is always there. The starter's tsconfig
+  carries `erasableSyntaxOnly`, `verbatimModuleSyntax` and `allowImportingTsExtensions`, so an
+  app's `tsc` rejects what Node's stripping cannot run. `bin/gpuix-svelte.js` is plain JS
+  (checked via `checkJs`) because it is what starts the runtime (`svelte.config.js` is
+  editor-only and outside the tsc program). `typecheck` is
   `tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings`: tsc never
   opens a `.svelte` file, so markup and `<script>` bodies are only checked by svelte-check.
   tsconfig's `"svelteOptions": { "namespace": "gpuixHTML" }` makes svelte-check and the editor
@@ -341,7 +367,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin)              ─ the `bun:*` scripts, scripts/compile.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
-  window.ts    window, picker, focus, image helpers     ─ no-ops headlessly
+  window.ts    window, picker, focus, image helpers     ─ no-ops headlessly; window_size / window_insets poll
   search.ts    TextSearch, find_ranges                  ─ createSubscriber, so no runes in src/
   components/  Scroller.svelte, Portal.svelte          ─ `gpuix-svelte/components/*`
 ```
@@ -405,15 +431,15 @@ also honours shorthands: a later `padding: 20px` clears the longhands an earlier
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both must
-be installed before the entry module resolves — Node via `--import tsx --import ./src/register.ts`,
-Bun via `--preload ./src/plugin.ts` (or `bunfig.toml`'s `preload`), both supplied by
-`bin/gpuix-svelte.js`. On Node, tsx must be registered *first*: a `.ts` `--import` ahead of it flips
-tsx onto async off-thread hooks, and sync hooks (LIFO, so `register.ts`'s runs first) can't chain
-into those; a `.ts` `--import` in `NODE_OPTIONS` has the same effect, whatever the bin does. Tests rely on that registration rather than importing a loader themselves. Both also
+be installed before the entry module resolves — Node via `--import gpuix-svelte/register`,
+Bun via `--preload gpuix-svelte/plugin` (or `bunfig.toml`'s `preload`), both supplied by
+`bin/gpuix-svelte.js`. An app that wants tsx anyway puts `--import tsx` *ahead* of the register
+import: a `.ts` `--import` before tsx flips it onto async off-thread hooks, which sync hooks can't
+chain into. Tests rely on that registration rather than importing a loader themselves. Both also
 compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
 `svelte/compiler`, no renderer option) — which does **not** strip types, so the loaders do it
-first: `register.ts` hands the URL to `nextLoad` (tsx returns JS; without tsx, Node's
-`module-typescript` source goes through `stripTypeScriptTypes`), `plugin.ts` runs
+first: `register.ts` hands the URL to `nextLoad` and puts Node's `module-typescript` source
+through `stripTypeScriptTypes` (a user's tsx ahead of it would already have returned JS), `plugin.ts` runs
 `Bun.Transpiler`. Those modules are deliberately **not** cache-busted: a module is one instance
 per process, so state kept in one survives a hot remount (that is how Substrate keeps its route
 and theme), and editing one needs a restart.
@@ -453,7 +479,7 @@ browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches th
 directory and re-imports with a `?v=N` cache-buster; `compile.ts` propagates that query to child
 `.svelte` specifiers — static, side-effect and dynamic `import()` alike — or a reload would
 re-instantiate the root against stale children. It finds them by parsing the emitted JS with
-`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native` and tsx) and
+`acorn` (Svelte's own parser, and this package's only dependency besides `@gpuix/native`) and
 splicing the query in at each specifier's offset, so a `.svelte` string inside ordinary code or a
 comment is left alone and the rest of the output stays byte-identical. Only relative, absolute and
 `file:` specifiers are busted: Node refuses a bare one with a query
@@ -472,10 +498,16 @@ GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and 
 the whole frame. So multi-value box shorthands (`padding`, `margin`, `border-width`,
 `border-radius`, `gap`, `inset`) expand to the longhands GPUI actually has, and each value is then
 checked against the key's Rust type: `NUMBER_ONLY` keys (all the spacing, border and font metrics)
-are `f64`, so `1rem`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
+are `f64`, so `1em`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
 `DimensionValue` and take `%` or `auto`; `boxShadow` is a struct CSS text can never build. Anything
 that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
 even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
+Three spellings are rewritten before that check: `Nrem` becomes `N × 16` (GPUI's rem size, which
+gpuix never changes), `overflow*: auto` becomes `scroll` (native matches only `scroll`/`hidden`
+and would ignore it), and `max-content`/`min-content`/`fit-content(...)` become `auto` on the
+dimension keys. `em` stays dropped because it means the inherited font size, which the renderer
+cannot see, and `vh`/`vw` because a class rule is parsed at compile time and nothing re-resolves
+on resize.
 
 ### Regenerating the styling reference
 
@@ -507,7 +539,7 @@ the two stay in sync. Unknown events are dropped silently.
 ## Writing components for this renderer
 
 - Style with inline `style="..."` (and `style:` directives). Box shorthands like
-  `padding: 12px 24px` work; `rem`/`em`/`vh` units do not — GPUI lengths are logical pixels — and
+  `padding: 12px 24px` work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths are logical pixels — and
   neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
   `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning.
 - `<style>` blocks work for class rules: `.btn { }`, `.btn.primary { }`, `.a, .b { }`, a tag
@@ -546,6 +578,17 @@ the two stay in sync. Unknown events are dropped silently.
   `onSelectionChange`) rides the same window pseudo-node as `on_window_key`, through
   `setWindowSelectionChange` on the same id. `<textarea>` Enter inserts a newline unless the element
   has `onsubmit` (since 0.8.0; before that Enter only ever submitted).
+- `window_size` / `window_insets` are reactive getter objects, not runes: `window.ts` wraps
+  `@gpuix/native/host`'s `observeWindowSize` / `observeWindowInsets` (100 ms poll, structural
+  compare) in `createSubscriber`, because native 0.10 still has no resize event. The poll starts on
+  the first tracking read and stops a microtask after the last reader's effect is destroyed. A
+  read outside an effect gets the last polled value while a poll is live and one fresh native call
+  otherwise, and a module-level `$derived` first read outside any effect owns its poll forever
+  (`createSubscriber` semantics; Svelte's `MediaQuery` does the same). The host object resolves
+  `get_native()` on every call, so a poll that outlives a remount follows the new native. Insets keep upstream's
+  camelCase fields (`safeArea`, `keyboardVisible`, …), like every other native payload. Headlessly
+  the size is the real viewport and the insets are zero (`TestGpuixRenderer` has no
+  `getWindowInsets`); with no native at all it is upstream's 800×600 fallback.
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` on that panel reports its content box, so it sits inset by
@@ -661,9 +704,9 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   from that install was byte-identical to the npm-installed one.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
-  `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. tsx, Bun and tsc all
-  silently map a stale `./x.js` specifier onto `x.ts`, so grep for `.js'` imports rather than
-  trusting the tests.
+  `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
+  map a stale `./x.js` specifier onto `x.ts`; Node's own stripping does not, so only the Node
+  suite catches one.
 - `test:coverage` baseline: 33/47 samples mount, 13 refused by design, 1 runtime error
   (raw-snippet, whose `_config.js` declares `error:` rather than `compile_error`, so the throw it
   asks for is bucketed as a failure). It asserts those as floors and named failures rather than an

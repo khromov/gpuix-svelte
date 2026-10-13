@@ -24,3 +24,21 @@ headless viewport is at most 538 px tall, so keep test layouts short (`click` sa
 outside), and Windows ignores the requested size, so read `native.getWindowSize()` rather than
 asserting the numbers you passed. The headless renderer emits no `focus`/`blur` events (a window does), so `focus()` and
 `unfocus()` stand in for them. Tests are plain scripts — no runner.
+
+Every other input native can simulate has a helper too, taking a node (its centre) or a `{ x, y }`
+point in window coordinates: `hover`, `mouse_move` (`{ pressed_button }` makes it a drag move),
+`mouse_down`, `mouse_up`, `wheel(target, dx, dy)` (negative `dy` scrolls down), `drag(from, to,
+{ steps })` (press, `steps` moves with the button held, release), `drag_select(from, to)` (returns
+the selection), `selected_text()`, `clear_selection()` and `key_up(keystroke)`. Each one, like
+`click`, ends in `pump()`: drain and settle until native queues nothing more, since a paint can
+report events of its own (a hover change, a finished motion). `center(target)` and `point_of` are
+the targeting they share; a scroll container's bounds move with its own offset, so aim repeated
+wheels at a point measured before scrolling. `painted_highlights()` reads back `highlight` washes
+with their rects, and `automation_tree()` is `getAutomationTree()` parsed: last-paint `bounds` on
+every node but no `style` or `events`, the reverse of `tree()`.
+
+Time is controllable: `clock_pause()`, `clock_set(ms)`, `clock_fast_forward(ms)` and
+`clock_resume()` drive the clock `motion` animates on and return its time, and `advance_time(ms)`
+runs GPUI's own executor timers (caret blink, drag autoscroll) — neither touches `setTimeout`. For
+those, `await wait_for(() => find_text('ready'), { timeout, interval, label })` polls, pumping
+between tries, and rejects naming the label once the timeout (2000 ms) passes.
