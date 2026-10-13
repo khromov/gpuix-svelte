@@ -63,6 +63,28 @@ export function handle_event(event: EventPayload, onEvent?: (event: EventPayload
 	onEvent?.(event);
 }
 
+const frame_waiters: Array<() => void> = [];
+let looping = false;
+
+/** Resolves after the frame loop's next `tick()`, or a frame's worth of time where there is no loop. */
+export function next_frame(): Promise<void> {
+	return new Promise((resolve) => {
+		if (looping) frame_waiters.push(resolve);
+		else setTimeout(resolve, FRAME_MS);
+	});
+}
+
+function start_automation(native: GpuixRenderer) {
+	// stdout is the wire from here on, and a stray write without a newline would swallow the next frame.
+	console.log = console.info = console.debug = console.error.bind(console);
+	// A computed specifier keeps bundlers from pulling the server, and zod with it, into the web build.
+	const server = './automation-server.ts';
+	import(server).then(
+		(module: typeof import('./automation-server.ts')) => module.serve_automation(native, next_frame),
+		(error: unknown) => console.error('[gpuix-svelte] automation server failed to load:', error)
+	);
+}
+
 export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 'tick'>): { stop(): void } {
 	if (!native.requiresTick()) {
 		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop
@@ -95,16 +117,20 @@ export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 't
 			stopped = true;
 			process.exit(0);
 		}
+		for (const resolve of frame_waiters.splice(0)) resolve();
 
 		timer = setTimeout(loop, Math.max(0, FRAME_MS - (performance.now() - started)));
 	};
 
+	looping = true;
 	loop();
 
 	return {
 		stop() {
 			stopped = true;
+			looping = false;
 			if (timer !== null) clearTimeout(timer);
+			for (const resolve of frame_waiters.splice(0)) resolve();
 		}
 	};
 }
@@ -142,6 +168,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
+		const automation = env('GPUIX_AUTOMATION');
+		if (automation && automation !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');
 	}
 

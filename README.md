@@ -102,7 +102,7 @@ The short list of what to know. Each links to the full story.
 | [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
 | [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, window and desktop helpers, state that survives hot reload |
-| [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, and screenshots |
+| [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 
 The [examples](examples) are the best reference for real code — see [Examples](#examples).

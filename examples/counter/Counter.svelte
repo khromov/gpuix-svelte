@@ -55,6 +55,7 @@
 			</div>
 
 			<div
+				testid="plus"
 				style="padding: 12px; padding-left: 24px; padding-right: 24px;
 				       border-radius: 8px; cursor: pointer;
 				       background-color: {hovered ? '#94e2d5' : '#a6e3a1'}"

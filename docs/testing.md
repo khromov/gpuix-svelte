@@ -42,3 +42,45 @@ Time is controllable: `clock_pause()`, `clock_set(ms)`, `clock_fast_forward(ms)`
 runs GPUI's own executor timers (caret blink, drag autoscroll) — neither touches `setTimeout`. For
 those, `await wait_for(() => find_text('ready'), { timeout, interval, label })` polls, pumping
 between tries, and rejects naming the label once the timeout (2000 ms) passes.
+
+## Driving a running app
+
+`gpuix-svelte/automation` is `@gpuix/native/automation`'s Playwright-style `App` and `Locator`,
+wired to this renderer twice: `launch()` starts an app and drives its real window from another
+process, and `test_app()` runs the same script against whatever `mount_headless` mounted.
+
+```js
+import { launch } from 'gpuix-svelte/automation';
+
+const app = await launch({ entry: 'src/main.ts' }); // bun: true runs the app on Bun
+for (let i = 0; i < 3; i++) await app.getByTestId('plus').click();
+await app.getByText('3 clicks').waitFor();
+await app.screenshot({ path: '/tmp/counter.png' });
+await app.close(); // ends the app's stdin; it answers what is in flight and exits 0
+```
+
+Run the driver like any test, through the bin (`npx gpuix-svelte drive.ts`). Locators re-resolve
+on every call. `getByTestId`, `getByText` (a substring of a text node) and `getByType` chain to
+scope to descendants; `element()` throws an `AutomationError` whose `code` is `NotFound` or
+`Ambiguous`; `click`, `hover`, `wheel`, `dragTo`, `dragBy`, `fill`, `press`, `textContent` and
+`waitFor({ timeoutMs })` act on the one match; `app.mouse`, `app.clock` and `app.screenshot()`
+cover the rest, and `app.process` is the app's child process.
+
+`launch()` runs the entry through the `gpuix-svelte` bin with `GPUIX_AUTOMATION=1`, and that
+variable is the only thing that turns the server on — never stdin not being a terminal, which it
+is not under CI or an agent's shell either. Under it **stdout is the wire**: `console.log`,
+`info` and `debug` move to stderr (which `launch()` passes through), so don't write to
+`process.stdout` yourself, and stdin ending exits the app. Each input replies only once its effect
+is laid out, so a read straight after a click sees it. Any language can drive it: requests and
+replies are SSE `data:` frames of JSON with numeric ids, the methods are
+`@gpuix/native/automation`'s `methods`, and an unparseable request gets a `Protocol` error back:
+
+```sh
+printf 'data: {"id":1,"method":"initialize","params":{"protocolVersion":1,"client":"sh"}}\n\ndata: {"id":2,"method":"getAllText","params":{}}\n\n' \
+  | GPUIX_AUTOMATION=1 npx gpuix-svelte src/main.ts 2>/dev/null
+```
+
+Headlessly, `test_app()` (same module) returns that `App` over `TestGpuixRenderer`, every input
+going simulate → `drainEvents` → `dispatch` → `settle` like `click()` does; pointer input outside
+the viewport throws `NotFound` rather than missing silently, and each read settles first, so
+`waitFor` sees an update that lands on a timer.
