@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/khromov/gpuix-svelte/compare/v0.1.1...v0.2.0) (2026-10-13)
+
+
+### Features
+
+* debugFrameOverlay render option and overlay wrappers ([#33](https://github.com/khromov/gpuix-svelte/issues/33)) ([c703d37](https://github.com/khromov/gpuix-svelte/commit/c703d371bf3694b6936587aa364639138b3fb548))
+* drive a running app through gpuix-svelte/automation ([#40](https://github.com/khromov/gpuix-svelte/issues/40)) ([45e0cd1](https://github.com/khromov/gpuix-svelte/commit/45e0cd1acc3a6fcf82a316b446b3a5280f666240))
+* drop tsx, publish compiled JS ([#42](https://github.com/khromov/gpuix-svelte/issues/42)) ([2acb704](https://github.com/khromov/gpuix-svelte/commit/2acb704f2ec5b6871a4d0537b2d26b916ba1a701))
+* focus_next and focus_previous for whole-window tab order ([#43](https://github.com/khromov/gpuix-svelte/issues/43)) ([53fcfed](https://github.com/khromov/gpuix-svelte/commit/53fcfedf8ec60081b2586f9ccdf19be9415b86ca))
+* map rem, overflow: auto and intrinsic sizes onto values GPUI takes ([#34](https://github.com/khromov/gpuix-svelte/issues/34)) ([03198de](https://github.com/khromov/gpuix-svelte/commit/03198de80eabbba556a65a27db7c77bb493c4bae))
+* reactive window_size and window_insets ([#35](https://github.com/khromov/gpuix-svelte/issues/35)) ([870b057](https://github.com/khromov/gpuix-svelte/commit/870b057aab379d582233d095d87313f9913e370a))
+* **test:** hover, mouse, wheel, drag, selection, clock and wait_for helpers ([#37](https://github.com/khromov/gpuix-svelte/issues/37)) ([b0a06ad](https://github.com/khromov/gpuix-svelte/commit/b0a06adb7d5a03d80f86bf0b413523ef5a477e53))
+* TextSearch and find_ranges over native highlight ([#36](https://github.com/khromov/gpuix-svelte/issues/36)) ([96012d5](https://github.com/khromov/gpuix-svelte/commit/96012d5595ccf7a97b245e04a75263ca287a0c06))
+* Tooltip and Popover components on native anchored ([#38](https://github.com/khromov/gpuix-svelte/issues/38)) ([19b75e1](https://github.com/khromov/gpuix-svelte/commit/19b75e16d39f97b669454706035a7b73bc267921))
+
 ## [0.1.1](https://github.com/khromov/gpuix-svelte/compare/v0.1.0...v0.1.1) (2026-10-12)
 
 
