@@ -1,5 +1,5 @@
 /**
- * Installed via `node --import tsx --import gpuix-svelte/register` so the hook is
+ * Installed via `node --import gpuix-svelte/register` so the hook is
  * in place before the entry module resolves.
  */
 
@@ -28,9 +28,8 @@ registerHooks({
 
 			let source: string | undefined;
 			if (path.endsWith('.ts')) {
-				// `compileModule` does not strip types, so the next loader (tsx, which the bin
-				// registers ahead of this hook) does; a bare `--import gpuix-svelte/register`
-				// gets Node's raw TypeScript back instead.
+				// `compileModule` does not strip types: Node hands back raw TypeScript, while a
+				// loader of the user's own ahead of this one (tsx) may already have returned JS.
 				const loaded = nextLoad(url, context);
 				source = decode(loaded.source ?? '');
 				if (loaded.format === 'module-typescript') source = stripTypeScriptTypes(source);

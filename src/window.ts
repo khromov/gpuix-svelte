@@ -7,6 +7,19 @@
 import type { PathPromptOptions } from '@gpuix/native';
 import { get_native, node_of, with_native_id } from './renderer.ts';
 import type { ShadowNode, WindowNative } from './types.ts';
+import { createSubscriber } from 'svelte/reactivity';
+import {
+	observeWindowInsets,
+	observeWindowSize,
+	readWindowInsets,
+	readWindowSize,
+	type DebugFrameOverlayMode,
+	type DebugFrameOverlayStats,
+	type WindowInsets,
+	type WindowInsetsHost,
+	type WindowSize,
+	type WindowSizeHost
+} from '@gpuix/native/host';
 
 /** A shadow node, from `{@attach}` or `use:`. */
 type NodeRef = { nativeId?: number | null } | null | undefined;
@@ -64,3 +77,95 @@ export function set_image(node: NodeRef, bytes: Uint8Array) {
 export function set_image_pixels(node: NodeRef, width: number, height: number, rgba: Uint8Array) {
 	with_native_id(node, (id) => win()?.setImagePixels?.(id, width, height, rgba));
 }
+
+const OVERLAY_MODES = new Set<string>(['hidden', 'minimal', 'full']);
+const warned_overlays = new Set<string>();
+
+export function set_debug_overlay(mode: DebugFrameOverlayMode): DebugFrameOverlayMode | undefined {
+	if (!OVERLAY_MODES.has(mode)) {
+		// Native throws on it, and `GPUIX_FPS` carries any typo straight into `render()`.
+		if (!warned_overlays.has(mode)) {
+			warned_overlays.add(mode);
+			console.warn(`[gpuix-svelte] unknown debug frame overlay "${mode}", expected hidden, minimal or full`);
+		}
+		return undefined;
+	}
+	return win()?.setDebugFrameOverlay?.(mode) as DebugFrameOverlayMode | undefined;
+}
+
+/** Hidden → minimal → full → hidden. */
+export const cycle_debug_overlay = () => win()?.cycleDebugFrameOverlay?.() as DebugFrameOverlayMode | undefined;
+
+export const debug_overlay = () => win()?.getDebugFrameOverlay?.() as DebugFrameOverlayMode | undefined;
+
+/** Recorded whether or not the overlay is showing; the wasm build has none. */
+export const debug_overlay_stats = (): DebugFrameOverlayStats | undefined => win()?.getDebugFrameOverlayStats?.();
+
+/** Clears the draw samples behind the percentiles; the frame count keeps going. */
+export const reset_debug_overlay_stats = () => win()?.resetDebugFrameOverlayStats?.();
+
+// Looked up on every read, so a poll that outlives a remount follows the new native.
+const geometry = {
+	getWindowSize: () => win()?.getWindowSize?.(),
+	getWindowInsets: () => win()?.getWindowInsets?.()
+} as WindowSizeHost & WindowInsetsHost;
+
+/** No native resize event exists, so this polls (every 100 ms), and only while an effect is reading. */
+function polled<T>(
+	read: (host: typeof geometry) => T,
+	observe: (host: typeof geometry, callback: (value: T) => void) => () => void
+): () => T {
+	let value: T;
+	let live = false;
+	const subscribe = createSubscriber((update) => {
+		// The observer reports its first read synchronously, inside the reading effect, which must not rerun for it.
+		const stop = observe(geometry, (next) => {
+			value = next;
+			if (live) update();
+		});
+		live = true;
+		return () => {
+			stop();
+			live = false;
+		};
+	});
+	return () => {
+		subscribe();
+		return live ? value : read(geometry);
+	};
+}
+
+const size = polled(readWindowSize, observeWindowSize);
+const insets = polled(readWindowInsets, observeWindowInsets);
+
+/** The window's logical size, reactive in a template or effect; 800×600 until a native exists. */
+export const window_size: Readonly<WindowSize> = {
+	get width() {
+		return size().width;
+	},
+	get height() {
+		return size().height;
+	}
+};
+
+/** Safe-area, IME and combined insets and what follows from them, polled like `window_size`; zero headlessly. */
+export const window_insets: Readonly<WindowInsets> = {
+	get safeArea() {
+		return insets().safeArea;
+	},
+	get ime() {
+		return insets().ime;
+	},
+	get effective() {
+		return insets().effective;
+	},
+	get keyboardTop() {
+		return insets().keyboardTop;
+	},
+	get keyboardVisible() {
+		return insets().keyboardVisible;
+	},
+	get visibleHeight() {
+		return insets().visibleHeight;
+	}
+};

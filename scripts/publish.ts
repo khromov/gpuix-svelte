@@ -2,11 +2,11 @@
 // manifest even with the bundle in place, so the registry range exists only for the length
 // of `npm pack` / `npm publish` — a wrapper rather than prepack/postpack, because
 // `npm publish` re-reads the manifest after postpack has restored it. The same window
-// emits declarations into dts/ and points `types` conditions at them, so consumers typecheck
-// against plain .d.ts files while the runtime loads src/*.ts.
+// compiles src/*.ts to lib/*.js with declarations beside them and points `exports` there,
+// because Node refuses to strip types under node_modules and a consumer would need tsx.
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,7 +14,7 @@ const PUBLISHED_SPEC = '>=5.56.0';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const manifest = join(root, 'package.json');
-const dts = join(root, 'dts');
+const lib = join(root, 'lib');
 
 const [command, ...rest] = process.argv.slice(2);
 if (command !== 'pack' && command !== 'publish') {
@@ -39,34 +39,39 @@ function run(cmd: string, args: string[]) {
 	return status ?? 1;
 }
 
-function emit_declarations() {
-	rmSync(dts, { recursive: true, force: true });
-	if (run(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.dts.json']) !== 0) {
-		throw new Error('declaration emit failed');
+function emit_lib() {
+	rmSync(lib, { recursive: true, force: true });
+	if (run(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.lib.json']) !== 0) {
+		throw new Error('lib emit failed');
 	}
-	// tsc keeps the sources' `./x.ts` specifiers, which only resolve under allowImportingTsExtensions.
-	for (const file of readdirSync(dts)) {
-		const path = join(dts, file);
+	// tsc never copies a hand-written .d.ts, and html.d.ts reaches into types.ts.
+	copyFileSync(join(root, 'src/html.d.ts'), join(lib, 'html.d.ts'));
+	// tsc rewrites the JS specifiers but keeps the declarations' `./x.ts`, which only resolve under allowImportingTsExtensions.
+	for (const file of readdirSync(lib).filter((f) => f.endsWith('.d.ts'))) {
+		const path = join(lib, file);
 		writeFileSync(path, readFileSync(path, 'utf8').replace(/(['"])(\.\.?\/[^'"]+)\.ts\1/g, '$1$2.js$1'));
 	}
 }
 
-function types_for(target: string) {
-	const out = target.replace(/^(\.\/)?src\/(.+)\.ts$/, './dts/$2.d.ts');
-	if (out === target) throw new Error(`no declaration path for ${target}`);
+function lib_for(target: string) {
+	const out = target.replace(/^(\.\/)?src\/(.+)\.ts$/, './lib/$2.js');
+	if (out === target) throw new Error(`no lib path for ${target}`);
 	return out;
 }
 
+// TypeScript finds each lib/x.d.ts beside its lib/x.js, so no `types` conditions are needed.
 function published_manifest() {
 	const out = structuredClone(json);
 	out.dependencies.svelte = PUBLISHED_SPEC;
-	out.types = types_for(out.main);
-	out.files = [...out.files, 'dts'];
+	out.main = lib_for(out.main);
+	out.files = ['lib', 'src/components', 'bin'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
 		if (typeof value === 'string' && value.endsWith('.ts')) {
-			out.exports[key] = { types: types_for(value), default: value };
+			out.exports[key] = lib_for(value);
+		} else if (key === './html') {
+			out.exports[key] = { types: './lib/html.d.ts' };
 		} else if (key === '.' && value && typeof value === 'object') {
-			out.exports[key] = { types: types_for(out.main), ...value };
+			out.exports[key] = Object.fromEntries(Object.entries(value).map(([condition, target]) => [condition, lib_for(target as string)]));
 		}
 	}
 	return JSON.stringify(out, null, '\t') + '\n';
@@ -82,10 +87,10 @@ if (command === 'pack') {
 }
 
 try {
-	emit_declarations();
+	emit_lib();
 	writeFileSync(manifest, published_manifest());
 	process.exitCode = run('npm', args);
 } finally {
 	writeFileSync(manifest, original);
-	rmSync(dts, { recursive: true, force: true });
+	rmSync(lib, { recursive: true, force: true });
 }
