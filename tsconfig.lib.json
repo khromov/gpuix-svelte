@@ -3,9 +3,9 @@
 	"compilerOptions": {
 		"noEmit": false,
 		"declaration": true,
-		"emitDeclarationOnly": true,
+		"rewriteRelativeImportExtensions": true,
 		"rootDir": "src",
-		"outDir": "dts"
+		"outDir": "lib"
 	},
 	"include": ["types", "src"],
 	"exclude": []

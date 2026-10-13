@@ -16,8 +16,8 @@ starter/bun.lock
 out
 dist
 
-# declarations scripts/publish.ts emits for the tarball, and the scaffolder's copy of starter/
-dts
+# the JS and declarations scripts/publish.ts emits for the tarball, and the scaffolder's copy of starter/
+lib
 packages/create-gpuix-svelte/template
 packages/create-gpuix-svelte/LICENSE
 *.tgz

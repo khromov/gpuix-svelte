@@ -5,10 +5,10 @@
  */
 
 import { on_window_key, set_window_title, activate_window, blur } from 'gpuix-svelte';
-import { mount_headless, find_test_id, focus, press, drain, settle, all_text, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, focus, press, key_up, all_text, check, finish } from 'gpuix-svelte/test';
 
 const Keys = (await import('./WindowKeys.svelte')).default;
-const { native, unmount } = mount_headless(Keys);
+const { unmount } = mount_headless(Keys);
 
 const seen = () => all_text().find((t) => t.includes('|'));
 
@@ -33,9 +33,7 @@ check('and its unsubscribe stops it', hits, 1);
 
 let ups = 0;
 const off_up = on_window_key('keyup', () => ups++);
-native.simulateKeyUp('b');
-drain();
-settle();
+key_up('b');
 check('keyup has its own channel', ups, 1);
 off_up();
 

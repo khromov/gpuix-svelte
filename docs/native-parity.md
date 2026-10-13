@@ -12,7 +12,7 @@ any native bump.
 |---|---|
 | Range | `>=0.10.0 <0.11.0` in `package.json`. Pre-1.0, so every minor may break |
 | Installed | 0.10.0 (`bun.lock`) |
-| Checked | 2026-10-12, against `main` at `822c2fd` |
+| Checked | 2026-10-14, against `main` at `45e0cd1` |
 | Upstream source | `https://raw.githubusercontent.com/remorses/gpuix/@gpuix/native@<version>/packages/native/src/<file>`. Every release has a tag; the sibling `../gpuix` checkout lags behind and is not a source of truth ([CLAUDE.md](../CLAUDE.md#regenerating-the-styling-reference)) |
 | Prebuilds | darwin-arm64, linux-x64 (without `TestGpuixRenderer`) and win32-x64. A browser bundle gets `browser.mjs`, which loads `wasm/gpuix-web_bg.wasm` |
 
@@ -22,7 +22,10 @@ any native bump.
 `TestGpuixRenderer` and **W** is the wasm `GpuixRenderer` that `browser.mjs` exports. Calls that
 `src/test.ts` makes count for T only, because it never holds anything else. Every other caller
 reaches the renderer through `get_native()`, which holds whichever class was mounted. "raw in
-`test/x.ts`" means a test calls the native method directly because no helper wraps it.
+`test/x.ts`" means a test calls the native method directly because no helper wraps it. "The
+automation server" is what `GPUIX_AUTOMATION=1` starts (`src/automation-server.ts`): it reaches R
+through `@gpuix/native/automation`'s `liveRendererAsTest` rather than by name, so `npm run parity`
+cannot see those calls and lists `simulateKeyDown` and `simulateKeystrokes` as unused on R.
 
 ### Lifecycle and batching
 
@@ -50,8 +53,8 @@ does nothing. It is left over from older natives.
 | `zoomWindow()` | R | `zoom_window()` | |
 | `toggleFullscreen()` | R | `toggle_fullscreen()` | |
 | `promptForPaths(options?)` | R T W | `prompt_for_paths()` | Resolves `null` on T (checked in `test/host.ts`). W rejects with "not supported on the web" |
-| `getWindowSize()` | R T W | T: the viewport guard in `click()` and `drop_files()` | R and W have no wrapper |
-| `getWindowInsets()` | R W | — | Safe area, IME and effective insets |
+| `getWindowSize()` | R T W | `window_size`, polled while something reads it; T: `center()`, the viewport guard every pointer helper shares; the automation server's `initialize` | No native resize event exists, hence the poll |
+| `getWindowInsets()` | R W | `window_insets`, polled the same way | Safe area, IME and effective insets. T has none, so they read as zero headlessly |
 
 ### Focus and keys
 
@@ -71,17 +74,17 @@ does nothing. It is left over from older natives.
 | native | on | gpuix-svelte | notes |
 |---|---|---|---|
 | `setWindowSelectionChange(enabled, eventId)` | R T W | `on_selection_change()`; `render()`'s `onSelectionChange` | Uses the same window pseudo-node as `on_window_key` |
-| `getSelectedText()` | R T W | — | The `e.value` that `on_selection_change` receives carries the same text |
-| `clearSelection()` | R T W | — | raw in `test/host.ts` |
-| `dragSelect(x1, y1, x2, y2)` | T | — | raw in `test/host.ts` |
+| `getSelectedText()` | R T W | T: `selected_text()`, `drag_select()`; R: the automation server | The `e.value` that `on_selection_change` receives carries the same text |
+| `clearSelection()` | R T W | T: `clear_selection()`; R: the automation server | |
+| `dragSelect(x1, y1, x2, y2)` | T | `drag_select(from, to)` | |
 
 ### Scrolling and geometry
 
 | native | on | gpuix-svelte | notes |
 |---|---|---|---|
-| `getElementBounds(id)` | R T W | `bounds()` in `gpuix-svelte/test`; `Scroller` | Otherwise called raw through `get_native()` ([Guide](guide.md#forms)) |
-| `getScrollOffset(id)` | R T W | `Scroller` | No public helper |
-| `scrollTo(id, x, y)` | R T W | `Scroller` (thumb drag) | No public helper |
+| `getElementBounds(id)` | R T W | `bounds()` and `center()` in `gpuix-svelte/test`; `Scroller`; `Popover` (a press inside the trigger) | Otherwise called raw through `get_native()` ([Guide](guide.md#forms)) |
+| `getScrollOffset(id)` | R T W | `Scroller`; the automation server | No public helper; raw in `test/scroller.ts`, `test/helpers.ts` and `test/host.ts` |
+| `scrollTo(id, x, y)` | R T W | `Scroller` (thumb drag); the automation server | No public helper |
 | `scrollToItem(id, index, offsetInItem?)` | R T W | `Scroller virtual` (thumb drag) | No public helper. It also emits a synthetic `visibleRange` |
 | `getListScrollTop(id)` | R T W | `Scroller virtual` | Returns `[index, offsetInItem, viewportHeight]` |
 | `scrollIntoView(id)` | R T W | `scroll_into_view(node)` | |
@@ -97,52 +100,52 @@ does nothing. It is left over from older natives.
 
 | native | on | gpuix-svelte | notes |
 |---|---|---|---|
-| `setDebugFrameOverlay(mode)` | R T W | The `GPUIX_FPS` environment variable, read by `render()` | `1` means `full`; any other value is passed through. There is no option or function for it |
-| `cycleDebugFrameOverlay()` | R T | — | |
-| `getDebugFrameOverlay()` | R T W | — | |
-| `resetDebugFrameOverlayStats()` | R T | — | [CLAUDE.md](../CLAUDE.md#measuring-frame-cost)'s frame-cost bench calls this raw |
-| `getDebugFrameOverlayStats()` | R T | — | Same as above |
+| `setDebugFrameOverlay(mode)` | R T W | `set_debug_overlay(mode)`; `render()`'s `debugFrameOverlay` option and the `GPUIX_FPS` environment variable both go through it | `GPUIX_FPS` outranks the option and `1` means `full`. An unknown mode warns once instead of throwing out of `render()` |
+| `cycleDebugFrameOverlay()` | R T | `cycle_debug_overlay()` | |
+| `getDebugFrameOverlay()` | R T W | `debug_overlay()` | |
+| `resetDebugFrameOverlayStats()` | R T | `reset_debug_overlay_stats()` | |
+| `getDebugFrameOverlayStats()` | R T | `debug_overlay_stats()` | Draw-time samples, recorded whether or not the overlay is showing |
 
 ### Reading back
 
 | native | on | gpuix-svelte | notes |
 |---|---|---|---|
 | `getTreeJson()` | T | `tree()`, `find()`, `find_all()`, `find_text()`, `find_test_id()`, `element_of()` | |
-| `getAllText()` | R T W | T: `all_text()` | |
-| `getPaintedText()` | R T W | T: `painted()` | |
-| `getPaintedHighlights()` | R T W | — | Without a screenshot, this is the only way to assert on `highlight` |
+| `getAllText()` | R T W | T: `all_text()`; R: the automation server | |
+| `getPaintedText()` | R T W | T: `painted()`; R: the automation server | |
+| `getPaintedHighlights()` | R T W | T: `painted_highlights()` | Without a screenshot, the only way to assert on `highlight`. R and W have no wrapper; raw in `test/search.ts` |
 | `getA11yTree()` | T | — | raw in `test/host.ts` |
-| `getAutomationTree()` | R T W | — | The tree JSON with painted bounds, which the `@gpuix/native/automation` locators read |
+| `getAutomationTree()` | R T W | T: `automation_tree()`, and the locators of `test_app()`; R: the automation server | Painted bounds but no `style` or `events`, the reverse of `getTreeJson()` |
 | `findByType(type)` | T | — | |
 | `getText(id)` | T | — | |
 | `hasEventListener(id, type)` | T | — | raw in `test/teardown.ts` |
 | `getSyntaxCacheStats()` | T | — | Syntax-cache hits, misses and document count for `<code>` |
 | `drainEvents()` | T | `drain()`, and every input helper | |
-| `captureScreenshot(path)` | R T | R: the `GPUIX_SCREENSHOT` environment variable, read by `render()`; T: `screenshot(path)` | |
+| `captureScreenshot(path)` | R T | R: the `GPUIX_SCREENSHOT` environment variable, read by `render()`, and the automation server's `screenshot`; T: `screenshot(path)` | |
 
 ### Input simulation
 
 | native | on | gpuix-svelte | notes |
 |---|---|---|---|
-| `simulateClick(x, y, button?, modifiers?)` | R T W | T: `click()`, `click_at()`, `click_text()`, `click_test_id()` | |
-| `simulateKeyDown(keystroke, isHeld?)` | R T | T: `press()` | |
-| `simulateKeystrokes(keystrokes)` | R T | T: `type()` | |
+| `simulateClick(x, y, button?, modifiers?)` | R T W | T: `click()`, `click_at()`, `click_text()`, `click_test_id()`; R: the automation server | |
+| `simulateKeyDown(keystroke, isHeld?)` | R T | T: `press()`; R: the automation server | |
+| `simulateKeystrokes(keystrokes)` | R T | T: `type()`; R: the automation server | |
 | `simulateFileDrop(x, y, paths)` | T | `drop_files()` | |
-| `simulateKeyUp(keystroke)` | R T | — | raw in `test/window-keys.ts` |
-| `simulateMouseDown(x, y, button?, modifiers?)` | R T W | — | raw in `test/scroller.ts` |
-| `simulateMouseUp(x, y, button?, modifiers?)` | R T W | — | raw in `test/scroller.ts` |
-| `simulateMouseMove(x, y, pressedButton?, modifiers?)` | R T W | — | raw in `test/scroller.ts` |
-| `simulateScrollWheel(x, y, deltaX, deltaY, modifiers?)` | R T W | — | raw in `test/scroller.ts` |
+| `simulateKeyUp(keystroke)` | R T | T: `key_up()`; R: the automation server | |
+| `simulateMouseDown(x, y, button?, modifiers?)` | R T W | T: `mouse_down()`, `drag()`; R: the automation server | |
+| `simulateMouseUp(x, y, button?, modifiers?)` | R T W | T: `mouse_up()`, `drag()`; R: the automation server | |
+| `simulateMouseMove(x, y, pressedButton?, modifiers?)` | R T W | T: `hover()`, `mouse_move()`, `drag()`; R: the automation server | raw in `test/tooltip.ts`, which flushes between moves |
+| `simulateScrollWheel(x, y, deltaX, deltaY, modifiers?)` | R T W | T: `wheel()`; R: the automation server | |
 
 ### Clock
 
 | native | on | gpuix-svelte | notes |
 |---|---|---|---|
-| `clockPause()` | R T W | — | |
-| `clockSet(nowMs)` | R T W | — | |
-| `clockFastForward(deltaMs)` | R T W | — | raw in `test/host.ts`, to land a `motion` track |
-| `clockResume()` | R T W | — | |
-| `advanceTime(milliseconds)` | T | — | |
+| `clockPause()` | R T W | T: `clock_pause()`; R: the automation server (`app.clock`) | The clock `motion` animates on |
+| `clockSet(nowMs)` | R T W | T: `clock_set()`; R: the automation server | |
+| `clockFastForward(deltaMs)` | R T W | T: `clock_fast_forward()`; R: the automation server | |
+| `clockResume()` | R T W | T: `clock_resume()`; R: the automation server | |
+| `advanceTime(milliseconds)` | T | `advance_time()` | GPUI's executor timers (caret blink, drag autoscroll), not `setTimeout` |
 
 ### Module exports
 
@@ -194,7 +197,8 @@ The package adds these:
 | `onEvent` | `(event: EventPayload) => void` | Every native event, after the renderer has dispatched it |
 | `onKeyDown`, `onKeyUp` | `(event: GpuixEvent) => void` | `on_window_key` handlers that are kept across remounts |
 | `onSelectionChange` | `(event: GpuixEvent) => void` | An `on_selection_change` handler that is kept across remounts |
-| `GPUIX_FPS`, `GPUIX_SCREENSHOT` | environment variables | The debug overlay, and a PNG written after every mount (desktop only) |
+| `debugFrameOverlay` | `DebugFrameOverlayMode` | The draw-time overlay; re-applied only when a later `render()` changes it |
+| `GPUIX_FPS`, `GPUIX_SCREENSHOT`, `GPUIX_AUTOMATION` | environment variables | The debug overlay (outranks `debugFrameOverlay`), a PNG written after every mount, and the stdio automation server (desktop only) |
 
 ## Events
 
@@ -207,17 +211,17 @@ each one lowercase, as `on<event>`.
 |---|---|---|---|
 | `click` | `div`/`text`, `input`/`textarea`, `img`, `svg`, `code`, `diff`, `markdown`, `anchored` | most tests (`test/smoke.ts`, `test/hitbox.ts`, ...) | Fired on primary mouse-up, and on a VoiceOver Press. macOS ctrl+click also arrives as `click` |
 | `auxClick` | `div`/`text` | `test/auxclick.ts` | Right and middle buttons. Carries `isRightClick`, `x` and `y` |
-| `mouseDown`, `mouseUp`, `mouseMove` | `div`/`text` | `test/scroller.ts` (the `Scroller` thumb) | |
-| `mouseEnter`, `mouseLeave` | `div`/`text`, `img`, `svg`, `code`, `diff`, `markdown`, `anchored` | — | |
-| `mouseDownOutside` | `div`/`text` | — | |
-| `keyDown`, `keyUp` | the focused `div`/`text`, `input`/`textarea` | `keyDown` in `test/window-keys.ts` | |
+| `mouseDown`, `mouseUp`, `mouseMove` | `div`/`text` | `test/scroller.ts` (the `Scroller` thumb), `test/helpers.ts` (`drag()`) | |
+| `mouseEnter`, `mouseLeave` | `div`/`text`, `img`, `svg`, `code`, `diff`, `markdown`, `anchored` | `test/helpers.ts` (`hover()`), `test/tooltip.ts` | |
+| `mouseDownOutside` | `div`/`text` | `test/tooltip.ts` (`Popover`) | |
+| `keyDown`, `keyUp` | the focused `div`/`text`, `input`/`textarea` | `keyDown` in `test/window-keys.ts`, `keyUp` in `test/helpers.ts` | |
 | `focus`, `blur` | any element with a focus handle (`input`/`textarea`, a `tabIndex`, or a key or focus listener) | `test/window-keys.ts`, with synthetic events | The headless renderer never emits these. The renderer always listens on inputs, which is how it sets the `editing` flag |
 | `scroll` | `div`/`text` that scroll | `test/scroller.ts` | |
 | `fileDrop` | `div`/`text`, `input`/`textarea`, `img`, `svg`, `code`, `diff`, `markdown`, `anchored` | `test/host.ts` | `<virtual-list>` does not emit it |
 | `motionComplete` | any element with `motion` | `test/host.ts` | |
-| `highlight` | any element with `highlight` | — | Carries `matchCount` |
+| `highlight` | any element with `highlight` | `test/search.ts` (`TextSearch`) | Carries `matchCount` |
 | `visibleRange` | `virtual-list` | `test/scroller.ts` (through `Scroller virtual`) | `scrollToItem` also emits one |
-| `change`, `submit` | `input`/`textarea` | — | |
+| `change`, `submit` | `input`/`textarea` | `change` in `test/helpers.ts` | |
 | `linkClick` | `markdown` | — | |
 | `toggleFile`, `showMore`, `lineClick` | `diff` | — | |
 | `windowKeyDown`, `windowKeyUp` | the id given to `setWindowKeyEvents` | `test/window-keys.ts` | `on_window_key()`. These are not in `GPUI_EVENTS` |
@@ -236,15 +240,15 @@ to their camelCase forms. `src/html.d.ts` types the attributes.
 
 | element | native props | native events | documented in | tested by |
 |---|---|---|---|---|
-| `div`, `text` | `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role`, `aria-label`, `aria-description`, `aria-id`, `aria-expanded`, `aria-selected`, `aria-valuetext`, `aria-level` | `click`, `auxClick`, `mouseDown`, `mouseUp`, `mouseMove`, `mouseEnter`, `mouseLeave`, `mouseDownOutside`, `keyDown`, `keyUp`, `focus`, `blur`, `scroll`, `fileDrop`, `motionComplete`, `highlight` | [Guide](guide.md), [Styling](styling.md) (`motion`); `highlight` only in [CLAUDE.md](../CLAUDE.md#writing-components-for-this-renderer) | `tabIndex`, `role`, `aria-label`, `aria-expanded`, `aria-level` and `motion` in `test/host.ts`; `testId` in most tests. Nothing tests `autoFocus`, `highlight`, `aria-description`, `aria-id`, `aria-selected` or `aria-valuetext` |
-| `input` | `value`, `placeholder`, `readOnly`, `theme`. It shares an adapter with `textarea` | `change`, `submit`, `click`, `keyDown`, `keyUp`, `focus`, `blur`, `fileDrop` | [Guide](guide.md), the [tutorial](../examples/tutorial/content/native-elements.md) | `test/hitbox.ts` (keeps its hitbox), `test/window-keys.ts` (`onkeydown`). No test sets `value` or hears `change` / `submit` |
+| `div`, `text` | `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role`, `aria-label`, `aria-description`, `aria-id`, `aria-expanded`, `aria-selected`, `aria-valuetext`, `aria-level` | `click`, `auxClick`, `mouseDown`, `mouseUp`, `mouseMove`, `mouseEnter`, `mouseLeave`, `mouseDownOutside`, `keyDown`, `keyUp`, `focus`, `blur`, `scroll`, `fileDrop`, `motionComplete`, `highlight` | [Guide](guide.md) (`highlight` under [Text search](guide.md#text-search)), [Styling](styling.md) (`motion`) | `tabIndex`, `role`, `aria-label`, `aria-expanded`, `aria-level` and `motion` in `test/host.ts`; `highlight` in `test/search.ts` and `test/helpers.ts`; `testId` in most tests. Nothing tests `autoFocus`, `aria-description`, `aria-id`, `aria-selected` or `aria-valuetext` |
+| `input` | `value`, `placeholder`, `readOnly`, `theme`. It shares an adapter with `textarea` | `change`, `submit`, `click`, `keyDown`, `keyUp`, `focus`, `blur`, `fileDrop` | [Guide](guide.md), the [tutorial](../examples/tutorial/content/native-elements.md) | `test/hitbox.ts` (keeps its hitbox), `test/window-keys.ts` (`onkeydown`), `test/helpers.ts` (`change`, `onkeyup`). No test sets `value` or hears `submit` |
 | `textarea` | the same, plus `minRows` and `maxRows` | the same as `input` | [Guide](guide.md), the [tutorial](../examples/tutorial/content/native-elements.md) | — |
 | `img` | `src`, `objectFit`, `alt` | `click`, `mouseEnter`, `mouseLeave`, `fileDrop` | [README](../README.md), [Guide](guide.md) (`set_image`), the [tutorial](../examples/tutorial/content/native-elements.md) | `src` (a `data:` URL) in `test/hitbox.ts`; `set_image` and `set_image_pixels` in `test/host.ts` |
 | `svg` | `source`, `src` | the same as `img` | [README](../README.md), the [tutorial](../examples/tutorial/content/native-elements.md) | `source` and colour inheritance in `test/hitbox.ts` |
 | `code` | `code`, `language`, `path`, `showLineNumbers`, `theme` | the same as `img` | the [tutorial](../examples/tutorial/content/native-elements.md) | — |
 | `diff` | `patch`, `wordDiff`, `scroll`, `maxLines`, `collapsedPaths`, `theme` | `toggleFile`, `showMore`, `lineClick`, plus the same as `img` | the [tutorial](../examples/tutorial/content/native-elements.md) (one line) | — |
 | `markdown` | `source`, `theme` | `linkClick`, plus the same as `img` | the [tutorial](../examples/tutorial/content/native-elements.md) | — |
-| `anchored` | `position`, `side`, `align`, `anchor`, `gap`, `offset`, `fit`, `snapMargin`, `deferred`, `priority`, `occlude` | the same as `img` | [Components](components.md) | — |
+| `anchored` | `position`, `side`, `align`, `anchor`, `gap`, `offset`, `fit`, `snapMargin`, `deferred`, `priority`, `occlude` | the same as `img` | [Components](components.md) (`Tooltip`, `Popover`) | `side`, `align` (and its off-centre `center`), `anchor`, `gap`, `occlude`, `mouseEnter` and `mouseLeave` in `test/tooltip.ts`. Nothing tests `position`, `offset`, `fit`, `snapMargin`, `deferred` or `priority` |
 | `virtual-list` | `alignment`, `followTail`, `overdraw`, `estimatedItemHeight`, `itemCount`, `windowStart`, plus `testId`, `role` and `aria-*` | `visibleRange` | [Components](components.md) (`Scroller virtual`) | `estimatedItemHeight`, `testId` and `visibleRange` in `test/scroller.ts` |
 | `canvas` | none: 0.10.0 registers no `canvas` element | none | — | — |
 
@@ -259,8 +263,8 @@ Three things in that table are worth knowing:
   elements wire only the events listed above. `onmousedown` on an `<img>`, `onscroll` on an
   `<input>` and `onclick` on a `<virtual-list>` all type-check and never fire. `<code>` also
   declares `onlineclick`, which only `<diff>` emits.
-- **No test covers `<code>`, `<diff>`, `<markdown>`, `<anchored>` or `<textarea>`.** The tutorial
-  is their only user.
+- **No test covers `<code>`, `<diff>`, `<markdown>` or `<textarea>`.** The tutorial is their only
+  user.
 
 ## Styles
 
@@ -278,14 +282,16 @@ From 0.10, the package ships compiled TypeScript beside the napi class.
 `/host`, `/runtime` and `/testing` are "the framework-neutral layer `@gpuix/react` and
 `@gpuix/solid` share; this renderer keeps its own `render.ts` / `renderer.ts` / `test.ts`, because
 that layer's event map and mutation queue would replace the batching here rather than simplify it."
+The pieces that stand on their own are used, though: `/host`'s polling and search helpers, and
+`/automation`.
 
 | entry | what it holds | gpuix-svelte uses |
 |---|---|---|
 | `@gpuix/native` | `GpuixRenderer`, `TestGpuixRenderer`, `hasTestGpuixRenderer`, `checkUpdate`, the payload and option types. Under `browser` it resolves to `browser.mjs` (wasm); under `require`, to `index.cjs` | `render.ts`, `test.ts` and `types.ts`. `scripts/web.ts` bundles `browser.mjs`, and the compile scripts resolve to `index.cjs` (`resolve_native_cjs`) |
-| `@gpuix/native/host` | Prop and style types (`StyleDesc`, `HostProps`, a props interface for each element, `MotionProps`, `GpuixTheme`, `HighlightSpec`, `CursorValue`); `readWindowSize`, `readWindowInsets`, `observeWindowSize`, `observeWindowInsets` (polling); `observeSelectedText`; `findRanges`, `createTextSearchController`; `createMutationQueue`, `EVENT_PROPS`, `UNIVERSAL_PROPS`, `BUILT_IN_TYPES`; `createRendererState` and the event-handler registry | The types `GpuixTheme`, `HighlightSpec` and `MotionProps` (`html.d.ts`, also re-exported from `gpuix-svelte`); `scripts/native-parity.ts` reads `EVENT_PROPS` |
+| `@gpuix/native/host` | Prop and style types (`StyleDesc`, `HostProps`, a props interface for each element, `MotionProps`, `GpuixTheme`, `HighlightSpec`, `CursorValue`); `readWindowSize`, `readWindowInsets`, `observeWindowSize`, `observeWindowInsets` (polling); `observeSelectedText`; `findRanges`, `createTextSearchController`; `createMutationQueue`, `EVENT_PROPS`, `UNIVERSAL_PROPS`, `BUILT_IN_TYPES`; `createRendererState` and the event-handler registry | `readWindowSize`, `readWindowInsets`, `observeWindowSize` and `observeWindowInsets` behind `window_size` / `window_insets` (`window.ts`); `createTextSearchController` and `findRanges` behind `TextSearch` / `find_ranges` (`search.ts`); the types `GpuixTheme`, `HighlightSpec`, `MotionProps`, `DebugFrameOverlayMode`, `DebugFrameOverlayStats`, `WindowSize`, `WindowInsets` and `EdgeInsets`, all re-exported from `gpuix-svelte`; `scripts/native-parity.ts` reads `EVENT_PROPS` |
 | `@gpuix/native/runtime` | `createNativeRenderer`, `startFrameLoop`, `enableAutomation`, `installBrowserAutomation` | Nothing. `render.ts` has its own `start_frame_loop` |
 | `@gpuix/native/testing` | `TestRenderer` (wraps `TestGpuixRenderer`, adding `findByText`/`findByTestId`, a parsed `getA11yTree`, and `native*`/`dispatch*` simulators), `hasNativeTestRenderer`, and the cpu-throttle re-exports | Nothing. `src/test.ts` is its own harness |
-| `@gpuix/native/automation` | `App`, `Locator`, `launch`, `connectStdio`, `connectTest`, `serveAutomationStdio`, `SseBackend`, `InProcessBackend`, `liveRendererAsTest`, `browserRendererAsTest`, plus the wire protocol (`methods`, `encodeSse`, `createSseDecoder`, `PROTOCOL_VERSION`, ...) | Nothing |
+| `@gpuix/native/automation` | `App`, `Locator`, `launch`, `connectStdio`, `connectTest`, `serveAutomationStdio`, `SseBackend`, `InProcessBackend`, `liveRendererAsTest`, `browserRendererAsTest`, plus the wire protocol (`methods`, `encodeSse`, `createSseDecoder`, `PROTOCOL_VERSION`, ...) | `gpuix-svelte/automation` re-exports `App`, `Locator`, `AutomationError`, `connectStdio`, `connectTest` and `PROTOCOL_VERSION`, and builds `launch()` on `connectStdio` and `test_app()` on `connectTest`. `src/automation-server.ts` serves with `InProcessBackend`, `liveRendererAsTest`, `createSseDecoder`, `encodeSse` and `handleAutomationRequest`. Upstream's own `launch` and `serveAutomationStdio` are not used ([Testing](testing.md#driving-a-running-app)) |
 | `@gpuix/native/cpu-throttle` | `MAC_CPU_THROTTLES`, `readMacCpuThrottle`, `applyMacCpuThrottleFromEnv` | Nothing |
 
 ## Adoption policy

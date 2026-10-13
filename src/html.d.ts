@@ -141,12 +141,12 @@ interface VirtualListAttributes extends GpuixAttributes {
 type Corner = 'topLeft' | 'topCenter' | 'topRight' | 'rightCenter' | 'bottomRight' | 'bottomCenter' | 'bottomLeft' | 'leftCenter';
 
 interface AnchoredAttributes extends GpuixAttributes {
-	position?: { x: number; y: number };
+	position?: { x: number; y: number } | null | undefined;
 	side?: 'top' | 'right' | 'bottom' | 'left';
 	align?: 'start' | 'center' | 'end';
 	gap?: Count;
 	anchor?: Corner;
-	offset?: { x: number; y: number };
+	offset?: { x: number; y: number } | null | undefined;
 	fit?: 'switch' | 'snap';
 	snapmargin?: Count;
 	deferred?: Flag;

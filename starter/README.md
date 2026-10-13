@@ -16,7 +16,7 @@ Every script runs through the `gpuix-svelte` bin, which starts Node (or Bun, und
 renderer needs and the `.svelte` loader installed. Spelled out:
 
 ```bash
-node --conditions custom-renderer --conditions development --import tsx --import gpuix-svelte/register app.ts
+node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.ts
 bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
 ```
 

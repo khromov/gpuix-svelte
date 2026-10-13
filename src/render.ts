@@ -5,6 +5,7 @@
  */
 
 import { GpuixRenderer, type EventPayload } from '@gpuix/native';
+import type { DebugFrameOverlayMode } from '@gpuix/native/host';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
 	set_native,
@@ -17,6 +18,7 @@ import renderer, {
 	on_window_key,
 	on_selection_change
 } from './renderer.ts';
+import { set_debug_overlay } from './window.ts';
 import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 
 /**
@@ -36,6 +38,7 @@ interface Host {
 	component: Record<string, unknown> | null;
 	loop: { stop(): void } | null;
 	keys: Array<() => void>;
+	overlay?: DebugFrameOverlayMode;
 }
 
 function host(): Host {
@@ -58,6 +61,28 @@ export function handle_event(event: EventPayload, onEvent?: (event: EventPayload
 		console.error('[gpuix-svelte] event handler failed:', error);
 	}
 	onEvent?.(event);
+}
+
+const frame_waiters: Array<() => void> = [];
+let looping = false;
+
+/** Resolves after the frame loop's next `tick()`, or a frame's worth of time where there is no loop. */
+export function next_frame(): Promise<void> {
+	return new Promise((resolve) => {
+		if (looping) frame_waiters.push(resolve);
+		else setTimeout(resolve, FRAME_MS);
+	});
+}
+
+function start_automation(native: GpuixRenderer) {
+	// stdout is the wire from here on, and a stray write without a newline would swallow the next frame.
+	console.log = console.info = console.debug = console.error.bind(console);
+	// A computed specifier keeps bundlers from pulling the server, and zod with it, into the web build.
+	const server = './automation-server.ts';
+	import(server).then(
+		(module: typeof import('./automation-server.ts')) => module.serve_automation(native, next_frame),
+		(error: unknown) => console.error('[gpuix-svelte] automation server failed to load:', error)
+	);
 }
 
 export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 'tick'>): { stop(): void } {
@@ -92,25 +117,44 @@ export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 't
 			stopped = true;
 			process.exit(0);
 		}
+		for (const resolve of frame_waiters.splice(0)) resolve();
 
 		timer = setTimeout(loop, Math.max(0, FRAME_MS - (performance.now() - started)));
 	};
 
+	looping = true;
 	loop();
 
 	return {
 		stop() {
 			stopped = true;
+			looping = false;
 			if (timer !== null) clearTimeout(timer);
+			for (const resolve of frame_waiters.splice(0)) resolve();
 		}
 	};
 }
 
+/**
+ * `GPUIX_FPS` (`1` is `full`) applies once per window and outranks the option, which applies again
+ * only when it changed: `render_hot` remounts with the same options, and a cycled mode must survive.
+ */
+export function overlay_on_render(
+	fps: string | undefined,
+	option: DebugFrameOverlayMode | undefined,
+	applied: DebugFrameOverlayMode | undefined,
+	created: boolean
+): string | undefined {
+	if (fps) return created ? (fps === '1' ? 'full' : fps) : undefined;
+	return option === applied ? undefined : option;
+}
+
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
-	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, ...window_options } = options;
+	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, debugFrameOverlay, ...window_options } = options;
 	const slot = host();
 	const remount = slot.component != null;
+	const created = !slot.native;
 
 	if (!slot.native) {
 		slot.native = new GpuixRenderer((err, event) => {
@@ -124,10 +168,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
-		// GPUI's draw-time readout, top right: `1` is the full one (CUR / 1% / 10% / MAX ms and a
-		// frame count), any other value is passed through (`minimal` is the last draw only).
-		const overlay = env('GPUIX_FPS');
-		if (overlay) slot.native.setDebugFrameOverlay(overlay === '1' ? 'full' : overlay);
+		const automation = env('GPUIX_AUTOMATION');
+		if (automation && automation !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');
 	}
 
@@ -152,6 +194,10 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	}
 
 	set_native(slot.native);
+
+	const overlay = overlay_on_render(env('GPUIX_FPS'), debugFrameOverlay, slot.overlay, created);
+	if (overlay) set_debug_overlay(overlay as DebugFrameOverlayMode);
+	slot.overlay = debugFrameOverlay;
 
 	for (const off of slot.keys) off();
 	slot.keys = [];
