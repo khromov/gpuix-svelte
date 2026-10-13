@@ -4,7 +4,7 @@
  * that every test used to spell out, bound to whatever native the renderer holds.
  */
 
-import { TestGpuixRenderer, hasTestGpuixRenderer } from '@gpuix/native';
+import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
 import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
@@ -23,17 +23,62 @@ export interface TreeNode {
 	children?: TreeNode[];
 }
 
-/** A tree node, a shadow node or a bare native id. */
+/**
+ * One node of `getAutomationTree()`, which carries last-paint bounds but no style or events;
+ * `getTreeJson()` is the reverse, which is why `tree()` stays on it.
+ */
+export interface AutomationNode {
+	id: number;
+	type: string;
+	text?: string;
+	testId?: string;
+	bounds?: ElementBounds;
+	children?: AutomationNode[];
+}
+
+/** A tree node, a shadow node, an automation node or a bare native id. */
 export type Target = number | { id?: number; nativeId?: number | null };
+
+export interface Point {
+	x: number;
+	y: number;
+}
+
+/** A target (its centre) or window coordinates. */
+export type PointTarget = Target | Point;
 
 export interface FindOptions {
 	last?: boolean;
 }
 
-export interface ClickOptions extends FindOptions {
+export interface MouseOptions {
+	/** 0 = left (default), 1 = middle, 2 = right. */
 	button?: number;
+	/** In `press()` syntax: `'cmd'`, `'cmd-shift'`, `'alt'`. */
 	modifiers?: string;
 }
+
+export interface MoveOptions {
+	/** The button held during the move, which makes it a drag. */
+	pressed_button?: number;
+	modifiers?: string;
+}
+
+export interface DragOptions extends MouseOptions {
+	/** Moves between the press and the release; default 8. */
+	steps?: number;
+}
+
+export interface WaitForOptions {
+	/** Default 2000 ms. */
+	timeout?: number;
+	/** Default 16 ms. */
+	interval?: number;
+	/** Names the condition in the timeout error; defaults to the predicate's source. */
+	label?: string;
+}
+
+export type ClickOptions = FindOptions & MouseOptions;
 
 export interface MountHeadlessOptions {
 	props?: Record<string, unknown>;
@@ -153,43 +198,65 @@ export function drain() {
 	for (const event of native().drainEvents()) dispatch(event);
 }
 
+// A component that emits on every paint would otherwise keep pump() going forever.
+const MAX_PUMP_ROUNDS = 10;
+
+/**
+ * Drains and settles until native has nothing left to report, because the paint a settle
+ * triggers can queue events of its own (a hover change, a selection, a finished motion).
+ */
+export function pump() {
+	for (let round = 0; round < MAX_PUMP_ROUNDS; round++) {
+		const events = native().drainEvents();
+		if (round > 0 && events.length === 0) return;
+		for (const event of events) dispatch(event);
+		settle();
+	}
+}
+
+/** The element's painted centre, or a throw naming why a pointer could not land there. */
+export function center(target: Target): Point {
+	const box = bounds(target);
+	if (!box) throw new Error(`[gpuix-svelte/test] element ${id_of(target)} has no painted bounds`);
+
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height / 2;
+	const { width, height } = native().getWindowSize();
+	// A clipped node still reports its full bounds, so only the window can say it is unreachable.
+	if (x < 0 || y < 0 || x > width || y > height) {
+		const cap = process.platform === 'darwin' ? ` (its height caps at ${MAX_HEADLESS_HEIGHT})` : '';
+		throw new Error(
+			`[gpuix-svelte/test] element ${id_of(target)} is at (${Math.round(x)}, ${Math.round(y)}), outside the ${width}×${height} headless viewport${cap}`
+		);
+	}
+	return { x, y };
+}
+
+const is_point = (target: PointTarget): target is Point => typeof target === 'object' && target !== null && 'x' in target && 'y' in target;
+
+/** A point passes through unchecked, so a gesture can end outside every element; anything else is its centre. */
+export const point_of = (target: PointTarget): Point => (is_point(target) ? { x: target.x, y: target.y } : center(target));
+
 /**
  * A click at the element's centre through GPUI's own hit testing, occlusion included.
  * `dispatch()` straight at an element skips that, and can pass while the window fails.
  */
 export function click(target: Target, { button, modifiers }: ClickOptions = {}) {
-	const [x, y] = centre_of(target);
+	const { x, y } = center(target);
 	click_at(x, y, { button, modifiers });
-}
-
-function centre_of(target: Target): [number, number] {
-	const box = bounds(target);
-	if (!box) throw new Error(`[gpuix-svelte/test] element ${id_of(target)} has no painted bounds`);
-
-	const cx = box.x + box.width / 2;
-	const cy = box.y + box.height / 2;
-	const { width, height } = native().getWindowSize();
-	if (cx > width || cy > height) {
-		throw new Error(
-			`[gpuix-svelte/test] element ${id_of(target)} is at (${Math.round(cx)}, ${Math.round(cy)}), outside the ${width}×${height} headless viewport (its height caps at ${MAX_HEADLESS_HEIGHT})`
-		);
-	}
-	return [cx, cy];
 }
 
 /** A Finder-style drop of `paths` on the element's centre, hit-tested like a click. */
 export function drop_files(target: Target, paths: string[]) {
-	const [x, y] = centre_of(target);
+	const { x, y } = center(target);
 	native().simulateFileDrop(x, y, paths);
-	drain();
-	settle();
+	pump();
 }
 
 /** A click at window coordinates, through the same hit testing. */
 export function click_at(x: number, y: number, { button, modifiers }: ClickOptions = {}) {
 	native().simulateClick(x, y, button, modifiers);
-	drain();
-	settle();
+	pump();
 }
 
 export function click_text(text: string, opts?: ClickOptions) {
@@ -204,18 +271,147 @@ export function click_test_id(id: string, opts?: ClickOptions) {
 	click(node, opts);
 }
 
+/** Moves the pointer there, for `onmouseenter`/`onmouseleave` and `hover=` styles. */
+export function hover(target: PointTarget, opts: MoveOptions = {}) {
+	mouse_move(target, opts);
+}
+
+export function mouse_move(target: PointTarget, { pressed_button, modifiers }: MoveOptions = {}) {
+	const { x, y } = point_of(target);
+	native().simulateMouseMove(x, y, pressed_button, modifiers);
+	pump();
+}
+
+export function mouse_down(target: PointTarget, { button, modifiers }: MouseOptions = {}) {
+	const { x, y } = point_of(target);
+	native().simulateMouseDown(x, y, button, modifiers);
+	pump();
+}
+
+export function mouse_up(target: PointTarget, { button, modifiers }: MouseOptions = {}) {
+	const { x, y } = point_of(target);
+	native().simulateMouseUp(x, y, button, modifiers);
+	pump();
+}
+
+/** One wheel event in px; a negative `delta_y` scrolls down, which is the direction GPUI's offsets go. */
+export function wheel(target: PointTarget, delta_x: number, delta_y: number, { modifiers }: { modifiers?: string } = {}) {
+	const { x, y } = point_of(target);
+	native().simulateScrollWheel(x, y, delta_x, delta_y, modifiers);
+	pump();
+}
+
+/**
+ * Press at `from`, travel to `to` in `steps` moves with the button held, release there.
+ * Both ends resolve before the press, since a live preview can move the target under it.
+ */
+export function drag(from: PointTarget, to: PointTarget, { button = 0, modifiers, steps = 8 }: DragOptions = {}) {
+	const start = point_of(from);
+	const end = point_of(to);
+	const count = Math.max(1, Math.floor(steps));
+	mouse_move(start, { modifiers });
+	mouse_down(start, { button, modifiers });
+	for (let step = 1; step <= count; step++) {
+		const t = step / count;
+		mouse_move({ x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t }, { pressed_button: button, modifiers });
+	}
+	mouse_up(end, { button, modifiers });
+}
+
+/**
+ * Drag-selects text and returns what got selected. Native does the down/move/up itself,
+ * because the selection listeners register during paint and need a flush between each.
+ */
+export function drag_select(from: PointTarget, to: PointTarget): string | null {
+	const a = point_of(from);
+	const b = point_of(to);
+	native().dragSelect(a.x, a.y, b.x, b.y);
+	pump();
+	return selected_text();
+}
+
+/** The current text selection joined in document order, or null. */
+export const selected_text = (): string | null => native().getSelectedText();
+
+export function clear_selection() {
+	native().clearSelection();
+	pump();
+}
+
+/** Every `highlight` wash painted in the last frame, with its rects; the quads never reach `painted()`. */
+export const painted_highlights = (): HighlightMatch[] => native().getPaintedHighlights();
+
+// GPUI's motion clock: each call pumps, so the frame repaints at the new time and a finished
+// motion's `motionComplete` reaches its handler.
+
+export function clock_pause(): number {
+	const now = native().clockPause();
+	pump();
+	return now;
+}
+
+export function clock_set(now_ms: number): number {
+	const now = native().clockSet(now_ms);
+	pump();
+	return now;
+}
+
+export function clock_fast_forward(delta_ms: number): number {
+	const now = native().clockFastForward(delta_ms);
+	pump();
+	return now;
+}
+
+export function clock_resume(): number {
+	const now = native().clockResume();
+	pump();
+	return now;
+}
+
+/** Runs GPUI's own due timers (caret blink, drag autoscroll); not the motion clock, and not `setTimeout`. */
+export function advance_time(ms: number) {
+	native().advanceTime(ms);
+	pump();
+}
+
+/**
+ * Polls until `pred()` is truthy and resolves with its value, pumping between tries so
+ * timers, promises and native events all get to land.
+ */
+export async function wait_for<T>(pred: () => T, { timeout = 2000, interval = 16, label }: WaitForOptions = {}): Promise<NonNullable<T>> {
+	const started = Date.now();
+	for (;;) {
+		const value = pred();
+		if (value) return value as NonNullable<T>;
+		if (Date.now() - started >= timeout) {
+			throw new Error(`[gpuix-svelte/test] wait_for(${label ?? String(pred).replace(/\s+/g, ' ')}) timed out after ${timeout} ms`);
+		}
+		await new Promise((resolve) => setTimeout(resolve, interval));
+		pump();
+	}
+}
+
+export function automation_tree(): AutomationNode | null {
+	const json = native().getAutomationTree();
+	return json ? (JSON.parse(json) as AutomationNode | null) : null;
+}
+
 /** One key in GPUI's keystroke syntax — `'escape'`, `'cmd-k'`, `'shift-tab'`. */
 export function press(keystroke: string, { held = false }: { held?: boolean } = {}) {
 	native().simulateKeyDown(keystroke, held);
-	drain();
-	settle();
+	pump();
+}
+
+/** The key-up half `press()` leaves out, for `onkeyup` and `on_window_key('keyup')`. */
+export function key_up(keystroke: string) {
+	native().simulateKeyUp(keystroke);
+	pump();
 }
 
 /** Space-separated keystrokes through the focused element's input pipeline. */
 export function type(keystrokes: string) {
 	native().simulateKeystrokes(keystrokes);
-	drain();
-	settle();
+	pump();
 }
 
 export const painted = () => native().getPaintedText().join('\n');
@@ -261,4 +457,4 @@ export function finish(name: string, expected?: number): never {
 	process.exit(0);
 }
 
-export type { ShadowNode };
+export type { ShadowNode, HighlightMatch };
