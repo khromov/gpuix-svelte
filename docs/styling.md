@@ -50,7 +50,9 @@ blocks work for class rules, which are compiled the same way.
   and `:active`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
   compiler refuses them with a warning.
 - `transform`, `transition`, `z-index` and `letter-spacing` are ignored without a warning.
-- Only text properties (colour, font) inherit from a parent.
+- Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
+  `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select` and
+  `selection-color`.
 - Assume the rest of CSS is missing too.
 
 <details>

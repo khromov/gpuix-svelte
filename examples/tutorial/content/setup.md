@@ -4,7 +4,7 @@ Everything installs from npm — `@gpuix/native` ships prebuilt, so there is no 
 
 **Bun uses a different hook.** Bun has no `registerHooks`, so it takes the same compiler as a `--preload` (or a `bunfig.toml` preload) instead of `--import`; `gpuix-svelte --bun app.ts` does that. Every script in this repo has a `bun:` twin, and the bin picks the runtime from whoever ran it, so `npm run tutorial` and `bun run tutorial` both work.
 
-Requirements: **Node ≥ 26.1** or **Bun ≥ 1.4**. Svelte has to be the custom-renderer branch — this repo vendors one build under `vendor/`; your own project installs the PR's latest build from `pkg.svelte.dev`.
+Requirements: **Node ≥ 24** or **Bun ≥ 1.4**. Svelte has to be the custom-renderer build, and the package brings its own: each release bundles the exact build it was tested against and the loaders point every `svelte` import at it, so you never install Svelte yourself.
 
 A successful start prints two lines:
 

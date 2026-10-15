@@ -112,8 +112,8 @@ export const STEPS: Step[] = [
 				label: 'terminal',
 				language: 'bash',
 				source: [
-					'npm install github:khromov/gpuix-svelte',
-					'npm install -D svelte@https://pkg.svelte.dev/svelte/pr/18511',
+					'npm create gpuix-svelte@latest my-app   # a new app',
+					'npm install gpuix-svelte                # or add it to an existing one',
 					'',
 					'npx gpuix-svelte app.ts          # Node',
 					'npx gpuix-svelte --bun app.ts    # Bun',
@@ -384,10 +384,10 @@ export const STEPS: Step[] = [
 				title: 'Fixed',
 				color: '#a6e3a1',
 				tree: {
-					label: 'div  onclick  background-color',
+					label: 'div  onclick  hitbox="self"  background-color',
 					children: [
 						{ label: '"Save"' },
-						{ label: 'div  hitbox="self"  →  badge', note: 'the renderer shields the badge; the click falls through to the button' }
+						{ label: 'div  badge  background-color', note: 'the renderer gives it pointer-events: none; the click falls through to the button' }
 					]
 				}
 			}
@@ -403,7 +403,7 @@ export const STEPS: Step[] = [
 			],
 			answer: 1,
 			explanation:
-				'An element that paints a background, a border, or is positioned blocks hits behind it. Put hitbox="self" on the clickable element (or give decorative children pointer-events: none yourself).'
+				'An element that paints a background or is position: absolute blocks hits behind it (a border alone does not). Put hitbox="self" on the clickable element (or give decorative children pointer-events: none yourself).'
 		}
 	},
 	{
@@ -472,7 +472,7 @@ export const STEPS: Step[] = [
 			kind: 'pipeline',
 			title: 'What a save does',
 			nodes: [
-				{ label: 'save Hello.svelte', caption: 'content must change; touch does nothing' },
+				{ label: 'save Hello.svelte', caption: 'any write event, even a touch' },
 				{ label: 'fs.watch', caption: "the entry's directory, 60 ms debounce" },
 				{ label: 'import(entry?v=N)', caption: 'child .svelte imports busted too' },
 				{ label: 'unmount(old)', caption: 'the old subtree is destroyed at commit' },
@@ -481,7 +481,7 @@ export const STEPS: Step[] = [
 		},
 		code: [
 			{
-				label: 'src/render.ts — render_hot, condensed',
+				label: 'src/hot.ts — render_hot, condensed',
 				language: 'typescript',
 				source: [
 					'export async function render_hot(entry, options = {}) {',
@@ -493,7 +493,12 @@ export const STEPS: Step[] = [
 					'',
 					'\tlet timer = null;',
 					'\twatch(dirname(fileURLToPath(url)), { recursive: true }, (_event, file) => {',
-					"\t\tif (!file?.endsWith('.svelte')) return;",
+					'\t\tif (!file) return;',
+					'\t\tif (/\\.[jt]s$/.test(file)) {',
+					'\t\t\tconsole.warn(`${file} changed — restart to pick it up`);',
+					'\t\t\treturn;',
+					'\t\t}',
+					"\t\tif (!file.endsWith('.svelte')) return;",
 					'\t\tclearTimeout(timer);',
 					'\t\ttimer = setTimeout(async () => render(await load(), options), 60);',
 					'\t});',
@@ -507,12 +512,12 @@ export const STEPS: Step[] = [
 			question: 'You edit steps.ts while the tutorial is running. What happens?',
 			options: [
 				'The window reloads with the new content',
-				'Nothing: only .svelte writes trigger a reload, and plain .ts modules stay cached until a restart',
+				'No reload: the terminal warns that steps.ts changed, because plain .ts modules stay cached until a restart',
 				'The window closes'
 			],
 			answer: 1,
 			explanation:
-				'The watcher filters on the .svelte extension and the ?v=N cache-buster is only spliced into .svelte specifiers, so plain modules keep their first evaluation.'
+				'Only a .svelte write remounts, and the ?v=N cache-buster is only spliced into .svelte specifiers, so plain modules keep their first evaluation; render_hot prints a restart warning for a .ts or .js edit instead.'
 		}
 	},
 	{

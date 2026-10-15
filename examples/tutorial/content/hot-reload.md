@@ -1,7 +1,7 @@
 `render_hot(entry, options)` is what every example calls. It mounts the component, then watches the entry's directory (recursively) and, on any `.svelte` write, re-imports the entry with a `?v=N` cache-buster and remounts onto the **same** window.
 
 - The cache-buster is spliced into every child `.svelte` import the compiled output contains — static, side-effect and dynamic `import()` alike — or the root would be re-created against stale children.
-- Plain `.ts` modules are not busted: `steps.ts` and `theme.ts` in this tutorial need a restart, while the samples reload live.
+- Plain `.ts` modules are not busted: `steps.ts` and `theme.ts` in this tutorial need a restart (the terminal warns when you save one), while the samples reload live.
 - Never `bun --hot`: it re-evaluates Svelte's runtime, so the old component belongs to a module instance the new one cannot see and `unmount()` fails. `render_hot` keeps one runtime for the life of the process.
 - Native ids are monotonic across remounts, so a stale tree can never collide with the new one.
 

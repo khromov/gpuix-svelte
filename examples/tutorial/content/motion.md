@@ -4,7 +4,7 @@ CSS `transition` and `transform` are silently ignored — there is no CSS engine
 motion={{ initial, animate, transition }}
 ```
 
-- **`animate`** holds the target values. Change them and GPUI tweens from wherever the element currently is. Animatable keys: `left`, `top`, `width`, `height`, `opacity`, `borderRadius`.
+- **`animate`** holds the target values. Change them and GPUI tweens from wherever the element currently is. Animatable keys: `left`, `top`, `right`, `bottom`, `width`, `height`, `opacity`, `borderRadius`.
 - **`initial`** is where the element starts on mount; `initial: false` skips the entrance and starts at `animate`.
 - **`transition`** takes `duration` in **seconds** (not milliseconds), an optional `delay`, and `ease`: `linear`, `ease`, `easeIn`, `easeOut`, `easeInOut` or a cubic-bezier array `[x1, y1, x2, y2]`.
 

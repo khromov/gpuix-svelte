@@ -2,7 +2,7 @@ A component for GPUI looks like a component for the browser, with a smaller voca
 
 Three habits to pick up on day one:
 
-- **Always set `color`.** GPUI paints text black by default, which vanishes on a dark background. Text properties (`color`, `font-*`) inherit from parents; nothing else does.
+- **Always set `color`.** GPUI paints text black by default, which vanishes on a dark background. Text properties (`color`, `font-*`, `line-height`, `text-align`, `white-space`, `text-decoration` and the like) inherit from parents, as do `user-select` and `selection-color`; nothing else does.
 - **The root fills the window.** The renderer mounts into a root styled `display: flex; width: 100%; height: 100%`, so your outermost `div` is a flex child of the window and usually repeats those two sizes.
 - **`class` needs a `<style>` block.** There is no global stylesheet; a class only means something when the same component defines it (step 5).
 
