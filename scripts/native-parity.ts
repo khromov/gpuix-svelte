@@ -1,4 +1,4 @@
-// After a native bump, docs/native-parity.md is checked against this rather than against another read of index.d.ts.
+// After a native bump, this is what finds the new surface, rather than another read of index.d.ts.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

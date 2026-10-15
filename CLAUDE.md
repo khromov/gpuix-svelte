@@ -108,9 +108,9 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints". Not a runtime script, so no bun twin
 npm run parity             # the @gpuix/native methods nothing in src/ calls (--all: every method,
-                           # the classes that have it, its callers) plus a GPUI_EVENTS check —
-                           # what docs/native-parity.md is refreshed against. Not a runtime
-                           # script, so no bun twin
+                           # the classes that have it, its callers) plus a GPUI_EVENTS check
+                           # against upstream's EVENT_PROPS; run it after a native bump. Not a
+                           # runtime script, so no bun twin
 npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and
                            # JS + declarations in lib/ — scripts/publish.ts wraps `npm pack`;
                            # `publish:npm` wraps `npm publish` the same way (release workflow)
@@ -394,9 +394,11 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   new `@gpuix/native/host`, `/runtime` and `/testing` entry points are the framework-neutral layer
   `@gpuix/react` and `@gpuix/solid` share; this renderer keeps its own `render.ts` / `renderer.ts`
   / `test.ts`, because that layer's event map and mutation queue would replace the batching here
-  rather than simplify it. `docs/native-parity.md` tables the whole contract (methods, window
-  options, events, element props, entry points) against what the package exposes; update it in the
-  same change as the range.
+  rather than simplify it. Moving the range: read the new tag's `CHANGELOG.md`, the `index.d.ts`
+  diff and the Rust (`renderer.rs`, `custom_elements/*.rs`, `style.rs`) at that tag; get `npm test`
+  and `npm run bun:test` passing on the new version before anything uses the new surface; and in
+  the same change, go through `npm run parity`'s output and redo `docs/styling.md`'s lists if
+  `style.rs` moved.
 
 ## Architecture
 
@@ -596,10 +598,6 @@ Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION`
 add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
 mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
 `StyleDesc`, with unknown keys already dropped, which is exactly what `docs/styling.md` claims.
-
-The same tag is the source for `docs/native-parity.md`: `npm run parity` re-derives its method
-tables from the installed `index.d.ts`, and its events and element props come from `renderer.rs`
-and `custom_elements/*.rs` (`emit_event_full`, `supported_props`, `supported_events`).
 
 **`events.ts`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
 GPUI keys listeners camelCase (`mouseEnter`). The map is derived by lowercasing GPUI's own list so
