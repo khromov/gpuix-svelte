@@ -1,29 +1,29 @@
 # Guide
 
-Input, search, focus, window helpers and state. Everything here is exported from `gpuix-svelte` unless
-noted.
+Input, search, focus, window helpers and state. Everything on this page is exported from
+`gpuix-svelte` unless noted.
 
 ## Forms
 
-`bind:` is refused by the compiler under a custom renderer. Inputs report through events, and the
-payload carries the value, since there is no DOM element to read:
+The compiler refuses `bind:` under a custom renderer, so inputs report through events, and the
+payload carries the value:
 
 ```svelte
 <input value={text} onchange={(e) => (text = e.value)} onsubmit={(e) => send(e.value)} />
 <textarea value={notes} onchange={(e) => (notes = e.value)}></textarea>
 ```
 
-To get hold of an element use `{@attach (node) => …}` (or `use:`); `node.nativeId` is what
-`get_native()`'s methods take, for `getElementBounds()` (`{ x, y, width, height }`) and
-`getScrollOffset()`.
+To get hold of an element, use `{@attach (node) => …}` (or `use:`). `node.nativeId` is what
+`get_native()`'s methods take, such as `getElementBounds()`, which returns
+`{ x, y, width, height }`, and `getScrollOffset()`.
 
-In a `<textarea>`, Enter inserts a newline unless it has `onsubmit`; then Enter submits and
-Shift+Enter is the newline. In an `<input>`, Enter always submits.
+In a `<textarea>`, Enter inserts a newline unless the element has `onsubmit`. With `onsubmit`,
+Enter submits and Shift+Enter inserts the newline. In an `<input>`, Enter always submits.
 
 ## Text search
 
-`div` and `text` take `highlight`, which GPUI paints natively behind matching text, and report the
-match count through `onhighlight`. `TextSearch` keeps that state for a find bar:
+`div` and `text` take a `highlight` prop, which GPUI paints natively behind matching text, and they
+report the match count through `onhighlight`. `TextSearch` keeps that state for a find bar:
 
 ```svelte
 <script lang="ts">
@@ -36,20 +36,21 @@ match count through `onhighlight`. `TextSearch` keeps that state for a find bar:
 <div highlight={search.spec} onhighlight={search.on_highlight}>{body}</div>
 ```
 
-`query`, `case_sensitive` and `whole_word` can be set at any time; `total` is the count native
-reported, `active` the current match, and `next()` / `prev()` wrap while `go_to(i)` ignores an
-index outside the matches. An empty query makes `spec` `null`, which clears the highlight. It is
-`@gpuix/native/host`'s `createTextSearchController` underneath.
+You can set `query`, `case_sensitive` and `whole_word` at any time. `total` is the count native
+reported, and `active` is the current match. `next()` and `prev()` wrap around, and `go_to(i)`
+ignores an index outside the matches. An empty query makes `spec` `null`, which clears the
+highlight. Besides the colours, the constructor takes a `radius` for the highlight's corners.
+Underneath, it's `@gpuix/native/host`'s `createTextSearchController`.
 
-`find_ranges(text, query, { case_sensitive, whole_word })` is native's matcher in JS, returning
-the `[start, end)` pairs `highlight={{ ranges }}` takes. It is for text native has not mounted,
-such as a virtual list's offscreen rows when counting a `matchIndexOffset`.
+`find_ranges(text, query, { case_sensitive, whole_word })` runs native's matcher in JS and returns
+the `[start, end)` pairs that `highlight={{ ranges }}` takes. Use it for text native hasn't
+mounted, such as a virtual list's offscreen rows when you count a `matchIndexOffset`.
 
 ## Keyboard shortcuts and focus
 
-`keydown` on an element needs that element focused (`tabindex="0"` or `autofocus`), and a key
-reaches the focused element *and* every focusable ancestor that listens. For app shortcuts, listen
-on the window instead:
+`keydown` on an element needs that element focused (`tabindex="0"` or `autofocus`). A key reaches
+the focused element *and* every focusable ancestor that listens. For app shortcuts, listen on the
+window:
 
 ```svelte
 <script>
@@ -59,7 +60,7 @@ on the window instead:
   $effect(() =>
     on_window_key('keydown', (e) => {
       if (e.modifiers.cmd && e.key === 'k') return focus_element(search);
-      if (e.key === 'escape' && !e.editing) close();
+      if (e.key === 'escape') return e.editing ? blur() : close();
     })
   );
 </script>
@@ -67,16 +68,18 @@ on the window instead:
 <input {@attach (node) => (search = node)} />
 ```
 
-The handler fires whatever has focus and returns its unsubscribe, which is why returning it from
-an `$effect` is the natural place; `render()` takes `onKeyDown` / `onKeyUp` for the same thing. A
-text field keeps receiving the keys typed into it, and `e.editing` says one has focus, so a handler
-can step aside. `blur()` hands focus back from a field and `focus_element(node)` focuses one;
-`focused_element()` returns the focused shadow node, and `focus_next_within(node)` /
-`focus_previous_within(node)` cycle the tab stops inside one element, wrapping there.
+`on_window_key` hears a key whatever has focus and returns an unsubscribe function, so returning
+it from an `$effect` cleans up for you. `render()` takes `onKeyDown` and `onKeyUp` options that do
+the same and survive remounts. A text field still receives the keys typed into it, and `e.editing`
+tells your handler that a field has focus, so it can step aside.
 
-Tab itself moves nothing: since native 0.7 it reaches `keydown` as an ordinary key. An app that
-wants Tab order wires it to `focus_next()` / `focus_previous()`, which walk every tab stop in the
-window in document order and wrap at the ends:
+`blur()` hands focus back from a field to the window, and `focus_element(node)` focuses an
+element. `focused_element()` returns the focused shadow node. `focus_next_within(node)` and
+`focus_previous_within(node)` cycle through the tab stops inside one element, wrapping there.
+
+Since native 0.7, Tab reaches `keydown` as an ordinary key and moves focus only if you wire it up.
+`focus_next()` and `focus_previous()` walk every tab stop in the window in document order and wrap
+at the ends:
 
 ```js
 on_window_key('keydown', (e) => {
@@ -84,14 +87,14 @@ on_window_key('keydown', (e) => {
 });
 ```
 
-Both walk the tab stops of the last painted frame, so one that an `{#if}` has just rendered joins
-the order once it has painted. To focus a particular new element, give it `autofocus` or call
-`focus_element(node)`.
+Both walk the tab stops of the last painted frame, so a stop that an `{#if}` has just rendered
+joins the order once it has painted. To focus a particular new element, give it `autofocus` or
+call `focus_element(node)`.
 
 ## Window size and insets
 
-`window_size` and `window_insets` from `gpuix-svelte` are reactive wherever a template, `$derived`
-or `$effect` reads them:
+`window_size` and `window_insets` are reactive wherever a template, `$derived` or `$effect` reads
+them:
 
 ```svelte
 <script>
@@ -105,64 +108,71 @@ or `$effect` reads them:
 ```
 
 GPUI has no resize event, so they poll native every 100 ms, and only while something reactive
-reads them: the first read starts the poll and it stops once the last component reading it is
-destroyed. A read anywhere else (a click handler, module code) gets the last polled value while
-something reactive is reading, and one fresh native call otherwise. Keep a `$derived` over them in
+reads them. The first reactive read starts the poll, and it stops once the last effect reading it
+is destroyed. A read anywhere else (a click handler, module code) gets the last polled value while
+a poll is running, and makes one fresh native call otherwise. Keep any `$derived` over them inside
 a component: one in a `.svelte.ts` module that is first read outside an effect starts a poll that
-nothing ever stops.
+never stops.
+
 `window_insets` carries `safeArea`, `ime` and `effective` (each `{ top, right, bottom, left }`)
-plus `keyboardTop`, `keyboardVisible` and `visibleHeight`, camelCase like every other value that
-comes from native. The headless test renderer reports its real viewport size and zero insets;
-before any window exists the size reads as 800×600.
+plus `keyboardTop`, `keyboardVisible` and `visibleHeight`. The names are camelCase, like every
+other value that comes from native. The headless test renderer reports its real viewport size and
+zero insets. Before any window exists, the size reads as 800×600.
 
 ## Window and desktop helpers
 
-All of these come from `gpuix-svelte`, take shadow nodes (from `{@attach}`) where they take an
-element, and are no-ops where the renderer lacks the call — the headless test renderer has no
-window, the browser build no file system. `examples/desktop-apis` (`npm run demo:desktop`) uses
-every one of them.
+All of these come from `gpuix-svelte`, and they take shadow nodes (from `{@attach}`) wherever they
+take an element. Where the renderer lacks the call, they quietly do nothing: the headless test
+renderer has no window, and the browser build has no file system. `examples/desktop-apis`
+(`npm run demo:desktop`) puts most of them to work.
 
-- `set_window_title(title)`, `activate_window()`, `minimize_window()`, `zoom_window()`,
+- `set_window_title(title)`, `activate_window()`, `minimize_window()`, `zoom_window()` and
   `toggle_fullscreen()`.
-- `prompt_for_paths({ files, directories, multiple, prompt })` opens the system picker and resolves
-  to absolute paths, or `null` on cancel (and headlessly). It rejects in a browser. There is no
-  file-type filter.
-- `on_selection_change(handler)` hears every change of the window's text selection, a clear
-  included; `e.value` is the selected text. It returns its unsubscribe, and `render()` takes
-  `onSelectionChange` for the same thing.
+- `prompt_for_paths({ files, directories, multiple, prompt })` opens the system picker and
+  resolves to absolute paths, or to `null` on cancel and headlessly. In a browser it rejects. It
+  has no file-type filter.
+- `on_selection_change(handler)` hears every change to the window's text selection, a clear
+  included. `e.value` is the selected text, and `undefined` after a clear. It returns its
+  unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.
 - `scroll_into_view(node)` scrolls the nearest scroll container or `<virtual-list>` until `node`
   shows.
 - `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`
-  without a data URL, and `set_image_pixels(node, width, height, rgba)` packed straight-alpha RGBA,
-  scaled into the element's box, so upload 2× for retina. Native forgets them when the element is
-  destroyed or its `src` changes. Called from `{@attach}`, they wait for the element to exist.
+  without going through a data URL. `set_image_pixels(node, width, height, rgba)` takes packed
+  straight-alpha RGBA and scales it into the element's box, so upload at 2× for a sharp image on
+  retina screens. Native forgets either one when the element is destroyed or its `src` changes.
+  Called from `{@attach}`, both wait for the element to exist.
 
-Elements also take `onfiledrop` (Finder drops; `e.paths` are absolute, `e.x` / `e.y` the drop
-point; not on `<virtual-list>`, wrap it) and `onmotioncomplete` (a `motion` track reached its
-target). `role` and the `aria-label`, `aria-description`, `aria-id`, `aria-expanded`,
-`aria-selected`, `aria-valuetext` and `aria-level` attributes reach VoiceOver and other
-accessibility clients through GPUI; `<text>` is a label by default, and an element needs a `role`
-to appear at all.
+Elements also take `onfiledrop`, for files dropped from the system's file manager. `e.paths` are
+absolute, and `e.x` / `e.y` is the drop point. `<virtual-list>` doesn't get it, so wrap a list in a
+`div` to take drops. `onmotioncomplete` fires when a `motion` track reaches its target. `role` and
+the `aria-label`, `aria-description`, `aria-id`, `aria-expanded`, `aria-selected`,
+`aria-valuetext` and `aria-level` attributes reach VoiceOver and other accessibility clients
+through GPUI. A `<text>` is a label by default, and any other element needs a `role` to show up
+in the accessibility tree.
 
-GPUI's draw-time overlay sits top right: current, 1% and 10% worst and max draw ms, plus a frame
-count (`minimal` shows the last draw only). Draw time is not fps; 8.3 ms is 120 Hz. Turn it on with
-`render(App, { debugFrameOverlay: 'full' })`, or on any app without touching code with `GPUIX_FPS=1`
-(or `=minimal`), which wins over the option. At runtime `set_debug_overlay(mode)`,
-`cycle_debug_overlay()` (hidden → minimal → full, for a key binding) and `debug_overlay()` drive it,
-and `debug_overlay_stats()` / `reset_debug_overlay_stats()` read and clear the same numbers for a
-script or a headless bench; they are recorded while the overlay is hidden too. A hot reload keeps
-whatever mode is showing.
+### The draw-time overlay
+
+GPUI can show an overlay in the top-right corner with the current, 1%-worst, 10%-worst and maximum
+draw times in ms, plus a frame count; `minimal` shows only the last draw. These are draw times, so
+compare them with the frame budget: 8.3 ms per frame is 120 Hz.
+
+Turn it on with `render(App, { debugFrameOverlay: 'full' })`, or for any app without touching code
+with `GPUIX_FPS=1` (or `=minimal`), which takes precedence over the option. At runtime,
+`set_debug_overlay(mode)`, `cycle_debug_overlay()` (hidden → minimal → full, handy for a key
+binding) and `debug_overlay()` control it. `debug_overlay_stats()` and
+`reset_debug_overlay_stats()` read and clear the same numbers for a script or a headless bench, and
+they keep recording while the overlay is hidden. A hot reload keeps whatever mode is showing.
 
 ## State that survives hot reload
 
-`render_hot` remounts the root on every `.svelte` save, so component state resets. A `.svelte.ts`
-runes module is loaded once per process and never cache-busted, which makes it the place for state
-that should outlive a reload — the current route, the theme, an app object:
+`render_hot` remounts the root every time you save a `.svelte` file, so component state resets. A
+`.svelte.ts` runes module loads once per process and is never cache-busted, which makes it the
+place for state that should outlive a reload: the current route, the theme, an app object.
 
 ```ts
 // state.svelte.ts
 export const app = $state({ route: '/', theme: 'system' });
 ```
 
-The flip side: editing a `.svelte.ts` (or any `.ts`) file needs a restart; `render_hot` prints a
-reminder when one changes under the watched directory.
+The flip side: editing a `.svelte.ts` file, or any other `.ts` or `.js` module, needs a restart.
+`render_hot` prints a reminder the first time one changes under the watched directory.

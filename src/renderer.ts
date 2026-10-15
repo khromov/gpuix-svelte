@@ -55,7 +55,7 @@ const UNIVERSAL_PROPS = new Set([
 	'aria-level'
 ]);
 
-/** Attributes that feed `setStyle` rather than a custom prop — `class` via the component's `<style>` rules. */
+/** Attributes that feed `setStyle`; `class` does so through the component's `<style>` rules. */
 const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
 
 /** Attributes the renderer consumes itself; never forwarded as props. */
@@ -124,7 +124,8 @@ let commit_scheduled = false;
 const warned_tags = new Set<string>();
 
 /**
- * Window-level key events arrive on whatever id `setWindowKeyEvents` was given, so
+ * Window-level key and selection events arrive on whatever id `setWindowKeyEvents` and
+ * `setWindowSelectionChange` were given, so
  * one pseudo node, never materialised, holds their listeners under that id.
  */
 const window_node = node('window' as NodeKind, 'window', '');
@@ -350,7 +351,7 @@ function materialize(n: ShadowNode) {
 
 	if (n.nativeId === null) {
 		if (n.kind === 'text') {
-			// Blank text is an anchor, not content — leave it virtual so it
+			// Blank text is only an anchor, so it stays virtual and
 			// doesn't occupy a slot in GPUI's flex layout.
 			if (is_blank(n.data)) return;
 
@@ -621,7 +622,7 @@ export function set_css_vars(vars: Record<string, string | number | null>) {
 	}
 }
 
-// Host wiring — used by `render.ts`, not by compiled components.
+// Host wiring for `render.ts` and the test harness.
 
 export function set_native(instance: NativeSink) {
 	native = instance;

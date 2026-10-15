@@ -1,7 +1,7 @@
 /**
- * Registered via `bunfig.toml`'s `preload` so it is in place before the entry
- * module resolves. `Bun.build` ignores runtime registrations, so the load hook
- * is also exported for `scripts/compile.ts` to wire up itself.
+ * Preloaded (`--preload gpuix-svelte/plugin` from the bin, or `bunfig.toml`'s `preload`) so
+ * it is in place before the entry module resolves. `Bun.build` ignores runtime registrations,
+ * so the hooks are also exported for a build script to wire up itself.
  */
 
 import { plugin, type OnLoadArgs, type OnLoadResult, type OnResolveArgs, type PluginBuilder } from 'bun';

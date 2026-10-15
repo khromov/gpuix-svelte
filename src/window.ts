@@ -1,7 +1,7 @@
 /**
  * Window-level calls app code makes that the headless renderer cannot answer —
  * `TestGpuixRenderer` has no window to title, activate or blur — so each one is a
- * no-op there rather than a guard in every component.
+ * no-op there, which spares every component a guard.
  */
 
 import type { PathPromptOptions } from '@gpuix/native';

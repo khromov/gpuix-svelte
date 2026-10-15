@@ -71,7 +71,7 @@
 * cap @gpuix/native below 0.8.0, whose getElementBounds returns an object ([#22](https://github.com/khromov/gpuix-svelte/issues/22)) ([7e6074d](https://github.com/khromov/gpuix-svelte/commit/7e6074dfdc387a62f9bf053bcb9439de6bdad019))
 * drain mutations on a microtask where there is no frame loop ([4ea2450](https://github.com/khromov/gpuix-svelte/commit/4ea2450d1d4cf83e7ce2d509656d5645ab8aba5d))
 * **examples:** give the control center a real titlebar off macOS ([1c4b085](https://github.com/khromov/gpuix-svelte/commit/1c4b085cd23c06a520ae795451aa9fae43230676))
-* fan the demo scripts out from node, not a POSIX shell ([8efb442](https://github.com/khromov/gpuix-svelte/commit/8efb442346c293dad7d4370f450766183ddbd520))
+* fan the demo scripts out from node ([8efb442](https://github.com/khromov/gpuix-svelte/commit/8efb442346c293dad7d4370f450766183ddbd520))
 * **hot:** cache-bust dynamic and side-effect .svelte imports ([78bfcd0](https://github.com/khromov/gpuix-svelte/commit/78bfcd0d7fda71c1324c6a0feb05f1b4b8aebb6e))
 * import through a file:// URL in render_hot ([4dbe3e2](https://github.com/khromov/gpuix-svelte/commit/4dbe3e2f3258d0615cc9ee7fa25bc9edb7d1a929))
 * keep the window's own plumbing alive through a throw ([7dc3e06](https://github.com/khromov/gpuix-svelte/commit/7dc3e06532f3d6aa50df29031b10a6d1be42c5f5))

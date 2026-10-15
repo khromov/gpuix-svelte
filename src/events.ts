@@ -31,7 +31,7 @@ export const GPUI_EVENTS: readonly string[] = [
 	'motionComplete',
 	// `highlight={{ query }}` on div/text reports its match count
 	'highlight',
-	// `<virtual-list>` reports the rows it has in view instead of a scroll offset
+	// `<virtual-list>` reports the range of rows it has in view
 	'visibleRange'
 ];
 

@@ -9,7 +9,7 @@ import { mount, unmount, flushSync, type Component } from 'svelte';
 import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
 
-/** The headless viewport can be any width, but never taller than this; Windows ignores the size altogether. */
+/** On macOS the headless viewport can be any width but never taller than this; Windows ignores the requested size. */
 export const MAX_HEADLESS_HEIGHT = 538;
 
 /** One node of `getTreeJson()`: what GPUI holds, with the ids the shadow tree assigned. */
@@ -368,7 +368,7 @@ export function clock_resume(): number {
 	return now;
 }
 
-/** Runs GPUI's own due timers (caret blink, drag autoscroll); not the motion clock, and not `setTimeout`. */
+/** Runs GPUI's own due timers (caret blink, drag autoscroll); the motion clock and `setTimeout` keep their own time. */
 export function advance_time(ms: number) {
 	native().advanceTime(ms);
 	pump();
@@ -422,7 +422,7 @@ export function screenshot(path: string) {
 	return path;
 }
 
-// Assertions: a plain script that exits 1 on failure — no runner.
+// Assertions for a plain script that exits 1 on failure.
 
 let failures = 0;
 let ran = 0;

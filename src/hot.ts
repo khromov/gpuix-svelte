@@ -10,14 +10,14 @@ import { render } from './render.ts';
 import type { RenderOptions } from './types.ts';
 
 /**
- * Watching here rather than leaning on `bun --hot` keeps one Svelte runtime for
- * the life of the process, so the old tree unmounts properly.
+ * An in-process watch keeps one Svelte runtime for the life of the process, so the
+ * old tree unmounts properly; `bun --hot` would re-evaluate that runtime.
  *
- * `entry` is the path to the root `.svelte` component.
+ * `entry` is the root `.svelte` component, as a path or a `file:` URL.
  */
 export async function render_hot(entry: string | URL, options: RenderOptions = {}): Promise<void> {
 	// A bare Windows path is not a valid import specifier ("D:" parses as a URL
-	// scheme), so the cache-buster is appended to a file:// URL instead.
+	// scheme), so the cache-buster goes on a file:// URL.
 	const url = entry instanceof URL ? entry : pathToFileURL(entry);
 	const path = fileURLToPath(url);
 
@@ -32,7 +32,7 @@ export async function render_hot(entry: string | URL, options: RenderOptions = {
 		if (!file) return;
 
 		// Modules (`.svelte.ts` state included) load once per process, which is what
-		// lets their state outlive a remount — so an edit there needs a restart, not a reload.
+		// lets their state outlive a remount — so an edit there needs a restart.
 		if (/\.[jt]s$/.test(file) && !file.includes('node_modules')) {
 			if (!stale.has(file)) {
 				stale.add(file);

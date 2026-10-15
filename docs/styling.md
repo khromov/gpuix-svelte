@@ -1,13 +1,13 @@
 # Styling
 
-What CSS reaches GPUI, what is dropped, and how theming works. `npm run demo:styling` in a clone
-of the repo shows every rule here side by side.
+This page covers what CSS reaches GPUI, what gets dropped, and how theming works. In a clone of
+the repo, `npm run demo:styling` shows every rule here side by side.
 
 ## What works and what does not
 
-There is no CSS engine. The `style` attribute is parsed into a plain object and sent to GPUI,
-whose layout is flexbox in logical pixels. `<style>` blocks work for class rules, compiled the
-same way.
+There is no CSS engine. The renderer parses the `style` attribute into a plain object and sends it
+to GPUI, which lays everything out with flexbox (or a simple grid) in logical pixels. `<style>`
+blocks work for class rules, which are compiled the same way.
 
 ```svelte
 <div class="btn" style="padding: 8px 16px; border-radius: 8px">Click</div>
@@ -22,55 +22,64 @@ same way.
 
 - Inline `style` and `style:` directives. Box shorthands (`padding: 8px 16px`, `margin`,
   `border-width`, `border-radius`, `gap`, `inset`) expand to GPUI's longhands.
-- `<style>` rules made of classes, at most one tag, and `:hover` / `:active`: `.btn`,
-  `.btn.primary`, `.a, .b`, `div`. Scoped per component like Svelte's DOM output. Specificity is
-  class count, then source order; inline `style` always wins. `class:` directives and dynamic
-  class strings restyle live.
-- `hover="..."` and `active="..."` attributes: `:hover` and `:active` styles set directly on the element.
+- `<style>` rules made of classes, at most one tag, and `:hover` or `:active`: `.btn`,
+  `.btn.primary`, `.a, .b`, `div`, `div.card`. They're scoped per component, like Svelte's DOM
+  output. The rule with more classes wins; with equal classes, a rule with a tag beats one
+  without; after that, the later rule wins. Inline `style` always wins. `class:` directives and
+  dynamic class strings restyle live.
+- `hover="..."` and `active="..."` attributes, for hover and press styles set directly on the
+  element.
 - `var(--token)` and `var(--token, fallback)` in class rules and inline styles, on any property.
-  Values come from `set_css_vars({ token: '#fff' })`; a theme switch is one call — see
-  [Theming with CSS variables](#theming-with-css-variables).
+  Values come from `set_css_vars({ token: '#fff' })`, and a theme switch is one call (see
+  [Theming with CSS variables](#theming-with-css-variables)).
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
-- `display: flex | grid` and the flexbox properties, `position: absolute`, `overflow: hidden | scroll | auto`,
-  `opacity`, `cursor`, `white-space`, `text-overflow`, `font-*`, `text-align`, `text-decoration`,
-  `visibility: hidden`.
+- `display: flex | grid` and the flexbox properties, `position: absolute`,
+  `overflow: hidden | scroll | auto`, `opacity`, `cursor`, `white-space`, `text-overflow`,
+  `font-*`, `text-align`, `text-decoration` and `visibility: hidden`.
 
 **What doesn't work**
 
-- Units other than `px` and `rem` (`em`, `vh`, `vw`), and `%` or `auto` outside `width` / `height` /
-  `min-*` / `max-*`. Dropped with a warning, so `margin: 0 auto` never centers.
+- Units other than `px` and `rem` (`em`, `vh`, `vw`), and `%` or `auto` anywhere except `width`,
+  `height`, `min-*` and `max-*`. These are dropped with a warning, so `margin: 0 auto` can't center
+  anything.
 - Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1`), `border: 1px solid #fff` (use
-  `border-width` + `border-color`), `background: linear-gradient(...)`, `box-shadow`.
-- `line-height: 1.5` means 1.5 px. Always give it a unit.
-- `display: none` does nothing. Use `{#if}`, or `visibility: hidden` to keep the box.
-- Other selectors: descendant combinators, `:global`, attribute selectors, `@media`, nesting.
-  Refused at compile time with a warning.
-- `transform`, `transition`, `z-index`, `letter-spacing` are silently ignored.
-  Only text properties (colour, font) inherit from a parent.
-- Probably a lot of other things from CSS.
+  `border-width` and `border-color`), `background: linear-gradient(...)` and `box-shadow`.
+- Unitless `line-height`: `line-height: 1.5` means 1.5 px, so give it a unit.
+- `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
+- Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`
+  and `:active`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
+  compiler refuses them with a warning.
+- `transform`, `transition`, `z-index` and `letter-spacing` are ignored without a warning.
+- Only text properties (colour, font) inherit from a parent.
+- Assume the rest of CSS is missing too. The two lists below are what GPUI does understand.
 
 <details>
 <summary>Working, standard CSS semantics</summary>
 
-Values are logical pixels unless noted; `rem` is 16 px, GPUI's fixed rem size. Only the listed
+Values are logical pixels unless noted, and `rem` is 16 px, GPUI's fixed rem size. Only the listed
 keywords are recognised.
 
-- Layout: `display: flex | grid`; `flex-direction: row | column`; `flex-wrap: wrap | wrap-reverse | nowrap`;
-  `flex-grow`, `flex-shrink`, `flex-basis`; `gap`, `row-gap`, `column-gap`.
-- Alignment: `align-items: center | start | end`; `align-self: center | start | end | stretch | baseline`;
+- Layout: `display: flex | grid`; `flex-direction: row | column`;
+  `flex-wrap: wrap | wrap-reverse | nowrap`; `flex-grow`, `flex-shrink`, `flex-basis`; `gap`,
+  `row-gap`, `column-gap`.
+- Alignment: `align-items: center | start | end`;
+  `align-self: center | start | end | stretch | baseline`;
   `align-content: center | start | end | space-between | space-around | space-evenly | stretch | normal`;
-  `justify-content: center | start | end | space-between | space-around` (the `flex-` prefixed forms too;
-  no `space-evenly` for `justify-content`).
-- Sizing: `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` in px, `%` or `auto`.
+  `justify-content: center | start | end | space-between | space-around`. The `flex-` prefixed
+  forms work too. `justify-content` has no `space-evenly`.
+- Sizing: `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` in px, `%` or
+  `auto`.
 - Spacing: `padding`, `margin` and their four sides, with 1 to 4 value shorthands.
 - Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
-- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`; `auto` ships as
-  `scroll`, and with no scrollbars painted the two behave the same.
+- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` ships as
+  `scroll`, and since GPUI paints no scrollbars the two behave the same.
 - Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
-  `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value shorthands.
+  `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value
+  shorthands.
 - Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
-  `text-align: left | center | right | start`; `line-height` in px; `white-space: nowrap | normal`;
-  `text-overflow: ellipsis`; `text-decoration: underline | line-through | none`.
+  `text-align: left | center | right | start`; `line-height` in px or rem;
+  `white-space: nowrap | normal`; `text-overflow: ellipsis`;
+  `text-decoration: underline | line-through | none`.
 - Visibility: `visibility: hidden` paints nothing, keeps the layout box and leaves the tab order.
 - Interaction: `cursor` with the CSS keyword set (`pointer`, `text`, `grab`, `grabbing`, `move`,
   `crosshair`, `not-allowed`, the `*-resize` family, `copy`, `alias`, `context-menu`, `default`);
@@ -81,47 +90,49 @@ keywords are recognised.
 <details>
 <summary>Working, non-standard CSS semantics</summary>
 
-Accepted, but not what CSS would mean by it.
+These are accepted, but they mean something different from what CSS would.
 
 - Unitless numbers are pixels: `padding: 12`, `font-size: 18`.
 - `max-content`, `min-content` and `fit-content(...)` on `width` / `height` / `min-*` / `max-*`
   read as `auto`.
-- `grid-template-columns: 3` and `grid-template-rows: 2` take a count of equal tracks, not a track list.
-  `grid-column-min` and `grid-row-min` (`min-content | max-content`) set each track's minimum; neither
-  is a CSS property.
+- `grid-template-columns: 3` and `grid-template-rows: 2` take a number: the count of equal
+  tracks. `grid-column-min` and `grid-row-min` (`min-content | max-content`) are GPUI's own
+  properties for each track's minimum.
 - `justify-content: between | around` are aliases for `space-between` and `space-around`.
-- `position: fixed` lays out exactly like `absolute`; there is no viewport to fix to.
+- `position: fixed` lays out exactly like `absolute`.
 - `text-overflow: ellipsis-start` truncates from the left.
-- `line-clamp: N` works unprefixed, without `display: -webkit-box`.
-- `font-weight` also takes `thin`, `extralight`, `light`, `medium`, `semibold`, `extrabold`, `black`
-  and any number from 1 to 1000.
+- `line-clamp: N` works unprefixed, with no `display: -webkit-box` needed.
+- `font-weight` also takes `thin`, `extralight`, `light`, `medium`, `semibold`, `extrabold`,
+  `black` and any number from 1 to 1000.
 - `hover="..."` and `active="..."` are attributes that take the same CSS text as `style` and apply
-  only while the pointer is over, or pressing, the element. CSS cannot write a `:hover` rule inline;
-  here `<div style="color: #ccc" hover="color: #fff">` is the same as `.x { color: #ccc }` plus
-  `.x:hover { color: #fff }`. If both exist, the attribute wins.
-- `selection-color` sets the text-selection highlight; CSS has no equivalent.
-- With `pointer-events` unset, an element that paints a background or is `position: absolute` blocks
-  clicks to whatever is behind it, and mouse events never bubble. Put `hitbox="self"` on the
-  clickable element: the renderer then gives every descendant without a listener of its own
-  (`<img>` and `<svg>` included; inputs, scroll containers and focusable elements excepted)
-  `pointer-events: none`, so badges and icons pass the click through, while a child with its own
-  handler keeps its hitbox. Setting `pointer-events` yourself still wins.
+  while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
+  `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
+  `.x:hover { color: #fff }`. When both exist, the attribute wins.
+- `selection-color` sets the colour of the text-selection highlight, the job CSS gives to
+  `::selection`.
+- Mouse events never bubble, and with `pointer-events` unset, an element that paints a background
+  or is `position: absolute` blocks clicks to whatever is behind it. Put `hitbox="self"` on the
+  clickable element, and the renderer sets `pointer-events: none` on every descendant that has no
+  listener of its own, `<img>` and `<svg>` included, so badges and icons pass the click through.
+  A few descendants keep their hitbox: a child with its own handler, focusable elements
+  (`tabindex` or `autofocus`), scroll containers, and the elements that take input themselves
+  (`input`, `textarea`, `code`, `diff`, `markdown`, `virtual-list`, `anchored`, `canvas`). A
+  `pointer-events` you set yourself still wins.
 - `onclick` is the primary button alone, as in the DOM. A right or middle click is `onauxclick`,
   where `e.isRightClick` tells the two apart and `e.x` / `e.y` are window coordinates, so a menu
-  rendered through `<Portal>` can be placed straight at them. macOS's ctrl+click is *not* routed
-  there — it arrives as an ordinary `onclick` with `e.modifiers.ctrl`, so a handler that wants the
-  platform's secondary click has to check for it. `hitbox="self"` shields aux clicks like any other.
-- Animation goes through the `motion={{ initial, animate, transition }}` prop (`left`, `top`, `width`,
-  `height`, `opacity`, `border-radius`), not `transition`.
+  rendered through `<Portal>` can be placed right at them. macOS's ctrl+click arrives as an
+  ordinary `onclick` with `e.modifiers.ctrl` set, so a handler that wants the platform's secondary
+  click checks for it. `hitbox="self"` shields aux clicks like any other.
+- Animation goes through the `motion={{ initial, animate, transition }}` prop, which animates
+  `left`, `top`, `width`, `height`, `opacity` and `borderRadius` natively, with durations in
+  seconds.
 
 </details>
-
-`npm run demo:styling` shows all of these side by side.
 
 ## Theming with CSS variables
 
 Class rules are compiled ahead of time, but a `var()` in one resolves at runtime against a map you
-control, so a palette is one object and a theme switch is one call:
+control. A palette is one object, and a theme switch is one call:
 
 ```svelte
 <script>
@@ -143,11 +154,15 @@ control, so a palette is one object and a theme switch is one call:
 </style>
 ```
 
-`set_css_vars` restyles exactly the elements whose style read a variable, in one batch, and a call
-whose values are all already in force is a no-op. A `var()` works on any property, pixel-only ones
-included, and inside inline `style=` too. `var(--name, fallback)` uses the fallback while the
-variable is unset; without one the declaration is dropped, and the name is warned about once when
-the frame that read it ships — the `$effect` above runs after Svelte has styled the tree, so
-variables it defines are never reported. Keys are accepted with or without the `--`. Substrate, a
-second-brain app built on this renderer, themes itself exactly this way: one palette object per
-mode, handed over from its root component in an `$effect`.
+`set_css_vars` restyles exactly the elements whose style read a variable, in one batch. A call
+whose values are all already in force does nothing. `var()` works on any property, pixel-only ones
+included, and inside inline `style=` too. Keys work with or without the `--`, and setting one to
+`null` unsets it.
+
+`var(--name, fallback)` uses the fallback while the variable is unset. Without a fallback, the
+declaration is dropped and the name is warned about once, when the frame that read it ships.
+Because the warning waits for that frame, variables set by an `$effect` like the one above (which
+runs after Svelte has styled the tree) are never reported.
+
+Substrate, a second-brain app built on this renderer, themes itself exactly this way: one palette
+object per mode, handed over from its root component in an `$effect`.

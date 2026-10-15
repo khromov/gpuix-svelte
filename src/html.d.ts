@@ -4,7 +4,8 @@
  * here — then `hover=`, `onfiledrop` and `<virtual-list>` check, and `<span>` does not.
  *
  * svelte2tsx lowercases every attribute name except `on*` before checking it, unless the tag has a
- * hyphen, so `minRows` is declared as `minrows` here while Svelte still ships `minRows` at runtime.
+ * hyphen, so `minRows` is also declared as `minrows` (the `{minRows}` shorthand keeps its case),
+ * while Svelte ships `minRows` at runtime.
  */
 
 import type { Snippet } from 'svelte';
@@ -40,7 +41,7 @@ interface GpuixEvents {
 
 interface GpuixAttributes extends GpuixEvents {
 	children?: Snippet;
-	/** CSS text; see README's "Styling" for what GPUI makes of it. */
+	/** CSS text; docs/styling.md says what GPUI makes of it. */
 	style?: Text;
 	class?: ClassValue | null | undefined;
 	/** CSS text applied while the pointer is over the element; wins over a `:hover` rule. */

@@ -1,7 +1,7 @@
 /**
  * The structure mirrors `@gpuix/react`'s `render()` — a `globalThis` slot so
  * `hot.ts` remounts onto the same window, and a paced `setTimeout` loop
- * driving `tick()`. Node-free, so it bundles for the browser as-is.
+ * driving `tick()`. It imports no `node:*` module, so it bundles for the browser as-is.
  */
 
 import { GpuixRenderer, type EventPayload } from '@gpuix/native';
@@ -22,14 +22,14 @@ import { set_debug_overlay } from './window.ts';
 import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 
 /**
- * ~125fps, above any common refresh rate. `setImmediate` instead of a paced
+ * ~125fps, above the 60 and 120 Hz most displays run at. `setImmediate` instead of a paced
  * timeout burns ~73% CPU at idle (see the comment in @gpuix/react's renderer).
  */
 const FRAME_MS = 8;
 
 const SLOT = Symbol.for('gpuix.svelte.host');
 
-/** A browser bundle has no `process` at all, and both knobs it gates are desktop-only. */
+/** A browser bundle has no `process` at all, and every knob read through this is desktop-only. */
 const env = (name: string): string | undefined => globalThis.process?.env?.[name];
 
 interface Host {
@@ -53,7 +53,7 @@ function host(): Host {
 export function handle_event(event: EventPayload, onEvent?: (event: EventPayload) => void) {
 	try {
 		dispatch(event);
-		// Run Svelte's effects now rather than on the next microtask, so the
+		// Run Svelte's effects now, so the
 		// mutations they produce make it into this frame's batch.
 		flushSync();
 		commit();

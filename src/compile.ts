@@ -19,7 +19,7 @@ export const RENDERER_MODULE = process.env.GPUIX_SVELTE_RENDERER || 'gpuix-svelt
 
 /**
  * The registry's svelte carries the same version number as the custom-renderer build this
- * package bundles, so the loaders check for the API rather than the version.
+ * package bundles, so the loaders check for the API itself.
  */
 export const WRONG_SVELTE =
 	'[gpuix-svelte] svelte resolved to a build without the custom-renderer API. gpuix-svelte bundles the build it needs — remove svelte from your own dependencies and reinstall.';

@@ -129,7 +129,7 @@
 	}
 
 	// Every thumb restyle is a full native frame, so a wheel stream gets at most one
-	// per 50 ms rather than one per event; the offset has long moved by then.
+	// per 50 ms; the offset has long moved by then.
 	let pending: ReturnType<typeof setTimeout> | null = null;
 	function refresh() {
 		if (pending !== null) return;

@@ -40,13 +40,13 @@ registerHooks({
 		if (!/\.svelte(\?|$)/.test(url)) return nextLoad(url, context);
 
 		// `render_hot` busts Node's module cache with a `?v=N` tail; it lands in
-		// the URL's search rather than the path.
+		// the URL's search.
 		const file = new URL(url);
 		const query = file.search;
 		file.search = '';
 
 		// Declaring the format is what gets a `.svelte` URL past
-		// ERR_UNKNOWN_FILE_EXTENSION — no `resolve` hook is needed.
+		// ERR_UNKNOWN_FILE_EXTENSION; the `resolve` hook above only pins `svelte`.
 		return {
 			format: 'module',
 			shortCircuit: true,
