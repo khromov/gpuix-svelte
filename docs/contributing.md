@@ -1,8 +1,7 @@
 # Working on gpuix-svelte
 
-This page is about the repository itself: the demos, the tests and the release. To build an app
-with the package, start from the [README](../README.md). The renderer's design, and the
-constraints any change has to respect, are written down in [CLAUDE.md](../CLAUDE.md).
+To build an app with the package, start from the [README](../README.md). The renderer's design,
+and the constraints any change has to respect, are written down in [CLAUDE.md](../CLAUDE.md).
 
 ## Setup
 

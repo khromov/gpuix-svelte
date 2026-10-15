@@ -1,7 +1,7 @@
 # Styling
 
-This page covers what CSS reaches GPUI, what gets dropped, and how theming works. In a clone of
-the repo, `npm run demo:styling` shows every rule here side by side.
+In a clone of the repo, `npm run demo:styling` renders each style string next to what GPUI made
+of it.
 
 ## What works and what does not
 
@@ -51,7 +51,7 @@ blocks work for class rules, which are compiled the same way.
   compiler refuses them with a warning.
 - `transform`, `transition`, `z-index` and `letter-spacing` are ignored without a warning.
 - Only text properties (colour, font) inherit from a parent.
-- Assume the rest of CSS is missing too. The two lists below are what GPUI does understand.
+- Assume the rest of CSS is missing too.
 
 <details>
 <summary>Working, standard CSS semantics</summary>

@@ -1,9 +1,7 @@
 # Components
 
-Four components ship in the package: `Scroller`, `Portal`, `Tooltip` and `Popover`. This page
-covers them, plus GPUI's native `<anchored>` element, which `Tooltip` and `Popover` are built on.
-
-They're plain `.svelte` files, and your loader compiles them like your own components:
+Four components ship in the package: `Scroller`, `Portal`, `Tooltip` and `Popover`. They're
+plain `.svelte` files, and your loader compiles them like your own components:
 
 ```svelte
 <script>
@@ -26,7 +24,7 @@ Props:
 - `grow` (default `1`), the scroller's `flex-grow`.
 - `scroll={false}` clips the content and draws no thumb.
 - `follow` keeps the bottom in view while content grows, as in a streaming reply.
-- `virtual` and `estimate`, covered next.
+- `virtual` and `estimate` make it a [virtual list](#virtual-lists).
 - `testid`. The thumb gets `<testid>-thumb` and the drag overlay `<testid>-overlay`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as

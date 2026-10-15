@@ -1,10 +1,9 @@
 # Shipping an app
 
-This page shows how the repo's own examples become a standalone binary, a signed macOS app and a
-web page. The tools are scripts in the repository: copy
-[`scripts/compile.ts`](../scripts/compile.ts) or [`scripts/web.ts`](../scripts/web.ts) and point
-it at your own entry. An app made with `npm create gpuix-svelte` already has a `build.ts` for the
-binary. Both need [Bun](https://bun.com).
+Two scripts in the repository turn its examples into a standalone binary, a signed macOS app and a
+web page: [`scripts/compile.ts`](../scripts/compile.ts) and [`scripts/web.ts`](../scripts/web.ts).
+Copy one and point it at your own entry. An app made with `npm create gpuix-svelte` already has a
+`build.ts` for the binary. Both scripts need [Bun](https://bun.com).
 
 ## Build a standalone binary
 

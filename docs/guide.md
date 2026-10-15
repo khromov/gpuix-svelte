@@ -1,8 +1,5 @@
 # Guide
 
-Input, search, focus, window helpers and state. Everything on this page is exported from
-`gpuix-svelte` unless noted.
-
 ## Forms
 
 The compiler refuses `bind:` under a custom renderer, so inputs report through events, and the

@@ -71,8 +71,6 @@ and native addons.
 
 ## Coming from Svelte on the web
 
-Here's what to know, in short. Each item links to the full story.
-
 - **Elements are GPUI's**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `markdown`,
   `virtual-list`, `anchored` and a few more. Any other tag renders as a `div`, with a one-time
   warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
