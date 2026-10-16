@@ -1,0 +1,287 @@
+{
+ "mount": [
+  [
+   [
+    "createElement",
+    1,
+    "div"
+   ],
+   [
+    "setStyle",
+    1,
+    {
+     "display": "flex",
+     "width": "100%",
+     "height": "100%",
+     "position": "relative"
+    }
+   ],
+   [
+    "setRoot",
+    1
+   ],
+   [
+    "createElement",
+    2,
+    "div"
+   ],
+   [
+    "setStyle",
+    2,
+    {
+     "display": "flex",
+     "alignItems": "center",
+     "justifyContent": "center",
+     "width": "100%",
+     "height": "100%",
+     "backgroundColor": "#11111b"
+    }
+   ],
+   [
+    "createElement",
+    3,
+    "div"
+   ],
+   [
+    "setStyle",
+    3,
+    {
+     "display": "flex",
+     "flexDirection": "column",
+     "alignItems": "center",
+     "gap": 16,
+     "padding": 32,
+     "backgroundColor": "#1e1e2e",
+     "borderRadius": 12
+    }
+   ],
+   [
+    "createElement",
+    4,
+    "div"
+   ],
+   [
+    "setStyle",
+    4,
+    {
+     "fontSize": 48,
+     "fontWeight": "bold",
+     "color": "#cdd6f4"
+    }
+   ],
+   [
+    "setCustomProp",
+    4,
+    "testId",
+    "count"
+   ],
+   [
+    "createElement",
+    5,
+    "text"
+   ],
+   [
+    "setText",
+    5,
+    "0"
+   ],
+   [
+    "appendChild",
+    4,
+    5
+   ],
+   [
+    "appendChild",
+    3,
+    4
+   ],
+   [
+    "createElement",
+    6,
+    "div"
+   ],
+   [
+    "setStyle",
+    6,
+    {
+     "display": "flex",
+     "flexDirection": "row",
+     "gap": 12
+    }
+   ],
+   [
+    "createElement",
+    7,
+    "div"
+   ],
+   [
+    "setStyle",
+    7,
+    {
+     "paddingTop": 12,
+     "paddingRight": 24,
+     "paddingBottom": 12,
+     "paddingLeft": 24,
+     "borderRadius": 8,
+     "backgroundColor": "#313244",
+     "color": "#cdd6f4",
+     "fontWeight": "bold",
+     "cursor": "pointer",
+     "hover": {
+      "backgroundColor": "#45475a"
+     }
+    }
+   ],
+   [
+    "setCustomProp",
+    7,
+    "testId",
+    "minus"
+   ],
+   [
+    "setEventListener",
+    7,
+    "click",
+    true
+   ],
+   [
+    "createElement",
+    8,
+    "text"
+   ],
+   [
+    "setText",
+    8,
+    "-"
+   ],
+   [
+    "appendChild",
+    7,
+    8
+   ],
+   [
+    "appendChild",
+    6,
+    7
+   ],
+   [
+    "createElement",
+    9,
+    "div"
+   ],
+   [
+    "setStyle",
+    9,
+    {
+     "paddingTop": 12,
+     "paddingRight": 24,
+     "paddingBottom": 12,
+     "paddingLeft": 24,
+     "borderRadius": 8,
+     "backgroundColor": "#a6e3a1",
+     "color": "#1e1e2e",
+     "fontWeight": "bold",
+     "cursor": "pointer",
+     "hover": {
+      "backgroundColor": "#94e2d5"
+     }
+    }
+   ],
+   [
+    "setCustomProp",
+    9,
+    "testId",
+    "plus"
+   ],
+   [
+    "setEventListener",
+    9,
+    "click",
+    true
+   ],
+   [
+    "createElement",
+    10,
+    "text"
+   ],
+   [
+    "setText",
+    10,
+    "+"
+   ],
+   [
+    "appendChild",
+    9,
+    10
+   ],
+   [
+    "appendChild",
+    6,
+    9
+   ],
+   [
+    "appendChild",
+    3,
+    6
+   ],
+   [
+    "createElement",
+    11,
+    "div"
+   ],
+   [
+    "setStyle",
+    11,
+    {
+     "color": "#a6adc8",
+     "fontSize": 13
+    }
+   ],
+   [
+    "createElement",
+    12,
+    "text"
+   ],
+   [
+    "setText",
+    12,
+    "Edit App.svelte and save — the window hot-reloads."
+   ],
+   [
+    "appendChild",
+    11,
+    12
+   ],
+   [
+    "appendChild",
+    3,
+    11
+   ],
+   [
+    "appendChild",
+    2,
+    3
+   ],
+   [
+    "appendChild",
+    1,
+    2
+   ]
+  ]
+ ],
+ "click": [
+  [
+   [
+    "setText",
+    5,
+    "1"
+   ]
+  ]
+ ],
+ "text": [
+  "1",
+  "-",
+  "+",
+  "Edit App.svelte and save — the window hot-reloads."
+ ]
+}

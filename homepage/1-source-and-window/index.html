@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gpuix-svelte · Svelte components, drawn by GPUI</title>
+<meta name="description" content="A Svelte custom renderer for GPUI, the UI framework behind Zed. Your components open in a native desktop window, with no DOM or webview.">
+<link rel="canonical" href="https://khromov.github.io/gpuix-svelte/">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Crect x='5' y='8' width='22' height='16' rx='3' fill='none' stroke='%23ededed' stroke-width='2'/%3E%3Crect x='10' y='13' width='2.5' height='6' rx='.5' fill='%23ff3e00'/%3E%3C/svg%3E">
+<link rel="preload" href="../assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="gpuix-svelte">
+<meta property="og:title" content="gpuix-svelte: Svelte components, drawn by GPUI">
+<meta property="og:description" content="A Svelte custom renderer for GPUI, the UI framework behind Zed. Your components open in a native desktop window, with no DOM or webview.">
+<meta property="og:url" content="https://khromov.github.io/gpuix-svelte/">
+<meta property="og:image" content="https://khromov.github.io/gpuix-svelte/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The headline “Svelte components, drawn by GPUI.” and the command npm create gpuix-svelte@latest my-app, above the starter app’s App.svelte source and the native window it opens. Line 7 of the source is marked in orange, and the number it draws, 2, is outlined.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="gpuix-svelte: Svelte components, drawn by GPUI">
+<meta name="twitter:description" content="A Svelte custom renderer for GPUI, the UI framework behind Zed. Your components open in a native desktop window, with no DOM or webview.">
+<meta name="twitter:image" content="https://khromov.github.io/gpuix-svelte/og.png">
+<meta name="twitter:image:alt" content="The headline “Svelte components, drawn by GPUI.” and the command npm create gpuix-svelte@latest my-app, above the starter app’s App.svelte source and the native window it opens. Line 7 of the source is marked in orange, and the number it draws, 2, is outlined.">
+<style>
+@font-face{font-family:Geist;src:url(../assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(../assets/fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{
+--bg:#000;--s1:#0a0a0a;--s2:#111;--s3:#171717;
+--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.13);--line-3:rgba(255,255,255,.22);
+--text:#ededed;--text-2:#a1a1a1;--text-3:#8f8f8f;
+--accent:#ff3e00;--wash:rgba(255,62,0,.1);
+--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+--max:1200px;--gut:32px;
+--c-p:#8c8c8c;--c-t:#88b4e2;--c-a:#d3b98e;--c-s:#97c69c;--c-k:#e09cbc;--c-n:#e6b07e;--c-id:#d4d4d4;--c-ln:#5e5e5e;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg);-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+img{display:block;max-width:100%;height:auto}
+figure{margin:0}
+a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
+code,pre{font-family:var(--mono)}
+p code,dd code,td code{font-size:.88em;color:var(--text);background:var(--s2);border:1px solid var(--line);border-radius:5px;padding:.08em .34em;white-space:nowrap}
+figcaption code,.note code,.hint-line code,.stat code{font-size:.92em;color:var(--text-2);background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--text);outline-offset:3px;border-radius:6px}
+h1,h2,h3{margin:0;font-weight:600;color:var(--text)}
+h2{font-size:clamp(28px,2.9vw,40px);line-height:1.1;letter-spacing:-.036em;text-wrap:balance}
+h3{font-size:17px;line-height:1.3;letter-spacing:-.015em}
+p{margin:0}
+.wrap{width:100%;max-width:calc(var(--max) + var(--gut) * 2);margin:0 auto;padding:0 var(--gut)}
+.dim{color:var(--text-3)}
+
+.top{border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand>a:first-child{font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.ver{font:500 12px/1 var(--mono);color:var(--text-2);border:1px solid var(--line-2);border-radius:999px;padding:5px 9px;text-decoration:none;white-space:nowrap}
+.ver:hover{color:var(--text);border-color:var(--line-3)}
+.exp{font-size:13px;color:var(--text-3);text-decoration:none}
+.exp:hover{color:var(--text)}
+.nav ul{display:flex;gap:26px;margin:0;padding:0;list-style:none}
+.nav ul a{font-size:14px;color:var(--text-2);text-decoration:none}
+.nav ul a:hover{color:var(--text)}
+
+.hero{padding:30px 0 72px}
+h1{font-size:clamp(38px,5.3vw,70px);line-height:1.02;letter-spacing:-.046em;text-wrap:balance}
+.lead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:20px 40px;margin-top:18px}
+.lead p{max-width:33em;font-size:17px;line-height:1.55;color:var(--text-2)}
+.lead p b{font-weight:500;color:var(--text)}
+.act{display:grid;gap:10px;justify-items:end;min-width:0}
+.install{display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;height:44px;padding:0 6px 0 14px;background:var(--s1);border:1px solid var(--line-2);border-radius:10px}
+.install code{flex:1 1 auto;min-width:0;font-size:14px;white-space:nowrap;overflow-x:auto;scrollbar-width:none;color:var(--text)}
+.install code::-webkit-scrollbar{display:none}
+.install .pr{color:var(--text-3);margin-right:9px;user-select:none;-webkit-user-select:none}
+.caret{display:inline-block;width:2px;height:16px;margin-left:3px;background:var(--accent);vertical-align:-3px}
+.copy{flex:none;appearance:none;height:32px;min-width:64px;padding:0 12px;font:500 12.5px/1 var(--sans);color:var(--text);background:var(--s3);border:1px solid var(--line-2);border-radius:7px;cursor:pointer}
+.copy:hover{background:#1f1f1f;border-color:var(--line-3)}
+.links{display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);font:500 14px/1 var(--sans);text-decoration:none;color:var(--text);white-space:nowrap}
+.btn:hover{border-color:var(--line-3);background:var(--s2)}
+.btn.solid{background:var(--text);color:#000;border-color:var(--text)}
+.btn.solid:hover{background:#fff}
+
+.stage{display:grid;gap:14px;margin-top:28px}
+.stage .win{width:100%;max-width:642px;margin:0 auto}
+.hint-line{margin-top:18px;max-width:64em;font-size:13.5px;line-height:1.55;color:var(--text-3)}
+.hint-line b{font-weight:500;color:var(--text-2)}
+
+.editor{min-width:0;background:var(--s1);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -28px rgba(0,0,0,.95)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:36px;padding:0 14px;border-bottom:1px solid var(--line);font:400 12px/1 var(--mono);color:var(--text);white-space:nowrap}
+.bar span{overflow:hidden;text-overflow:ellipsis}
+.code{--g:46px;margin:0;padding:12px 0;overflow-x:auto;font:400 12.5px/1.65 var(--mono);color:var(--c-id);tab-size:2;-moz-tab-size:2}
+.code.sm{font-size:12px}
+.code code{display:grid;min-width:max-content;font:inherit}
+.code.soft code{min-width:0}
+.ln{display:block;position:relative;padding:0 18px 0 var(--g);white-space:pre}
+.ln::before{content:attr(data-n);position:absolute;left:0;width:calc(var(--g) - 18px);text-align:right;color:var(--c-ln);user-select:none;-webkit-user-select:none}
+.soft .ln{white-space:pre-wrap;overflow-wrap:break-word;padding-left:calc(var(--g) + var(--in, 0) * 1ch + 2ch);text-indent:-2ch}
+.soft .ln::before{text-indent:0}
+.ln.gap{color:var(--text-3)}
+.nw{white-space:nowrap}
+.ln[tabindex]{cursor:default}
+.ln[tabindex]:focus-visible{outline:1px solid var(--accent);outline-offset:-1px;border-radius:0}
+.p{color:var(--c-p)}.t{color:var(--c-t)}.a{color:var(--c-a)}.s{color:var(--c-s)}.k{color:var(--c-k)}.n{color:var(--c-n)}.f{color:#ededed}
+.sw{display:inline-block;width:.78em;height:.78em;margin:0 .32em 0 .05em;border-radius:2px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);vertical-align:-.06em}
+.diff .ln{--g:34px}
+.diff .ln::before{color:var(--text-3)}
+.diff .del{background:rgba(248,81,73,.1)}
+.diff .del::before{color:#f0857e}
+.diff .add{background:rgba(63,185,80,.11)}
+.diff .add::before{color:#73c784}
+.term{margin:0;padding:13px 16px;font:400 12.5px/1.65 var(--mono);color:var(--text-2);white-space:pre;overflow-x:auto}
+.term .pr{color:var(--text-3);user-select:none;-webkit-user-select:none}
+.term .cmd,.term .hl{color:var(--text)}
+.joined{border-top:1px solid var(--line);background:#050505}
+.tlabel{display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 6px 0 16px;border-top:1px solid var(--line);font:400 11.5px/1 var(--mono);color:var(--text-3)}
+.tcopy{position:relative}
+.tcopy .copy{position:absolute;top:8px;right:8px;height:26px;min-width:56px;font-size:12px;border-radius:6px}
+
+.win,.browser{position:relative;background:#11111b;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;box-shadow:0 44px 90px -34px rgba(0,0,0,1),0 0 0 1px rgba(0,0,0,.5)}
+.tb{position:relative;display:flex;align-items:center;justify-content:center;height:30px;padding:0 64px;background:#17171c;border-bottom:1px solid rgba(255,255,255,.06);font:500 12.5px/1 var(--sans);color:var(--text-2);white-space:nowrap}
+.tb>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.dots{position:absolute;left:12px;top:50%;display:flex;gap:7px;transform:translateY(-50%);filter:saturate(.6) brightness(.92)}
+.dots i{width:11px;height:11px;border-radius:50%;background:#ff5f57}
+.dots i:nth-child(2){background:#febc2e}
+.dots i:nth-child(3){background:#28c840}
+.body{position:relative}
+.body img{width:100%}
+.browser{background:#111}
+.browser .tb{justify-content:flex-start;padding:0 0 0 76px;background:#1c1c1c}
+.browser .tab{align-self:flex-end;display:flex;align-items:center;height:24px;padding:0 16px;background:#11111b;border-radius:7px 7px 0 0;font-size:12px;color:var(--text)}
+
+.box{position:absolute;border:1.5px solid var(--accent);border-radius:7px;background:rgba(255,62,0,.06);opacity:0;transition:opacity .14s ease}
+.box .tag{position:absolute;left:-1.5px;bottom:calc(100% + 5px);padding:3px 6px;border-radius:4px;background:var(--accent);color:#fff;font:500 10.5px/1 var(--mono);white-space:nowrap;pointer-events:none}
+.box.in{background:none}
+.box.in .tag{bottom:auto;left:auto;top:8px;right:8px}
+.box.mid .tag{bottom:auto;left:auto;top:50%;right:10px;transform:translateY(-50%)}
+.box.l .tag,.box.r .tag{bottom:auto;top:50%;transform:translateY(-50%)}
+.box.l .tag{left:auto;right:calc(100% + 6px)}
+.box.r .tag{left:calc(100% + 6px)}
+[data-active=app] .box[data-t=app],[data-active=card] .box[data-t=card],[data-active=count] .box[data-t=count],[data-active=row] .box[data-t=row],[data-active=minus] .box[data-t=minus],[data-active=plus] .box[data-t=plus],[data-active=hint] .box[data-t=hint],[data-active=s1] .box[data-t=s1],[data-active=s2] .box[data-t=s2],[data-active=s3] .box[data-t=s3],[data-active=s4] .box[data-t=s4]{opacity:1}
+[data-active=app] .ln[data-t=app],[data-active=card] .ln[data-t=card],[data-active=count] .ln[data-t=count],[data-active=row] .ln[data-t=row],[data-active=minus] .ln[data-t=minus],[data-active=plus] .ln[data-t=plus],[data-active=hint] .ln[data-t=hint],[data-active=s1] .rule[data-t=s1],[data-active=s2] .rule[data-t=s2],[data-active=s3] .rule[data-t=s3],[data-active=s4] .rule[data-t=s4]{background:var(--wash);box-shadow:inset 2px 0 0 var(--accent)}
+[data-active=app] .ln[data-t=app]::before,[data-active=card] .ln[data-t=card]::before,[data-active=count] .ln[data-t=count]::before,[data-active=row] .ln[data-t=row]::before,[data-active=minus] .ln[data-t=minus]::before,[data-active=plus] .ln[data-t=plus]::before,[data-active=hint] .ln[data-t=hint]::before{color:var(--text)}
+
+.b-app{inset:5px}
+.b-card{left:20.47%;top:24.48%;width:59.06%;height:50.94%}
+.b-count{left:47.5%;top:31.15%;width:5%;height:16.15%}
+.b-row{left:40.08%;top:50.63%;width:19.84%;height:10.42%}
+.b-minus{left:40.08%;top:50.63%;width:8.75%;height:10.42%}
+.b-plus{left:50.7%;top:50.63%;width:9.22%;height:10.42%}
+.b-hint{left:25.3%;top:64.38%;width:49.4%;height:4.38%}
+
+.sec{border-top:1px solid var(--line);padding:100px 0}
+.sec.tight{padding:72px 0}
+.pair{--side:min(642px,calc((100% - 56px) * 7 / 12));display:grid;grid-template-columns:minmax(0,1fr) var(--side);gap:56px;align-items:start}
+.pair.w75{grid-template-columns:var(--side) minmax(0,1fr)}
+.pair.flip>.side{grid-column:1;grid-row:1}
+.pair.flip>.main{grid-column:2;grid-row:1}
+.pair+.pair{margin-top:88px}
+.main{display:grid;gap:22px;min-width:0}
+.main>p{max-width:36em;color:var(--text-2)}
+.main>h3{font-size:24px;line-height:1.2;letter-spacing:-.028em}
+.side{display:grid;gap:14px;min-width:0}
+.cap640{max-width:642px}
+.cap760{max-width:762px}
+.cap820{max-width:822px}
+figcaption{font-size:13.5px;line-height:1.55;color:var(--text-3)}
+.note{font-size:13.5px;line-height:1.55;color:var(--text-3)}
+.stack{display:grid;gap:12px}
+.more{justify-self:start;padding-bottom:1px;border-bottom:1px solid var(--line-3);font-size:14px;color:var(--text);text-decoration:none}
+.more:hover{border-color:var(--text)}
+
+.crop{position:relative;overflow:hidden}
+.crop-hn{aspect-ratio:1520/1386}
+.crop-sty{aspect-ratio:1640/1572}
+.crop-sty img{position:absolute;left:0;top:0;width:151.22%;max-width:none}
+
+.rules{border:1px solid var(--line-2);border-radius:12px;background:var(--s1);overflow:hidden}
+.rhead{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--s2);font:500 12px/1 var(--sans);color:var(--text-3)}
+.rules ul{margin:0;padding:0;list-style:none}
+.rule{display:grid;gap:5px;padding:14px 16px;border-top:1px solid var(--line);font:400 12.5px/1.6 var(--mono);cursor:default}
+.rule:first-child{border-top:0}
+.rule:focus-visible{outline:1px solid var(--accent);outline-offset:-1px;border-radius:0}
+.rule code{font:inherit;white-space:normal;overflow-wrap:anywhere;background:none;border:0;padding:0}
+.rule .in{color:var(--text)}
+.rule .out{padding-left:1.6em;text-indent:-1.6em;color:var(--text-2)}
+.rule .out::before{content:"→  ";color:var(--text-3)}
+.rule .warn{padding-left:1.6em;color:#d6a35e}
+
+.tokens{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.tokens li{padding:8px 10px;font:400 13px/1 var(--mono);color:var(--text);background:var(--s1);border:1px solid var(--line-2);border-radius:7px}
+.tokens.sm li{padding:6px 8px;font-size:12px;color:var(--text-2)}
+
+.stat{display:grid;gap:10px;padding:22px 16px 18px;border-top:1px solid var(--line)}
+.stat b{font-weight:600;font-size:clamp(40px,4.2vw,56px);line-height:1;letter-spacing:-.045em}
+.stat span{max-width:34em;font-size:14px;line-height:1.55;color:var(--text-2)}
+.twins{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+
+.rows{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 32px;margin-top:48px;align-items:start}
+.rows>h3{grid-column:1;padding-top:9px;font-size:15px;color:var(--text-2);font-weight:500}
+.rows>.tokens{grid-column:2/-1}
+.diffs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 32px;margin:0;grid-column:1/-1}
+.diffs>div{padding:20px 0 4px;border-top:1px solid var(--line)}
+.diffs dt{font-weight:600;font-size:15px;line-height:1.35;letter-spacing:-.01em}
+.diffs dd{margin:8px 0 0;font-size:14px;line-height:1.6;color:var(--text-2)}
+.diffs dd a{color:var(--text);white-space:nowrap}
+.diffs dd code,.diffs dt code{font-size:.9em;color:var(--text);background:none;border:0;padding:0}
+
+.ex{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:56px 32px;align-items:start}
+.ex>table{grid-column:2/-1}
+.ex .main{gap:18px}
+.cmds{width:100%;border-collapse:collapse;font-size:14.5px}
+.cmds td{padding:12px 0;border-top:1px solid var(--line);vertical-align:top;line-height:1.5;color:var(--text-2)}
+.cmds tr:last-child td{border-bottom:1px solid var(--line)}
+.cmds td:first-child{width:1%;padding-right:28px;white-space:nowrap}
+.cmds td:first-child code{font:400 13px/1.5 var(--mono);color:var(--text);background:none;border:0;padding:0}
+
+.reqs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 32px;margin:40px 0 0}
+.reqs>div{padding:20px 0;border-top:1px solid var(--line)}
+.reqs .wide{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 32px}
+.reqs dt{font-size:13.5px;line-height:1.4;color:var(--text-3)}
+.reqs dd{margin:8px 0 0;font-size:15px;line-height:1.6;color:var(--text)}
+.reqs .wide dd{grid-column:2/-1;margin:0;max-width:44em;color:var(--text-2)}
+.reqs .wide dd strong{font-weight:600;color:var(--text)}
+
+.foot{border-top:1px solid var(--line);padding:40px 0 56px}
+.foot .wrap{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:16px 32px}
+.foot p{font-size:14px;color:var(--text-2)}
+.foot p b{font-weight:600;letter-spacing:-.02em;color:var(--text)}
+.foot ul{display:flex;flex-wrap:wrap;gap:8px 24px;margin:0;padding:0;list-style:none}
+.foot ul a{font-size:14px;color:var(--text-2);text-decoration:none}
+.foot ul a:hover{color:var(--text)}
+.foot .fine{flex-basis:100%;font-size:13px;color:var(--text-3)}
+
+@media (min-width:960px){
+.stage{--ov:64px;display:flex;align-items:flex-start;gap:0}
+.stage .editor{flex:1 0 auto;position:relative;z-index:2;margin-top:40px}
+.stage .win{flex:0 1 642px;min-width:0;margin:0 0 0 calc(var(--ov) * -1)}
+.code.hero-code{font-size:11px;line-height:1.55}
+}
+@media (min-width:1100px){
+.stage{--ov:80px}
+.code.hero-code{font-size:12px}
+}
+@media (min-width:1300px){
+.code.hero-code{font-size:13px;line-height:1.65}
+.stage .editor{margin-top:44px}
+}
+@media (min-width:1100px) and (max-height:760px){
+.hero{padding-top:22px}
+.lead{margin-top:12px}
+.stage{--ov:56px;margin-top:18px}
+.stage .win{flex-basis:400px}
+.stage .editor{margin-top:36px}
+.code.hero-code{font-size:12px;line-height:1.45}
+.hint-line{margin-top:32px}
+}
+@media (min-width:1280px){
+main,.top,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--max) / 2 - var(--gut)) 0/1px 100% no-repeat,linear-gradient(var(--line),var(--line)) calc(50% + var(--max) / 2 + var(--gut)) 0/1px 100% no-repeat}
+}
+@media (max-width:1099px){
+.diffs{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rows{grid-template-columns:minmax(0,1fr);margin-top:32px;gap:16px}
+.rows>h3{padding-top:0}
+.rows>.tokens{grid-column:auto}
+.pair.stk{grid-template-columns:minmax(0,1fr);gap:40px}
+.pair.stk>.side,.pair.stk>.main{grid-column:auto;grid-row:auto}
+.pair.stk>.side{order:2}
+}
+@media (min-width:900px) and (max-width:1099px){
+.twins .win .tb>span:last-child{display:none}
+}
+@media (max-width:899px){
+:root{--gut:16px}
+.sec{padding:72px 0}
+.sec.tight{padding:56px 0}
+.hero{padding-bottom:56px}
+.lead{grid-template-columns:minmax(0,1fr)}
+.act{grid-template-columns:minmax(0,1fr);justify-items:stretch}
+.pair,.pair.w75,.ex{grid-template-columns:minmax(0,1fr);gap:28px}
+.pair.flip>.side,.pair.flip>.main{grid-column:auto;grid-row:auto}
+.pair>.side{order:2}
+.pair+.pair{margin-top:64px}
+.ex>table{grid-column:auto}
+.reqs{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 24px}
+.reqs .wide{grid-template-columns:minmax(0,1fr);gap:8px}
+.reqs .wide dd{grid-column:auto}
+}
+@media (max-width:560px){
+.nav ul{gap:16px}
+.brand{gap:8px}
+.exp{display:none}
+.hero{padding-top:28px}
+h1{font-size:clamp(34px,10vw,44px)}
+.lead p{font-size:16px}
+.install{gap:8px;padding-left:12px}
+.install code{font-size:12px}
+.install .pr{display:none}
+.copy{min-width:56px;padding:0 10px}
+.links .btn{flex:1 1 0;min-width:0}
+.tcopy .copy{position:static;display:block;margin:-6px 10px 12px auto}
+.twins{gap:12px}
+.twins .win .tb>span:last-child{display:none}
+.diffs,.reqs{grid-template-columns:minmax(0,1fr)}
+.reqs>div{padding:16px 0}
+.tb{padding:0 52px;font-size:12px}
+.browser .tb{padding-left:64px}
+.browser .tab{padding:0 10px}
+.bar .dir{display:none}
+.cmds tr{display:block;padding:12px 0;border-top:1px solid var(--line)}
+.cmds tr:last-child{border-bottom:1px solid var(--line)}
+.cmds td,.cmds tr:last-child td{display:block;padding:0;border:0}
+.cmds tr td:first-child{width:auto;padding-bottom:4px}
+}
+@media (max-width:380px){
+.ver{display:none}
+.nav ul{gap:12px}
+.install{flex-wrap:wrap;height:auto;padding:10px 6px 6px 12px;row-gap:6px}
+.install code{flex-basis:100%}
+.install .copy{margin-left:auto}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+<nav class="wrap nav" aria-label="Main">
+<div class="brand"><a href="./">gpuix-svelte</a><a class="ver" href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">v0.2.0</a><a class="exp" href="#status">Experimental</a></div>
+<ul>
+<li><a href="https://khromov.github.io/gpuix-svelte/">Docs</a></li>
+<li><a href="#examples">Examples</a></li>
+<li><a href="https://github.com/khromov/gpuix-svelte">GitHub</a></li>
+</ul>
+</nav>
+</header>
+
+<main id="top">
+<section class="hero" aria-labelledby="title">
+<div class="wrap">
+<h1 id="title">Svelte components, drawn by GPUI.</h1>
+<div class="lead">
+<p>A Svelte custom renderer for <b>GPUI</b>, the UI framework behind the Zed editor: your components open in a native desktop window, with no DOM or webview.</p>
+<div class="act">
+<div class="install"><code><span class="pr" aria-hidden="true">$</span>npm create gpuix-svelte@latest my-app<span class="caret" aria-hidden="true"></span></code><button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app" hidden>Copy</button></div>
+<div class="links"><a class="btn solid" href="https://khromov.github.io/gpuix-svelte/">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
+</div>
+</div>
+
+<div class="stage" data-active="count">
+<div class="editor">
+<div class="bar"><span><span class="dim">starter/</span>App.svelte</span><span class="dim">1–14</span></div>
+<pre class="code hero-code"><code>
+<span class="ln" data-n="1"><span class="p">&lt;</span><span class="t">script</span> <span class="a">lang</span><span class="p">=</span><span class="s">"ts"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="2">	<span class="k">let</span> count <span class="p">=</span> <span class="f">$state</span><span class="p">(</span><span class="n">0</span><span class="p">);</span></span>
+<span class="ln" data-n="3"><span class="p">&lt;/</span><span class="t">script</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="4"> </span>
+<span class="ln" data-n="5" data-t="app" tabindex="-1"><span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"app"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="6" data-t="card" tabindex="-1">	<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"card"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="7" data-t="count" tabindex="0">		<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"count"</span> <span class="a">testId</span><span class="p">=</span><span class="s">"count"</span><span class="p">&gt;{</span>count<span class="p">}&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="8" data-t="row" tabindex="-1">		<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"row"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="9" data-t="minus" tabindex="-1">			<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"btn"</span> <span class="a">testId</span><span class="p">=</span><span class="s">"minus"</span> <span class="a">onclick</span><span class="p">={() =&gt;</span> count<span class="p">--}&gt;</span>-<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="10" data-t="plus" tabindex="-1">			<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"btn primary"</span> <span class="a">testId</span><span class="p">=</span><span class="s">"plus"</span> <span class="a">onclick</span><span class="p">={() =&gt;</span> count<span class="p">++}&gt;</span>+<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="11" data-t="row">		<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="12" data-t="hint" tabindex="-1">		<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"hint"</span><span class="p">&gt;</span>Edit App.svelte and save — the window hot-reloads.<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="13" data-t="card">	<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="14" data-t="app"><span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+</code></pre>
+</div>
+<figure class="win">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>gpuix-svelte starter</span></div>
+<div class="body">
+<img src="../assets/shots/hot-before.png" width="640" height="480" fetchpriority="high" alt="The starter app’s window: a dark card with the count 2, a minus button, a teal plus button and the hint “Edit App.svelte and save — the window hot-reloads.”">
+<span class="box b-app in" data-t="app" aria-hidden="true"><span class="tag">.app</span></span>
+<span class="box b-card" data-t="card" aria-hidden="true"><span class="tag">.card</span></span>
+<span class="box b-row l" data-t="row" aria-hidden="true"><span class="tag">.row</span></span>
+<span class="box b-minus l" data-t="minus" aria-hidden="true"><span class="tag">.btn</span></span>
+<span class="box b-plus r" data-t="plus" aria-hidden="true"><span class="tag">.btn.primary</span></span>
+<span class="box b-count r" data-t="count" aria-hidden="true"><span class="tag">.count</span></span>
+<span class="box b-hint" data-t="hint" aria-hidden="true"><span class="tag">.hint</span></span>
+</div>
+</figure>
+</div>
+<p class="hint-line"><b>The <code>App.svelte</code> that <code>npm create</code> writes, and its window after two clicks on +</b> (the pointer is still on +, so it shows its <code>:hover</code> colour).<span data-js hidden> Point at a line, or tab into the code and use the arrow keys, to outline its element in the window.</span></p>
+</div>
+</section>
+
+<section class="sec tight" id="start" aria-labelledby="start-h">
+<div class="wrap pair">
+<div class="main">
+<h2 id="start-h">Quick start</h2>
+<p>A counter opens in its own window. Edit <code>App.svelte</code>, save, and the window hot-reloads.</p>
+<p class="note">On Bun, run <code>bun create gpuix-svelte my-app</code>, then <code>cd my-app</code>, <code>bun install</code> and <code>bun run start</code>. You need Node.js 24 or later, or Bun 1.4 or later.</p>
+</div>
+<div class="side">
+<div class="editor tcopy">
+<pre class="term"><span class="pr">$ </span><span class="cmd">npm create gpuix-svelte@latest my-app</span>
+<span class="pr">$ </span><span class="cmd">cd my-app</span>
+<span class="pr">$ </span><span class="cmd">npm install</span>
+<span class="pr">$ </span><span class="cmd">npm start</span></pre>
+<button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app&#10;cd my-app&#10;npm install&#10;npm start" hidden>Copy</button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="hot-reload" aria-labelledby="hot-h">
+<div class="wrap pair">
+<div class="main">
+<h2 id="hot-h">Hot reload</h2>
+<p>When you save a <code>.svelte</code> file, <code>render_hot</code> remounts the app in the window that’s already open. Component state starts over, but state kept in a <code>.svelte.ts</code> module survives. Editing a <code>.ts</code> or <code>.svelte.ts</code> file needs a restart.</p>
+<div class="editor">
+<div class="bar"><span><span class="dim">starter/</span>App.svelte</span><span class="dim">55–58</span></div>
+<pre class="code diff"><code>
+<span class="ln" data-n=" ">	<span class="a">.primary</span> <span class="p">{</span></span>
+<span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#a6e3a1" aria-hidden="true"></span><span class="n">#a6e3a1</span><span class="p">;</span></span>
+<span class="ln del" data-n="-">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#1e1e2e" aria-hidden="true"></span><span class="n">#1e1e2e</span><span class="p">;</span></span>
+<span class="ln add" data-n="+">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#ff3e00" aria-hidden="true"></span><span class="n">#ff3e00</span><span class="p">;</span></span>
+<span class="ln add" data-n="+">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#ffffff" aria-hidden="true"></span><span class="n">#ffffff</span><span class="p">;</span></span>
+<span class="ln" data-n=" ">	<span class="p">}</span></span>
+</code></pre>
+<div class="tlabel"><span>npm start</span></div>
+<pre class="term joined">[gpuix-svelte] created native window
+[gpuix-svelte] mount complete
+<span class="hl">[gpuix-svelte] remount complete</span></pre>
+</div>
+</div>
+<figure class="side cap640">
+<div class="win">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>gpuix-svelte starter</span></div>
+<div class="body"><img src="../assets/shots/hot-after.png" width="640" height="480" loading="lazy" decoding="async" alt="The same starter window after the save: the plus button is orange and the count is 0."></div>
+</div>
+<figcaption>The same window 2.5 s after the save: + is <code>#ff3e00</code>, and the count is back to 0.</figcaption>
+</figure>
+</div>
+</section>
+
+<section class="sec" id="live-data" aria-labelledby="hn-h">
+<div class="wrap pair w75 flip stk">
+<div class="main">
+<h2 id="hn-h">Live data in a list</h2>
+<p>The Hacker News example fetches the top 25 stories and renders each row with this markup. Node or Bun runs in the same process as the window, so the component imports <code>spawn</code> from <code>node:child_process</code> to open a story in your browser.</p>
+<div class="editor">
+<div class="bar"><span><span class="dim dir">examples/hacker-news/</span>HackerNews.svelte</span><span class="dim">131–152</span></div>
+<pre class="code soft sm"><code>
+<span class="ln" data-n="131" style="--in:0"><span class="p">{</span><span class="k">#each</span> stories <span class="k">as</span> story, rank <span class="p">(</span>story.id<span class="p">)}</span></span>
+<span class="ln gap" data-n="" style="--in:2">…</span>
+<span class="ln" data-n="141" style="--in:4"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"display: flex; flex-direction: column; gap: 4px; flex-grow: 1"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="142" style="--in:6"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"color: <span class="sw" style="--c:#cdd6f4" aria-hidden="true"></span>#cdd6f4; font-size: 14px"</span><span class="p">&gt;{</span>story.title<span class="p">}&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="143" style="--in:6"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"display: flex; flex-direction: row; gap: 10px; font-size: 12px"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="144" style="--in:8"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"color: <span class="sw" style="--c:#fab387" aria-hidden="true"></span>#fab387"</span><span class="p">&gt;{</span>story.score <span class="p">??</span> <span class="n">0</span><span class="p">}</span> points<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="145" style="--in:8"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"color: <span class="sw" style="--c:#6c7086" aria-hidden="true"></span>#6c7086"</span><span class="p">&gt;</span>by <span class="p">{</span>story.by<span class="p">}&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="146" style="--in:8"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"color: <span class="sw" style="--c:#6c7086" aria-hidden="true"></span>#6c7086"</span><span class="p">&gt;{</span><span class="f">age</span><span class="p">(</span>story<span class="p">)}&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="147" style="--in:8"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"color: <span class="sw" style="--c:#6c7086" aria-hidden="true"></span>#6c7086"</span><span class="p">&gt;{</span>story.descendants <span class="p">??</span> <span class="n">0</span><span class="p">}</span> comments<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="148" style="--in:8"><span class="p">&lt;</span><span class="t">div</span> <span class="a">style</span><span class="p">=</span><span class="s">"color: <span class="sw" style="--c:#45475a" aria-hidden="true"></span>#45475a"</span><span class="p">&gt;{</span><span class="f">domain</span><span class="p">(</span>story<span class="p">)}&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="149" style="--in:6"><span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="150" style="--in:4"><span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="151" style="--in:2"><span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="152" style="--in:0"><span class="p">{</span><span class="k">/each</span><span class="p">}</span></span>
+</code></pre>
+</div>
+</div>
+<figure class="side cap760">
+<div class="win">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>GPUIX + Svelte — Hacker News</span></div>
+<div class="body crop crop-hn"><img src="../assets/shots/hn.png" width="760" height="820" loading="lazy" decoding="async" alt="The Hacker News example: an orange Hacker News title with top, new and best tabs and a refresh button, over a list of stories, each with its points, author, age, comment count and domain."></div>
+</div>
+<figcaption>The Hacker News example, 760 × 820, live data from 2026-10-15, cropped to the top eight rows.</figcaption>
+</figure>
+</div>
+</section>
+
+<section class="sec" id="styling" aria-labelledby="sty-h">
+<div class="wrap pair" data-active="s4">
+<div class="main">
+<h2 id="sty-h">Styling</h2>
+<p>Styles are CSS text for a flexbox layout in logical pixels. The renderer expands shorthands into the longhands GPUI has, and drops any value GPUI can’t use, with a warning.</p>
+<div class="rules">
+<div class="rhead"><span>Style string</span><span>→ what GPUI gets</span></div>
+<ul>
+<li class="rule" data-t="s1" tabindex="0"><code class="in">padding: 6px 18px; border-radius: 10px; background-color: #89b4fa; color: #1e1e2e</code><code class="out">paddingTop: 6, paddingRight: 18, paddingBottom: 6, paddingLeft: 18, borderRadius: 10, backgroundColor: "#89b4fa", color: "#1e1e2e"</code></li>
+<li class="rule" data-t="s2" tabindex="-1"><code class="in">background-color: rebeccapurple; color: hsl(50 90% 70%)</code><code class="out">backgroundColor: "rebeccapurple", color: "hsl(50 90% 70%)"</code></li>
+<li class="rule" data-t="s3" tabindex="-1"><code class="in">margin: 0 auto</code><code class="out">marginTop: 0, marginBottom: 0</code><code class="warn">[gpuix-svelte] dropped unsupported style value `marginRight: auto`</code><code class="warn">[gpuix-svelte] dropped unsupported style value `marginLeft: auto`</code></li>
+<li class="rule" data-t="s4" tabindex="-1"><code class="in">border-radius: 50%; width: 48px; height: 48px</code><code class="out">width: 48, height: 48</code><code class="warn">[gpuix-svelte] dropped unsupported style value `borderRadius: 50%`</code></li>
+</ul>
+</div>
+<a class="more" href="https://khromov.github.io/gpuix-svelte/styling.html">Every property and value GPUI understands</a>
+</div>
+<figure class="side cap820">
+<div class="win">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>GPUIX + Svelte — Styling playground</span></div>
+<div class="body crop crop-sty">
+<img src="../assets/shots/styling.png" width="1240" height="860" loading="lazy" decoding="async" alt="The styling playground: cards that each print a style string above the box GPUI drew from it, under the headings “Reads like CSS” and “Looks like CSS, but is not”.">
+<span class="box mid" data-t="s1" style="left:1.95%;top:5.92%;width:46.34%;height:16.79%" aria-hidden="true"><span class="tag">padding: 6px 18px</span></span>
+<span class="box mid" data-t="s2" style="left:1.95%;top:61.64%;width:46.34%;height:17.3%" aria-hidden="true"><span class="tag">rebeccapurple</span></span>
+<span class="box mid" data-t="s3" style="left:51.71%;top:67.68%;width:46.34%;height:15.01%" aria-hidden="true"><span class="tag">margin: 0 auto</span></span>
+<span class="box mid" data-t="s4" style="left:51.71%;top:83.72%;width:46.34%;height:15.78%" aria-hidden="true"><span class="tag">border-radius: 50%</span></span>
+</div>
+</div>
+<figcaption>Two of the three columns in the styling playground (<code>npm run demo:styling</code>), which prints each style string above the box it styled. The 48 px box under <code>border-radius: 50%</code> stays square.</figcaption>
+</figure>
+</div>
+</section>
+
+<section class="sec" id="testing" aria-labelledby="test-h">
+<div class="wrap pair w75 flip">
+<div class="main">
+<h2 id="test-h">Headless tests</h2>
+<p><code>gpuix-svelte/test</code> mounts a component without opening a window, and its helpers click through GPUI’s real hit testing and input pipeline. A test is a plain script, with no test runner.</p>
+<p>Headless tests run on macOS and Windows. The Linux prebuild has no test renderer.</p>
+<ul class="tokens sm" aria-label="Some of the helpers">
+<li>mount_headless</li><li>click</li><li>click_test_id</li><li>type</li><li>press</li><li>hover</li><li>wheel</li><li>drag</li><li>drop_files</li><li>all_text</li><li>screenshot</li><li>clock_pause</li><li>advance_time</li><li>wait_for</li>
+</ul>
+<a class="more" href="https://khromov.github.io/gpuix-svelte/testing.html">Testing docs</a>
+</div>
+<div class="side">
+<div class="editor">
+<div class="bar"><span><span class="dim">starter/</span>test.ts</span></div>
+<pre class="code soft"><code>
+<span class="ln" data-n="1"><span class="k">import</span> <span class="p">{</span> mount_headless, click_test_id, all_text, check, finish <span class="p">}</span> <span class="nw"><span class="k">from</span> <span class="s">'gpuix-svelte/test'</span><span class="p">;</span></span></span>
+<span class="ln" data-n="2"><span class="k">import</span> App <span class="k">from</span> <span class="s">'./App.svelte'</span><span class="p">;</span></span>
+<span class="ln" data-n="3"> </span>
+<span class="ln" data-n="4"><span class="f">mount_headless</span><span class="p">(</span>App<span class="p">, {</span> width<span class="p">:</span> <span class="n">400</span><span class="p">,</span> height<span class="p">:</span> <span class="n">300</span> <span class="p">});</span></span>
+<span class="ln" data-n="5"> </span>
+<span class="ln" data-n="6"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'plus'</span><span class="p">);</span></span>
+<span class="ln" data-n="7"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'plus'</span><span class="p">);</span></span>
+<span class="ln" data-n="8"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'minus'</span><span class="p">);</span></span>
+<span class="ln" data-n="9"> </span>
+<span class="ln" data-n="10"><span class="f">check</span><span class="p">(</span><span class="s">'the buttons reached the counter'</span><span class="p">,</span> <span class="f">all_text</span><span class="p">().</span><span class="f">includes</span><span class="p">(</span><span class="s">'1'</span><span class="p">));</span></span>
+<span class="ln" data-n="11"><span class="f">finish</span><span class="p">(</span><span class="s">'starter'</span><span class="p">,</span> <span class="n">1</span><span class="p">);</span></span>
+</code></pre>
+<pre class="term joined"><span class="pr">$ </span><span class="cmd">npm test</span>
+<span class="hl">ok</span>   the buttons reached the counter
+
+<span class="hl">starter ok</span></pre>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="automation" aria-labelledby="auto-h">
+<div class="wrap pair">
+<div class="main">
+<h2 id="auto-h">Driving a running app</h2>
+<p><code>gpuix-svelte/automation</code> launches your app and drives its real window from another process, through a Playwright-style <code>App</code> and <code>Locator</code>. The wire is JSON over the app’s stdin and stdout, so any language can drive it.</p>
+<div class="stack">
+<div class="editor">
+<pre class="code soft"><code>
+<span class="ln" data-n="1"><span class="k">import</span> <span class="p">{</span> launch <span class="p">}</span> <span class="k">from</span> <span class="nw"><span class="s">'gpuix-svelte/automation'</span><span class="p">;</span></span></span>
+<span class="ln" data-n="2"> </span>
+<span class="ln" data-n="3"><span class="k">const</span> app <span class="p">=</span> <span class="k">await</span> <span class="f">launch</span><span class="p">({</span> entry<span class="p">:</span> <span class="s nw">'examples/counter/main.ts'</span> <span class="p">});</span></span>
+<span class="ln" data-n="4"><span class="k">for</span> <span class="p">(</span><span class="k">let</span> i <span class="p">=</span> <span class="n">0</span><span class="p">;</span> i <span class="p">&lt;</span> <span class="n">3</span><span class="p">;</span> i<span class="p">++)</span> <span class="k">await</span> app<span class="p">.</span><span class="f">getByTestId</span><span class="p">(</span><span class="s">'plus'</span><span class="p">).</span><span class="f">click</span><span class="p">();</span></span>
+<span class="ln" data-n="5"><span class="k">await</span> app<span class="p">.</span><span class="f">getByText</span><span class="p">(</span><span class="s nw">'3 clicks'</span><span class="p">).</span><span class="f">waitFor</span><span class="p">();</span></span>
+<span class="ln" data-n="6"><span class="k">await</span> app<span class="p">.</span><span class="f">screenshot</span><span class="p">({</span> path<span class="p">:</span> <span class="s">'counter.png'</span> <span class="p">});</span></span>
+<span class="ln" data-n="7"><span class="k">await</span> app<span class="p">.</span><span class="f">close</span><span class="p">();</span></span>
+</code></pre>
+</div>
+<p class="note">The script that took the screenshot, minus a <code>cwd</code> option and a short pause.</p>
+</div>
+</div>
+<figure class="side cap820">
+<div class="win">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>GPUIX + Svelte</span></div>
+<div class="body"><img src="../assets/shots/counter.png" width="820" height="560" loading="lazy" decoding="async" alt="The counter example after three clicks: the count 3, the line “3 clicks — the {#if} branch is live” and a keyed list of alpha, beta and gamma."></div>
+</div>
+<figcaption><code>counter.png</code>, as <code>app.screenshot()</code> wrote it after three clicks on +.</figcaption>
+</figure>
+</div>
+</section>
+
+<section class="sec" id="shipping" aria-labelledby="ship-h">
+<div class="wrap">
+<div class="pair">
+<div class="main">
+<h2 id="ship-h">Shipping</h2>
+<p><code>npm run build</code> compiles the app with Bun into one executable for the platform you build on. For a signed and notarized macOS <code>.app</code> with its own icon, start from the repository’s <code>scripts/compile.ts</code>.</p>
+<a class="more" href="https://khromov.github.io/gpuix-svelte/shipping.html">Shipping docs</a>
+</div>
+<div class="side">
+<div class="editor">
+<pre class="term"><span class="pr">$ </span><span class="cmd">npm run build</span>
+<span class="hl">built dist/app</span></pre>
+<div class="stat"><b>90.3 MB</b><span><code>dist/app</code> for the starter on macOS (Apple Silicon), with the Bun runtime and the GPUI addon inside. About 40 MB gzipped.</span></div>
+</div>
+</div>
+</div>
+<div class="pair w75 flip">
+<div class="main">
+<h3>In a browser</h3>
+<p>The same component code runs on GPUI compiled to WebAssembly, painting a WebGPU canvas (WebGL2 fallback). Nothing produces DOM nodes. Bun builds it, and the page must be served with these two headers:</p>
+<div class="editor">
+<pre class="term"><span class="cmd">Cross-Origin-Opener-Policy: same-origin</span>
+<span class="cmd">Cross-Origin-Embedder-Policy: require-corp</span></pre>
+</div>
+<p class="note">Serve the <code>.wasm</code> file as <code>application/wasm</code>. It’s 19.9 MB uncompressed, so compress it.</p>
+</div>
+<figure class="side">
+<div class="twins">
+<div class="win">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>GPUIX + Svelte — Tic-tac-toe</span></div>
+<div class="body"><img src="../assets/shots/tictactoe.png" width="480" height="640" loading="lazy" decoding="async" alt="Tic-tac-toe as a macOS window: X wins, and the score reads X: 1."></div>
+</div>
+<div class="browser">
+<div class="tb"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="tab">GPUIX Web</span></div>
+<div class="body"><img src="../assets/shots/web-tictactoe.png" width="480" height="640" loading="lazy" decoding="async" alt="Tic-tac-toe in Chrome, drawn by GPUI’s WebAssembly build on a WebGPU canvas: an empty board, X to move."></div>
+</div>
+</div>
+<figcaption>Tic-tac-toe as a macOS window, and in Chrome on GPUI’s WebAssembly build (<code>npm run demo:web</code>). Text renders differently in the two.</figcaption>
+</figure>
+</div>
+</div>
+</section>
+
+<section class="sec" id="svelte" aria-labelledby="svelte-h">
+<div class="wrap">
+<h2 id="svelte-h">Coming from Svelte on the web</h2>
+<div class="rows">
+<h3>Works as usual</h3>
+<ul class="tokens">
+<li>$state</li><li>$derived</li><li>$effect</li><li>$props</li><li>{#snippet}</li><li>{#each}</li><li>{#if}</li><li>{#await}</li><li>&lt;svelte:boundary&gt;</li><li>.svelte.ts</li><li>&lt;style&gt;</li><li>class:</li><li>style:</li><li>{@attach}</li>
+</ul>
+<h3>Different</h3>
+<dl class="diffs">
+<div><dt>Elements are GPUI’s</dt><dd><code>div</code>, <code>text</code>, <code>img</code>, <code>svg</code>, <code>input</code>, <code>textarea</code>, <code>markdown</code>, <code>virtual-list</code>, <code>canvas</code> and a few more. Any other tag renders as a <code>div</code>, with a warning.</dd></div>
+<div><dt>CSS is a subset</dt><dd>Lengths are <code>px</code> or <code>rem</code>, and sizes also take <code>%</code> and <code>auto</code>. <code>em</code>, <code>vh</code>, <code>vw</code> and <code>box-shadow</code> are dropped. <a href="https://khromov.github.io/gpuix-svelte/styling.html">Styling</a></dd></div>
+<div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> lets a clickable element take clicks on its decoration. <a href="https://khromov.github.io/gpuix-svelte/styling.html#what-works-and-what-does-not">Styling</a></dd></div>
+<div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. <a href="https://khromov.github.io/gpuix-svelte/guide.html#forms">Guide</a></dd></div>
+<div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. <a href="https://khromov.github.io/gpuix-svelte/guide.html#keyboard-shortcuts-and-focus">Guide</a></dd></div>
+<div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. <a href="https://khromov.github.io/gpuix-svelte/styling.html#theming-with-css-variables">Styling</a></dd></div>
+<div><dt>Components in the package</dt><dd><code>Scroller</code> draws a scrollbar, <code>Portal</code> paints modals, menus and toasts on top, and <code>Tooltip</code> and <code>Popover</code> hang beside a trigger. <a href="https://khromov.github.io/gpuix-svelte/components.html">Components</a></dd></div>
+<div><dt>Window and desktop helpers</dt><dd>Title, fullscreen, file picker and drops, images from raw pixels, focus order, and <code>aria-*</code> that reaches VoiceOver. <a href="https://khromov.github.io/gpuix-svelte/guide.html#window-and-desktop-helpers">Guide</a></dd></div>
+</dl>
+</div>
+</div>
+</section>
+
+<section class="sec" id="status" aria-labelledby="status-h">
+<div class="wrap">
+<h2 id="status-h">Status and requirements</h2>
+<dl class="reqs">
+<div class="wide"><dt>Status</dt><dd><strong>Experimental.</strong> gpuix-svelte is built on Svelte’s custom renderer API, which lives on an open pull request (<a href="https://github.com/sveltejs/svelte/pull/18511">sveltejs/svelte#18511</a>). Each release bundles the exact Svelte build it was tested against, so <code>gpuix-svelte</code> is the only runtime dependency an app adds. Expect breaking changes between minor versions.</dd></div>
+<div><dt>Runtime</dt><dd>Node.js 24 or later, or Bun 1.4 or later</dd></div>
+<div><dt>Platforms</dt><dd>macOS (Apple Silicon), Windows (x64), Linux (x64). The GPUI binary comes prebuilt from npm, so <code>npm install</code> is the whole setup.</dd></div>
+<div><dt>Graphics</dt><dd>Metal on macOS, DirectX on Windows, Vulkan on Linux</dd></div>
+<div><dt>Headless tests</dt><dd>macOS and Windows</dd></div>
+<div><dt>Executables and the web build</dt><dd>Bun, whichever runtime you develop on</dd></div>
+<div><dt>Version</dt><dd>0.2.0, released 2026-10-13, MIT license</dd></div>
+</dl>
+</div>
+</section>
+<section class="sec" id="examples" aria-labelledby="ex-h">
+<div class="wrap ex">
+<div class="main">
+<h2 id="ex-h">Examples</h2>
+<p>Clone the repository, run <code>bun install</code>, then one of these. <code>npm run demo</code> opens the counter, tic-tac-toe, Hacker News and control-center demos at once.</p>
+<a class="more" href="https://github.com/khromov/gpuix-svelte/tree/main/examples">examples/ on GitHub</a>
+</div>
+<table class="cmds">
+<tbody>
+<tr><td><code>npm run demo:counter</code></td><td>The counter, hot-reloading on save</td></tr>
+<tr><td><code>npm run demo:tictactoe</code></td><td>Tic-tac-toe with score tracking</td></tr>
+<tr><td><code>npm run demo:hn</code></td><td>Hacker News reader: live network data in a scrolling list</td></tr>
+<tr><td><code>npm run demo:glass</code></td><td>A translucent control center over macOS vibrancy (<code>demo:glass-ffi</code> uses real Liquid Glass via FFI, on macOS 26 and later)</td></tr>
+<tr><td><code>npm run demo:styling</code></td><td>Which CSS reaches GPUI and which is dropped, side by side</td></tr>
+<tr><td><code>npm run demo:desktop</code></td><td>Window controls, file picker and drops, live image pixels, selection, focus, accessibility</td></tr>
+<tr><td><code>npm run demo:web</code></td><td>Tic-tac-toe in a browser on GPUI’s WebAssembly build (Bun)</td></tr>
+<tr><td><code>npm run tutorial</code></td><td>A 12-step interactive guide to the renderer, itself a gpuix-svelte app</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+</main>
+
+<footer class="foot">
+<div class="wrap">
+<p><b>gpuix-svelte</b> · MIT license · <a href="https://github.com/khromov">Stanislav Khromov</a></p>
+<ul>
+<li><a href="https://github.com/khromov/gpuix-svelte">GitHub</a></li>
+<li><a href="https://www.npmjs.com/package/gpuix-svelte">npm</a></li>
+<li><a href="https://khromov.github.io/gpuix-svelte/">Docs</a></li>
+<li><a href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">Changelog</a></li>
+</ul>
+<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
+</div>
+</footer>
+
+<script>
+for (const el of document.querySelectorAll('[data-js]')) el.hidden = false;
+
+for (const button of document.querySelectorAll('[data-copy]')) {
+	let timer;
+	button.hidden = false;
+	button.addEventListener('click', async () => {
+		const text = button.dataset.copy;
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			// navigator.clipboard is missing on file:// and other insecure origins.
+			const area = Object.assign(document.createElement('textarea'), { value: text });
+			document.body.append(area);
+			area.select();
+			document.execCommand('copy');
+			area.remove();
+		}
+		button.textContent = 'Copied';
+		clearTimeout(timer);
+		timer = setTimeout(() => (button.textContent = 'Copy'), 1500);
+	});
+}
+
+for (const pair of document.querySelectorAll('[data-active]')) {
+	const resting = pair.dataset.active;
+	const stops = [...pair.querySelectorAll('[data-t][tabindex]')];
+	const target = (el) => el?.closest?.('[data-t]')?.dataset.t;
+	const show = (t) => (pair.dataset.active = t);
+	pair.addEventListener('pointerover', (e) => {
+		const t = target(e.target);
+		if (t) show(t);
+	});
+	pair.addEventListener('pointerleave', () => {
+		const focused = pair.contains(document.activeElement) && target(document.activeElement);
+		show(focused || resting);
+	});
+	pair.addEventListener('focusin', (e) => {
+		const t = target(e.target);
+		if (t) show(t);
+	});
+	pair.addEventListener('focusout', (e) => {
+		if (!pair.contains(e.relatedTarget)) show(resting);
+	});
+	pair.addEventListener('keydown', (e) => {
+		const i = stops.indexOf(document.activeElement);
+		if (i < 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+		e.preventDefault();
+		const next = stops[(i + (e.key === 'ArrowDown' ? 1 : stops.length - 1)) % stops.length];
+		for (const s of stops) s.tabIndex = -1;
+		next.tabIndex = 0;
+		next.focus();
+	});
+}
+</script>
+</body>
+</html>
