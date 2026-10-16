@@ -92,6 +92,7 @@ publishing (OIDC, with provenance). `npm run pack -- <dir>` builds the same tarb
 ## Docs site
 
 `npm run docs` renders the README and `docs/*.md` to static HTML in `dist/docs`, along with a
-markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for coding agents. The
-`docs` workflow publishes it to GitHub Pages on every push to `main` that touches them. A new page
-needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts).
+markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for coding agents. It also
+copies the homepage (`homepage/`) to the root, so the README renders as `overview.html`. The
+`docs` workflow publishes it to GitHub Pages on every push to `main` that touches any of them. A
+new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts).
