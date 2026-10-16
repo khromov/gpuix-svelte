@@ -1,11 +1,11 @@
 name: docs
 
-# Renders README.md and docs/*.md to static HTML (scripts/docs.ts) and deploys it to GitHub Pages.
-# Settings → Pages → Source must be "GitHub Actions".
+# Renders README.md and docs/*.md to static HTML (scripts/docs.ts), puts the homepage (homepage/) at
+# the root and deploys the result to GitHub Pages. Settings → Pages → Source must be "GitHub Actions".
 on:
   push:
     branches: [main]
-    paths: [README.md, docs/**, scripts/docs.ts, .github/workflows/docs.yml]
+    paths: [README.md, docs/**, homepage/**, scripts/docs.ts, .github/workflows/docs.yml]
   workflow_dispatch:
 
 permissions:

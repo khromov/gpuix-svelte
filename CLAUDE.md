@@ -97,6 +97,7 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # (scripts/docs.ts; links to other repo files go to GitHub), plus a
                            # markdown copy of each page with absolute links, llms.txt indexing
                            # them and llms-full.txt — starter/AGENTS.md points agents there;
+                           # homepage/ is copied to the root, so README becomes overview.html;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
                            # A new docs page also needs an entry in scripts/docs.ts's PAGES
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR

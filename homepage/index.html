@@ -641,7 +641,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <nav class="wrap nav" aria-label="Main">
 <div class="brand"><a href="./">gpuix-svelte</a><a class="ver" href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">v0.2.0</a><a class="exp" href="#status">Experimental</a></div>
 <ul>
-<li><a href="https://khromov.github.io/gpuix-svelte/">Docs</a></li>
+<li><a href="overview.html">Docs</a></li>
 <li><a href="#examples">Examples</a></li>
 </ul>
 </nav>
@@ -656,7 +656,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <p>gpuix-svelte renders your Svelte components into a native window on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no DOM or webview. Your UI shares its process with the whole of Node or Bun: files, processes, SQLite and native addons.</p>
 <div class="act">
 <div class="install"><code><span class="pr" aria-hidden="true">$</span>npm create gpuix-svelte@latest my-app<span class="caret" aria-hidden="true"></span></code><button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app" hidden>Copy</button></div>
-<div class="links"><a class="btn solid" href="https://khromov.github.io/gpuix-svelte/">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
+<div class="links"><a class="btn solid" href="overview.html">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
 </div>
 </div>
 
@@ -790,7 +790,7 @@ Created my-app. Next:
 </code></pre>
 <pre class="term joined"><span class="hl">[gpuix-svelte] remount complete</span></pre>
 </div>
-<a class="more" href="https://khromov.github.io/gpuix-svelte/guide.html#state-that-survives-hot-reload">State that survives a reload</a>
+<a class="more" href="guide.html#state-that-survives-hot-reload">State that survives a reload</a>
 </section>
 <section id="styling" aria-labelledby="sty-h">
 <h2 id="sty-h">Styling</h2>
@@ -805,7 +805,7 @@ Created my-app. Next:
 <span class="ln" data-n="17"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
 </code></pre>
 </div>
-<a class="more" href="https://khromov.github.io/gpuix-svelte/styling.html">Every property GPUI understands</a>
+<a class="more" href="styling.html">Every property GPUI understands</a>
 </section>
 <section id="testing" aria-labelledby="test-h">
 <h2 id="test-h">Testing</h2>
@@ -822,7 +822,7 @@ Created my-app. Next:
 <pre class="term joined"><span class="pr">$ </span><span class="cmd">npm test</span>
 <span class="hl">ok</span>   the buttons reached the counter</pre>
 </div>
-<a class="more" href="https://khromov.github.io/gpuix-svelte/testing.html">Headless tests and automation</a>
+<a class="more" href="testing.html">Headless tests and automation</a>
 </section>
 </div>
 </div>
@@ -831,7 +831,7 @@ Created my-app. Next:
 <div class="wrap">
 <div class="main">
 <h2 id="ship-h">Shipping</h2>
-<p><code>npm run build</code> needs Bun, whichever runtime you develop on, and writes one executable for the OS it runs on: about 90&nbsp;MB on macOS (Apple Silicon), with Bun and the GPUI addon inside. The <a href="https://khromov.github.io/gpuix-svelte/shipping.html">shipping docs</a> cover the macOS <code>.app</code>, signing and notarization. The same app also runs in a browser, on GPUI’s WebAssembly build.</p>
+<p><code>npm run build</code> needs Bun, whichever runtime you develop on, and writes one executable for the OS it runs on: about 90&nbsp;MB on macOS (Apple Silicon), with Bun and the GPUI addon inside. The <a href="shipping.html">shipping docs</a> cover the macOS <code>.app</code>, signing and notarization. The same app also runs in a browser, on GPUI’s WebAssembly build.</p>
 </div>
 <div class="shp-set">
 <svg class="shp-sprite" aria-hidden="true" focusable="false">
@@ -1027,11 +1027,11 @@ Created my-app. Next:
 <h3>Different</h3>
 <dl class="diffs">
 <div><dt>Elements are GPUI’s</dt><dd><code>div</code>, <code>text</code>, <code>img</code>, <code>input</code>, <code>textarea</code>, <code>markdown</code>, <code>virtual-list</code> and a few more. Other tags render as a <code>div</code>, with a warning.</dd></div>
-<div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> on a clickable element lets clicks on its icons and badges reach it. <a href="https://khromov.github.io/gpuix-svelte/styling.html#what-works-and-what-does-not">Styling</a></dd></div>
-<div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. <a href="https://khromov.github.io/gpuix-svelte/guide.html#forms">Guide</a></dd></div>
-<div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. <a href="https://khromov.github.io/gpuix-svelte/guide.html#keyboard-shortcuts-and-focus">Guide</a></dd></div>
-<div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. <a href="https://khromov.github.io/gpuix-svelte/styling.html#theming-with-css-variables">Styling</a></dd></div>
-<div><dt>In the package</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. <a href="https://khromov.github.io/gpuix-svelte/components.html">Components</a></dd></div>
+<div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> on a clickable element lets clicks on its icons and badges reach it. <a href="styling.html#what-works-and-what-does-not">Styling</a></dd></div>
+<div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. <a href="guide.html#forms">Guide</a></dd></div>
+<div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. <a href="guide.html#keyboard-shortcuts-and-focus">Guide</a></dd></div>
+<div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. <a href="styling.html#theming-with-css-variables">Styling</a></dd></div>
+<div><dt>In the package</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. <a href="components.html">Components</a></dd></div>
 </dl>
 </div>
 </div>
@@ -1064,7 +1064,7 @@ Created my-app. Next:
 <ul>
 <li><a href="https://github.com/khromov/gpuix-svelte">GitHub</a></li>
 <li><a href="https://www.npmjs.com/package/gpuix-svelte">npm</a></li>
-<li><a href="https://khromov.github.io/gpuix-svelte/">Docs</a></li>
+<li><a href="overview.html">Docs</a></li>
 <li><a href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">Changelog</a></li>
 </ul>
 <p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>

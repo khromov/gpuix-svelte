@@ -1,9 +1,10 @@
 // Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
 // coloured in the browser by docs/assets/prism.js, a vendored Prism build. Beside each page goes a
-// standalone markdown copy, indexed by llms.txt (https://llmstxt.org) for coding agents.
+// standalone markdown copy, indexed by llms.txt (https://llmstxt.org) for coding agents. The
+// homepage (homepage/) is copied to the root, so the README renders as overview.html.
 
-import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
 
@@ -12,7 +13,7 @@ const SITE = 'https://khromov.github.io/gpuix-svelte/';
 const NPM = 'https://www.npmjs.com/package/gpuix-svelte';
 
 const PAGES = [
-	{ source: 'README.md', name: 'index', nav: 'Overview', about: 'what the package is, setup, how it differs from Svelte on the web, TypeScript config' },
+	{ source: 'README.md', name: 'overview', nav: 'Overview', about: 'what the package is, setup, how it differs from Svelte on the web, TypeScript config' },
 	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var() and set_css_vars' },
 	{ source: 'docs/components.md', name: 'components', nav: 'Components', about: 'Scroller (scrollbars, virtual lists), Portal (modals, menus, toasts), Tooltip, Popover and the native <anchored> they build on' },
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
@@ -115,31 +116,50 @@ function render(source: string) {
 const CSS = `
 @font-face { font-family: "Geist"; src: url("fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
-:root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #707070; --link: #52a8ff; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
-@media (prefers-color-scheme: light) { :root { color-scheme: light; --bg: #fff; --surface: #fafafa; --chip: #f0f0f0; --line: #eaeaea; --line-strong: #c9c9c9; --fg: #171717; --text: #2e2e2e; --muted: #666; --faint: #a8a8a8; --link: #0068d6; --note: #0068d6; --tip: #1a7f37; --important: #6e40c9; --warning: #a35200; --caution: #c4161c; --t-comment: #6b6b6b; --t-punct: #666; --t-keyword: #962b61; --t-string: #366f2a; --t-fn: #5639ac; --t-tag: #177082; --t-attr: #8b5218; --t-num: #2462a8; } }
+:root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #8f8f8f; --link: #ededed; --accent: #ff3e00; --gut: 32px; --corner: 80px; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: 80px; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.7 var(--sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-::selection { background: color-mix(in srgb, var(--link) 32%, transparent); }
+::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 a { color: var(--link); }
-:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 4px; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
 .skip { position: absolute; left: 16px; top: -64px; z-index: 10; padding: 8px 12px; border-radius: 6px; background: var(--fg); color: var(--bg); font-size: 14px; text-decoration: none; }
 .skip:focus { top: 12px; }
-.wrap { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+.wrap { max-width: calc(1200px + var(--gut) * 2); margin: 0 auto; padding: 0 var(--gut); }
 .top { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
 .top-inner { height: 56px; display: flex; align-items: center; gap: 12px; }
 .wordmark { color: var(--fg); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; text-decoration: none; }
 .version { color: var(--muted); font: 12px/20px var(--mono); padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; }
 .version:hover { color: var(--fg); border-color: var(--line-strong); }
-.links { margin-left: auto; display: flex; gap: 24px; }
+.exp { color: var(--faint); font-size: 13px; text-decoration: none; }
+.exp:hover { color: var(--fg); }
+.links { margin-left: auto; margin-right: max(0px, var(--corner) + 8px - var(--gut) - max(0px, (100vw - 1200px - var(--gut) * 2) / 2)); display: flex; gap: 24px; }
 .links a { color: var(--muted); font-size: 14px; text-decoration: none; }
-.links a:hover { color: var(--fg); }
-.layout { display: grid; grid-template-columns: 200px minmax(0, 736px); gap: 80px; justify-content: center; }
+.links a:hover, .links a[aria-current] { color: var(--fg); }
+.github-corner { position: absolute; top: 0; right: 0; z-index: 20; display: block; width: var(--corner); height: var(--corner); pointer-events: none; }
+.github-corner svg { display: block; width: 100%; height: 100%; fill: #1c1c1c; color: #ededed; pointer-events: none; transition: fill 0.15s ease; }
+.github-corner path { pointer-events: auto; }
+.github-corner:hover svg { fill: #262626; }
+.github-corner:focus-visible { outline: none; }
+.github-corner:focus-visible svg { fill: #ededed; color: #000; }
+.octo-arm { transform-origin: 130px 106px; }
+@media (hover: hover) and (min-width: 500px) and (prefers-reduced-motion: no-preference) { .github-corner:hover .octo-arm { animation: octocat-wave 560ms ease-in-out; } }
+@keyframes octocat-wave { 0%, 100% { transform: rotate(0); } 20%, 60% { transform: rotate(-25deg); } 40%, 80% { transform: rotate(10deg); } }
+.foot { border-top: 1px solid var(--line); padding: 36px 0 52px; }
+.foot-inner { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 16px 32px; }
+.foot p { margin: 0; color: var(--muted); font-size: 14px; }
+.foot p b { color: var(--fg); font-weight: 600; letter-spacing: -0.02em; }
+.foot a { color: var(--muted); text-decoration: none; }
+.foot p a { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.foot a:hover { color: var(--fg); }
+.foot ul { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.foot .fine { flex-basis: 100%; color: var(--faint); font-size: 13px; }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 760px); gap: 96px; justify-content: start; }
 .sidebar { position: sticky; top: 56px; align-self: start; padding: 48px 0; }
 .sidebar ul { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--line); }
 .sidebar a { display: block; margin-left: -1px; padding: 5px 0 5px 16px; border-left: 1px solid transparent; color: var(--muted); font-size: 14px; line-height: 1.5; text-decoration: none; }
 .sidebar a:hover { color: var(--fg); }
-.sidebar a[aria-current] { color: var(--fg); font-weight: 500; border-left-color: var(--fg); }
+.sidebar a[aria-current] { color: var(--fg); font-weight: 500; border-left-color: var(--accent); }
 main { min-width: 0; padding: 48px 0 96px; }
 .prose { overflow-wrap: break-word; }
 .prose > :first-child { margin-top: 0; }
@@ -155,7 +175,7 @@ main { min-width: 0; padding: 48px 0 96px; }
 .prose :is(h2, h3, h4) a.anchor::before { content: "#"; position: absolute; left: -0.9em; color: var(--faint); font-weight: 400; opacity: 0; transition: opacity 0.15s; }
 .prose :is(h2, h3, h4):hover a.anchor::before, .prose a.anchor:focus-visible::before { opacity: 1; }
 .prose a:not(.anchor) { text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--link) 40%, transparent); }
-.prose a:not(.anchor):hover { text-decoration-color: currentColor; }
+.prose a:not(.anchor):hover { text-decoration-color: var(--accent); }
 .prose strong { color: var(--fg); font-weight: 600; }
 .prose :is(ul, ol) { padding-left: 1.4em; }
 .prose li { margin: 6px 0; padding-left: 2px; }
@@ -214,10 +234,10 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .pager a:hover { border-color: var(--line-strong); }
 .pager span { display: block; margin-bottom: 2px; color: var(--muted); font-size: 13px; font-weight: 400; }
 .pager .next { grid-column: 2; text-align: right; }
-@media (max-width: 1080px) { .layout { gap: 48px; } }
+@media (max-width: 1180px) { .layout { grid-template-columns: 200px minmax(0, 760px); gap: 56px; } }
 @media (max-width: 860px) {
+  :root { --gut: 16px; --corner: 60px; }
   html { scroll-padding-top: 16px; }
-  .wrap { padding: 0 16px; }
   .top { position: static; }
   .top-inner { height: 52px; }
   .layout { display: block; }
@@ -225,7 +245,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .sidebar::-webkit-scrollbar { display: none; }
   .sidebar ul { display: flex; gap: 22px; width: max-content; min-width: 100%; padding: 0 48px 0 16px; border: 0; }
   .sidebar a { margin: 0; padding: 12px 0; border: 0; white-space: nowrap; }
-  .sidebar a[aria-current] { box-shadow: inset 0 -2px 0 var(--fg); }
+  .sidebar a[aria-current] { box-shadow: inset 0 -2px 0 var(--accent); }
   main { padding: 32px 0 64px; }
   .prose h1 { font-size: 32px; }
   .prose h1 + p { font-size: 17px; }
@@ -236,6 +256,8 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .table :is(th, td) { padding: 9px 12px; }
   .page-end { margin-top: 56px; }
 }
+@media (max-width: 560px) { .exp { display: none; } }
+@media (max-width: 400px) { .version { display: none; } }
 `;
 
 const SCRIPT = `{
@@ -256,18 +278,19 @@ strip.scrollLeft += current.getBoundingClientRect().left - strip.getBoundingClie
 }`;
 
 const ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#000"/><rect x="6" y="8" width="20" height="16" rx="3" fill="none" stroke="#ededed" stroke-width="2"/><path d="M6 13h20" stroke="#ededed" stroke-width="2"/></svg>')}`;
+const CORNER = `<a href="${REPO}" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>`;
 const OG_IMAGE = `${SITE}og-docs.png`;
 const OG_ALT = 'The Overview page of the gpuix-svelte docs: page list, opening paragraph and a screenshot of the Hacker News, tic-tac-toe and control center demos.';
 
-// The Overview is also the site's front page, so its description starts with what the package is.
+// The Overview is where the docs start, so its description starts with what the package is.
 const description = (p: Page) =>
-	`${p.name === 'index' ? 'A Svelte custom renderer for GPUI, the UI framework behind Zed. ' : ''}${p.about[0].toUpperCase()}${p.about.slice(1)}.`;
+	`${p.name === 'overview' ? 'A Svelte custom renderer for GPUI, the UI framework behind Zed. ' : ''}${p.about[0].toUpperCase()}${p.about.slice(1)}.`;
 
 function page(current: Page, body: string) {
 	const heading = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
 	const title = escape(heading === 'gpuix-svelte' ? heading : `${heading} · gpuix-svelte`);
 	const about = escape(description(current));
-	const url = current.name === 'index' ? SITE : `${SITE}${current.name}.html`;
+	const url = `${SITE}${current.name}.html`;
 	const i = PAGES.indexOf(current);
 	const [prev, next] = [PAGES[i - 1], PAGES[i + 1]];
 	const nav = PAGES.map((p) => `<li><a href="${p.name}.html"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a></li>`).join('\n');
@@ -279,9 +302,8 @@ function page(current: Page, body: string) {
 <title>${title}</title>
 <meta name="description" content="${about}">
 <link rel="canonical" href="${url}">
-<meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
 <link rel="icon" href="${ICON}">
 <link rel="preload" href="fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <meta property="og:type" content="website">
@@ -308,12 +330,14 @@ function page(current: Page, body: string) {
 <div class="wrap top-inner">
 <a class="wordmark" href="index.html">gpuix-svelte</a>
 <a class="version" href="${REPO}/blob/main/CHANGELOG.md" title="Changelog">v${version}</a>
-<div class="links">
-<a href="${REPO}">GitHub</a>
-<a href="${NPM}">npm</a>
-</div>
+<a class="exp" href="index.html#status">Experimental</a>
+<nav class="links" aria-label="Site">
+<a href="overview.html" aria-current="true">Docs</a>
+<a href="index.html#examples">Examples</a>
+</nav>
 </div>
 </header>
+${CORNER}
 <div class="wrap layout">
 <nav class="sidebar" aria-label="Pages">
 <ul>
@@ -333,6 +357,18 @@ ${next ? `<a class="next" href="${next.name}.html" rel="next"><span>Next</span>$
 </div>
 </main>
 </div>
+<footer class="foot">
+<div class="wrap foot-inner">
+<p><b>gpuix-svelte</b> · MIT license · <a href="https://stanislav.garden">Stanislav Khromov</a></p>
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="${REPO}">GitHub</a></li>
+<li><a href="${NPM}">npm</a></li>
+<li><a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a></li>
+</ul>
+<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
+</div>
+</footer>
 <script>${SCRIPT}</script>
 </body>
 </html>
@@ -350,4 +386,9 @@ writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source
 copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
 copyFileSync(join(root, 'docs/assets/og-docs.png'), join(out_dir, 'og-docs.png'));
 cpSync(join(root, 'docs/assets/fonts'), join(out_dir, 'fonts'), { recursive: true });
-console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt → ${out_dir}`);
+// A name the homepage shares with the docs output fails the build instead of silently replacing one of them.
+for (const entry of readdirSync(join(root, 'homepage')).filter((e) => !e.startsWith('.'))) {
+	if (existsSync(join(out_dir, entry))) throw new Error(`[docs] homepage/${entry} collides with the docs output`);
+	cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
+}
+console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, with homepage/ at the root → ${out_dir}`);
