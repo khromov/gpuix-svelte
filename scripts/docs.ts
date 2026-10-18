@@ -131,8 +131,6 @@ a { color: var(--link); }
 .wordmark { color: var(--fg); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; text-decoration: none; }
 .version { color: var(--muted); font: 12px/20px var(--mono); padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; }
 .version:hover { color: var(--fg); border-color: var(--line-strong); }
-.exp { color: var(--faint); font-size: 13px; text-decoration: none; }
-.exp:hover { color: var(--fg); }
 .links { margin-left: auto; margin-right: max(0px, var(--corner) + 8px - var(--gut) - max(0px, (100vw - 1200px - var(--gut) * 2) / 2)); display: flex; gap: 24px; }
 .links a { color: var(--muted); font-size: 14px; text-decoration: none; }
 .links a:hover, .links a[aria-current] { color: var(--fg); }
@@ -256,7 +254,6 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .table :is(th, td) { padding: 9px 12px; }
   .page-end { margin-top: 56px; }
 }
-@media (max-width: 560px) { .exp { display: none; } }
 @media (max-width: 400px) { .version { display: none; } }
 `;
 
@@ -330,7 +327,6 @@ function page(current: Page, body: string) {
 <div class="wrap top-inner">
 <a class="wordmark" href="index.html">gpuix-svelte</a>
 <a class="version" href="${REPO}/blob/main/CHANGELOG.md" title="Changelog">v${version}</a>
-<a class="exp" href="index.html#status">Experimental</a>
 <nav class="links" aria-label="Site">
 <a href="overview.html" aria-current="true">Docs</a>
 <a href="index.html#examples">Examples</a>

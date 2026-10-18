@@ -19,12 +19,12 @@
 <meta property="og:image" content="https://khromov.github.io/gpuix-svelte/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Below it, the starter app’s App.svelte source beside its window, under a switch for the macOS, Windows and Linux title bars. Line 7 of the source is marked in orange, and the count it draws, 2, is outlined.">
+<meta property="og:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Below it, the starter app’s App.svelte source beside its window. Line 7 of the source is marked in orange, and the count it draws, 2, is outlined and labelled as a native GPUI div element.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="gpuix-svelte: Build native desktop apps with Svelte">
 <meta name="twitter:description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
 <meta name="twitter:image" content="https://khromov.github.io/gpuix-svelte/og.png">
-<meta name="twitter:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Below it, the starter app’s App.svelte source beside its window, under a switch for the macOS, Windows and Linux title bars. Line 7 of the source is marked in orange, and the count it draws, 2, is outlined.">
+<meta name="twitter:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Below it, the starter app’s App.svelte source beside its window. Line 7 of the source is marked in orange, and the count it draws, 2, is outlined and labelled as a native GPUI div element.">
 <style>
 @font-face{font-family:Geist;src:url(assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
 @font-face{font-family:"Geist Mono";src:url(assets/fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
@@ -74,18 +74,16 @@ ul[role=list]{list-style:none}
 .brand>a:first-child{font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
 .ver{font:500 12px/1 var(--mono);color:var(--text-2);border:1px solid var(--line-2);border-radius:999px;padding:5px 9px;text-decoration:none;white-space:nowrap}
 .ver:hover{color:var(--text);border-color:var(--line-3)}
-.exp{font-size:13px;color:var(--text-3);text-decoration:none}
-.exp:hover{color:var(--text)}
 .nav ul{display:flex;gap:26px;margin:0;padding:0;list-style:none}
 .nav ul a{font-size:14px;color:var(--text-2);text-decoration:none;white-space:nowrap}
 .nav ul a:hover{color:var(--text)}
 
 .hero{padding:30px 0 80px}
 h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;text-wrap:balance}
-.lead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:20px 40px;margin-top:18px}
+.lead{display:grid;gap:24px;margin-top:18px}
 .lead p{max-width:37em;font-size:17px;line-height:1.55;color:var(--text-2);text-wrap:pretty}
 .lead p b{font-weight:500;color:var(--text)}
-.act{display:grid;gap:10px;justify-items:end;min-width:0}
+.act{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0}
 .install{display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;height:44px;padding:0 6px 0 14px;background:var(--s1);border:1px solid var(--line-2);border-radius:10px}
 .install code{flex:1 1 auto;min-width:0;font-size:14px;white-space:nowrap;overflow-x:auto;scrollbar-width:none;color:var(--text)}
 .install code::-webkit-scrollbar{display:none}
@@ -93,7 +91,8 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .caret{display:inline-block;width:2px;height:16px;margin-left:3px;background:var(--accent);vertical-align:-3px}
 .copy{flex:none;appearance:none;height:32px;min-width:64px;padding:0 12px;font:500 12.5px/1 var(--sans);color:var(--text);background:var(--s3);border:1px solid var(--line-2);border-radius:7px;cursor:pointer}
 .copy:hover{background:#1f1f1f;border-color:var(--line-3)}
-.links{display:flex;gap:8px}
+.links{display:flex;gap:10px}
+.links .btn{height:44px;padding:0 18px;border-radius:10px}
 .btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);font:500 14px/1 var(--sans);text-decoration:none;color:var(--text);white-space:nowrap}
 .btn:hover{border-color:var(--line-3);background:var(--s2)}
 .btn.solid{background:var(--text);color:#000;border-color:var(--text)}
@@ -139,12 +138,21 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .tcopy .copy{position:absolute;top:8px;right:8px;height:26px;min-width:56px;font-size:12px;border-radius:6px}
 
 .box{position:absolute;border:1.5px solid var(--accent);border-radius:7px;background:rgba(255,62,0,.06);opacity:0;transition:opacity .14s ease;pointer-events:none}
-.box .tag{position:absolute;left:-1.5px;bottom:calc(100% + 5px);padding:3px 6px;border-radius:4px;background:var(--accent);color:#fff;font:500 10.5px/1 var(--mono);white-space:nowrap}
+.box .tag{position:absolute;left:-1.5px;bottom:calc(100% + 6px);display:grid;justify-items:start;gap:6px;padding:7px 10px 8px 9px;border:1px solid rgba(255,62,0,.5);border-radius:8px;background:rgba(9,9,11,.94);box-shadow:0 16px 32px -14px #000,0 0 0 1px rgba(0,0,0,.4);white-space:nowrap}
+.tag-k{display:flex;align-items:center;gap:5px;font:500 11.5px/1 var(--sans);letter-spacing:-.01em;color:var(--text)}
+.tag-k::before{content:"";flex:none;width:6px;height:6px;margin-right:2px;border-radius:2px;background:var(--accent)}
+.tag-k code{padding:2px 5px 3px;border-radius:4px;background:rgba(255,62,0,.16);color:#ff8a5c;font:500 11px/1 var(--mono)}
+.tag-c{font:400 10.5px/1 var(--mono);color:var(--text-2)}
 .box.in{background:none}
 .box.in .tag{bottom:auto;left:auto;top:8px;right:8px}
-.box.l .tag,.box.r .tag{bottom:auto;top:50%;transform:translateY(-50%)}
-.box.l .tag{left:auto;right:calc(100% + 6px)}
-.box.r .tag{left:calc(100% + 6px)}
+.box.r .tag{bottom:auto;top:50%;left:calc(100% + 6px);transform:translateY(-50%)}
+.box.ue .tag{left:auto;right:10px}
+.box.b .tag{bottom:auto;top:calc(100% + 6px)}
+@container (max-width:579px){
+.box .tag{bottom:calc(100% + 5px);gap:5px;padding:6px 9px 7px 8px}
+.box.r .tag,.box.ue .tag,.box.b .tag{top:calc(100% + 6px);bottom:auto;left:50%;right:auto;transform:translateX(-50%)}
+.box[data-t=count] .tag{top:auto;bottom:calc(100% + 6px)}
+}
 [data-active=app] .box[data-t=app],[data-active=card] .box[data-t=card],[data-active=count] .box[data-t=count],[data-active=row] .box[data-t=row],[data-active=minus] .box[data-t=minus],[data-active=plus] .box[data-t=plus],[data-active=hint] .box[data-t=hint]{opacity:1}
 [data-active=app] .ln[data-t=app],[data-active=card] .ln[data-t=card],[data-active=count] .ln[data-t=count],[data-active=row] .ln[data-t=row],[data-active=minus] .ln[data-t=minus],[data-active=plus] .ln[data-t=plus],[data-active=hint] .ln[data-t=hint]{background:var(--wash);box-shadow:inset 2px 0 0 var(--accent)}
 [data-active=app] .ln[data-t=app]::before,[data-active=card] .ln[data-t=card]::before,[data-active=count] .ln[data-t=count]::before,[data-active=row] .ln[data-t=row]::before,[data-active=minus] .ln[data-t=minus]::before,[data-active=plus] .ln[data-t=plus]::before,[data-active=hint] .ln[data-t=hint]::before{color:var(--text)}
@@ -172,7 +180,7 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .osw-bars{position:relative;height:28px;overflow:hidden;background:#2a2a2a;box-shadow:inset 0 -1px rgba(0,0,0,.55);transition:height var(--osw-t) ease,background-color var(--osw-t) ease,box-shadow var(--osw-t) ease}
 .osw-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;opacity:0;visibility:hidden;user-select:none;-webkit-user-select:none;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
 .osw-title{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.osw-body{position:relative}
+.osw-body{position:relative;container-type:inline-size}
 .osw-body img{display:block;width:100%;max-width:none;height:auto}
 
 .osw-mac{height:28px;justify-content:center;padding:0 72px}
@@ -409,10 +417,10 @@ figcaption{font-size:13.5px;line-height:1.55;color:var(--text-3)}
 .slot-dots{position:absolute;top:10px;left:10px;display:flex;gap:4px}
 .slot-dots i{width:7px;height:7px;border:1px solid var(--line-3);border-radius:50%}
 .slot+.slot .slot-dots i{border-color:var(--line-2)}
-.sponsor{margin-top:56px}
-.sponsor p{font-size:14px;color:var(--text-3)}
-.sponsor a{color:var(--text-2)}
-.sponsor a:hover{color:var(--text)}
+.sponsor{display:flex;align-items:center;justify-content:space-between;gap:20px 40px;margin-top:64px;padding:32px 36px;border:1px solid var(--line-2);border-radius:14px;background:radial-gradient(70% 180% at 100% 0,rgba(255,62,0,.09),transparent 70%),var(--s1)}
+.sponsor p{max-width:27em;font-size:21px;line-height:1.35;font-weight:500;letter-spacing:-.022em;color:var(--text);text-wrap:balance}
+.sponsor .btn{flex:none;gap:8px;height:44px;padding:0 20px;border-radius:10px}
+.heart{display:block;width:15px;height:15px;fill:var(--accent)}
 
 .foot{border-top:1px solid var(--line);padding:36px 0 52px}
 .foot .wrap{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:16px 32px}
@@ -486,8 +494,6 @@ code.hiw-name,.hiw-edge code{font:450 12.5px/1.4 var(--mono,ui-monospace,monospa
 .hiw-gpu{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:4px 10px}
 .hiw-gpu .hiw-note{margin:0}
 .hiw-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.hiw-cap{margin-top:14px;max-width:62em;font-size:13.5px;line-height:1.55;color:var(--text-3,#8f8f8f)}
-.hiw-cap code{font-family:var(--mono,ui-monospace,monospace);font-size:.92em;color:var(--text-2,#a1a1a1);background:none;border:0;padding:0;white-space:nowrap}
 @container hiw (max-width:1175px){
 .hiw-map{grid-template-columns:[mt] var(--hiw-t) [ml] minmax(0,1fr) [gap] 14px [wt] var(--hiw-t) [wl] minmax(0,1fr) [end];grid-template-rows:[c1] auto [c2] auto [fork] calc(var(--hiw-r) * 2 + 10px) [e1] auto [s1] auto [e2] auto [s2] auto [s3] auto [s4] auto [s5] auto [end];padding:24px 18px 6px}
 .hiw-map .hiw-key{grid-column:wt/end;grid-row:c1/fork}
@@ -556,12 +562,16 @@ code.hiw-name,.hiw-edge code{font-size:11.5px}
 @media (min-width:1100px) and (max-height:760px){
 .hero{padding-top:18px}
 h1{font-size:min(4.75vw,54px)}
-.lead{margin-top:10px}
-.act{gap:8px}
-.install{height:40px}
-.links .btn{height:32px}
+.lead{margin-top:10px;gap:18px}
+.install,.links .btn{height:40px}
 .stage{--ov:56px;margin-top:14px;grid-template-columns:minmax(max-content,1fr) minmax(0,500px)}
 .code.hero-code{font-size:11.5px;line-height:1.45}
+}
+@media (min-width:1280px){
+.stage{margin-top:-39px}
+}
+@media (min-width:1280px) and (max-height:760px){
+.stage{margin-top:-37px}
 }
 @media (min-width:1440px){
 main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--max) / 2 - var(--gut)) 0/1px 100% no-repeat,linear-gradient(var(--line),var(--line)) calc(50% + var(--max) / 2 + var(--gut)) 0/1px 100% no-repeat}
@@ -584,8 +594,7 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .sec{padding:72px 0}
 .sec.tight{padding:56px 0}
 .hero{padding-bottom:64px}
-.lead{grid-template-columns:minmax(0,1fr)}
-.act{grid-template-columns:minmax(0,1fr);justify-items:stretch}
+.install{flex:1 1 auto}
 #how-it-works .main{margin-bottom:28px}
 .shp-set{margin-top:36px}
 .rows{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:32px}
@@ -594,7 +603,13 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .status{grid-template-columns:minmax(0,1fr)}
 .sponsor{margin-top:48px}
 }
+@media (max-width:729px){
+.install,.links{flex:1 1 100%}
+.links .btn{flex:1 1 0;min-width:0}
+}
 @media (max-width:599px){
+.sponsor{flex-direction:column;align-items:stretch;padding:24px 20px}
+.sponsor p{font-size:18px}
 .ex{gap:28px 12px}
 .ex-card p{font-size:13px}
 .diffs{grid-template-columns:minmax(0,1fr)}
@@ -604,7 +619,6 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 :root{--corner:64px}
 .nav ul{gap:16px}
 .brand{gap:8px}
-.ver{display:none}
 .hero{padding-top:28px}
 h1{font-size:clamp(34px,10.4vw,44px)}
 .lead p{font-size:16px}
@@ -612,14 +626,15 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 .install code{font-size:12px}
 .install .pr{display:none}
 .copy{min-width:56px;padding:0 10px}
-.links .btn{flex:1 1 0;min-width:0}
 .tcopy .copy:not([hidden]){position:static;display:block;margin:-6px 10px 12px auto}
 }
 @media (max-width:560px) and (hover:hover){
 .h-more{display:none}
 }
+@media (max-width:400px){
+.ver{display:none}
+}
 @media (max-width:380px){
-.exp{display:none}
 .nav ul{gap:14px}
 .bar .hint{display:none}
 .install{flex-wrap:wrap;height:auto;padding:10px 6px 6px 12px;row-gap:6px}
@@ -630,8 +645,9 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 .h-fine{display:none}
 .h-touch{display:inline}
 }
-:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links){display:none}
-:root:has(#og:target) .stage .editor{margin-top:150px}
+:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
+:root:has(#og:target) .osw-win{margin-top:0}
+:root:has(#og:target) .stage .editor{margin-top:92px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -639,7 +655,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <i id="og" hidden></i>
 <header class="top">
 <nav class="wrap nav" aria-label="Main">
-<div class="brand"><a href="./">gpuix-svelte</a><a class="ver" href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">v0.2.0</a><a class="exp" href="#status">Experimental</a></div>
+<div class="brand"><a href="./">gpuix-svelte</a><a class="ver" href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">v0.2.0</a></div>
 <ul>
 <li><a href="overview.html">Docs</a></li>
 <li><a href="#examples">Examples</a></li>
@@ -674,13 +690,13 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="osw-bar osw-gn"><span class="osw-title">gpuix-svelte starter</span><i class="osw-gx"><svg viewBox="0 0 16 16"><path d="M5 5l6 6m0-6l-6 6"/></svg></i></div>
 </div>
 <div class="osw-body"><img src="assets/shots/hot-before.png" width="640" height="480" fetchpriority="high" alt="The starter app’s window, captured on macOS: a dark card with the count 2, a minus button, a teal plus button and the hint “Edit App.svelte and save — the window hot-reloads.”">
-<span class="box b-app in" data-t="app" aria-hidden="true"><span class="tag">.app</span></span>
-<span class="box b-card" data-t="card" aria-hidden="true"><span class="tag">.card</span></span>
-<span class="box b-row l" data-t="row" aria-hidden="true"><span class="tag">.row</span></span>
-<span class="box b-minus l" data-t="minus" aria-hidden="true"><span class="tag">.btn</span></span>
-<span class="box b-plus r" data-t="plus" aria-hidden="true"><span class="tag">.btn.primary</span></span>
-<span class="box b-count r" data-t="count" aria-hidden="true"><span class="tag">.count</span></span>
-<span class="box b-hint" data-t="hint" aria-hidden="true"><span class="tag">.hint</span></span></div>
+<span class="box b-app in" data-t="app" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex().w_full().h_full()</code></span></span>
+<span class="box b-card" data-t="card" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex_col().gap(px(16.))</code></span></span>
+<span class="box b-row r" data-t="row" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex_row().gap(px(12.))</code></span></span>
+<span class="box b-minus ue" data-t="minus" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.hover(..).on_mouse_up(..)</code></span></span>
+<span class="box b-plus r" data-t="plus" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.hover(..).on_mouse_up(..)</code></span></span>
+<span class="box b-count r" data-t="count" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.text_size(px(48.))</code></span></span>
+<span class="box b-hint b" data-t="hint" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.text_size(px(13.))</code></span></span></div>
 </div>
 <figcaption class="osw-note">The same <code>App.svelte</code> runs on macOS, Windows and Linux, laid out and drawn by GPUI. <span class="osw-says"><span class="osw-say-mac">On macOS, where this screenshot was taken, GPUI draws with Metal.</span><span class="osw-say-win">On Windows, GPUI draws with DirectX. The screenshot is from macOS.</span><span class="osw-say-linux">On Linux, GPUI draws with Vulkan. The screenshot is from macOS.</span></span></figcaption>
 </figure>
@@ -768,7 +784,6 @@ Created my-app. Next:
 <li class="hiw-stop hiw-end hiw-s5"><svg class="hiw-glyph" viewBox="0 0 24 18" width="24" height="18" aria-hidden="true"><rect x=".75" y=".75" width="22.5" height="16.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1 6h22" stroke="currentColor" stroke-width="1.25"/><circle cx="4.25" cy="3.4" r="1" fill="currentColor"/><circle cx="7.05" cy="3.4" r="1" fill="currentColor"/><circle cx="9.85" cy="3.4" r="1" fill="currentColor"/></svg><span class="hiw-name">A native window</span> <span class="hiw-note">No DOM or webview in the process</span></li>
 </ol>
 </div>
-<figcaption class="hiw-cap">The same <code>App.svelte</code> on both paths. Measured on the starter app: mounting it ships one batch of 41 operations, and a click on + ships a batch of one, <code>["setText",5,"1"]</code>.</figcaption>
 </figure>
 </div>
 </section>
@@ -1048,7 +1063,8 @@ Created my-app. Next:
 <div class="slot" aria-hidden="true"><span class="slot-dots"><i></i><i></i><i></i></span></div>
 </div>
 <aside class="sponsor" aria-label="Sponsor">
-<p>If <span class="nw">gpuix-svelte</span> is useful to you, you can <a href="https://github.com/sponsors/khromov">sponsor its development on GitHub</a>.</p>
+<p>If <span class="nw">gpuix-svelte</span> is useful to you, you can sponsor its development on GitHub.</p>
+<a class="btn solid" href="https://github.com/sponsors/khromov" aria-label="Sponsor gpuix-svelte on GitHub"><svg class="heart" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.25s-6.25-3.6-6.25-8.12C1.75 3.73 3.48 2 5.6 2 6.7 2 7.5 2.55 8 3.36 8.5 2.55 9.3 2 10.4 2c2.12 0 3.85 1.73 3.85 4.13C14.25 10.65 8 14.25 8 14.25z"/></svg>Sponsor</a>
 </aside>
 </div>
 </section>
