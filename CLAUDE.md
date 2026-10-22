@@ -97,8 +97,17 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # (scripts/docs.ts; links to other repo files go to GitHub), plus a
                            # markdown copy of each page with absolute links, llms.txt indexing
                            # them and llms-full.txt — starter/AGENTS.md points agents there;
+                           # homepage/ is copied to the root, so README becomes overview.html;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
                            # A new docs page also needs an entry in scripts/docs.ts's PAGES
+npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
+                           # (PORT overrides) and opens it in the browser (-- --no-open skips
+                           # that); rebuilds on any change to README.md, docs/, homepage/ or
+                           # scripts/docs.ts by restarting a child that builds and serves
+npm run og                 # retakes homepage/og.png: headless Chrome over CDP (scripts/og.ts,
+                           # $CHROME overrides the path) on index.html#og at 1200x630, device
+                           # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
+                           # Rerun after changing the hero; keep og:image:alt in step
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints"
 npm run parity             # the @gpuix/native methods nothing in src/ calls (--all: every method,

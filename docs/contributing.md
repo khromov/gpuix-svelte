@@ -92,6 +92,15 @@ publishing (OIDC, with provenance). `npm run pack -- <dir>` builds the same tarb
 ## Docs site
 
 `npm run docs` renders the README and `docs/*.md` to static HTML in `dist/docs`, along with a
-markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for coding agents. The
-`docs` workflow publishes it to GitHub Pages on every push to `main` that touches them. A new page
-needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts).
+markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for coding agents. It also
+copies the homepage (`homepage/`) to the root, so the README renders as `overview.html`. The
+`docs` workflow publishes it to GitHub Pages on every push to `main` that touches any of them. A
+new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts). `npm run docs:serve`
+builds it the same way, then serves it at http://127.0.0.1:4321 and opens it in your browser, and
+rebuilds whenever the README, `docs/`, `homepage/` or the script itself changes (reload the page to
+see it).
+
+The social preview images are screenshots: `npm run og` retakes `homepage/og.png` from the
+homepage's `#og` view, and `npm run og:docs` retakes `docs/assets/og-docs.png` from the built
+overview page. Both need Chrome installed (or `CHROME` pointing at a Chromium). Rerun them after
+changing the hero or the docs template, and keep the `og:image:alt` text in step.

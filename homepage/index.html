@@ -1,0 +1,1360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gpuix-svelte · Build native desktop apps with Svelte</title>
+<meta name="description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
+<link rel="canonical" href="https://gpuix-svelte.stanislav.garden/">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M28.4 18.3 15.4 32l13 13.7' fill='none' stroke='%23fff' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34.9 18.3 50 32 34.9 45.7Z' fill='%23ff3e00' stroke='%23ff3e00' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preload" href="assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="gpuix-svelte">
+<meta property="og:title" content="gpuix-svelte: Build native desktop apps with Svelte">
+<meta property="og:description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
+<meta property="og:url" content="https://gpuix-svelte.stanislav.garden/">
+<meta property="og:image" content="https://gpuix-svelte.stanislav.garden/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, a minus button and a teal plus button.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="gpuix-svelte: Build native desktop apps with Svelte">
+<meta name="twitter:description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
+<meta name="twitter:image" content="https://gpuix-svelte.stanislav.garden/og.png">
+<meta name="twitter:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, a minus button and a teal plus button.">
+<style>
+@font-face{font-family:Geist;src:url(assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(assets/fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{
+--bg:#000;--s1:#0a0a0a;--s2:#111;--s3:#171717;
+--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.13);--line-3:rgba(255,255,255,.22);
+--text:#ededed;--text-2:#a1a1a1;--text-3:#8f8f8f;
+--accent:#ff3e00;--wash:rgba(255,62,0,.1);
+--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+--max:1200px;--gut:32px;--corner:80px;
+--c-p:#8c8c8c;--c-t:#88b4e2;--c-a:#d3b98e;--c-s:#97c69c;--c-k:#e09cbc;--c-n:#e6b07e;--c-id:#d4d4d4;--c-ln:#5e5e5e;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg);-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:24px}
+body{position:relative;margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+img{display:block;max-width:100%;height:auto}
+figure{margin:0}
+a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
+code,pre{font-family:var(--mono)}
+p code,dd code{font-size:.88em;color:var(--text);background:var(--s2);border:1px solid var(--line);border-radius:5px;padding:.08em .34em;white-space:nowrap}
+figcaption code,.note code,.how code{font-size:.92em;color:var(--text-2);background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--text);outline-offset:3px;border-radius:6px}
+h1,h2,h3{margin:0;font-weight:600;color:var(--text)}
+h2{font-size:clamp(28px,2.9vw,40px);line-height:1.1;letter-spacing:-.036em;text-wrap:balance}
+h3{font-size:17px;line-height:1.3;letter-spacing:-.015em}
+p{margin:0}
+ul[role=list]{list-style:none}
+.wrap{width:100%;max-width:calc(var(--max) + var(--gut) * 2);margin:0 auto;padding:0 var(--gut)}
+.dim{color:var(--text-3)}
+
+.github-corner{position:absolute;top:0;right:0;z-index:20;display:block;width:var(--corner);height:var(--corner);pointer-events:none}
+.github-corner svg{display:block;width:100%;height:100%;fill:#1c1c1c;color:#ededed;pointer-events:none;transition:fill .15s ease}
+.github-corner path{pointer-events:auto}
+.github-corner:hover svg{fill:#262626}
+.github-corner:focus-visible{outline:none}
+.github-corner:focus-visible svg{fill:#ededed;color:#000}
+.octo-arm{transform-origin:130px 106px}
+@media (hover:hover) and (min-width:500px){
+.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
+}
+@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
+
+.top{border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;padding-right:calc(var(--gut) + max(0px,var(--corner) - max(var(--gut),(100vw - var(--max)) / 2)))}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand>a:first-child{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.mark{display:block;flex:none;width:22px;height:22px;color:#fff}
+.nav ul{display:flex;gap:26px;margin:0;padding:0;list-style:none}
+.nav ul a{font-size:14px;color:var(--text-2);text-decoration:none;white-space:nowrap}
+.nav ul a:hover{color:var(--text)}
+
+.hero{padding:30px 0 80px}
+h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;text-wrap:balance}
+.lead{display:grid;gap:24px;margin-top:18px}
+.lead p{max-width:37em;font-size:17px;line-height:1.55;color:var(--text-2);text-wrap:pretty}
+.lead p b{font-weight:500;color:var(--text)}
+.act{display:flex;flex-wrap:wrap;align-items:center;gap:18px 14px;min-width:0}
+.install{flex:1 1 360px;display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;height:44px;padding:0 6px 0 14px;background:var(--s1);border:1px solid var(--line-2);border-radius:10px;container-type:inline-size}
+.install code{flex:1 1 auto;min-width:0;font-size:clamp(10px,calc((100cqw - 100px) / 23),14px);white-space:nowrap;overflow-x:auto;scrollbar-width:none;color:var(--text)}
+.install .copy{height:clamp(26px,8cqw,32px);min-width:clamp(48px,16cqw,64px);padding:0 clamp(8px,3cqw,12px);font-size:clamp(11px,3.2cqw,12.5px)}
+.install code::-webkit-scrollbar{display:none}
+.install .pr{color:var(--text-3);margin-right:9px;user-select:none;-webkit-user-select:none}
+.caret{display:inline-block;width:2px;height:16px;margin-left:3px;background:var(--accent);vertical-align:-3px}
+.copy{flex:none;appearance:none;height:32px;min-width:64px;padding:0 12px;font:500 12.5px/1 var(--sans);color:var(--text);background:var(--s3);border:1px solid var(--line-2);border-radius:7px;cursor:pointer}
+.copy:hover{background:#1f1f1f;border-color:var(--line-3)}
+.links{display:flex;gap:10px}
+.links .btn{height:44px;padding:0 18px;border-radius:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);font:500 14px/1 var(--sans);text-decoration:none;color:var(--text);white-space:nowrap}
+.btn:hover{border-color:var(--line-3);background:var(--s2)}
+.btn.solid{background:var(--text);color:#000;border-color:var(--text)}
+.btn.solid:hover{background:#fff}
+
+.stage{margin-top:44px}
+.how{max-width:40em;font-size:15px;line-height:1.6;color:var(--text-2);text-wrap:pretty}
+.how a{color:var(--text)}
+
+.map{display:grid;gap:28px;margin-top:48px}
+.map .how{max-width:52em}
+.map-grid{display:grid;gap:28px;align-items:start}
+.map-grid .osw-win{max-width:642px}
+.map .code{--g:40px;font-size:11.5px}
+@media (min-width:1024px){
+.map-grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:40px}
+}
+
+.editor{min-width:0;background:var(--s1);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -28px rgba(0,0,0,.95)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:36px;padding:0 14px;border-bottom:1px solid var(--line);font:400 12px/1 var(--mono);color:var(--text);white-space:nowrap}
+.bar span{overflow:hidden;text-overflow:ellipsis}
+.bar .hint{font-family:var(--sans);color:var(--text-3)}
+.h-touch{display:none}
+.nw{white-space:nowrap}
+.code{--g:46px;margin:0;padding:12px 0;overflow-x:auto;font:400 12.5px/1.65 var(--mono);color:var(--c-id);tab-size:2;-moz-tab-size:2}
+.code.sm{font-size:12px}
+.code code{display:grid;min-width:max-content;font:inherit}
+.code.soft code{min-width:0}
+.ln{display:block;position:relative;padding:0 18px 0 var(--g);white-space:pre}
+.ln::before{content:attr(data-n);position:absolute;left:0;width:calc(var(--g) - 18px);text-align:right;color:var(--c-ln);user-select:none;-webkit-user-select:none}
+.soft .ln{white-space:pre-wrap;overflow-wrap:break-word;padding-left:calc(var(--g) + var(--in, 0) * 1ch + 2ch);text-indent:-2ch}
+.soft .ln::before{text-indent:0}
+.ln.gap{color:var(--text-3)}
+.ln[tabindex]{cursor:default}
+.ln[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:0}
+.p{color:var(--c-p)}.t{color:var(--c-t)}.a{color:var(--c-a)}.s{color:var(--c-s)}.k{color:var(--c-k)}.n{color:var(--c-n)}.f{color:#ededed}
+.sw{display:inline-block;width:.78em;height:.78em;margin:0 .32em 0 .05em;border-radius:2px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);vertical-align:-.06em}
+.diff .ln{--g:34px}
+.diff .ln::before{color:var(--text-3)}
+.diff .del{background:rgba(248,81,73,.1)}
+.diff .del::before{color:#f0857e}
+.diff .add{background:rgba(63,185,80,.11)}
+.diff .add::before{color:#73c784}
+.term{margin:0;padding:13px 16px;font:400 12.5px/1.65 var(--mono);color:var(--text-2);white-space:pre;overflow-x:auto}
+.term .pr{color:var(--text-3);user-select:none;-webkit-user-select:none}
+.term .cmd,.term .hl{color:var(--text)}
+.term .cm{color:var(--text-3)}
+.joined{border-top:1px solid var(--line);background:#050505}
+.tcopy{position:relative;container-type:inline-size}
+.tcopy .term{font-size:clamp(7.5px,calc((100cqw - 32px) / 39.5),12.5px)}
+.tcopy .copy{position:absolute;top:8px;right:8px;height:clamp(22px,6cqw,26px);min-width:clamp(44px,13cqw,56px);padding:0 clamp(7px,2.4cqw,12px);font-size:clamp(10.5px,2.8cqw,12px);border-radius:6px}
+
+.box{position:absolute;border:1.5px solid var(--accent);border-radius:7px;background:rgba(255,62,0,.06);opacity:0;transition:opacity .14s ease;pointer-events:none}
+.box .tag{position:absolute;left:-1.5px;bottom:calc(100% + 6px);display:grid;justify-items:start;gap:6px;padding:7px 10px 8px 9px;border:1px solid rgba(255,62,0,.5);border-radius:8px;background:rgba(9,9,11,.94);box-shadow:0 16px 32px -14px #000,0 0 0 1px rgba(0,0,0,.4);white-space:nowrap}
+.tag-k{display:flex;align-items:center;gap:5px;font:500 11.5px/1 var(--sans);letter-spacing:-.01em;color:var(--text)}
+.tag-k::before{content:"";flex:none;width:6px;height:6px;margin-right:2px;border-radius:2px;background:var(--accent)}
+.tag-k code{padding:2px 5px 3px;border-radius:4px;background:rgba(255,62,0,.16);color:#ff8a5c;font:500 11px/1 var(--mono)}
+.tag-c{font:400 10.5px/1 var(--mono);color:var(--text-2)}
+.box.in{background:none}
+.box.in .tag{bottom:auto;left:auto;top:8px;right:8px}
+.box.r .tag{bottom:auto;top:50%;left:calc(100% + 6px);transform:translateY(-50%)}
+.box.ue .tag{left:auto;right:10px}
+.box.b .tag{bottom:auto;top:calc(100% + 6px)}
+@container (max-width:579px){
+.box .tag{bottom:calc(100% + 5px);gap:5px;padding:6px 9px 7px 8px}
+.box.r .tag,.box.ue .tag,.box.b .tag{top:calc(100% + 6px);bottom:auto;left:50%;right:auto;transform:translateX(-50%)}
+.box[data-t=count] .tag{top:auto;bottom:calc(100% + 6px)}
+}
+[data-active=app] .box[data-t=app],[data-active=card] .box[data-t=card],[data-active=count] .box[data-t=count],[data-active=row] .box[data-t=row],[data-active=minus] .box[data-t=minus],[data-active=plus] .box[data-t=plus],[data-active=hint] .box[data-t=hint]{opacity:1}
+[data-active=app] .ln[data-t=app],[data-active=card] .ln[data-t=card],[data-active=count] .ln[data-t=count],[data-active=row] .ln[data-t=row],[data-active=minus] .ln[data-t=minus],[data-active=plus] .ln[data-t=plus],[data-active=hint] .ln[data-t=hint]{background:var(--wash);box-shadow:inset 2px 0 0 var(--accent)}
+[data-active=app] .ln[data-t=app]::before,[data-active=card] .ln[data-t=card]::before,[data-active=count] .ln[data-t=count]::before,[data-active=row] .ln[data-t=row]::before,[data-active=minus] .ln[data-t=minus]::before,[data-active=plus] .ln[data-t=plus]::before,[data-active=hint] .ln[data-t=hint]::before{color:var(--text)}
+.b-app{inset:5px}
+.b-card{left:20.47%;top:24.48%;width:59.06%;height:50.94%}
+.b-count{left:47.5%;top:31.15%;width:5%;height:16.15%}
+.b-row{left:40.08%;top:50.63%;width:19.84%;height:10.42%}
+.b-minus{left:40.08%;top:50.63%;width:8.75%;height:10.42%}
+.b-plus{left:50.7%;top:50.63%;width:9.22%;height:10.42%}
+.b-hint{left:25.3%;top:64.38%;width:49.4%;height:4.38%}
+
+:root{--vp:1px;--osw-t:.45s;--osw-h:calc(var(--osw-t) / 2);--osw-q:.12s;--osw-line:var(--line-2);--osw-sans:var(--sans);--sys:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Ubuntu,Cantarell,var(--sans)}
+.lap,.lap *,.lap *::before,.lap *::after{box-sizing:border-box}
+.lap{display:grid;gap:26px;justify-items:center;width:100%;max-width:900px;margin:0 auto}
+.lap-still{--osw-t:0s;--osw-q:0s}
+
+.osw-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;padding:3px;border:1px solid var(--osw-line);border-radius:10px;background:var(--s1)}
+.osw-opt{position:relative;display:flex}
+.osw-opt input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.osw-opt span{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:26px;padding:0 12px;border-radius:7px;font:500 13px/1 var(--osw-sans);color:var(--text-2);white-space:nowrap;overflow:hidden;transition:background-color var(--osw-q) ease,color var(--osw-q) ease}
+.osw-opt span{gap:7px}
+.osw-opt svg{flex:none;width:13px;height:13px;fill:currentColor;opacity:.8}
+.osw-opt input:checked+span svg{opacity:1}
+.osw-opt span{isolation:isolate}
+.osw-opt span::after{content:"";position:absolute;inset:0;z-index:-1;background:rgba(255,255,255,.07);transform:scaleX(0);transform-origin:left}
+.lap-tour .osw-opt input:checked+span::after{animation:tour 4s linear forwards}
+.lap-paused .osw-opt span::after{animation-play-state:paused}
+@keyframes tour{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.osw-opt input:hover+span{color:var(--text)}
+.osw-opt input:checked+span{background:#1f1f1f;color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.osw-opt input:focus-visible+span{outline:2px solid var(--text);outline-offset:1px}
+
+.lap-dev{position:relative;width:100%;container-type:inline-size}
+.lap-lid{position:relative;width:90%;margin:0 auto;padding:1.5cqw 1.5cqw 1.6cqw;border-radius:2cqw 2cqw 0 0;background:linear-gradient(#141414,#0c0c0c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 2px 0 rgba(255,255,255,.04)}
+.lap-lid::before{content:"";position:absolute;top:.6cqw;left:50%;width:.5cqw;height:.5cqw;margin-left:-.25cqw;border-radius:50%;background:#1d1d1f;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.lap-base{position:relative;height:2.3cqw;border-radius:.4cqw .4cqw 1.4cqw 1.4cqw;background:linear-gradient(#232323,#101010 60%,#0a0a0a);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 0 0 1px rgba(255,255,255,.08)}
+.lap-base::before{content:"";position:absolute;top:0;left:50%;width:13%;height:42%;transform:translateX(-50%);border-radius:0 0 .7cqw .7cqw;background:#0a0a0a;box-shadow:inset 0 -1px 0 rgba(255,255,255,.1)}
+
+.scr{--vp:calc(100cqw / 1152);position:relative;overflow:hidden;aspect-ratio:16/10;border-radius:.9cqw;background:#000;container-type:inline-size;font:400 calc(13 * var(--vp))/1.25 var(--sys);color:#fff;-webkit-user-select:none;user-select:none;cursor:default}
+.scr-wall{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;opacity:0;transition:opacity var(--osw-t) ease}
+.desk{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
+.lap:has([value=mac]:checked) .scr-wall-mac,.lap:has([value=win]:checked) .scr-wall-win,.lap:has([value=linux]:checked) .scr-wall-linux{opacity:1}
+.lap:has([value=mac]:checked) .desk-mac,.lap:has([value=win]:checked) .desk-win,.lap:has([value=linux]:checked) .desk-linux{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
+.scr svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.scr-fill{fill:currentColor;stroke:none}
+.bar-l,.bar-r{display:flex;align-items:center;white-space:nowrap}
+.bar-r{margin-left:auto}
+
+.mac-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:calc(18 * var(--vp));height:calc(24 * var(--vp));padding:0 calc(14 * var(--vp));background:rgba(28,28,34,.62);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);font-size:calc(13 * var(--vp));color:#fff;text-shadow:0 0 calc(2 * var(--vp)) rgba(0,0,0,.4)}
+.mac-bar b{font-weight:700}
+.mac-bar .bar-l{gap:calc(18 * var(--vp))}
+.mac-bar .bar-r{gap:calc(14 * var(--vp))}
+.mac-bar svg{width:calc(16 * var(--vp));height:calc(16 * var(--vp))}
+.mac-dock{position:absolute;left:50%;bottom:calc(6 * var(--vp));display:flex;align-items:flex-end;gap:calc(8 * var(--vp));padding:calc(5 * var(--vp));transform:translateX(-50%);border-radius:calc(20 * var(--vp));background:rgba(50,50,56,.5);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.28),0 calc(8 * var(--vp)) calc(24 * var(--vp)) rgba(0,0,0,.35);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px)}
+.dk{position:relative;width:calc(48 * var(--vp));height:calc(48 * var(--vp));border-radius:calc(11 * var(--vp))}
+.dk::after{content:"";position:absolute;left:50%;bottom:calc(-5 * var(--vp));width:calc(4 * var(--vp));height:calc(4 * var(--vp));margin-left:calc(-2 * var(--vp));border-radius:50%;background:rgba(255,255,255,.9);opacity:0}
+.dk.on::after{opacity:1}
+.dk-sep{width:1px;height:calc(40 * var(--vp));margin:0 calc(2 * var(--vp)) calc(4 * var(--vp));background:rgba(255,255,255,.22)}
+.dk-finder{background:linear-gradient(#5fc0f9,#1d7fe0)}
+.dk-finder::before,.dk-settings::before,.dk-notes::before,.dk-term::before,.dk-trash::before{content:"";position:absolute;inset:0;border-radius:inherit}
+.dk-finder::before{background:linear-gradient(90deg,transparent 50%,rgba(255,255,255,.72) 50%);border-radius:0 calc(11 * var(--vp)) calc(11 * var(--vp)) 0;left:50%}
+.dk-settings{background:radial-gradient(circle at 50% 50%,#8e8e93 0 28%,#4a4a4f 29% 42%,#8e8e93 43% 100%)}
+.dk-notes{background:linear-gradient(#fbe08a 0 22%,#fff 22%)}
+.dk-term{background:#1e1e1e;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.dk-term::before{inset:30% 0 0 18%;width:calc(10 * var(--vp));height:calc(8 * var(--vp));border-radius:0;border-left:calc(2 * var(--vp)) solid #fff;border-bottom:calc(2 * var(--vp)) solid #fff;transform:skewX(45deg) translateY(calc(-1 * var(--vp)))}
+.dk-trash{background:linear-gradient(#d9d9de,#9e9ea3)}
+.dk-trash::before{inset:22% 28%;border-radius:calc(3 * var(--vp));background:rgba(70,70,80,.55)}
+.dk-app,.wn-app,.ub-app{display:grid;place-items:center;background:#000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+.dk-app{border-radius:calc(11 * var(--vp))}
+.app-glyph{width:80%;height:auto}
+.scr .app-glyph{fill:#fff;stroke:none}
+
+.win-bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;height:calc(48 * var(--vp));padding:0 calc(12 * var(--vp));background:rgba(32,32,32,.86);box-shadow:inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);font-size:calc(12 * var(--vp));color:#fff}
+.win-mid{position:absolute;left:50%;top:0;bottom:0;display:flex;align-items:center;gap:calc(4 * var(--vp));transform:translateX(-50%)}
+.tb{position:relative;display:grid;place-items:center;width:calc(40 * var(--vp));height:calc(40 * var(--vp));border-radius:calc(5 * var(--vp))}
+.tb svg,.tb .tb-ico{width:calc(24 * var(--vp));height:calc(24 * var(--vp))}
+.tb.on::after{content:"";position:absolute;left:50%;bottom:calc(2 * var(--vp));width:calc(16 * var(--vp));height:calc(3 * var(--vp));margin-left:calc(-8 * var(--vp));border-radius:calc(2 * var(--vp));background:#4cc2ff}
+.tb-start{display:grid;grid-template-columns:1fr 1fr;gap:calc(2 * var(--vp));width:calc(20 * var(--vp));height:calc(20 * var(--vp))}
+.tb-start i{display:block;border-radius:calc(1.5 * var(--vp));background:#4cc2ff}
+.tb-search{display:flex;align-items:center;gap:calc(8 * var(--vp));width:auto;height:calc(34 * var(--vp));padding:0 calc(12 * var(--vp));margin:0 calc(2 * var(--vp));border-radius:calc(17 * var(--vp));background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);color:#d4d4d4}
+.tb-search svg{width:calc(16 * var(--vp));height:calc(16 * var(--vp))}
+.tb-folder{width:calc(24 * var(--vp));height:calc(24 * var(--vp))}
+.wn-app{width:calc(24 * var(--vp));height:calc(24 * var(--vp));border-radius:calc(3 * var(--vp))}
+.win-bar .bar-r{gap:calc(10 * var(--vp))}
+.win-bar .bar-r svg{width:calc(16 * var(--vp));height:calc(16 * var(--vp))}
+.win-tray{display:flex;align-items:center;gap:calc(6 * var(--vp));padding:0 calc(6 * var(--vp));height:calc(36 * var(--vp));border-radius:calc(5 * var(--vp))}
+.win-clock{display:grid;justify-items:end;gap:calc(2 * var(--vp));padding:0 calc(6 * var(--vp));line-height:1.15;text-align:right}
+
+.ub-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;height:calc(32 * var(--vp));padding:0 calc(10 * var(--vp));background:#000;font-weight:700;font-size:calc(13 * var(--vp));color:#fff}
+.ub-pill{display:flex;align-items:center;gap:calc(5 * var(--vp));height:calc(24 * var(--vp));padding:0 calc(10 * var(--vp));border-radius:calc(12 * var(--vp))}
+.ub-pill i{display:block;width:calc(5 * var(--vp));height:calc(5 * var(--vp));border-radius:50%;background:rgba(255,255,255,.5)}
+.ub-pill i:first-child{width:calc(14 * var(--vp));border-radius:calc(3 * var(--vp));background:#fff}
+.ub-clock{position:absolute;left:50%;top:0;bottom:0;display:flex;align-items:center;transform:translateX(-50%)}
+.ub-bar .bar-r{gap:calc(8 * var(--vp));height:calc(24 * var(--vp));padding:0 calc(10 * var(--vp));border-radius:calc(12 * var(--vp))}
+.ub-bar .bar-r svg{width:calc(16 * var(--vp));height:calc(16 * var(--vp))}
+.ub-dock{position:absolute;left:0;top:calc(32 * var(--vp));bottom:0;display:flex;flex-direction:column;align-items:center;gap:calc(10 * var(--vp));width:calc(66 * var(--vp));padding:calc(10 * var(--vp)) 0;background:rgba(0,0,0,.42);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.ub{position:relative;width:calc(44 * var(--vp));height:calc(44 * var(--vp));border-radius:calc(10 * var(--vp))}
+.ub::before{content:"";position:absolute;left:calc(-11 * var(--vp));top:50%;width:calc(4 * var(--vp));height:calc(4 * var(--vp));margin-top:calc(-2 * var(--vp));border-radius:50%;background:#fff;opacity:0}
+.ub.on::before{opacity:1}
+.ub-web{background:radial-gradient(circle at 50% 50%,#2a6fdb 0 38%,#ff9500 40% 70%,#e6611a 72%)}
+.ub-mail{background:linear-gradient(#5aa9ff,#1f6fd1)}
+.ub-mail::after{content:"";position:absolute;inset:32% 22%;border-radius:calc(2 * var(--vp));background:rgba(255,255,255,.9)}
+.ub-files{background:linear-gradient(#9d9da3,#6f6f76)}
+.ub-files::after{content:"";position:absolute;inset:30% 20% 26%;border-radius:calc(3 * var(--vp));background:#e8e8ea}
+.ub-store{background:linear-gradient(#f5a24a,#e95420)}
+.ub-store::after{content:"";position:absolute;inset:30% 30%;border-radius:50%;box-shadow:inset 0 0 0 calc(3 * var(--vp)) #fff}
+.ub-app{border-radius:calc(10 * var(--vp))}
+.ub-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(3 * var(--vp));width:calc(22 * var(--vp));height:calc(22 * var(--vp));margin-top:auto;margin-bottom:calc(4 * var(--vp))}
+.ub-grid i{display:block;border-radius:50%;background:rgba(255,255,255,.75)}
+
+.win{position:absolute;left:50%;top:calc(50% - 20 * var(--vp));width:calc(640 * var(--vp));transform:translate(-50%,-50%);box-shadow:0 calc(24 * var(--vp)) calc(60 * var(--vp)) rgba(0,0,0,.6),0 0 0 .5px rgba(0,0,0,.6);transition:top var(--osw-t) ease}
+.lap:has([value=win]:checked) .win{top:calc(50% - 24 * var(--vp))}
+.lap:has([value=linux]:checked) .win{top:calc(50% + 16 * var(--vp))}
+.osw-win{position:relative;overflow:hidden;border:1px solid var(--osw-line);border-radius:calc(12 * var(--vp));background:#11111b;transition:border-radius var(--osw-t) ease}
+.scr .osw-win{border:0}
+.osw-bars{position:relative;height:calc(28 * var(--vp));overflow:hidden;background:#2a2a2a;box-shadow:inset 0 -1px rgba(0,0,0,.55);transition:height var(--osw-t) ease,background-color var(--osw-t) ease,box-shadow var(--osw-t) ease}
+.osw-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;opacity:0;visibility:hidden;user-select:none;-webkit-user-select:none;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
+.osw-title{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.osw-body{position:relative;container-type:inline-size}
+.osw-body img{display:block;width:100%;max-width:none;height:auto}
+
+.osw-mac{height:calc(28 * var(--vp));justify-content:center;padding:0 calc(72 * var(--vp))}
+.osw-mac .osw-title{font:600 calc(13 * var(--vp))/1 -apple-system,BlinkMacSystemFont,var(--osw-sans);letter-spacing:-.003em;color:rgba(255,255,255,.85)}
+.osw-lights{position:absolute;left:calc(8 * var(--vp));top:calc(8 * var(--vp));display:flex;gap:calc(8 * var(--vp))}
+.osw-lights i{position:relative;width:calc(12 * var(--vp));height:calc(12 * var(--vp));border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.22)}
+.osw-lights i:nth-child(2){background:#febc2e}
+.osw-lights i:nth-child(3){background:#28c840}
+.osw-lights svg{position:absolute;inset:0;width:100%;height:100%;color:transparent;fill:none;stroke:currentColor;stroke-width:1.1;stroke-linecap:round}
+.osw-lights:hover svg{color:rgba(0,0,0,.58)}
+
+.osw-ms{height:calc(32 * var(--vp));padding-left:calc(12 * var(--vp))}
+.osw-ico{flex:none;width:calc(16 * var(--vp));height:calc(16 * var(--vp));margin-right:calc(12 * var(--vp));font-family:var(--osw-sans)}
+.osw-ms .osw-title{flex:1 1 auto;font:400 calc(12 * var(--vp))/1 "Segoe UI Variable Text","Segoe UI Variable","Segoe UI",var(--osw-sans);color:#fff}
+.osw-btns{display:flex;align-self:stretch;margin-left:auto}
+.osw-btn{display:grid;place-items:center;width:calc(46 * var(--vp));height:calc(32 * var(--vp));color:#fff;transition:background-color var(--osw-q) ease}
+.osw-btn svg{display:block;width:calc(10 * var(--vp));height:calc(10 * var(--vp));overflow:visible;fill:none;stroke:currentColor;stroke-width:1}
+.osw-btn:hover{background:rgba(255,255,255,.06)}
+.osw-btn:active{background:rgba(255,255,255,.04)}
+.osw-btn.osw-x:hover{background:#c42b1c}
+.osw-btn.osw-x:active{background:rgba(196,43,28,.9);color:rgba(255,255,255,.7)}
+
+.osw-gn{height:calc(46 * var(--vp));justify-content:center;padding:0 calc(48 * var(--vp))}
+.osw-gn .osw-title{font:700 calc(14.5 * var(--vp))/1 "Adwaita Sans",Cantarell,var(--osw-sans);color:#fff}
+.osw-gx{position:absolute;top:calc(11 * var(--vp));right:calc(11 * var(--vp));display:grid;place-items:center;width:calc(24 * var(--vp));height:calc(24 * var(--vp));border-radius:50%;background:rgba(255,255,255,.1);color:#fff;transition:background-color var(--osw-q) ease}
+.osw-gx:hover{background:rgba(255,255,255,.15)}
+.osw-gx:active{background:rgba(255,255,255,.3)}
+.osw-gx svg{display:block;width:calc(16 * var(--vp));height:calc(16 * var(--vp));fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+
+.mk{display:flex;align-items:center;justify-content:center;height:calc(480 * var(--vp));background:#11111b;font:400 calc(16 * var(--vp))/1.6 var(--sys);color:#cdd6f4}
+.mk-card{display:flex;flex-direction:column;align-items:center;gap:calc(24 * var(--vp));padding:calc(44 * var(--vp)) calc(56 * var(--vp));border-radius:calc(18 * var(--vp));background:#1e1e2e}
+.mk-count{font-size:calc(104 * var(--vp));line-height:1.2;font-weight:700;color:#cdd6f4;font-variant-numeric:tabular-nums}
+.mk-row{display:flex;gap:calc(20 * var(--vp))}
+.mk-btn{appearance:none;margin:0;border:0;padding:calc(16 * var(--vp)) calc(48 * var(--vp));border-radius:calc(14 * var(--vp));background:#313244;color:#cdd6f4;font:700 calc(34 * var(--vp))/1.4 var(--sys);cursor:pointer;transition:background-color var(--osw-q) ease}
+.mk-btn:hover{background:#45475a}
+.mk-btn:focus-visible{outline:2px solid #cdd6f4;outline-offset:2px;border-radius:calc(8 * var(--vp))}
+.mk-btn.primary{background:#a6e3a1;color:#1e1e2e}
+.mk-btn.primary:hover{background:#94e2d5}
+.mk-hint{font-size:calc(19 * var(--vp));color:#a6adc8;white-space:nowrap}
+
+.osw-mac{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
+.lap:has([value=win]:checked) .osw-win{border-radius:calc(8 * var(--vp))}
+.lap:has([value=win]:checked) .osw-bars{height:calc(32 * var(--vp));background:#202020;box-shadow:inset 0 -1px transparent}
+.lap:has([value=linux]:checked) .osw-bars{height:calc(46 * var(--vp));background:#2e2e32;box-shadow:inset 0 -1px rgba(0,0,0,.36)}
+.lap:has([value=win]:checked) .osw-mac,.lap:has([value=linux]:checked) .osw-mac{opacity:0;visibility:hidden;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
+.lap:has([value=win]:checked) .osw-ms,.lap:has([value=linux]:checked) .osw-gn{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
+
+@container (max-width:760px){
+.scr{--vp:calc(100cqw / 1040)}
+}
+@container (max-width:520px){
+.scr{--vp:calc(100cqw / 1000)}
+.lap .win{top:calc(50% - 26 * var(--vp))}
+.mac-bar .bar-l span:nth-child(n+4),.win-clock,.ub-bar .bar-r{display:none}
+}
+@media (max-width:560px){
+.lap{gap:18px}
+.osw-seg{justify-self:stretch}
+.lap-lid{width:94%}
+.sec{padding:40px 0}
+.sec.tight{padding:32px 0}
+.hero{padding-bottom:32px}
+.stage{margin-top:32px}
+}
+@media (prefers-reduced-motion:reduce){
+:root{--osw-t:0s;--osw-q:0s}
+}
+@media (forced-colors:active){
+.osw-opt input:checked+span{forced-color-adjust:none;background:Highlight;color:HighlightText}
+}
+
+.sec{border-top:1px solid var(--line);padding:96px 0}
+.sec.tight{padding:72px 0}
+.pair{--side:min(642px,calc((100% - 56px) * 7 / 12));display:grid;grid-template-columns:minmax(0,1fr) var(--side);gap:56px;align-items:start}
+.main{display:grid;gap:20px;min-width:0;max-width:40em}
+.main>p{color:var(--text-2);text-wrap:pretty}
+.side{display:grid;gap:14px;min-width:0}
+figcaption{font-size:13.5px;line-height:1.55;color:var(--text-3)}
+.note{font-size:13.5px;line-height:1.55;color:var(--text-3)}
+.more{justify-self:start;align-self:start;padding-bottom:1px;border-bottom:1px solid var(--line-3);font-size:14px;color:var(--text);text-decoration:none}
+.more:hover{border-color:var(--text)}
+
+#how-it-works .main{margin-bottom:40px}
+
+.trio{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:auto;gap:64px 32px}
+.trio>section{display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:16px;min-width:0}
+.trio{margin-top:40px}
+.trio h3{font-size:24px;line-height:1.2;letter-spacing:-.028em}
+.trio p{font-size:15px;line-height:1.6;color:var(--text-2);text-wrap:pretty}
+.trio p code{font-size:.9em;color:var(--text);background:none;border:0;padding:0}
+.trio .editor{display:flex;flex-direction:column;margin-top:6px}
+.trio .editor .code{flex:1 0 auto}
+.trio .term{white-space:pre-wrap;overflow-wrap:anywhere}
+.trio .more{margin-top:4px}
+
+.shp-set{margin-top:48px}
+
+.shp-set{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;align-items:stretch}
+.shp-sprite{position:absolute;width:0;height:0;overflow:hidden}
+.shp-item{position:relative;display:flex;flex-direction:column;gap:14px;min-width:0;margin:0}
+.shp-win{position:relative;flex:1 1 auto;display:flex;flex-direction:column;min-height:272px;overflow:hidden;container-type:inline-size;border:1px solid var(--line-2,rgba(255,255,255,.13));box-shadow:0 44px 90px -34px #000,0 0 0 1px rgba(0,0,0,.5);font:400 12px/1.25 var(--sans,Geist,ui-sans-serif,system-ui,sans-serif);color:#e6e6e6;-webkit-user-select:none;user-select:none;cursor:default}
+.shp-g{flex:none;display:block;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.shp-off{opacity:.38}
+.shp-view{flex:1 1 auto;display:flex;align-items:flex-start}
+.shp-file{display:flex;flex-direction:column;align-items:center;gap:5px}
+.shp-icon{display:block;width:92px;height:92px;overflow:visible}
+.shp-name{font-size:12px;line-height:16px;white-space:nowrap}
+.shp-cap{display:flex;flex-wrap:wrap;gap:2px 8px;font-size:13.5px;line-height:1.4;color:var(--text-3,#8f8f8f)}
+.shp-os{font-weight:500;color:var(--text,#ededed)}
+.shp-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+.shp-mac{flex-direction:row;border-radius:12px;background:#1c1c1e}
+.shp-mac-side{flex:none;display:flex;flex-direction:column;gap:1px;padding:0 6px 10px;background:#29292c;box-shadow:inset -1px 0 rgba(0,0,0,.45)}
+.shp-lights{display:flex;align-items:center;gap:7px;height:40px;padding-left:6px;filter:saturate(.6) brightness(.92)}
+.shp-lights i{width:11px;height:11px;border-radius:50%;background:#ff5f57}
+.shp-lights i:nth-child(2){background:#febc2e}
+.shp-lights i:nth-child(3){background:#28c840}
+.shp-mac-head{padding:4px 6px 3px;font-size:10.5px;font-weight:600;color:#8e8e93}
+.shp-mac-row{display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;font-size:11.5px;color:#dcdcde;white-space:nowrap;overflow:hidden}
+.shp-mac-row .shp-g{width:14px;height:14px;color:#5b93df;stroke-width:1.5}
+.shp-mac-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.shp-mac-bar{display:flex;align-items:center;gap:6px;height:40px;padding:0 10px 0 8px;color:#a8a8ad;border-bottom:1px solid rgba(255,255,255,.06)}
+.shp-mac-title{margin-left:4px;font-size:13px;font-weight:600;color:#ececee}
+.shp-mac-tools{display:flex;align-items:center;gap:10px;margin-left:auto}
+.shp-mac-seg{display:grid;place-items:center;width:28px;height:22px;border-radius:6px;background:rgba(255,255,255,.09)}
+.shp-mac-view{padding:14px 12px}
+.shp-mac-pick{display:block;padding:5px;border-radius:9px;background:rgba(255,255,255,.1)}
+.shp-mac-name{padding:0 6px;border-radius:4px;background:#2d5ec4;color:#fff;font-weight:500}
+.shp-icon-mac{filter:drop-shadow(0 3px 5px rgba(0,0,0,.5)) drop-shadow(0 1px 1px rgba(0,0,0,.45))}
+
+.shp-w11{border-radius:8px;background:#191919}
+.shp-w-top{display:flex;align-items:flex-end;height:38px;padding-left:8px;background:linear-gradient(105deg,#192131,#1c1f27 45%,#1f1f22 80%)}
+.shp-w-tab{position:relative;display:flex;align-items:center;gap:8px;width:136px;min-width:0;height:31px;padding:0 6px 0 10px;border-radius:8px 8px 0 0;background:#282828;color:#e8e8e8}
+.shp-w-tab::before,.shp-w-tab::after{content:"";position:absolute;bottom:0;width:8px;height:8px}
+.shp-w-tab::before{left:-8px;background:radial-gradient(circle at 0 0,transparent 7.5px,#282828 8px)}
+.shp-w-tab::after{right:-8px;background:radial-gradient(circle at 100% 0,transparent 7.5px,#282828 8px)}
+.shp-w-tabname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shp-w-tabx{width:12px;height:12px;color:#c8c8c8}
+.shp-w-newtab{width:14px;height:14px;margin:0 0 8px 16px;color:#cfcfcf}
+.shp-w-caps{display:flex;align-self:flex-start;margin-left:auto}
+.shp-w-caps>span{display:grid;place-items:center;width:46px;height:32px;color:#e3e3e3}
+.shp-w-caps .shp-g{stroke-width:1}
+.shp-w-addr{display:flex;align-items:center;height:40px;padding:0 8px 0 6px;background:#282828;color:#e3e3e3}
+.shp-w-nav{display:grid;place-items:center;flex:none;width:26px;height:28px;border-radius:4px}
+.shp-w-crumbs{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:2px;height:28px;margin-left:6px;padding:0 6px;border:1px solid rgba(255,255,255,.07);border-radius:4px;background:rgba(255,255,255,.045);white-space:nowrap;overflow:hidden}
+.shp-w-crumbs .shp-w-folder{margin-right:2px}
+.shp-w-sep{width:10px;height:12px;color:#9d9d9d}
+.shp-w-search{flex:0 0 96px;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:6px;height:28px;margin-left:6px;padding:0 8px;border:1px solid rgba(255,255,255,.07);border-radius:4px;background:rgba(255,255,255,.045);color:#9d9d9d;white-space:nowrap;overflow:hidden}
+.shp-w-search .shp-g{width:14px;height:14px}
+.shp-w-cmd{display:flex;align-items:center;gap:2px;height:40px;padding:0 6px;background:#282828;box-shadow:inset 0 1px rgba(255,255,255,.04),0 1px rgba(0,0,0,.4)}
+.shp-w-btn{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:4px;white-space:nowrap;color:#e6e6e6}
+.shp-w-caret{width:12px;height:12px;margin-left:-2px;color:#bdbdbd}
+.shp-w-div{flex:none;width:1px;height:20px;margin:0 4px;background:rgba(255,255,255,.12)}
+.shp-w-body{flex:1 1 auto;display:flex;min-height:0}
+.shp-w-pane{flex:none;display:flex;flex-direction:column;width:112px;padding:6px 4px;border-right:1px solid rgba(255,255,255,.06)}
+.shp-w-row{display:flex;align-items:center;gap:7px;height:22px;padding:0 6px;border-radius:4px;font-size:11.5px;color:#e3e3e3;white-space:nowrap;overflow:hidden}
+.shp-w-row .shp-g{width:14px;height:14px;stroke-width:1.3}
+.shp-w-home{color:#dedede}
+.shp-w-gal{color:#6ac0ef}
+.shp-w-desk{color:#3d95dc}
+.shp-w-dl{color:#5cc461}
+.shp-w-pc{color:#9cc7ea}
+.shp-w-rule{flex:none;height:1px;margin:5px 6px;background:rgba(255,255,255,.08)}
+.shp-w-view{padding:10px}
+.shp-w-file{padding:7px 11px 8px;border-radius:4px;background:rgba(255,255,255,.075)}
+.shp-w-status{display:flex;align-items:center;justify-content:space-between;height:26px;padding:0 6px 0 12px;font-size:11.5px;color:#bcbcbc}
+.shp-w-modes{display:flex;align-items:center;gap:2px}
+.shp-w-modes>span{display:grid;place-items:center;width:22px;height:20px;border-radius:4px}
+.shp-w-modes .shp-g{width:14px;height:14px}
+.shp-w-on{background:rgba(255,255,255,.08)}
+
+.shp-gnome{border-radius:12px;background:#1d1d20}
+.shp-gn-bar{display:flex;align-items:center;gap:3px;height:46px;padding:0 8px 0 6px;background:#2e2e32;box-shadow:inset 0 -1px rgba(0,0,6,.36);color:#e8e8ea}
+.shp-gnome .shp-g{stroke-width:1.6}
+.shp-gn-btn{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:6px}
+.shp-gn-path{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;height:30px;margin:0 4px;padding:0 10px;border-radius:6px;background:rgba(255,255,255,.08);white-space:nowrap;overflow:hidden;color:#d4d4d8}
+.shp-gn-path i{font-style:normal;color:#8e8e93}
+.shp-gn-path b{font-weight:600;color:#f2f2f4}
+.shp-gn-home{display:flex;align-items:center;gap:6px}
+.shp-gn-home .shp-g{width:14px;height:14px}
+.shp-gn-close{display:grid;place-items:center;flex:none;width:24px;height:24px;margin-left:6px;border-radius:50%;background:rgba(255,255,255,.1)}
+.shp-gn-close .shp-g{width:12px;height:12px;stroke-width:1.8}
+.shp-gn-view{padding:12px}
+.shp-gn-file{padding:6px 7px 8px;border-radius:12px;background:rgba(53,132,228,.22)}
+
+@container (max-width:339px){
+.shp-w-pane{display:none}
+}
+@container (max-width:350px){
+.shp-w-search{display:none}
+.shp-gn-views{display:none}
+}
+@container (max-width:300px){
+.shp-w-newtab{display:none}
+.shp-w-tab{width:112px}
+.shp-gn-fwd{display:none}
+.shp-w-more{display:none}
+}
+@container (max-width:285px){
+.shp-gn-home{display:none}
+.shp-w-refresh{display:none}
+}
+@media (max-width:999px){
+.shp-set{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 24px}
+.shp-item:last-of-type{grid-column:1/-1;justify-self:center;width:calc(50% - 12px)}
+}
+@media (max-width:599px){
+.shp-set{grid-template-columns:minmax(0,1fr);gap:28px}
+.shp-item:last-of-type{grid-column:auto;width:auto;justify-self:stretch}
+.shp-win{min-height:0}
+}
+
+.ex{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:36px 24px;margin:48px 0 0;padding:0}
+.ex-card{position:relative;display:grid;align-content:start;gap:4px;min-width:0}
+.ex-shot{--bar:clamp(11px,5.6cqw,16px);position:relative;display:grid;place-items:center;aspect-ratio:4/3;margin-bottom:12px;overflow:hidden;container-type:inline-size;border:1px solid var(--line);border-radius:12px;background:radial-gradient(85% 75% at 50% 42%,#141418,#0a0a0c 70%,#070707);transition:border-color .15s ease}
+.ex-card:hover .ex-shot,.ex-card:focus-within .ex-shot{border-color:var(--line-3)}
+.ex-win{width:min(86cqw,(62cqw - var(--bar) - 2px) * var(--a));overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#0e0e12;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 14px 30px -10px rgba(0,0,0,.85),0 30px 60px -24px rgba(0,0,0,.7)}
+.ex-bar{display:flex;align-items:center;gap:clamp(3px,1.4cqw,4px);height:var(--bar);padding:0 clamp(4px,2.2cqw,6px);background:#1b1b20;border-bottom:1px solid rgba(0,0,0,.65);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.ex-bar i{flex:none;width:clamp(4px,2.1cqw,6px);height:clamp(4px,2.1cqw,6px);border-radius:50%;background:#3b3b41;transition:background-color .15s ease}
+.ex-card:hover .ex-bar i:nth-child(1),.ex-card:focus-within .ex-bar i:nth-child(1){background:#df625c}
+.ex-card:hover .ex-bar i:nth-child(2),.ex-card:focus-within .ex-bar i:nth-child(2){background:#d8aa46}
+.ex-card:hover .ex-bar i:nth-child(3),.ex-card:focus-within .ex-bar i:nth-child(3){background:#53ad5f}
+.ex-win img{width:100%}
+.ex-crop{aspect-ratio:var(--a);object-fit:cover;object-position:top}
+.ex-web{--bar:clamp(13px,7cqw,20px)}
+.ex-web .ex-bar{background:#202024}
+.ex-url{flex:1 1 auto;height:clamp(5px,2.8cqw,8px);margin:0 clamp(6px,3.5cqw,10px) 0 clamp(5px,2.8cqw,8px);border-radius:4px;background:rgba(255,255,255,.08)}
+.ex-glass{--bar:0px;overflow:hidden;aspect-ratio:802/1532;border-radius:3.5%/1.83%;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 14px 30px -10px rgba(0,0,0,.85),0 30px 60px -24px rgba(0,0,0,.7)}
+.ex-glass img{width:104.739%;max-width:none;margin:-1.746% 0 0 -1.995%}
+.ex-card h3{font-size:15px;line-height:1.35;letter-spacing:-.01em}
+.ex-card h3 a{text-decoration:none}
+.ex-card h3 a::after{content:"";position:absolute;inset:0;border-radius:12px}
+.ex-card h3 a:focus-visible{outline:none}
+.ex-card h3 a:focus-visible::after{outline:2px solid var(--text);outline-offset:4px}
+.ex-card p{font-size:13.5px;line-height:1.5;color:var(--text-2);text-wrap:pretty}
+
+.rows{display:grid;grid-template-columns:180px minmax(0,1fr);gap:28px 32px;margin-top:40px;align-items:start}
+.rows>h3{padding-top:8px;font-size:15px;color:var(--text-2);font-weight:500}
+.tokens{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0}
+.tokens li{padding:7px 9px;font:400 13px/1 var(--mono);color:var(--text);background:var(--s1);border:1px solid var(--line-2);border-radius:7px}
+.diffs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 32px;margin:0}
+.diffs>div{padding:16px 0 20px;border-top:1px solid var(--line)}
+.diffs dt{font-weight:600;font-size:15px;line-height:1.35;letter-spacing:-.01em}
+.diffs dd{margin:8px 0 0;font-size:14px;line-height:1.6;color:var(--text-2)}
+.diffs dd a{color:var(--text);white-space:nowrap}
+.diffs dd code,.diffs dt code{font-size:.9em;color:var(--text);background:none;border:0;padding:0}
+
+.show{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:start}
+.show .main{grid-column:span 2;padding-right:32px}
+.slot{position:relative;display:grid;place-items:center;aspect-ratio:4/3;border:1px dashed var(--line-3);border-radius:12px}
+.slot+.slot{border-color:var(--line-2)}
+.slot-dots{position:absolute;top:10px;left:10px;display:flex;gap:4px}
+.slot-dots i{width:7px;height:7px;border:1px solid var(--line-3);border-radius:50%}
+.slot+.slot .slot-dots i{border-color:var(--line-2)}
+.sponsor{display:flex;align-items:center;justify-content:space-between;gap:20px 40px;margin-top:64px;padding:32px 36px 28px;border:1px solid var(--line-2);border-radius:14px;background:radial-gradient(70% 180% at 100% 0,rgba(255,62,0,.09),transparent 70%),var(--s1)}
+.sponsor p{max-width:27em;font-size:21px;line-height:1.35;font-weight:500;letter-spacing:-.022em;color:var(--text);text-wrap:balance}
+.sponsor .btn{flex:none;gap:8px;height:44px;padding:0 20px;border-radius:10px}
+.heart{display:block;width:15px;height:15px;fill:var(--accent)}
+
+.foot{border-top:1px solid var(--line);padding:36px 0 52px}
+.foot .wrap{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:16px 32px}
+.foot>.wrap>p{font-size:14px;color:var(--text-2)}
+.foot p b{font-weight:600;letter-spacing:-.02em;color:var(--text)}
+.foot ul{display:flex;flex-wrap:wrap;gap:8px 24px;margin:0;padding:0;list-style:none}
+.foot ul a{font-size:14px;color:var(--text-2);text-decoration:none}
+.foot ul a:hover,.foot p a:hover{color:var(--text)}
+.foot .fine{flex-basis:100%;font-size:13px;color:var(--text-3)}
+
+.hiw-fig{--hiw-gx:var(--accent,#ff3e00);--hiw-both:var(--text,#ededed);--hiw-web:rgba(255,255,255,.3);--hiw-bg:var(--s1,#0a0a0a);--hiw-r:18px;--hiw-t:16px;container:hiw/inline-size;margin:0;min-width:0}
+.hiw-map{position:relative;display:grid;grid-template-columns:[c1] minmax(0,112fr) [c2] minmax(0,162fr) [fork] minmax(0,176fr) [s1] minmax(0,174fr) [s2] minmax(0,136fr) [s3] minmax(0,100fr) [s4] minmax(0,128fr) [s5] minmax(0,132fr) [end];grid-template-rows:[wl] auto [wt] var(--hiw-t) [ma] minmax(30px,auto) [mb] minmax(30px,auto) [mt] var(--hiw-t) [ml] auto [end];padding:36px 40px 32px;background:var(--hiw-bg);border:1px solid var(--line-2,rgba(255,255,255,.13));border-radius:12px;color:var(--text-2,#a1a1a1);font:400 13px/1.45 var(--sans,system-ui,sans-serif)}
+.hiw-key,.hiw-path{margin:0;padding:0;list-style:none}
+.hiw-key{grid-column:c1/fork;grid-row:wl/mt;align-self:start;display:grid;gap:9px;font-size:12.5px;line-height:1.3;color:var(--text-2,#a1a1a1)}
+.hiw-key li{display:flex;align-items:center;gap:10px}
+.hiw-key li::before{content:"";flex:none;width:22px;border-top:1.5px solid var(--hiw-c)}
+.hiw-key-both{--hiw-c:var(--hiw-both)}
+.hiw-key-gx{--hiw-c:var(--hiw-gx)}
+.hiw-key-web{--hiw-c:var(--hiw-web)}
+.hiw-key .hiw-key-web::before{border-top:1px dashed var(--hiw-c)}
+.hiw-path{display:grid;grid-column:1/-1;grid-row:1/-1;grid-template-columns:subgrid;grid-template-rows:subgrid;pointer-events:none}
+.hiw-path>li{position:relative;min-width:0;pointer-events:auto}
+.hiw-both{--hiw-c:var(--hiw-both)}
+.hiw-gx{--hiw-c:var(--hiw-gx)}
+.hiw-web{--hiw-c:var(--hiw-web)}
+.hiw-line,.hiw-bend{position:relative;pointer-events:none}
+.hiw-line::before{content:"";position:absolute;left:0;right:0;top:50%;margin-top:-.75px;border-top:1.5px solid var(--hiw-c)}
+.hiw-line-both{--hiw-c:var(--hiw-both);grid-column:c1/fork;grid-row:mt}
+.hiw-line-gx{--hiw-c:var(--hiw-gx);grid-column:fork/s5;grid-row:mt}
+.hiw-line-web{--hiw-c:var(--hiw-web);grid-column:fork/s5;grid-row:wt;margin-left:calc(var(--hiw-r) * 2)}
+.hiw-map .hiw-line-web::before{margin-top:-.5px;border-top:1px dashed var(--hiw-c)}
+.hiw-bend{grid-column:fork;grid-row:wt/ml;width:calc(var(--hiw-r) * 2);margin:calc(var(--hiw-t) / 2) 0}
+.hiw-bend i{position:absolute;box-sizing:border-box;width:var(--hiw-r);height:50%;border:0 dashed var(--hiw-web)}
+.hiw-bend i:first-child{left:0;bottom:-.5px;border-right-width:1px;border-bottom-width:1px;border-bottom-right-radius:var(--hiw-r)}
+.hiw-bend i:last-child{left:calc(var(--hiw-r) - 1px);top:-.5px;border-left-width:1px;border-top-width:1px;border-top-left-radius:var(--hiw-r)}
+.hiw-bend::before{content:"";position:absolute;z-index:1;left:-3.5px;bottom:-3.5px;width:7px;height:7px;border-radius:50%;background:var(--hiw-both)}
+.hiw-stop::before{content:"";position:absolute;left:0;box-sizing:border-box;width:9px;height:9px;border:1.5px solid var(--hiw-c);border-radius:50%;background:var(--hiw-bg)}
+.hiw-end::before{content:none}
+.hiw-glyph{position:absolute;left:0;display:block;width:24px;height:18px;color:var(--hiw-c);background:var(--hiw-bg)}
+.hiw-both>li,.hiw-gx>.hiw-stop{grid-row:mt/end;padding:calc(var(--hiw-t) + 12px) 16px 0 0}
+.hiw-both>li::before,.hiw-gx>.hiw-stop::before{top:calc(var(--hiw-t) / 2 - 4.5px)}
+.hiw-gx .hiw-glyph{top:-1px}
+.hiw-web>.hiw-stop{grid-row:wl/ma;align-self:end;padding:0 16px calc(var(--hiw-t) + 12px) 0}
+.hiw-web>.hiw-stop::before{bottom:calc(var(--hiw-t) / 2 - 4.5px)}
+.hiw-web .hiw-glyph{bottom:-1px}
+.hiw-web>.hiw-edge{grid-row:ma;align-self:start;padding-top:10px}
+.hiw-gx>.hiw-edge{grid-row:mb;align-self:end;padding-top:14px;padding-bottom:10px}
+.hiw-c1{grid-column:c1/c2}
+.hiw-c2{grid-column:c2/fork}
+.hiw-e1{grid-column:fork/s1;padding-left:calc(var(--hiw-r) + 16px);white-space:nowrap}
+.hiw-e2{grid-column:s1/s2;padding-left:26px}
+.hiw-s1{grid-column:s1/s2}
+.hiw-s2{grid-column:s2/s3}
+.hiw-s3{grid-column:s3/s4}
+.hiw-s4{grid-column:s4/s5}
+.hiw-s5{grid-column:s5/end}
+.hiw-path>.hiw-s5{padding-right:0}
+.hiw-web>.hiw-s1{grid-column:s1/s3}
+.hiw-web>.hiw-s3{grid-column:s3/s5}
+.hiw-name{display:block;font-weight:500;font-size:13.5px;line-height:1.35;letter-spacing:-.01em;color:var(--text,#ededed)}
+code.hiw-name,.hiw-edge code{font:450 12.5px/1.4 var(--mono,ui-monospace,monospace);letter-spacing:0}
+.hiw-note{display:block;margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--text-2,#a1a1a1);text-wrap:pretty}
+.hiw-note code{font:400 11.5px/1 var(--mono,ui-monospace,monospace);color:inherit}
+.hiw-web .hiw-name,.hiw-edge .hiw-name{color:var(--text-2,#a1a1a1)}
+.hiw-web .hiw-note,.hiw-web>.hiw-edge .hiw-name{color:var(--text-3,#8f8f8f)}
+.hiw-gx>.hiw-edge code{color:var(--hiw-gx)}
+.hiw-gpu{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:4px 10px}
+.hiw-gpu .hiw-note{margin:0}
+.hiw-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@container hiw (max-width:1175px){
+.hiw-map{grid-template-columns:[mt] var(--hiw-t) [ml] minmax(0,1fr) [gap] 14px [wt] var(--hiw-t) [wl] minmax(0,1fr) [end];grid-template-rows:[c1] auto [c2] auto [fork] calc(var(--hiw-r) * 2 + 10px) [e1] auto [s1] auto [e2] auto [s2] auto [s3] auto [s4] auto [s5] auto [end];padding:24px 18px 6px}
+.hiw-map .hiw-key{grid-column:wt/end;grid-row:c1/fork}
+.hiw-map .hiw-both>li,.hiw-map .hiw-gx>li{grid-column:mt/gap}
+.hiw-map .hiw-web>li{grid-column:wt/end}
+.hiw-map .hiw-path>li{align-self:start;padding:0 0 22px calc(var(--hiw-t) + 10px);white-space:normal}
+.hiw-map .hiw-path>.hiw-edge{padding-bottom:18px}
+.hiw-map .hiw-stop::before{top:4px;bottom:auto;left:calc(var(--hiw-t) / 2 - 4.5px)}
+.hiw-map .hiw-glyph{top:0;bottom:auto;left:calc(var(--hiw-t) / 2 - 12px)}
+.hiw-map .hiw-c1{grid-row:c1/c2}
+.hiw-map .hiw-c2{grid-row:c2/fork}
+.hiw-map .hiw-e1{grid-row:e1/s1}
+.hiw-map .hiw-s1{grid-row:s1/e2}
+.hiw-map .hiw-e2{grid-row:e2/s2}
+.hiw-map .hiw-s2{grid-row:s2/s3}
+.hiw-map .hiw-s3{grid-row:s3/s4}
+.hiw-map .hiw-s4{grid-row:s4/s5}
+.hiw-map .hiw-s5{grid-row:s5/end}
+.hiw-map .hiw-web>.hiw-s3{grid-row:s3/s5}
+.hiw-map .hiw-line::before{left:50%;right:auto;top:0;bottom:0;margin:0 0 0 -.75px;border-top:0;border-left:1.5px solid var(--hiw-c)}
+.hiw-map .hiw-line-web::before{margin:0 0 0 -.5px;border-top:0;border-left:1px dashed var(--hiw-c)}
+.hiw-map .hiw-line-both{grid-column:mt;grid-row:c1/fork;margin:8px 0 0}
+.hiw-map .hiw-line-gx{grid-column:mt;grid-row:fork/s5}
+.hiw-map .hiw-line-web{grid-column:wt;grid-row:fork/s5;margin:calc(var(--hiw-r) * 2) 0 0}
+.hiw-map .hiw-bend{grid-column:mt/wl;grid-row:fork;width:auto;height:calc(var(--hiw-r) * 2);margin:0 calc(var(--hiw-t) / 2)}
+.hiw-map .hiw-bend i{width:50%;height:var(--hiw-r)}
+.hiw-map .hiw-bend i:first-child{left:-.5px;top:0;bottom:auto;border-width:0 0 1px 1px;border-radius:0 0 0 var(--hiw-r)}
+.hiw-map .hiw-bend i:last-child{left:auto;right:-.5px;top:calc(var(--hiw-r) - 1px);border-width:1px 1px 0 0;border-radius:0 var(--hiw-r) 0 0}
+.hiw-map .hiw-bend::before{top:-3.5px;bottom:auto}
+}
+@container hiw (min-width:560px) and (max-width:1175px){
+.hiw-map{padding:32px 32px 10px}
+}
+@container hiw (min-width:720px) and (max-width:1175px){
+.hiw-map{grid-template-columns:[mt] var(--hiw-t) [ml] minmax(0,330px) [gap] 56px [wt] var(--hiw-t) [wl] minmax(0,300px) [end];justify-content:center}
+}
+@container hiw (max-width:357px){
+code.hiw-name,.hiw-edge code{font-size:12px}
+}
+@container hiw (max-width:328px){
+.hiw-map{grid-template-columns:[mt] var(--hiw-t) [ml] minmax(0,1fr) [gap] 12px [wt] var(--hiw-t) [wl] minmax(0,1fr) [end];grid-template-rows:[key] auto [c1] auto [c2] auto [fork] calc(var(--hiw-r) * 2 + 10px) [e1] auto [s1] auto [e2] auto [s2] auto [s3] auto [s4] auto [s5] auto [end];padding:18px 14px 4px}
+.hiw-map .hiw-key{grid-column:mt/end;grid-row:key;display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--line,rgba(255,255,255,.08))}
+.hiw-key li{gap:8px}
+.hiw-key li::before{width:16px}
+.hiw-map .hiw-path>li{padding-left:calc(var(--hiw-t) + 8px)}
+.hiw-name{font-size:13px}
+code.hiw-name,.hiw-edge code{font-size:11.5px}
+.hiw-note{font-size:12px}
+.hiw-note code{font-size:11px}
+}
+
+@media (min-width:1024px){
+.hero{padding:44px 0 72px}
+.hero .wrap{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:0 48px;align-items:center}
+h1{grid-area:1/1;align-self:end;font-size:clamp(40px,4.1vw,58px)}
+.lead{grid-area:2/1;align-self:start}
+.stage{grid-area:1/2/3/3;margin:0}
+.lap{max-width:none}
+}
+@media (min-width:1100px) and (max-height:760px){
+.hero{padding-top:24px}
+.install,.links .btn{height:40px}
+.hero .wrap{grid-template-columns:minmax(0,1fr) minmax(0,600px)}
+}
+@media (min-width:1440px){
+main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--max) / 2 - var(--gut)) 0/1px 100% no-repeat,linear-gradient(var(--line),var(--line)) calc(50% + var(--max) / 2 + var(--gut)) 0/1px 100% no-repeat}
+}
+@media (max-width:1099px){
+.ex{gap:32px 20px}
+.show{gap:24px 20px}
+.diffs{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:1199px){
+.trio{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:699px){
+.trio{grid-template-columns:minmax(0,1fr)}
+.trio>section{grid-row:auto;grid-template-rows:none;align-content:start}
+}
+@media (max-width:899px){
+:root{--gut:16px}
+.pair{grid-template-columns:minmax(0,1fr);gap:32px}
+.ex{grid-template-columns:repeat(2,minmax(0,1fr))}
+.show{grid-template-columns:repeat(2,minmax(0,1fr));gap:32px 24px}
+.show .main{grid-column:1/-1;padding-right:0}
+.sec{padding:56px 0}
+.sec.tight{padding:44px 0}
+.hero{padding-bottom:44px}
+.trio{row-gap:48px}
+.install{flex:1 1 auto}
+#how-it-works .main{margin-bottom:28px}
+.shp-set{margin-top:36px}
+.rows{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:32px}
+.rows>h3{padding-top:0}
+.rows>h3+*{margin-bottom:18px}
+.sponsor{margin-top:48px}
+}
+@media (min-width:730px) and (max-width:1023px){
+.install{max-width:480px}
+}
+@media (max-width:729px){
+.install,.links{flex:1 1 100%}
+.links .btn{flex:1 1 0;min-width:0}
+}
+@media (max-width:599px){
+.sponsor{flex-direction:column;align-items:stretch;padding:24px 20px 20px}
+.sponsor p{font-size:18px}
+.ex{gap:28px 12px}
+.ex-card p{font-size:13px}
+.diffs{grid-template-columns:minmax(0,1fr)}
+.show{gap:28px 12px}
+}
+@media (max-width:560px){
+:root{--corner:64px}
+.nav ul{gap:16px}
+.brand{gap:8px}
+.hero{padding-top:28px}
+h1{font-size:clamp(34px,10.4vw,44px)}
+.lead p{font-size:16px}
+.install{gap:8px;padding-left:12px}
+.install .pr{display:none}
+.tcopy .copy:not([hidden]){position:static;display:block;margin:-6px 10px 12px auto}
+}
+@media (max-width:560px) and (hover:hover){
+.h-more{display:none}
+}
+@media (max-width:380px){
+.nav ul{gap:14px}
+.bar .hint{display:none}
+}
+@media (hover:none){
+.h-fine{display:none}
+.h-touch{display:inline}
+}
+:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
+:root:has(#og:target) .hero{padding:0}
+:root:has(#og:target) .hero .wrap{grid-template-columns:minmax(0,1fr) 600px;gap:0 48px;padding:0 72px;min-height:574px}
+:root:has(#og:target) h1{font-size:54px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
+</head>
+<body>
+<i id="og" hidden></i>
+<header class="top">
+<nav class="wrap nav" aria-label="Main">
+<div class="brand"><a href="./"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte</a></div>
+<ul>
+<li><a href="overview.html">Docs</a></li>
+<li><a href="#examples">Examples</a></li>
+</ul>
+</nav>
+<a href="https://github.com/khromov/gpuix-svelte" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+</header>
+
+<main id="top">
+<section class="hero" aria-labelledby="title">
+<div class="wrap">
+<h1 id="title">Build native desktop apps with Svelte</h1>
+<div class="lead">
+<p>gpuix-svelte renders your Svelte components into a native, gpu-accelerated application on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no browser. You can access anything on the users computer using Node or Bun APIs.</p>
+<div class="act">
+<div class="install"><code><span class="pr" aria-hidden="true">$</span>npm create gpuix-svelte@latest my-app<span class="caret" aria-hidden="true"></span></code><button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app" hidden>Copy</button></div>
+<div class="links"><a class="btn solid" href="overview.html">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
+</div>
+</div>
+
+<div class="stage">
+<figure class="lap">
+<svg class="shp-sprite" aria-hidden="true" focusable="false">
+<symbol id="ico-app" viewBox="0 0 100 100"><g transform="translate(14 14) scale(1.125)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g></symbol>
+<symbol id="ico-wifi" viewBox="0 0 16 16"><path d="M1.5 6a9.5 9.5 0 0 1 13 0M4 8.5a6 6 0 0 1 8 0M6.5 11a2.5 2.5 0 0 1 3 0"/><circle class="scr-fill" cx="8" cy="13.2" r="1"/></symbol>
+<symbol id="ico-batt" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="11" height="7" rx="1.75"/><path d="M14 7v2"/><rect class="scr-fill" x="3" y="6" width="8" height="4" rx=".75"/></symbol>
+<symbol id="ico-vol" viewBox="0 0 16 16"><path class="scr-fill" d="M2.5 6.25h2.4L8.5 3.5v9L4.9 9.75H2.5z"/><path d="M10.75 6a3 3 0 0 1 0 4M12.5 4.25a5.5 5.5 0 0 1 0 7.5"/></symbol>
+<symbol id="ico-cc" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="4.5" rx="2.25"/><circle class="scr-fill" cx="4" cy="4.75" r="1.25"/><rect x="1.5" y="9" width="13" height="4.5" rx="2.25"/><circle class="scr-fill" cx="12" cy="11.25" r="1.25"/></symbol>
+<symbol id="ico-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></symbol>
+<symbol id="ico-tasks" viewBox="0 0 16 16"><rect x="2" y="4.5" width="8.5" height="8.5" rx="1.25"/><path d="M5.5 4.5V3.75A1.25 1.25 0 0 1 6.75 2.5h6A1.25 1.25 0 0 1 14 3.75v6A1.25 1.25 0 0 1 12.75 11H12"/></symbol>
+<symbol id="ico-chev" viewBox="0 0 16 16"><path d="m4.5 10 3.5-3.5 3.5 3.5"/></symbol>
+<symbol id="ico-bell" viewBox="0 0 16 16"><path d="M4 11.5V7.5a4 4 0 0 1 8 0v4l1 1.25H3z"/><path d="M6.75 13.75a1.25 1.25 0 0 0 2.5 0"/></symbol>
+</svg>
+<div class="osw-seg" role="radiogroup" aria-label="Operating system">
+<label class="osw-opt"><input type="radio" name="osw-os" value="mac" checked><span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 8.5c0-1.6 1.3-2.3 1.35-2.35-.75-1.1-1.9-1.25-2.3-1.25-1-.1-1.9.55-2.4.55-.5 0-1.25-.55-2.05-.5a3.1 3.1 0 0 0-2.6 1.55c-1.1 1.9-.3 4.75.8 6.3.55.75 1.15 1.6 1.95 1.55.8-.05 1.1-.5 2.05-.5s1.2.5 2.05.5c.85 0 1.4-.75 1.9-1.5.6-.9.85-1.75.85-1.8 0 0-1.6-.6-1.6-2.55ZM9.65 3.9c.45-.55.75-1.3.65-2.05-.65.05-1.4.45-1.85.95-.4.45-.75 1.2-.65 1.95.7.05 1.4-.35 1.85-.85Z"/></svg>macOS</span></label>
+<label class="osw-opt"><input type="radio" name="osw-os" value="win"><span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.1 7.2 2.3v5.3H1.5zM8 2.2 14.5 1.3v6.3H8zM1.5 8.4h5.7v5.3l-5.7-.8zM8 8.4h6.5v6.3L8 13.8z"/></svg>Windows</span></label>
+<label class="osw-opt"><input type="radio" name="osw-os" value="linux"><span><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="7.5 3.6" transform="rotate(-100.5 8 8)"/><circle cx="13.3" cy="8" r="1.9"/><circle cx="5.35" cy="12.59" r="1.9"/><circle cx="5.35" cy="3.41" r="1.9"/></svg>Linux</span></label>
+</div>
+<div class="lap-dev">
+<div class="lap-lid">
+<div class="scr">
+<!-- Wallpapers: macOS 27 (Apple), Windows 11 Bloom (Microsoft), Ubuntu 26.04 Resolute Raccoon (Canonical, CC BY-SA 4.0). -->
+<img class="scr-wall scr-wall-mac" src="assets/wall/wall-mac.webp" width="1600" height="1000" fetchpriority="high" alt="">
+<img class="scr-wall scr-wall-win" src="assets/wall/wall-win.webp" width="1600" height="1000" decoding="async" alt="">
+<img class="scr-wall scr-wall-linux" src="assets/wall/wall-linux.webp" width="1600" height="1000" decoding="async" alt="">
+<div class="desk desk-mac" aria-hidden="true">
+<div class="mac-bar"><span class="bar-l"><svg viewBox="0 0 16 16"><path class="scr-fill" d="M11.2 8.5c0-1.6 1.3-2.3 1.35-2.35-.75-1.1-1.9-1.25-2.3-1.25-1-.1-1.9.55-2.4.55-.5 0-1.25-.55-2.05-.5a3.1 3.1 0 0 0-2.6 1.55c-1.1 1.9-.3 4.75.8 6.3.55.75 1.15 1.6 1.95 1.55.8-.05 1.1-.5 2.05-.5s1.2.5 2.05.5c.85 0 1.4-.75 1.9-1.5.6-.9.85-1.75.85-1.8 0 0-1.6-.6-1.6-2.55ZM9.65 3.9c.45-.55.75-1.3.65-2.05-.65.05-1.4.45-1.85.95-.4.45-.75 1.2-.65 1.95.7.05 1.4-.35 1.85-.85Z"/></svg><b>gpuix-svelte</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span></span><span class="bar-r"><svg><use href="#ico-batt"/></svg><svg><use href="#ico-wifi"/></svg><svg><use href="#ico-cc"/></svg><span data-clock="mac">Thu 23 Oct&nbsp;&nbsp;09:41</span></span></div>
+<div class="mac-dock"><i class="dk dk-finder on"></i><i class="dk dk-settings"></i><i class="dk dk-notes"></i><i class="dk dk-term"></i><i class="dk dk-app on"><svg class="app-glyph"><use href="#ico-app"/></svg></i><i class="dk-sep"></i><i class="dk dk-trash"></i></div>
+</div>
+<div class="desk desk-win" aria-hidden="true">
+<div class="win-bar"><span class="win-mid"><span class="tb"><span class="tb-start"><i></i><i></i><i></i><i></i></span></span><span class="tb tb-search"><svg><use href="#ico-search"/></svg><span>Search</span></span><span class="tb"><svg><use href="#ico-tasks"/></svg></span><span class="tb"><svg class="tb-folder"><use href="#shp-i-folder"/></svg></span><span class="tb on"><span class="wn-app"><svg class="app-glyph"><use href="#ico-app"/></svg></span></span></span><span class="bar-r"><span class="win-tray"><svg><use href="#ico-chev"/></svg><svg><use href="#ico-wifi"/></svg><svg><use href="#ico-vol"/></svg><svg><use href="#ico-batt"/></svg></span><span class="win-clock"><span data-clock="win-time">09:41</span><span data-clock="win-date">23/10/2026</span></span><svg><use href="#ico-bell"/></svg></span></div>
+</div>
+<div class="desk desk-linux" aria-hidden="true">
+<div class="ub-bar"><span class="ub-pill"><i></i><i></i></span><span class="ub-clock" data-clock="linux">Oct 23&nbsp;&nbsp;09:41</span><span class="bar-r"><svg><use href="#ico-wifi"/></svg><svg><use href="#ico-vol"/></svg><svg><use href="#ico-batt"/></svg></span></div>
+<div class="ub-dock"><i class="ub ub-web"></i><i class="ub ub-mail"></i><i class="ub ub-files"></i><i class="ub ub-store"></i><i class="ub ub-app on"><svg class="app-glyph"><use href="#ico-app"/></svg></i><span class="ub-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+</div>
+<div class="win osw-win">
+<div class="osw-bars" aria-hidden="true">
+<div class="osw-bar osw-mac"><span class="osw-lights"><i><svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5m0-5l-5 5"/></svg></i><i><svg viewBox="0 0 12 12"><path d="M3.2 6h5.6"/></svg></i><i><svg viewBox="0 0 12 12"><path d="M3.5 3.5h4.25L3.5 7.75zM8.5 8.5H4.25L8.5 4.25z" fill="currentColor" stroke="none"/></svg></i></span><span class="osw-title">gpuix-svelte starter</span></div>
+<div class="osw-bar osw-ms"><svg class="osw-ico" viewBox="0 0 64 64"><rect width="64" height="64" rx="2.5"/><rect x="2" y="2" width="60" height="60" rx="1" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="4"/><text x="32" y="32" dy=".35em" text-anchor="middle" fill="#fff" font-size="8" font-weight="600">gpuix-svelte</text></svg><span class="osw-title">gpuix-svelte starter</span><span class="osw-btns"><i class="osw-btn"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></i><i class="osw-btn"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></i><i class="osw-btn osw-x"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9m0-9l-9 9"/></svg></i></span></div>
+<div class="osw-bar osw-gn"><span class="osw-title">gpuix-svelte starter</span><i class="osw-gx"><svg viewBox="0 0 16 16"><path d="M5 5l6 6m0-6l-6 6"/></svg></i></div>
+</div>
+<div class="mk" role="group" aria-label="The starter app’s counter">
+<div class="mk-card"><div class="mk-count" data-count aria-live="polite">0</div><div class="mk-row"><button class="mk-btn" type="button" data-step="-1" aria-label="Count down">-</button><button class="mk-btn primary" type="button" data-step="1" aria-label="Count up">+</button></div><div class="mk-hint">Hello World from gpuix-svelte!</div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="lap-base"></div>
+</div>
+</figure>
+</div>
+</div>
+</section>
+
+<section class="sec tight" id="start" aria-labelledby="start-h">
+<div class="wrap pair">
+<div class="main">
+<h2 id="start-h">Quick start</h2>
+<p>Scaffolding a gpuix-svelte application is easy, you'll need Node.js 24 or later, or Bun 1.4 or later.</p>
+<p class="note">On Bun, run <code>bun create gpuix-svelte my-app</code>, then <code>cd my-app</code>, <code>bun install</code> and <code>bun run start</code>.</p>
+</div>
+<div class="side">
+<div class="editor tcopy">
+<pre class="term"><span class="pr">$ </span><span class="cmd">npm create gpuix-svelte@latest my-app</span>
+Created my-app. Next:
+
+  cd my-app
+  npm install
+  npm start      <span class="cm"># opens the window; edit App.svelte to hot-reload</span>
+  npm test       <span class="cm"># headless test (macOS and Windows)</span>
+  npm run build  <span class="cm"># standalone executable in dist/ (requires Bun)</span></pre>
+<button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app&#10;cd my-app&#10;npm install&#10;npm start" hidden>Copy</button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="how-it-works" aria-labelledby="how-h">
+<div class="wrap">
+<div class="main">
+<h2 id="how-h">How it works</h2>
+<p><span class="nw">gpuix-svelte</span> uses the new Svelte <a href="https://github.com/sveltejs/svelte/pull/18511">custom renderers</a> feature, which lets the compiler emit calls to a renderer of your choice.</p>
+</div>
+<figure class="hiw-fig">
+<div class="hiw-map">
+<ul class="hiw-key" aria-hidden="true">
+<li class="hiw-key-both">Both paths</li>
+<li class="hiw-key-gx">gpuix-svelte</li>
+<li class="hiw-key-web">Svelte on the web</li>
+</ul>
+<span class="hiw-line hiw-line-both" aria-hidden="true"></span>
+<span class="hiw-line hiw-line-gx" aria-hidden="true"></span>
+<span class="hiw-line hiw-line-web" aria-hidden="true"></span>
+<span class="hiw-bend" aria-hidden="true"><i></i><i></i></span>
+<ol class="hiw-path hiw-both" role="list" aria-label="Both paths">
+<li class="hiw-stop hiw-c1"><code class="hiw-name">App.svelte</code> <span class="hiw-note">Your component</span></li>
+<li class="hiw-stop hiw-c2"><code class="hiw-name">svelte/compiler</code> <span class="hiw-note">Compiles it to JavaScript</span></li>
+</ol>
+<ol class="hiw-path hiw-web" role="list" aria-label="Svelte on the web">
+<li class="hiw-edge hiw-e1"><span class="hiw-name">DOM calls</span></li>
+<li class="hiw-stop hiw-s1"><span class="hiw-name">The browser’s DOM</span> <span class="hiw-note"><code>createElement</code>, <code>appendChild</code>, …</span></li>
+<li class="hiw-stop hiw-s3"><span class="hiw-name">The browser lays out and paints</span></li>
+<li class="hiw-stop hiw-end hiw-s5"><svg class="hiw-glyph" viewBox="0 0 24 18" width="24" height="18" aria-hidden="true"><rect x=".75" y=".75" width="22.5" height="16.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1 6h22" stroke="currentColor" stroke-width="1.25"/><path d="M7.5 3.4h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="hiw-name">A tab or a webview</span></li>
+</ol>
+<ol class="hiw-path hiw-gx" role="list" aria-label="gpuix-svelte">
+<li class="hiw-edge hiw-e1"><span class="hiw-name">with <code>customRenderer</code></span></li>
+<li class="hiw-stop hiw-s1"><span class="hiw-name">Shadow tree</span> <span class="hiw-note">In JavaScript. Only elements and non-blank text become GPUI nodes.</span></li>
+<li class="hiw-edge hiw-e2"><code class="hiw-name">applyBatch<wbr>(json)</code> <span class="hiw-note">One batch per frame</span></li>
+<li class="hiw-stop hiw-s2"><code class="hiw-name">@gpuix/native</code> <span class="hiw-note">Prebuilt Rust addon</span></li>
+<li class="hiw-stop hiw-s3"><span class="hiw-name">GPUI</span> <span class="hiw-note">Lays out with flexbox and paints</span></li>
+<li class="hiw-stop hiw-s4"><span class="hiw-gpu"><span class="hiw-name">Metal</span> <span class="hiw-note"><span class="hiw-vh">on </span>macOS<span class="hiw-vh">,</span></span> <span class="hiw-name">DirectX</span> <span class="hiw-note"><span class="hiw-vh">on </span>Windows<span class="hiw-vh">,</span></span> <span class="hiw-name">Vulkan</span> <span class="hiw-note"><span class="hiw-vh">on </span>Linux</span></span></li>
+<li class="hiw-stop hiw-end hiw-s5"><svg class="hiw-glyph" viewBox="0 0 24 18" width="24" height="18" aria-hidden="true"><rect x=".75" y=".75" width="22.5" height="16.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1 6h22" stroke="currentColor" stroke-width="1.25"/><circle cx="4.25" cy="3.4" r="1" fill="currentColor"/><circle cx="7.05" cy="3.4" r="1" fill="currentColor"/><circle cx="9.85" cy="3.4" r="1" fill="currentColor"/></svg><span class="hiw-name">A native window</span> <span class="hiw-note">No DOM or webview in the process</span></li>
+</ol>
+</div>
+</figure>
+<div class="map" data-active="count">
+<p class="how">gpuix-svelte maps ordinary Svelte components onto GPUI, the GPU-accelerated UI framework behind the Zed editor, through Svelte’s unreleased <a class="nw" href="https://github.com/sveltejs/svelte/pull/18511">custom renderer API</a>. Your markup, runes and <code>&lt;style&gt;</code> class rules compile as usual, and every element becomes a GPUI node. The screenshot is the starter’s window on macOS; each outline is what one line of <code>App.svelte</code> draws.</p>
+<div class="map-grid">
+<div class="editor">
+<div class="bar"><span><span class="dim">starter/</span>App.svelte</span><span class="hint" data-js hidden><span class="h-fine">Point at a line</span><span class="h-touch">Tap a line</span><span class="h-more"> to outline its element</span></span></div>
+<pre class="code hero-code"><code>
+<span class="ln" data-n="1"><span class="p">&lt;</span><span class="t">script</span> <span class="a">lang</span><span class="p">=</span><span class="s">"ts"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="2">	<span class="k">let</span> count <span class="p">=</span> <span class="f">$state</span><span class="p">(</span><span class="n">0</span><span class="p">);</span></span>
+<span class="ln" data-n="3"><span class="p">&lt;/</span><span class="t">script</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="4"> </span>
+<span class="ln" data-n="5" data-t="app" tabindex="-1"><span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"app"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="6" data-t="card" tabindex="-1">	<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"card"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="7" data-t="count" tabindex="0">		<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"count"</span> <span class="a">testId</span><span class="p">=</span><span class="s">"count"</span><span class="p">&gt;{</span>count<span class="p">}&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="8" data-t="row" tabindex="-1">		<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"row"</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="9" data-t="minus" tabindex="-1">			<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"btn"</span> <span class="a">testId</span><span class="p">=</span><span class="s">"minus"</span> <span class="a">onclick</span><span class="p">={() =&gt;</span> count<span class="p">--}&gt;</span>-<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="10" data-t="plus" tabindex="-1">			<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"btn primary"</span> <span class="a">testId</span><span class="p">=</span><span class="s">"plus"</span> <span class="a">onclick</span><span class="p">={() =&gt;</span> count<span class="p">++}&gt;</span>+<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="11" data-t="row">		<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="12" data-t="hint" tabindex="-1">		<span class="p">&lt;</span><span class="t">div</span> <span class="a">class</span><span class="p">=</span><span class="s">"hint"</span><span class="p">&gt;</span>Edit App.svelte and save — the window hot-reloads.<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="13" data-t="card">	<span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="14" data-t="app"><span class="p">&lt;/</span><span class="t">div</span><span class="p">&gt;</span></span>
+</code></pre>
+</div>
+<div class="osw-win map-win">
+<div class="osw-bars" aria-hidden="true">
+<div class="osw-bar osw-mac"><span class="osw-lights"><i><svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5m0-5l-5 5"/></svg></i><i><svg viewBox="0 0 12 12"><path d="M3.2 6h5.6"/></svg></i><i><svg viewBox="0 0 12 12"><path d="M3.5 3.5h4.25L3.5 7.75zM8.5 8.5H4.25L8.5 4.25z" fill="currentColor" stroke="none"/></svg></i></span><span class="osw-title">gpuix-svelte starter</span></div>
+</div>
+<div class="osw-body"><img src="assets/shots/hot-before.png" width="640" height="480" loading="lazy" decoding="async" alt="The starter app’s window, captured on macOS: a dark card with the count 2, a minus button, a teal plus button and the hint “Edit App.svelte and save — the window hot-reloads.”">
+<span class="box b-app in" data-t="app" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex().w_full().h_full()</code></span></span>
+<span class="box b-card" data-t="card" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex_col().gap(px(16.))</code></span></span>
+<span class="box b-row r" data-t="row" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex_row().gap(px(12.))</code></span></span>
+<span class="box b-minus ue" data-t="minus" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.hover(..).on_mouse_up(..)</code></span></span>
+<span class="box b-plus r" data-t="plus" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.hover(..).on_mouse_up(..)</code></span></span>
+<span class="box b-count r" data-t="count" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.text_size(px(48.))</code></span></span>
+<span class="box b-hint b" data-t="hint" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.text_size(px(13.))</code></span></span></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="batteries" aria-labelledby="batt-h">
+<div class="wrap">
+<h2 id="batt-h">Batteries included</h2>
+<div class="trio">
+<section id="hot-reload" aria-labelledby="hot-h">
+<h3 id="hot-h">Hot reload</h3>
+<p><span class="nw">gpuix-svelte</span> has built-in hot reloading, just like you’re used to. Save a file and the open window updates in place.</p>
+<div class="editor">
+<div class="bar"><span><span class="dim">starter/</span>App.svelte</span></div>
+<pre class="code diff"><code>
+<span class="ln" data-n=" ">	<span class="a">.primary</span> <span class="p">{</span></span>
+<span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#a6e3a1" aria-hidden="true"></span><span class="n">#a6e3a1</span><span class="p">;</span></span>
+<span class="ln del" data-n="-">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#1e1e2e" aria-hidden="true"></span><span class="n">#1e1e2e</span><span class="p">;</span></span>
+<span class="ln add" data-n="+">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#ff3e00" aria-hidden="true"></span><span class="n">#ff3e00</span><span class="p">;</span></span>
+<span class="ln add" data-n="+">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#ffffff" aria-hidden="true"></span><span class="n">#ffffff</span><span class="p">;</span></span>
+<span class="ln" data-n=" ">	<span class="p">}</span></span>
+</code></pre>
+<pre class="term joined"><span class="hl">[gpuix-svelte] remount complete</span></pre>
+</div>
+<a class="more" href="guide.html#state-that-survives-hot-reload">State that survives a reload</a>
+</section>
+<section id="styling" aria-labelledby="sty-h">
+<h3 id="sty-h">Styling</h3>
+<p>Style your components with scoped <code>&lt;style&gt;</code> blocks, just like on the web. Class rules, <code>:hover</code> and flexbox layout all work as you’d expect.</p>
+<div class="editor">
+<div class="bar"><span><span class="dim">README · </span>App.svelte</span></div>
+<pre class="code soft sm"><code>
+<span class="ln" data-n="11"><span class="p">&lt;</span><span class="t">style</span><span class="p">&gt;</span></span>
+<span class="ln gap" data-n="" style="--in:2">…</span>
+<span class="ln" data-n="15" style="--in:2"><span class="nw"><span class="a">.btn</span> <span class="p">{</span></span> <span class="nw"><span class="t">padding</span><span class="p">:</span> <span class="n">12px 24px</span><span class="p">;</span></span> <span class="nw"><span class="t">border-radius</span><span class="p">:</span> <span class="n">8px</span><span class="p">;</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#313244" aria-hidden="true"></span><span class="n">#313244</span><span class="p">;</span></span> <span class="nw"><span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#cdd6f4" aria-hidden="true"></span><span class="n">#cdd6f4</span><span class="p">; }</span></span></span>
+<span class="ln" data-n="16" style="--in:2"><span class="nw"><span class="a">.btn:hover</span> <span class="p">{</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#45475a" aria-hidden="true"></span><span class="n">#45475a</span><span class="p">; }</span></span></span>
+<span class="ln" data-n="17"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
+</code></pre>
+</div>
+<a class="more" href="styling.html">Styling docs</a>
+</section>
+<section id="testing" aria-labelledby="test-h">
+<h3 id="test-h">Testing</h3>
+<p>Testing is built in too. Mount a component headlessly and click through it with real hit testing, no window needed, or drive a running app from another process.</p>
+<div class="editor">
+<div class="bar"><span><span class="dim">starter/</span>test.ts</span></div>
+<pre class="code soft sm"><code>
+<span class="ln" data-n="6"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'plus'</span><span class="p">);</span></span>
+<span class="ln" data-n="7"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'plus'</span><span class="p">);</span></span>
+<span class="ln" data-n="8"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'minus'</span><span class="p">);</span></span>
+<span class="ln" data-n="9"> </span>
+<span class="ln" data-n="10"><span class="f">check</span><span class="p">(</span><span class="s">'the buttons reached the counter'</span><span class="p">,</span> <span class="f">all_text</span><span class="p">().</span><span class="f">includes</span><span class="p">(</span><span class="s">'1'</span><span class="p">));</span></span>
+</code></pre>
+<pre class="term joined"><span class="pr">$ </span><span class="cmd">npm test</span>
+<span class="hl">ok</span>   the buttons reached the counter</pre>
+</div>
+<a class="more" href="testing.html">Headless tests and automation</a>
+</section>
+<section id="agents" aria-labelledby="ai-h">
+<h3 id="ai-h">Agentic-ready</h3>
+<p><span class="nw">gpuix-svelte</span> is ready for AI development with your favourite agent of choice. The starter ships an <code>AGENTS.md</code>, and the docs are published as <code>llms.txt</code>.</p>
+<div class="editor">
+<pre class="term"><span class="pr">$ </span><span class="cmd">curl -s https://gpuix-svelte.stanislav.garden/llms.txt</span>
+<span class="hl"># gpuix-svelte</span>
+
+&gt; A Svelte custom renderer for GPUI, the GPU-accelerated UI framework behind the Zed editor: Svelte 5 components rendered straight into a native desktop window.
+…</pre>
+</div>
+<a class="more" href="https://gpuix-svelte.stanislav.garden/llms.txt">The docs as llms.txt</a>
+</section>
+</div>
+</div>
+</section>
+
+<section class="sec" id="shipping" aria-labelledby="ship-h">
+<div class="wrap">
+<div class="main">
+<h2 id="ship-h">Shipping</h2>
+<p>You can easily ship self-contained, signed executables on Windows, Mac and Linux. <code>npm run build</code> bundles your app, the runtime and GPUI into a single file. The <a href="shipping.html">shipping docs</a> cover the macOS <code>.app</code>, signing and notarization, and the same app can also run in a browser on GPUI’s WebAssembly build.</p>
+</div>
+<div class="shp-set">
+<svg class="shp-sprite" aria-hidden="true" focusable="false">
+<symbol id="shp-i-chev-l" viewBox="0 0 16 16"><path d="M9.75 3.5 5.25 8l4.5 4.5"/></symbol>
+<symbol id="shp-i-chev-r" viewBox="0 0 16 16"><path d="M6.25 3.5 10.75 8l-4.5 4.5"/></symbol>
+<symbol id="shp-i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></symbol>
+<symbol id="shp-i-grid" viewBox="0 0 16 16"><rect x="2.75" y="2.75" width="4.25" height="4.25" rx="1"/><rect x="9" y="2.75" width="4.25" height="4.25" rx="1"/><rect x="2.75" y="9" width="4.25" height="4.25" rx="1"/><rect x="9" y="9" width="4.25" height="4.25" rx="1"/></symbol>
+<symbol id="shp-i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.75"/><path d="M8 4.75V8l2.25 1.5"/></symbol>
+<symbol id="shp-i-apps" viewBox="0 0 16 16"><path d="M4.25 13.25 8 2.75l3.75 10.5M5.6 9.5h4.8"/></symbol>
+<symbol id="shp-i-desktop" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M5.75 13.5h4.5M8 11v2.5"/></symbol>
+<symbol id="shp-i-doc" viewBox="0 0 16 16"><path d="M4.25 2.25h4.5l3 3v8.5h-7.5z"/><path d="M8.75 2.25v3h3"/></symbol>
+<symbol id="shp-i-down" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.75"/><path d="M8 4.75v6M5.75 8.5 8 10.75l2.25-2.25"/></symbol>
+<symbol id="shp-i-folder" viewBox="0 0 16 16"><path d="M1.5 4a1 1 0 0 1 1-1h3.4l1.5 1.5h6.1a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" fill="#c99c3c" stroke="none"/><path d="M1.5 6.25h13V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" fill="#e6c162" stroke="none"/></symbol>
+<symbol id="shp-i-x" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></symbol>
+<symbol id="shp-i-plus" viewBox="0 0 16 16"><path d="M8 3.25v9.5M3.25 8h9.5"/></symbol>
+<symbol id="shp-i-min" viewBox="0 0 16 16"><path d="M3 8h10"/></symbol>
+<symbol id="shp-i-max" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.25"/></symbol>
+<symbol id="shp-i-cx" viewBox="0 0 16 16"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></symbol>
+<symbol id="shp-i-back" viewBox="0 0 16 16"><path d="M13 8H3.5M7.25 4.25 3.5 8l3.75 3.75"/></symbol>
+<symbol id="shp-i-fwd" viewBox="0 0 16 16"><path d="M3 8h9.5M8.75 4.25 12.5 8l-3.75 3.75"/></symbol>
+<symbol id="shp-i-up" viewBox="0 0 16 16"><path d="M8 13V3.5M4.25 7.25 8 3.5l3.75 3.75"/></symbol>
+<symbol id="shp-i-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.46-3.54"/><path d="M13 2.75V5.5h-2.75"/></symbol>
+<symbol id="shp-i-crumb" viewBox="0 0 16 16"><path d="M6.5 4.5 10 8l-3.5 3.5"/></symbol>
+<symbol id="shp-i-new" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.75"/><path d="M8 5.25v5.5M5.25 8h5.5"/></symbol>
+<symbol id="shp-i-caret" viewBox="0 0 16 16"><path d="M5.25 6.75 8 9.5l2.75-2.75"/></symbol>
+<symbol id="shp-i-sort" viewBox="0 0 16 16"><path d="M5 3.5v9M2.75 10.25 5 12.5l2.25-2.25M11 12.5v-9M8.75 5.75 11 3.5l2.25 2.25"/></symbol>
+<symbol id="shp-i-view" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5.25 6h5.5M5.25 8h5.5M5.25 10h5.5"/></symbol>
+<symbol id="shp-i-more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="shp-i-list" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></symbol>
+<symbol id="shp-i-tiles" viewBox="0 0 16 16"><rect x="2.75" y="2.75" width="4.25" height="4.25" rx=".75"/><rect x="9" y="2.75" width="4.25" height="4.25" rx=".75"/><rect x="2.75" y="9" width="4.25" height="4.25" rx=".75"/><rect x="9" y="9" width="4.25" height="4.25" rx=".75"/></symbol>
+<symbol id="shp-i-pane" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.25"/><path d="M6 3v10"/></symbol>
+<symbol id="shp-i-photo" viewBox="0 0 16 16"><rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1.75"/><path d="m4.75 10.75 2.5-2.75 1.75 1.75 1.25-1.25 1.5 2.25"/><circle cx="10.4" cy="6.1" r=".85"/></symbol>
+<symbol id="shp-i-wdesk" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5" fill="currentColor" stroke="none"/></symbol>
+<symbol id="shp-i-home" viewBox="0 0 16 16"><path d="M2.5 7.4 8 2.6l5.5 4.8v5.6a1 1 0 0 1-1 1H9.6V10.4H6.4V14H3.5a1 1 0 0 1-1-1z" fill="currentColor" stroke="none"/></symbol>
+</svg>
+
+<figure class="shp-item">
+<div class="shp-win shp-mac" aria-hidden="true">
+<div class="shp-mac-side">
+<span class="shp-lights"><i></i><i></i><i></i></span>
+<span class="shp-mac-head">Favorites</span>
+<span class="shp-mac-row"><svg class="shp-g"><use href="#shp-i-clock"/></svg>Recents</span>
+<span class="shp-mac-row"><svg class="shp-g"><use href="#shp-i-apps"/></svg>Applications</span>
+<span class="shp-mac-row"><svg class="shp-g"><use href="#shp-i-desktop"/></svg>Desktop</span>
+<span class="shp-mac-row"><svg class="shp-g"><use href="#shp-i-doc"/></svg>Documents</span>
+<span class="shp-mac-row"><svg class="shp-g"><use href="#shp-i-down"/></svg>Downloads</span>
+</div>
+<div class="shp-mac-main">
+<div class="shp-mac-bar">
+<svg class="shp-g"><use href="#shp-i-chev-l"/></svg>
+<svg class="shp-g shp-off"><use href="#shp-i-chev-r"/></svg>
+<span class="shp-mac-title">dist</span>
+<span class="shp-mac-tools"><span class="shp-mac-seg"><svg class="shp-g"><use href="#shp-i-grid"/></svg></span><svg class="shp-g"><use href="#shp-i-search"/></svg></span>
+</div>
+<div class="shp-view shp-mac-view">
+<span class="shp-file">
+<span class="shp-mac-pick"><svg class="shp-icon shp-icon-mac" viewBox="0 0 100 100"><defs><linearGradient id="shp-mac-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b2e"/><stop offset=".5" stop-color="#0d0d0e"/><stop offset="1" stop-color="#000"/></linearGradient><linearGradient id="shp-mac-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".46"/><stop offset=".3" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></linearGradient></defs><path d="M64 0c12.6 0 18.9 0 23.71 2.45a22.5 22.5 0 0 1 9.83 9.83c2.45 4.81 2.45 11.11 2.45 23.71L100 64c0 12.6 0 18.9-2.45 23.71a22.5 22.5 0 0 1-9.83 9.83c-4.81 2.45-11.11 2.45-23.71 2.45L36 100c-12.6 0-18.9 0-23.71-2.45a22.5 22.5 0 0 1-9.83-9.83C0 82.91 0 76.61 0 64L0 36c0-12.6 0-18.9 2.45-23.71a22.5 22.5 0 0 1 9.83-9.83C17.09 0 23.39 0 36 0Z" fill="url(#shp-mac-fill)"/><path d="M63.82.5c12.49 0 18.73 0 23.5 2.43a22.3 22.3 0 0 1 9.75 9.75c2.43 4.77 2.43 11.01 2.43 23.5L99.5 63.82c0 12.49 0 18.73-2.43 23.5a22.3 22.3 0 0 1-9.75 9.75c-4.77 2.43-11.01 2.43-23.5 2.43L36.18 99.5c-12.49 0-18.73 0-23.5-2.43a22.3 22.3 0 0 1-9.75-9.75C.5 82.55.5 76.31.5 63.82L.5 36.18c0-12.49 0-18.73 2.43-23.5a22.3 22.3 0 0 1 9.75-9.75C17.45.5 23.69.5 36.18.5Z" fill="none" stroke="url(#shp-mac-rim)" stroke-width="1" vector-effect="non-scaling-stroke"/><g transform="translate(27 15) scale(.72)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g><text x="50" y="71" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="9.4" textLength="58" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg></span>
+<span class="shp-name shp-mac-name">app</span>
+</span>
+</div>
+</div>
+</div>
+<figcaption class="shp-cap"><span class="shp-os">macOS</span><span class="shp-sr">. Drawing of the dist folder, holding one executable, app. Its icon is a black rounded square with depth and a soft shadow, with the gpuix-svelte mark above its name in white.</span></figcaption>
+</figure>
+
+<figure class="shp-item">
+<div class="shp-win shp-w11" aria-hidden="true">
+<div class="shp-w-top">
+<span class="shp-w-tab"><svg class="shp-g shp-w-folder"><use href="#shp-i-folder"/></svg><span class="shp-w-tabname">dist</span><svg class="shp-g shp-w-tabx"><use href="#shp-i-x"/></svg></span>
+<svg class="shp-g shp-w-newtab"><use href="#shp-i-plus"/></svg>
+<span class="shp-w-caps"><span><svg class="shp-g"><use href="#shp-i-min"/></svg></span><span><svg class="shp-g"><use href="#shp-i-max"/></svg></span><span><svg class="shp-g"><use href="#shp-i-cx"/></svg></span></span>
+</div>
+<div class="shp-w-addr">
+<span class="shp-w-nav"><svg class="shp-g"><use href="#shp-i-back"/></svg></span>
+<span class="shp-w-nav shp-off"><svg class="shp-g"><use href="#shp-i-fwd"/></svg></span>
+<span class="shp-w-nav"><svg class="shp-g"><use href="#shp-i-up"/></svg></span>
+<span class="shp-w-nav shp-w-refresh"><svg class="shp-g"><use href="#shp-i-refresh"/></svg></span>
+<span class="shp-w-crumbs"><svg class="shp-g shp-w-folder"><use href="#shp-i-folder"/></svg><svg class="shp-g shp-w-sep"><use href="#shp-i-crumb"/></svg><span>my-app</span><svg class="shp-g shp-w-sep"><use href="#shp-i-crumb"/></svg><span>dist</span></span>
+<span class="shp-w-search"><span>Search dist</span><svg class="shp-g"><use href="#shp-i-search"/></svg></span>
+</div>
+<div class="shp-w-cmd">
+<span class="shp-w-btn"><svg class="shp-g"><use href="#shp-i-new"/></svg>New<svg class="shp-g shp-w-caret"><use href="#shp-i-caret"/></svg></span>
+<i class="shp-w-div"></i>
+<span class="shp-w-btn"><svg class="shp-g"><use href="#shp-i-sort"/></svg>Sort<svg class="shp-g shp-w-caret"><use href="#shp-i-caret"/></svg></span>
+<span class="shp-w-btn"><svg class="shp-g"><use href="#shp-i-view"/></svg>View<svg class="shp-g shp-w-caret"><use href="#shp-i-caret"/></svg></span>
+<span class="shp-w-btn shp-w-more"><svg class="shp-g"><use href="#shp-i-more"/></svg></span>
+</div>
+<div class="shp-w-body">
+<div class="shp-w-pane">
+<span class="shp-w-row"><svg class="shp-g shp-w-home"><use href="#shp-i-home"/></svg>Home</span>
+<span class="shp-w-row"><svg class="shp-g shp-w-gal"><use href="#shp-i-photo"/></svg>Gallery</span>
+<i class="shp-w-rule"></i>
+<span class="shp-w-row"><svg class="shp-g shp-w-desk"><use href="#shp-i-wdesk"/></svg>Desktop</span>
+<span class="shp-w-row"><svg class="shp-g shp-w-dl"><use href="#shp-i-down"/></svg>Downloads</span>
+<span class="shp-w-row"><svg class="shp-g shp-w-pc"><use href="#shp-i-desktop"/></svg>This PC</span>
+</div>
+<div class="shp-view shp-w-view">
+<span class="shp-file shp-w-file">
+<svg class="shp-icon shp-icon-win" viewBox="0 0 100 100"><rect x="3" y="3" width="94" height="94" rx="4" fill="#000"/><rect x="3.5" y="3.5" width="93" height="93" rx="3.6" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="1" vector-effect="non-scaling-stroke"/><g transform="translate(27 15) scale(.72)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g><text x="50" y="71" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="9.4" textLength="58" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg>
+<span class="shp-name">app</span>
+</span>
+</div>
+</div>
+<div class="shp-w-status"><span>1 item</span><span class="shp-w-modes"><span><svg class="shp-g"><use href="#shp-i-list"/></svg></span><span class="shp-w-on"><svg class="shp-g"><use href="#shp-i-tiles"/></svg></span></span></div>
+</div>
+<figcaption class="shp-cap"><span class="shp-os">Windows</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a flat black square tile with the gpuix-svelte mark above its name in white.</span></figcaption>
+</figure>
+
+<figure class="shp-item">
+<div class="shp-win shp-gnome" aria-hidden="true">
+<div class="shp-gn-bar">
+<span class="shp-gn-btn"><svg class="shp-g"><use href="#shp-i-pane"/></svg></span>
+<span class="shp-gn-btn"><svg class="shp-g"><use href="#shp-i-chev-l"/></svg></span>
+<span class="shp-gn-btn shp-gn-fwd shp-off"><svg class="shp-g"><use href="#shp-i-chev-r"/></svg></span>
+<span class="shp-gn-path"><span class="shp-gn-home"><svg class="shp-g"><use href="#shp-i-home"/></svg><i>/</i></span><span>my-app</span><i>/</i><b>dist</b></span>
+<span class="shp-gn-btn"><svg class="shp-g"><use href="#shp-i-search"/></svg></span>
+<span class="shp-gn-btn shp-gn-views"><svg class="shp-g"><use href="#shp-i-grid"/></svg></span>
+<span class="shp-gn-close"><svg class="shp-g"><use href="#shp-i-x"/></svg></span>
+</div>
+<div class="shp-view shp-gn-view">
+<span class="shp-file shp-gn-file">
+<svg class="shp-icon shp-icon-gnome" viewBox="0 0 100 100"><rect x="5" y="10" width="90" height="85" rx="12" fill="#4a4950"/><rect x="5" y="5" width="90" height="84" rx="12" fill="#060606"/><g transform="translate(27 12) scale(.72)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g><text x="50" y="68" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="9.4" textLength="58" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg>
+<span class="shp-name">app</span>
+</span>
+</div>
+</div>
+<figcaption class="shp-cap"><span class="shp-os">Linux</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a black rounded tile with a grey base edge and the gpuix-svelte mark above its name in white.</span></figcaption>
+</figure>
+</div>
+</div>
+</section>
+
+<section class="sec" id="examples" aria-labelledby="ex-h">
+<div class="wrap">
+<div class="main">
+<h2 id="ex-h">Examples</h2>
+<p>There are plenty of examples to get you started on your first native app with Svelte. Each card links to its source in the repository’s <a href="https://github.com/khromov/gpuix-svelte/tree/main/examples"><code>examples/</code></a> folder.</p>
+</div>
+<ul class="ex" role="list">
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win" style="--a:1.4643"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="assets/shots/counter.png" width="820" height="560" loading="lazy" decoding="async" alt="The counter example after three clicks on +, beside a keyed list."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/counter">Counter</a></h3>
+<p>A counter and a keyed list, <span class="nw">hot-reloading</span> on save</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win" style="--a:.75"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="assets/shots/tictactoe.png" width="480" height="640" loading="lazy" decoding="async" alt="Tic-tac-toe after X wins, with the score X: 1."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/tic-tac-toe">Tic-tac-toe</a></h3>
+<p>Wins and draws counted across rounds</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win" style="--a:1.4419"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="assets/shots/styling.png" width="1240" height="860" loading="lazy" decoding="async" alt="The styling playground: columns of style strings, each above the box GPUI drew from it."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/styling-playground">Styling playground</a></h3>
+<p>Which CSS reaches GPUI and which is dropped, side by side</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-glass" style="width:min(86cqw,62cqw * .5235)"><img src="assets/shots/glass.png" width="420" height="780" loading="lazy" decoding="async" alt="The control center example: toggles, a now-playing card and two sliders on a translucent panel."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/liquid-glass">Control center</a></h3>
+<p>A translucent panel over macOS vibrancy</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win" style="--a:1.415"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i></div><img class="ex-crop" src="assets/shots/hn.png" width="760" height="820" loading="lazy" decoding="async" alt="The Hacker News example: a list of top stories with points and comment counts."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/hacker-news">Hacker News</a></h3>
+<p>Live network data in a scrolling list</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win ex-web" style="--a:.75"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i><span class="ex-url"></span></div><img src="assets/shots/web-tictactoe.png" width="480" height="640" loading="lazy" decoding="async" alt="Tic-tac-toe in Chrome, drawn by GPUI’s WebAssembly build on a WebGPU canvas."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/tic-tac-toe">Tic-tac-toe on the web</a></h3>
+<p>The same game in a browser, on GPUI’s WebAssembly build</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win" style="--a:1.439"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="assets/shots/desktop.png" width="1180" height="820" loading="lazy" decoding="async" alt="The desktop APIs example: window controls, a file picker, a drop zone and a live waveform."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/desktop-apis">Desktop APIs</a></h3>
+<p>Window controls, file drops, images from raw pixels and focus</p>
+</li>
+<li class="ex-card">
+<div class="ex-shot"><div class="ex-win" style="--a:1.475"><div class="ex-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="assets/shots/tutorial-3.png" width="1180" height="800" loading="lazy" decoding="async" alt="Step 3 of the tutorial: an explanation beside a component’s source and the same component running."></div></div>
+<h3><a href="https://github.com/khromov/gpuix-svelte/tree/main/examples/tutorial">Tutorial</a></h3>
+<p>A 12-step interactive guide, itself a <span class="nw">gpuix-svelte</span> app</p>
+</li>
+</ul>
+</div>
+</section>
+
+<section class="sec" id="svelte" aria-labelledby="svelte-h">
+<div class="wrap">
+<div class="main">
+<h2 id="svelte-h">Coming from Svelte on the web</h2>
+<p>Most of the things you know and love from Svelte work out of the box, but some things are different in the native gpuix environment.</p>
+</div>
+<div class="rows">
+<h3>Works as usual</h3>
+<ul class="tokens" role="list">
+<li>$state</li><li>$derived</li><li>$effect</li><li>$props</li><li>{#snippet}</li><li>{#each}</li><li>{#if}</li><li>{#await}</li><li>&lt;svelte:boundary&gt;</li><li>.svelte.ts</li><li>&lt;style&gt;</li><li>class:</li><li>style:</li><li>{@attach}</li>
+</ul>
+<h3>Different</h3>
+<dl class="diffs">
+<div><dt>HTML elements map to native equivalents</dt><dd>A fixed set of tags: <code>div</code>, <code>text</code>, <code>img</code>, <code>input</code>, <code>textarea</code>, <code>markdown</code>, <code>virtual-list</code> and a few more. Anything else renders as a <code>div</code>, with a warning.</dd></div>
+<div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> on a clickable element lets clicks on its icons and badges reach it. <a href="styling.html#what-works-and-what-does-not">Styling</a></dd></div>
+<div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. <a href="guide.html#forms">Guide</a></dd></div>
+<div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. <a href="guide.html#keyboard-shortcuts-and-focus">Guide</a></dd></div>
+<div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. <a href="styling.html#theming-with-css-variables">Styling</a></dd></div>
+<div><dt>Included utilities</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. <a href="components.html">Components</a></dd></div>
+</dl>
+</div>
+</div>
+</section>
+
+<section class="sec" id="showcase" aria-labelledby="show-h">
+<div class="wrap">
+<div class="show">
+<div class="main">
+<h2 id="show-h">Showcase</h2>
+<p>Want to showcase what you built with <span class="nw">gpuix-svelte</span>? <a href="https://github.com/khromov/gpuix-svelte/issues/new">Open an issue</a> or PR to include it here!</p>
+</div>
+<div class="slot"><span class="slot-dots" aria-hidden="true"><i></i><i></i><i></i></span><a class="btn" href="https://github.com/khromov/gpuix-svelte/issues/new?title=Showcase%3A%20&amp;body=**App%3A**%20%0A**Link%3A**%20%0A**Screenshot%3A**%20(drag%20an%20image%20here)%0A**What%20it%20does%3A**%20">Your app here</a></div>
+<div class="slot" aria-hidden="true"><span class="slot-dots"><i></i><i></i><i></i></span></div>
+</div>
+<aside class="sponsor" aria-label="Sponsor">
+<p>If <span class="nw">gpuix-svelte</span> is useful to you, you can sponsor its development on GitHub.</p>
+<a class="btn solid" href="https://github.com/sponsors/khromov" aria-label="Sponsor gpuix-svelte on GitHub"><svg class="heart" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.25s-6.25-3.6-6.25-8.12C1.75 3.73 3.48 2 5.6 2 6.7 2 7.5 2.55 8 3.36 8.5 2.55 9.3 2 10.4 2c2.12 0 3.85 1.73 3.85 4.13C14.25 10.65 8 14.25 8 14.25z"/></svg>Sponsor</a>
+</aside>
+</div>
+</section>
+</main>
+
+<footer class="foot">
+<div class="wrap">
+<p><b>gpuix-svelte</b> · MIT license · <a class="nw" href="https://stanislav.garden">Stanislav Khromov</a></p>
+<ul>
+<li><a href="https://github.com/khromov/gpuix-svelte">GitHub</a></li>
+<li><a href="https://www.npmjs.com/package/gpuix-svelte">npm</a></li>
+<li><a href="overview.html">Docs</a></li>
+<li><a href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">Changelog</a></li>
+</ul>
+<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
+</div>
+</footer>
+
+<script>
+for (const el of document.querySelectorAll('[data-js]')) el.hidden = false;
+
+for (const button of document.querySelectorAll('[data-copy]')) {
+	let timer;
+	button.hidden = false;
+	button.addEventListener('click', async () => {
+		const text = button.dataset.copy;
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			// navigator.clipboard is missing on file:// and other insecure origins.
+			const area = Object.assign(document.createElement('textarea'), { value: text });
+			document.body.append(area);
+			area.select();
+			document.execCommand('copy');
+			area.remove();
+		}
+		button.textContent = 'Copied';
+		clearTimeout(timer);
+		timer = setTimeout(() => (button.textContent = 'Copy'), 1500);
+	});
+}
+
+for (const pair of document.querySelectorAll('[data-active]')) {
+	const resting = pair.dataset.active;
+	const stops = [...pair.querySelectorAll('[data-t][tabindex]')];
+	const target = (el) => el?.closest?.('[data-t]')?.dataset.t;
+	const show = (t) => (pair.dataset.active = t);
+	pair.addEventListener('pointerover', (e) => {
+		const t = target(e.target);
+		if (t) show(t);
+	});
+	pair.addEventListener('pointerleave', () => {
+		const focused = pair.contains(document.activeElement) && target(document.activeElement);
+		show(focused || resting);
+	});
+	pair.addEventListener('focusin', (e) => {
+		const t = target(e.target);
+		if (t) show(t);
+	});
+	pair.addEventListener('focusout', (e) => {
+		if (!pair.contains(e.relatedTarget)) show(resting);
+	});
+	pair.addEventListener('keydown', (e) => {
+		const i = stops.indexOf(document.activeElement);
+		if (i < 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+		e.preventDefault();
+		const next = stops[(i + (e.key === 'ArrowDown' ? 1 : stops.length - 1)) % stops.length];
+		for (const s of stops) s.tabIndex = -1;
+		next.tabIndex = 0;
+		next.focus();
+	});
+}
+
+{
+	const lap = document.querySelector('.lap');
+	const ua = navigator.userAgent;
+	const platform = navigator.userAgentData?.platform || navigator.platform || ua;
+	const os = /^Win|Windows/.test(platform) ? 'win' : /Linux|X11/.test(platform) && !/Android|CrOS/.test(ua) ? 'linux' : '';
+	const input = os && lap?.querySelector(`input[value="${os}"]`);
+	if (input) {
+		lap.classList.add('lap-still');
+		input.checked = true;
+		// Reading layout applies the new state while transitions are off, so a preselect never crossfades.
+		void lap.offsetWidth;
+		lap.classList.remove('lap-still');
+	}
+
+	const inputs = [...(lap?.querySelectorAll('input[name=osw-os]') ?? [])];
+	if (inputs.length && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		// The checked tab's progress bar is the timer: when its animation ends, the next OS is checked.
+		lap.classList.add('lap-tour');
+		lap.addEventListener('animationend', (e) => {
+			if (e.animationName !== 'tour') return;
+			const i = inputs.findIndex((input) => input.checked);
+			inputs[(i + 1) % inputs.length].checked = true;
+		});
+		// A visitor's own choice sticks; hovering or focusing the laptop only pauses the tour.
+		for (const input of inputs) input.addEventListener('input', () => lap.classList.remove('lap-tour'));
+		const pause = (on) => lap.classList.toggle('lap-paused', on);
+		lap.addEventListener('pointerenter', () => pause(true));
+		lap.addEventListener('pointerleave', () => pause(false));
+		lap.addEventListener('focusin', () => pause(true));
+		lap.addEventListener('focusout', () => pause(lap.contains(document.activeElement)));
+	}
+
+	const count = lap?.querySelector('[data-count]');
+	let n = 0;
+	for (const button of lap?.querySelectorAll('[data-step]') ?? []) {
+		button.addEventListener('click', () => (count.textContent = String((n += Number(button.dataset.step)))));
+	}
+
+	const clocks = [...(lap?.querySelectorAll('[data-clock]') ?? [])];
+	const part = (d, options) => new Intl.DateTimeFormat('en-GB', options).format(d);
+	const tick = () => {
+		const d = new Date();
+		const time = part(d, { hour: '2-digit', minute: '2-digit', hour12: false });
+		const day = part(d, { day: 'numeric' });
+		const month = part(d, { month: 'short' });
+		const text = {
+			mac: `${part(d, { weekday: 'short' })} ${day} ${month}  ${time}`,
+			'win-time': time,
+			'win-date': part(d, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+			linux: `${month} ${day}  ${time}`
+		};
+		for (const el of clocks) el.textContent = text[el.dataset.clock];
+	};
+	if (clocks.length) {
+		tick();
+		setInterval(tick, 30000);
+	}
+}
+</script>
+</body>
+</html>
