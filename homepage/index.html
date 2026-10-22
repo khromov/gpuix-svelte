@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>gpuix-svelte · Build native desktop apps with Svelte</title>
 <meta name="description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
-<link rel="canonical" href="https://khromov.github.io/gpuix-svelte/">
+<link rel="canonical" href="https://gpuix-svelte.stanislav.garden/">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M28.4 18.3 15.4 32l13 13.7' fill='none' stroke='%23fff' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34.9 18.3 50 32 34.9 45.7Z' fill='%23ff3e00' stroke='%23ff3e00' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -15,15 +15,15 @@
 <meta property="og:site_name" content="gpuix-svelte">
 <meta property="og:title" content="gpuix-svelte: Build native desktop apps with Svelte">
 <meta property="og:description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
-<meta property="og:url" content="https://khromov.github.io/gpuix-svelte/">
-<meta property="og:image" content="https://khromov.github.io/gpuix-svelte/og.png">
+<meta property="og:url" content="https://gpuix-svelte.stanislav.garden/">
+<meta property="og:image" content="https://gpuix-svelte.stanislav.garden/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, a minus button and a teal plus button.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="gpuix-svelte: Build native desktop apps with Svelte">
 <meta name="twitter:description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
-<meta name="twitter:image" content="https://khromov.github.io/gpuix-svelte/og.png">
+<meta name="twitter:image" content="https://gpuix-svelte.stanislav.garden/og.png">
 <meta name="twitter:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, a minus button and a teal plus button.">
 <style>
 @font-face{font-family:Geist;src:url(assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
@@ -780,7 +780,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="stage">
 <figure class="lap">
 <svg class="shp-sprite" aria-hidden="true" focusable="false">
-<symbol id="ico-app" viewBox="0 0 100 100"><text x="50" y="54.2" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="13" textLength="78" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></symbol>
+<symbol id="ico-app" viewBox="0 0 100 100"><g transform="translate(14 14) scale(1.125)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g></symbol>
 <symbol id="ico-wifi" viewBox="0 0 16 16"><path d="M1.5 6a9.5 9.5 0 0 1 13 0M4 8.5a6 6 0 0 1 8 0M6.5 11a2.5 2.5 0 0 1 3 0"/><circle class="scr-fill" cx="8" cy="13.2" r="1"/></symbol>
 <symbol id="ico-batt" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="11" height="7" rx="1.75"/><path d="M14 7v2"/><rect class="scr-fill" x="3" y="6" width="8" height="4" rx=".75"/></symbol>
 <symbol id="ico-vol" viewBox="0 0 16 16"><path class="scr-fill" d="M2.5 6.25h2.4L8.5 3.5v9L4.9 9.75H2.5z"/><path d="M10.75 6a3 3 0 0 1 0 4M12.5 4.25a5.5 5.5 0 0 1 0 7.5"/></symbol>
@@ -1063,13 +1063,13 @@ Created my-app. Next:
 </div>
 <div class="shp-view shp-mac-view">
 <span class="shp-file">
-<span class="shp-mac-pick"><svg class="shp-icon shp-icon-mac" viewBox="0 0 100 100"><defs><linearGradient id="shp-mac-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b2e"/><stop offset=".5" stop-color="#0d0d0e"/><stop offset="1" stop-color="#000"/></linearGradient><linearGradient id="shp-mac-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".46"/><stop offset=".3" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></linearGradient></defs><path d="M64 0c12.6 0 18.9 0 23.71 2.45a22.5 22.5 0 0 1 9.83 9.83c2.45 4.81 2.45 11.11 2.45 23.71L100 64c0 12.6 0 18.9-2.45 23.71a22.5 22.5 0 0 1-9.83 9.83c-4.81 2.45-11.11 2.45-23.71 2.45L36 100c-12.6 0-18.9 0-23.71-2.45a22.5 22.5 0 0 1-9.83-9.83C0 82.91 0 76.61 0 64L0 36c0-12.6 0-18.9 2.45-23.71a22.5 22.5 0 0 1 9.83-9.83C17.09 0 23.39 0 36 0Z" fill="url(#shp-mac-fill)"/><path d="M63.82.5c12.49 0 18.73 0 23.5 2.43a22.3 22.3 0 0 1 9.75 9.75c2.43 4.77 2.43 11.01 2.43 23.5L99.5 63.82c0 12.49 0 18.73-2.43 23.5a22.3 22.3 0 0 1-9.75 9.75c-4.77 2.43-11.01 2.43-23.5 2.43L36.18 99.5c-12.49 0-18.73 0-23.5-2.43a22.3 22.3 0 0 1-9.75-9.75C.5 82.55.5 76.31.5 63.82L.5 36.18c0-12.49 0-18.73 2.43-23.5a22.3 22.3 0 0 1 9.75-9.75C17.45.5 23.69.5 36.18.5Z" fill="none" stroke="url(#shp-mac-rim)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="50" y="53.6" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="13.4" textLength="79.6" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg></span>
+<span class="shp-mac-pick"><svg class="shp-icon shp-icon-mac" viewBox="0 0 100 100"><defs><linearGradient id="shp-mac-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b2e"/><stop offset=".5" stop-color="#0d0d0e"/><stop offset="1" stop-color="#000"/></linearGradient><linearGradient id="shp-mac-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".46"/><stop offset=".3" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></linearGradient></defs><path d="M64 0c12.6 0 18.9 0 23.71 2.45a22.5 22.5 0 0 1 9.83 9.83c2.45 4.81 2.45 11.11 2.45 23.71L100 64c0 12.6 0 18.9-2.45 23.71a22.5 22.5 0 0 1-9.83 9.83c-4.81 2.45-11.11 2.45-23.71 2.45L36 100c-12.6 0-18.9 0-23.71-2.45a22.5 22.5 0 0 1-9.83-9.83C0 82.91 0 76.61 0 64L0 36c0-12.6 0-18.9 2.45-23.71a22.5 22.5 0 0 1 9.83-9.83C17.09 0 23.39 0 36 0Z" fill="url(#shp-mac-fill)"/><path d="M63.82.5c12.49 0 18.73 0 23.5 2.43a22.3 22.3 0 0 1 9.75 9.75c2.43 4.77 2.43 11.01 2.43 23.5L99.5 63.82c0 12.49 0 18.73-2.43 23.5a22.3 22.3 0 0 1-9.75 9.75c-4.77 2.43-11.01 2.43-23.5 2.43L36.18 99.5c-12.49 0-18.73 0-23.5-2.43a22.3 22.3 0 0 1-9.75-9.75C.5 82.55.5 76.31.5 63.82L.5 36.18c0-12.49 0-18.73 2.43-23.5a22.3 22.3 0 0 1 9.75-9.75C17.45.5 23.69.5 36.18.5Z" fill="none" stroke="url(#shp-mac-rim)" stroke-width="1" vector-effect="non-scaling-stroke"/><g transform="translate(27 15) scale(.72)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g><text x="50" y="71" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="9.4" textLength="58" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg></span>
 <span class="shp-name shp-mac-name">app</span>
 </span>
 </div>
 </div>
 </div>
-<figcaption class="shp-cap"><span class="shp-os">macOS</span> <span class="shp-app">Finder</span><span class="shp-sr">. Drawing of the dist folder, holding one executable, app. Its icon is a black rounded square with depth and a soft shadow, with gpuix-svelte across it in white.</span></figcaption>
+<figcaption class="shp-cap"><span class="shp-os">macOS</span> <span class="shp-app">Finder</span><span class="shp-sr">. Drawing of the dist folder, holding one executable, app. Its icon is a black rounded square with depth and a soft shadow, with the gpuix-svelte mark above its name in white.</span></figcaption>
 </figure>
 
 <figure class="shp-item">
@@ -1105,14 +1105,14 @@ Created my-app. Next:
 </div>
 <div class="shp-view shp-w-view">
 <span class="shp-file shp-w-file">
-<svg class="shp-icon shp-icon-win" viewBox="0 0 100 100"><rect x="3" y="3" width="94" height="94" rx="4" fill="#000"/><rect x="3.5" y="3.5" width="93" height="93" rx="3.6" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="50" y="53.4" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="12.8" textLength="76" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg>
+<svg class="shp-icon shp-icon-win" viewBox="0 0 100 100"><rect x="3" y="3" width="94" height="94" rx="4" fill="#000"/><rect x="3.5" y="3.5" width="93" height="93" rx="3.6" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="1" vector-effect="non-scaling-stroke"/><g transform="translate(27 15) scale(.72)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g><text x="50" y="71" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="9.4" textLength="58" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg>
 <span class="shp-name">app</span>
 </span>
 </div>
 </div>
 <div class="shp-w-status"><span>1 item</span><span class="shp-w-modes"><span><svg class="shp-g"><use href="#shp-i-list"/></svg></span><span class="shp-w-on"><svg class="shp-g"><use href="#shp-i-tiles"/></svg></span></span></div>
 </div>
-<figcaption class="shp-cap"><span class="shp-os">Windows</span> <span class="shp-app">File Explorer</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a flat black square tile with gpuix-svelte across it in white.</span></figcaption>
+<figcaption class="shp-cap"><span class="shp-os">Windows</span> <span class="shp-app">File Explorer</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a flat black square tile with the gpuix-svelte mark above its name in white.</span></figcaption>
 </figure>
 
 <figure class="shp-item">
@@ -1128,12 +1128,12 @@ Created my-app. Next:
 </div>
 <div class="shp-view shp-gn-view">
 <span class="shp-file shp-gn-file">
-<svg class="shp-icon shp-icon-gnome" viewBox="0 0 100 100"><rect x="5" y="10" width="90" height="85" rx="12" fill="#4a4950"/><rect x="5" y="5" width="90" height="84" rx="12" fill="#060606"/><text x="50" y="50.4" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="12.45" textLength="74" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg>
+<svg class="shp-icon shp-icon-gnome" viewBox="0 0 100 100"><rect x="5" y="10" width="90" height="85" rx="12" fill="#4a4950"/><rect x="5" y="5" width="90" height="84" rx="12" fill="#060606"/><g transform="translate(27 12) scale(.72)" color="#fff"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></g><text x="50" y="68" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="9.4" textLength="58" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></svg>
 <span class="shp-name">app</span>
 </span>
 </div>
 </div>
-<figcaption class="shp-cap"><span class="shp-os">Linux</span> <span class="shp-app">GNOME Files</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a black rounded tile with a grey base edge and gpuix-svelte across it in white.</span></figcaption>
+<figcaption class="shp-cap"><span class="shp-os">Linux</span> <span class="shp-app">GNOME Files</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a black rounded tile with a grey base edge and the gpuix-svelte mark above its name in white.</span></figcaption>
 </figure>
 </div>
 <p class="note ship-note">The windows and the icon are drawn for this page. The starter’s build doesn’t set an icon.</p>

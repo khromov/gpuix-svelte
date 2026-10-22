@@ -107,7 +107,7 @@ Checks at handoff:
 
 ## Site layout (what `npm run docs` builds into `dist/docs`, deployed as-is)
 
-| URL (under https://khromov.github.io/gpuix-svelte/) | Source |
+| URL (under https://gpuix-svelte.stanislav.garden/) | Source |
 |---|---|
 | `/` (`index.html`), `og.png`, `assets/…` | `homepage/` copied verbatim |
 | `overview.html`, `overview.md` | `README.md` (was `index.html`/`index.md` before this change) |
@@ -195,7 +195,7 @@ One static file: inline CSS, one inline script, no external requests, self-hoste
   `node shoot.mjs --root homepage --path '/#og' --out homepage/og.png --og` (Appendix A).
   Keep `og:image:alt` and `twitter:image:alt` in step.
 - **Absolute URLs** stay only where they must: canonical, `og:url`, `og:image`,
-  `twitter:image` (all `https://khromov.github.io/gpuix-svelte/…`). Links to docs pages are
+  `twitter:image` (all `https://gpuix-svelte.stanislav.garden/…`). Links to docs pages are
   relative (`overview.html`, `styling.html#…`), so they work both deployed and in a local
   `dist/docs` preview.
 - **Shared chrome:** the docs template duplicates the homepage's top bar (wordmark, version,
@@ -246,7 +246,7 @@ One static file: inline CSS, one inline script, no external requests, self-hoste
 ## Open items and ideas
 
 1. **Push to deploy:** the author commits and pushes. After the first deploy, check
-   https://khromov.github.io/gpuix-svelte/ and `/overview.html`. GitHub Pages "Source" must be
+   https://gpuix-svelte.stanislav.garden/ and `/overview.html`. GitHub Pages "Source" must be
    "GitHub Actions" (it already is for the docs).
 2. **Inconsistent binary sizes** in the repo: `docs/shipping.md:84` says "around 80 MB" and
    `starter/AGENTS.md` says "about 95 MB". Measured is 90.3 MB on macOS (Apple Silicon). Tell

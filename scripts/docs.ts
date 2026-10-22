@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
 
 const REPO = 'https://github.com/khromov/gpuix-svelte';
-const SITE = 'https://khromov.github.io/gpuix-svelte/';
+const SITE = 'https://gpuix-svelte.stanislav.garden/';
 const NPM = 'https://www.npmjs.com/package/gpuix-svelte';
 
 const PAGES = [
