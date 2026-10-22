@@ -95,4 +95,5 @@ publishing (OIDC, with provenance). `npm run pack -- <dir>` builds the same tarb
 markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for coding agents. It also
 copies the homepage (`homepage/`) to the root, so the README renders as `overview.html`. The
 `docs` workflow publishes it to GitHub Pages on every push to `main` that touches any of them. A
-new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts).
+new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts). `npm run docs:serve`
+builds it the same way, then serves it at http://127.0.0.1:4321 and opens it in your browser.

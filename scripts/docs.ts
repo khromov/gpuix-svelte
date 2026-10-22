@@ -1,10 +1,14 @@
 // Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
 // coloured in the browser by docs/assets/prism.js, a vendored Prism build. Beside each page goes a
 // standalone markdown copy, indexed by llms.txt (https://llmstxt.org) for coding agents. The
-// homepage (homepage/) is copied to the root, so the README renders as overview.html.
+// homepage (homepage/) is copied to the root, so the README renders as overview.html. --serve then
+// serves dist/docs on PORT (default 4321) and opens it in the browser.
 
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, join, posix } from 'node:path';
+import { spawn } from 'node:child_process';
+import { copyFileSync, cpSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { basename, extname, join, posix, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
 
@@ -388,3 +392,38 @@ for (const entry of readdirSync(join(root, 'homepage')).filter((e) => !e.startsW
 	cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
 }
 console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, with homepage/ at the root → ${out_dir}`);
+
+if (process.argv.includes('--serve')) serve();
+
+function serve() {
+	const types: Record<string, string> = {
+		'.html': 'text/html; charset=utf-8',
+		'.md': 'text/markdown; charset=utf-8',
+		'.txt': 'text/plain; charset=utf-8',
+		'.js': 'text/javascript',
+		'.css': 'text/css',
+		'.png': 'image/png',
+		'.svg': 'image/svg+xml',
+		'.woff2': 'font/woff2'
+	};
+	const server = createServer((req, res) => {
+		const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+		const file = join(out_dir, pathname.endsWith('/') ? `${pathname}index.html` : pathname);
+		if (!file.startsWith(out_dir + sep) || !existsSync(file) || !statSync(file).isFile()) {
+			res.writeHead(404).end('Not found');
+			return;
+		}
+		res.writeHead(200, { 'Content-Type': types[extname(file)] ?? 'application/octet-stream' });
+		createReadStream(file).pipe(res);
+	});
+	server.listen(Number(process.env.PORT || 4321), '127.0.0.1', () => {
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+		console.log(`[docs] ${url}`);
+		// `start` is a cmd.exe builtin, and its first quoted argument is the window title.
+		const [command, ...args] =
+			process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '', url] : ['xdg-open', url];
+		spawn(command, args, { stdio: 'ignore', detached: true })
+			.on('error', () => {})
+			.unref();
+	});
+}

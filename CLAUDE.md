@@ -100,6 +100,8 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # homepage/ is copied to the root, so README becomes overview.html;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
                            # A new docs page also needs an entry in scripts/docs.ts's PAGES
+npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
+                           # (PORT overrides) and opens it in the browser
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints"
 npm run parity             # the @gpuix/native methods nothing in src/ calls (--all: every method,

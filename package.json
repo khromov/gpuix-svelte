@@ -86,6 +86,7 @@
 		"test:window": "node bin/gpuix-svelte.js test/window.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
 		"docs": "node scripts/docs.ts",
+		"docs:serve": "node scripts/docs.ts --serve",
 		"vendor": "node --use-env-proxy scripts/vendor-svelte.ts",
 		"parity": "node scripts/native-parity.ts",
 		"pack": "node scripts/publish.ts pack",
