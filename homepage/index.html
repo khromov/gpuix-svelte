@@ -84,8 +84,9 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .lead p{max-width:37em;font-size:17px;line-height:1.55;color:var(--text-2);text-wrap:pretty}
 .lead p b{font-weight:500;color:var(--text)}
 .act{display:flex;flex-wrap:wrap;align-items:center;gap:18px 14px;min-width:0}
-.install{display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;height:44px;padding:0 6px 0 14px;background:var(--s1);border:1px solid var(--line-2);border-radius:10px}
-.install code{flex:1 1 auto;min-width:0;font-size:14px;white-space:nowrap;overflow-x:auto;scrollbar-width:none;color:var(--text)}
+.install{flex:1 1 360px;display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;height:44px;padding:0 6px 0 14px;background:var(--s1);border:1px solid var(--line-2);border-radius:10px;container-type:inline-size}
+.install code{flex:1 1 auto;min-width:0;font-size:clamp(10px,calc((100cqw - 100px) / 23),14px);white-space:nowrap;overflow-x:auto;scrollbar-width:none;color:var(--text)}
+.install .copy{height:clamp(26px,8cqw,32px);min-width:clamp(48px,16cqw,64px);padding:0 clamp(8px,3cqw,12px);font-size:clamp(11px,3.2cqw,12.5px)}
 .install code::-webkit-scrollbar{display:none}
 .install .pr{color:var(--text-3);margin-right:9px;user-select:none;-webkit-user-select:none}
 .caret{display:inline-block;width:2px;height:16px;margin-left:3px;background:var(--accent);vertical-align:-3px}
@@ -141,8 +142,9 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .term .cmd,.term .hl{color:var(--text)}
 .term .cm{color:var(--text-3)}
 .joined{border-top:1px solid var(--line);background:#050505}
-.tcopy{position:relative}
-.tcopy .copy{position:absolute;top:8px;right:8px;height:26px;min-width:56px;font-size:12px;border-radius:6px}
+.tcopy{position:relative;container-type:inline-size}
+.tcopy .term{font-size:clamp(7.5px,calc((100cqw - 32px) / 39.5),12.5px)}
+.tcopy .copy{position:absolute;top:8px;right:8px;height:clamp(22px,6cqw,26px);min-width:clamp(44px,13cqw,56px);padding:0 clamp(7px,2.4cqw,12px);font-size:clamp(10.5px,2.8cqw,12px);border-radius:6px}
 
 .box{position:absolute;border:1.5px solid var(--accent);border-radius:7px;background:rgba(255,62,0,.06);opacity:0;transition:opacity .14s ease;pointer-events:none}
 .box .tag{position:absolute;left:-1.5px;bottom:calc(100% + 6px);display:grid;justify-items:start;gap:6px;padding:7px 10px 8px 9px;border:1px solid rgba(255,62,0,.5);border-radius:8px;background:rgba(9,9,11,.94);box-shadow:0 16px 32px -14px #000,0 0 0 1px rgba(0,0,0,.4);white-space:nowrap}
@@ -183,7 +185,8 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .osw-opt span{gap:7px}
 .osw-opt svg{flex:none;width:13px;height:13px;fill:currentColor;opacity:.8}
 .osw-opt input:checked+span svg{opacity:1}
-.osw-opt span::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left}
+.osw-opt span{isolation:isolate}
+.osw-opt span::after{content:"";position:absolute;inset:0;z-index:-1;background:rgba(255,255,255,.07);transform:scaleX(0);transform-origin:left}
 .lap-tour .osw-opt input:checked+span::after{animation:tour 4s linear forwards}
 .lap-paused .osw-opt span::after{animation-play-state:paused}
 @keyframes tour{from{transform:scaleX(0)}to{transform:scaleX(1)}}
@@ -700,6 +703,9 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .status{grid-template-columns:minmax(0,1fr)}
 .sponsor{margin-top:48px}
 }
+@media (min-width:730px) and (max-width:1023px){
+.install{max-width:480px}
+}
 @media (max-width:729px){
 .install,.links{flex:1 1 100%}
 .links .btn{flex:1 1 0;min-width:0}
@@ -720,9 +726,7 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 h1{font-size:clamp(34px,10.4vw,44px)}
 .lead p{font-size:16px}
 .install{gap:8px;padding-left:12px}
-.install code{font-size:12px}
 .install .pr{display:none}
-.copy{min-width:56px;padding:0 10px}
 .tcopy .copy:not([hidden]){position:static;display:block;margin:-6px 10px 12px auto}
 }
 @media (max-width:560px) and (hover:hover){
@@ -734,9 +738,6 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 @media (max-width:380px){
 .nav ul{gap:14px}
 .bar .hint{display:none}
-.install{flex-wrap:wrap;height:auto;padding:10px 6px 6px 12px;row-gap:6px}
-.install code{flex-basis:100%}
-.install .copy{margin-left:auto}
 }
 @media (hover:none){
 .h-fine{display:none}
@@ -744,7 +745,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 }
 :root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
 :root:has(#og:target) .hero{padding:0}
-:root:has(#og:target) .hero .wrap{grid-template-columns:minmax(0,1fr) 640px;gap:0 44px;min-height:574px}
+:root:has(#og:target) .hero .wrap{grid-template-columns:minmax(0,1fr) 600px;gap:0 48px;padding:0 72px;min-height:574px}
 :root:has(#og:target) h1{font-size:54px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style>
@@ -768,7 +769,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="wrap">
 <h1 id="title">Build native desktop apps with Svelte</h1>
 <div class="lead">
-<p>gpuix-svelte renders your Svelte components into a native window on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no DOM or webview. Your UI shares its process with the whole of Node or Bun: files, processes, SQLite and native addons.</p>
+<p>gpuix-svelte renders your Svelte components into a native, gpu-accelerated application on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no browser. Your UI shares its process with the whole of Node or Bun: files, processes, SQLite and native addons.</p>
 <div class="act">
 <div class="install"><code><span class="pr" aria-hidden="true">$</span>npm create gpuix-svelte@latest my-app<span class="caret" aria-hidden="true"></span></code><button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app" hidden>Copy</button></div>
 <div class="links"><a class="btn solid" href="overview.html">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
