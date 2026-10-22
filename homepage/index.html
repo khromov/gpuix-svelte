@@ -534,17 +534,13 @@ figcaption{font-size:13.5px;line-height:1.55;color:var(--text-3)}
 .slot-dots{position:absolute;top:10px;left:10px;display:flex;gap:4px}
 .slot-dots i{width:7px;height:7px;border:1px solid var(--line-3);border-radius:50%}
 .slot+.slot .slot-dots i{border-color:var(--line-2)}
-.sponsor{display:flex;align-items:center;justify-content:space-between;gap:20px 40px;margin-top:64px;padding:32px 36px;border:1px solid var(--line-2);border-radius:14px;background:radial-gradient(70% 180% at 100% 0,rgba(255,62,0,.09),transparent 70%),var(--s1)}
+.sponsor{display:flex;align-items:center;justify-content:space-between;gap:20px 40px;margin-top:64px;padding:32px 36px 28px;border:1px solid var(--line-2);border-radius:14px;background:radial-gradient(70% 180% at 100% 0,rgba(255,62,0,.09),transparent 70%),var(--s1)}
 .sponsor p{max-width:27em;font-size:21px;line-height:1.35;font-weight:500;letter-spacing:-.022em;color:var(--text);text-wrap:balance}
 .sponsor .btn{flex:none;gap:8px;height:44px;padding:0 20px;border-radius:10px}
 .heart{display:block;width:15px;height:15px;fill:var(--accent)}
 
 .foot{border-top:1px solid var(--line);padding:36px 0 52px}
 .foot .wrap{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:16px 32px}
-.status{flex-basis:100%;display:grid;grid-template-columns:180px minmax(0,1fr);gap:4px 32px;padding-bottom:28px;margin-bottom:8px;border-bottom:1px solid var(--line)}
-.status h2{font-size:13px;line-height:1.6;font-weight:500;letter-spacing:0;color:var(--text-2)}
-.status p{max-width:62em;font-size:13px;line-height:1.6;color:var(--text-3)}
-.status p a{color:var(--text-2)}
 .foot>.wrap>p{font-size:14px;color:var(--text-2)}
 .foot p b{font-weight:600;letter-spacing:-.02em;color:var(--text)}
 .foot ul{display:flex;flex-wrap:wrap;gap:8px 24px;margin:0;padding:0;list-style:none}
@@ -706,7 +702,6 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .rows{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:32px}
 .rows>h3{padding-top:0}
 .rows>h3+*{margin-bottom:18px}
-.status{grid-template-columns:minmax(0,1fr)}
 .sponsor{margin-top:48px}
 }
 @media (min-width:730px) and (max-width:1023px){
@@ -717,7 +712,7 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .links .btn{flex:1 1 0;min-width:0}
 }
 @media (max-width:599px){
-.sponsor{flex-direction:column;align-items:stretch;padding:24px 20px}
+.sponsor{flex-direction:column;align-items:stretch;padding:24px 20px 20px}
 .sponsor p{font-size:18px}
 .ex{gap:28px 12px}
 .ex-card p{font-size:13px}
@@ -1236,10 +1231,6 @@ Created my-app. Next:
 
 <footer class="foot">
 <div class="wrap">
-<section class="status" id="status" aria-labelledby="status-h">
-<h2 id="status-h">Status and requirements</h2>
-<p>Experimental: built on Svelte’s custom renderer API, which is still an open pull request (<a href="https://github.com/sveltejs/svelte/pull/18511">sveltejs/svelte#18511</a>). Expect breaking changes between minor versions. Needs Node.js 24+ or Bun 1.4+, on macOS (Apple&nbsp;Silicon), Windows&nbsp;(x64) or Linux&nbsp;(x64).</p>
-</section>
 <p><b>gpuix-svelte</b> · MIT license · <a class="nw" href="https://stanislav.garden">Stanislav Khromov</a></p>
 <ul>
 <li><a href="https://github.com/khromov/gpuix-svelte">GitHub</a></li>
