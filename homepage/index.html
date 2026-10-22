@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://khromov.github.io/gpuix-svelte/">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Crect x='.75' y='.75' width='30.5' height='30.5' rx='6.25' fill='none' stroke='%23fff' stroke-opacity='.32' stroke-width='1.5'/%3E%3Ctext x='16' y='17.7' text-anchor='middle' font-family='Arial,sans-serif' font-weight='700' font-size='4.8' textLength='24' lengthAdjust='spacingAndGlyphs' fill='%23fff'%3Egpuix-svelte%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M28.4 18.3 15.4 32l13 13.7' fill='none' stroke='%23fff' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34.9 18.3 50 32 34.9 45.7Z' fill='%23ff3e00' stroke='%23ff3e00' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preload" href="assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <meta property="og:type" content="website">
@@ -71,7 +71,8 @@ ul[role=list]{list-style:none}
 .top{border-bottom:1px solid var(--line)}
 .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;padding-right:calc(var(--gut) + max(0px,var(--corner) - max(var(--gut),(100vw - var(--max)) / 2)))}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand>a:first-child{font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.brand>a:first-child{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.mark{display:block;flex:none;width:22px;height:22px;color:#fff}
 .nav ul{display:flex;gap:26px;margin:0;padding:0;list-style:none}
 .nav ul a{font-size:14px;color:var(--text-2);text-decoration:none;white-space:nowrap}
 .nav ul a:hover{color:var(--text)}
@@ -361,13 +362,15 @@ figcaption{font-size:13.5px;line-height:1.55;color:var(--text-3)}
 
 #how-it-works .main{margin-bottom:40px}
 
-.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,auto);column-gap:32px}
+.trio{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:auto;gap:64px 32px}
 .trio>section{display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:16px;min-width:0}
-.trio h2{font-size:24px;line-height:1.2;letter-spacing:-.028em}
+.trio{margin-top:40px}
+.trio h3{font-size:24px;line-height:1.2;letter-spacing:-.028em}
 .trio p{font-size:15px;line-height:1.6;color:var(--text-2);text-wrap:pretty}
 .trio p code{font-size:.9em;color:var(--text);background:none;border:0;padding:0}
 .trio .editor{display:flex;flex-direction:column;margin-top:6px}
 .trio .editor .code{flex:1 0 auto}
+.trio .term{white-space:pre-wrap;overflow-wrap:anywhere}
 .trio .more{margin-top:4px}
 
 .shp-set{margin-top:48px}
@@ -679,8 +682,11 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .show{gap:24px 20px}
 .diffs{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media (max-width:999px){
-.trio{grid-template-columns:minmax(0,1fr);grid-template-rows:none;row-gap:64px}
+@media (max-width:1199px){
+.trio{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:699px){
+.trio{grid-template-columns:minmax(0,1fr)}
 .trio>section{grid-row:auto;grid-template-rows:none;align-content:start}
 }
 @media (max-width:899px){
@@ -750,7 +756,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <i id="og" hidden></i>
 <header class="top">
 <nav class="wrap nav" aria-label="Main">
-<div class="brand"><a href="./">gpuix-svelte</a></div>
+<div class="brand"><a href="./"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte</a></div>
 <ul>
 <li><a href="overview.html">Docs</a></li>
 <li><a href="#examples">Examples</a></li>
@@ -830,8 +836,8 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="wrap pair">
 <div class="main">
 <h2 id="start-h">Quick start</h2>
-<p><code>npm start</code> opens a counter in its own window. Edit <code>App.svelte</code>, save, and the window hot-reloads.</p>
-<p class="note">You need Node.js 24 or later, or Bun 1.4 or later, on macOS (Apple Silicon), Windows (x64) or Linux (x64). On Bun, run <code>bun create gpuix-svelte my-app</code>, then <code>cd my-app</code>, <code>bun install</code> and <code>bun run start</code>.</p>
+<p>Scaffolding a gpuix-svelte application is easy, you'll need Node.js 24 or later, or Bun 1.4 or later.</p>
+<p class="note">On Bun, run <code>bun create gpuix-svelte my-app</code>, then <code>cd my-app</code>, <code>bun install</code> and <code>bun run start</code>.</p>
 </div>
 <div class="side">
 <div class="editor tcopy">
@@ -853,7 +859,7 @@ Created my-app. Next:
 <div class="wrap">
 <div class="main">
 <h2 id="how-h">How it works</h2>
-<p>Both paths start from your <code>.svelte</code> file and Svelte’s own compiler. <span class="nw">gpuix-svelte</span> runs the compiler with the <code>customRenderer</code> option, so the compiled code builds a tree of plain JavaScript objects, the shadow tree, instead of DOM nodes. Each frame’s changes reach GPUI in one batch.</p>
+<p><span class="nw">gpuix-svelte</span> uses the new Svelte <a href="https://github.com/sveltejs/svelte/pull/18511">custom renderers</a> feature, which lets the compiler emit calls to a renderer of your choice.</p>
 </div>
 <figure class="hiw-fig">
 <div class="hiw-map">
@@ -927,13 +933,15 @@ Created my-app. Next:
 </div>
 </section>
 
-<div class="sec">
-<div class="wrap trio">
+<section class="sec" id="batteries" aria-labelledby="batt-h">
+<div class="wrap">
+<h2 id="batt-h">Batteries included</h2>
+<div class="trio">
 <section id="hot-reload" aria-labelledby="hot-h">
-<h2 id="hot-h">Hot reload</h2>
-<p>Save a <code>.svelte</code> file and <code>render_hot</code> remounts the app in the window that’s already open. Component state starts over; state in a <code>.svelte.ts</code> module survives.</p>
+<h3 id="hot-h">Hot reload</h3>
+<p><span class="nw">gpuix-svelte</span> has built-in hot reloading, just like you’re used to. Save a file and the open window updates in place.</p>
 <div class="editor">
-<div class="bar"><span><span class="dim">starter/</span>App.svelte</span><span class="dim">55–58</span></div>
+<div class="bar"><span><span class="dim">starter/</span>App.svelte</span></div>
 <pre class="code diff"><code>
 <span class="ln" data-n=" ">	<span class="a">.primary</span> <span class="p">{</span></span>
 <span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#a6e3a1" aria-hidden="true"></span><span class="n">#a6e3a1</span><span class="p">;</span></span>
@@ -947,10 +955,10 @@ Created my-app. Next:
 <a class="more" href="guide.html#state-that-survives-hot-reload">State that survives a reload</a>
 </section>
 <section id="styling" aria-labelledby="sty-h">
-<h2 id="sty-h">Styling</h2>
-<p>Scoped <code>&lt;style&gt;</code> blocks take class rules with <code>:hover</code> and <code>:active</code>. Layout is flexbox in logical pixels, and values GPUI can’t use, like <code>em</code> or <code>border-radius: 50%</code>, are dropped with a warning.</p>
+<h3 id="sty-h">Styling</h3>
+<p>Style your components with scoped <code>&lt;style&gt;</code> blocks, just like on the web. Class rules, <code>:hover</code> and flexbox layout all work as you’d expect.</p>
 <div class="editor">
-<div class="bar"><span><span class="dim">README · </span>App.svelte</span><span class="dim">11–17</span></div>
+<div class="bar"><span><span class="dim">README · </span>App.svelte</span></div>
 <pre class="code soft sm"><code>
 <span class="ln" data-n="11"><span class="p">&lt;</span><span class="t">style</span><span class="p">&gt;</span></span>
 <span class="ln gap" data-n="" style="--in:2">…</span>
@@ -959,13 +967,13 @@ Created my-app. Next:
 <span class="ln" data-n="17"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
 </code></pre>
 </div>
-<a class="more" href="styling.html">Every property GPUI understands</a>
+<a class="more" href="styling.html">Styling docs</a>
 </section>
 <section id="testing" aria-labelledby="test-h">
-<h2 id="test-h">Testing</h2>
-<p><code>gpuix-svelte/test</code> clicks through GPUI’s real hit testing without opening a window (macOS and Windows only). <code>gpuix-svelte/automation</code> drives a running app’s window from another process.</p>
+<h3 id="test-h">Testing</h3>
+<p>Testing is built in too. Mount a component headlessly and click through it with real hit testing, no window needed, or drive a running app from another process.</p>
 <div class="editor">
-<div class="bar"><span><span class="dim">starter/</span>test.ts</span><span class="dim">6–10</span></div>
+<div class="bar"><span><span class="dim">starter/</span>test.ts</span></div>
 <pre class="code soft sm"><code>
 <span class="ln" data-n="6"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'plus'</span><span class="p">);</span></span>
 <span class="ln" data-n="7"><span class="f">click_test_id</span><span class="p">(</span><span class="s">'plus'</span><span class="p">);</span></span>
@@ -978,8 +986,21 @@ Created my-app. Next:
 </div>
 <a class="more" href="testing.html">Headless tests and automation</a>
 </section>
+<section id="agents" aria-labelledby="ai-h">
+<h3 id="ai-h">Agentic-ready</h3>
+<p><span class="nw">gpuix-svelte</span> is ready for AI development with your favourite agent of choice. The starter ships an <code>AGENTS.md</code>, and the docs are published as <code>llms.txt</code>.</p>
+<div class="editor">
+<pre class="term"><span class="pr">$ </span><span class="cmd">curl -s https://gpuix-svelte.stanislav.garden/llms.txt</span>
+<span class="hl"># gpuix-svelte</span>
+
+&gt; A Svelte custom renderer for GPUI, the GPU-accelerated UI framework behind the Zed editor: Svelte 5 components rendered straight into a native desktop window.
+…</pre>
+</div>
+<a class="more" href="https://gpuix-svelte.stanislav.garden/llms.txt">The docs as llms.txt</a>
+</section>
 </div>
 </div>
+</section>
 
 <section class="sec" id="shipping" aria-labelledby="ship-h">
 <div class="wrap">
