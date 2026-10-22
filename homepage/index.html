@@ -171,7 +171,7 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .b-plus{left:50.7%;top:50.63%;width:9.22%;height:10.42%}
 .b-hint{left:25.3%;top:64.38%;width:49.4%;height:4.38%}
 
-:root{--vp:1px;--osw-t:.22s;--osw-h:calc(var(--osw-t) / 2);--osw-q:.12s;--osw-line:var(--line-2);--osw-sans:var(--sans);--sys:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Ubuntu,Cantarell,var(--sans)}
+:root{--vp:1px;--osw-t:.45s;--osw-h:calc(var(--osw-t) / 2);--osw-q:.12s;--osw-line:var(--line-2);--osw-sans:var(--sans);--sys:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Ubuntu,Cantarell,var(--sans)}
 .lap,.lap *,.lap *::before,.lap *::after{box-sizing:border-box}
 .lap{display:grid;gap:26px;justify-items:center;width:100%;max-width:900px;margin:0 auto}
 .lap-still{--osw-t:0s;--osw-q:0s}
@@ -185,12 +185,12 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .osw-opt input:focus-visible+span{outline:2px solid var(--text);outline-offset:1px}
 
 .lap-dev{position:relative;width:100%;container-type:inline-size}
-.lap-lid{position:relative;width:88%;margin:0 auto;padding:1.5cqw 1.5cqw 1.6cqw;border-radius:2cqw 2cqw 0 0;background:linear-gradient(#141414,#0c0c0c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 2px 0 rgba(255,255,255,.04)}
+.lap-lid{position:relative;width:90%;margin:0 auto;padding:1.5cqw 1.5cqw 1.6cqw;border-radius:2cqw 2cqw 0 0;background:linear-gradient(#141414,#0c0c0c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 2px 0 rgba(255,255,255,.04)}
 .lap-lid::before{content:"";position:absolute;top:.6cqw;left:50%;width:.5cqw;height:.5cqw;margin-left:-.25cqw;border-radius:50%;background:#1d1d1f;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
 .lap-base{position:relative;height:2.3cqw;border-radius:.4cqw .4cqw 1.4cqw 1.4cqw;background:linear-gradient(#232323,#101010 60%,#0a0a0a);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 0 0 1px rgba(255,255,255,.08)}
 .lap-base::before{content:"";position:absolute;top:0;left:50%;width:13%;height:42%;transform:translateX(-50%);border-radius:0 0 .7cqw .7cqw;background:#0a0a0a;box-shadow:inset 0 -1px 0 rgba(255,255,255,.1)}
 
-.scr{--vp:calc(100cqw / 1440);position:relative;overflow:hidden;aspect-ratio:16/10;border-radius:.9cqw;background:#000;container-type:inline-size;font:400 calc(13 * var(--vp))/1.25 var(--sys);color:#fff;-webkit-user-select:none;user-select:none;cursor:default}
+.scr{--vp:calc(100cqw / 1152);position:relative;overflow:hidden;aspect-ratio:16/10;border-radius:.9cqw;background:#000;container-type:inline-size;font:400 calc(13 * var(--vp))/1.25 var(--sys);color:#fff;-webkit-user-select:none;user-select:none;cursor:default}
 .scr-wall{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;opacity:0;transition:opacity var(--osw-t) ease}
 .desk{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
 .lap:has([value=mac]:checked) .scr-wall-mac,.lap:has([value=win]:checked) .scr-wall-win,.lap:has([value=linux]:checked) .scr-wall-linux{opacity:1}
@@ -262,7 +262,9 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .ub-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(3 * var(--vp));width:calc(22 * var(--vp));height:calc(22 * var(--vp));margin-top:auto;margin-bottom:calc(4 * var(--vp))}
 .ub-grid i{display:block;border-radius:50%;background:rgba(255,255,255,.75)}
 
-.win{position:absolute;left:50%;top:50%;width:calc(640 * var(--vp));transform:translate(-50%,-50%);box-shadow:0 calc(24 * var(--vp)) calc(60 * var(--vp)) rgba(0,0,0,.6),0 0 0 .5px rgba(0,0,0,.6)}
+.win{position:absolute;left:50%;top:calc(50% - 20 * var(--vp));width:calc(640 * var(--vp));transform:translate(-50%,-50%);box-shadow:0 calc(24 * var(--vp)) calc(60 * var(--vp)) rgba(0,0,0,.6),0 0 0 .5px rgba(0,0,0,.6);transition:top var(--osw-t) ease}
+.lap:has([value=win]:checked) .win{top:calc(50% - 24 * var(--vp))}
+.lap:has([value=linux]:checked) .win{top:calc(50% + 16 * var(--vp))}
 .osw-win{position:relative;overflow:hidden;border:1px solid var(--osw-line);border-radius:calc(12 * var(--vp));background:#11111b;transition:border-radius var(--osw-t) ease}
 .scr .osw-win{border:0}
 .osw-bars{position:relative;height:calc(28 * var(--vp));overflow:hidden;background:#2a2a2a;box-shadow:inset 0 -1px rgba(0,0,0,.55);transition:height var(--osw-t) ease,background-color var(--osw-t) ease,box-shadow var(--osw-t) ease}
@@ -309,26 +311,19 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .mk-btn.primary:hover{background:#94e2d5}
 .mk-hint{font-size:calc(13 * var(--vp));color:#a6adc8;white-space:nowrap}
 
-.osw-note{margin:0;max-width:52em;font-size:13.5px;line-height:1.55;color:var(--text-3);text-align:center;text-wrap:balance}
-.osw-says{display:grid;justify-items:center}
-.osw-says>span{grid-area:1/1;visibility:hidden}
-.osw-says>.osw-say-mac{visibility:visible}
-
 .osw-mac{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
 .lap:has([value=win]:checked) .osw-win{border-radius:calc(8 * var(--vp))}
 .lap:has([value=win]:checked) .osw-bars{height:calc(32 * var(--vp));background:#202020;box-shadow:inset 0 -1px transparent}
 .lap:has([value=linux]:checked) .osw-bars{height:calc(46 * var(--vp));background:#2e2e32;box-shadow:inset 0 -1px rgba(0,0,0,.36)}
 .lap:has([value=win]:checked) .osw-mac,.lap:has([value=linux]:checked) .osw-mac{opacity:0;visibility:hidden;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
 .lap:has([value=win]:checked) .osw-ms,.lap:has([value=linux]:checked) .osw-gn{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
-.lap:has([value=win]:checked) .osw-say-mac,.lap:has([value=linux]:checked) .osw-say-mac{visibility:hidden}
-.lap:has([value=win]:checked) .osw-say-win,.lap:has([value=linux]:checked) .osw-say-linux{visibility:visible}
 
 @container (max-width:760px){
-.scr{--vp:calc(100cqw / 1120)}
+.scr{--vp:calc(100cqw / 1040)}
 }
 @container (max-width:520px){
-.scr{--vp:calc(100cqw / 960)}
-.win{top:calc(50% - 20 * var(--vp))}
+.scr{--vp:calc(100cqw / 1000)}
+.lap .win{top:calc(50% - 26 * var(--vp))}
 .mac-bar .bar-l span:nth-child(n+4),.win-clock,.ub-bar .bar-r{display:none}
 }
 @media (max-width:560px){
@@ -655,13 +650,18 @@ code.hiw-name,.hiw-edge code{font-size:11.5px}
 .hiw-note code{font-size:11px}
 }
 
+@media (min-width:1024px){
+.hero{padding:44px 0 72px}
+.hero .wrap{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:0 48px;align-items:center}
+h1{grid-area:1/1;align-self:end;font-size:clamp(40px,4.1vw,58px)}
+.lead{grid-area:2/1;align-self:start}
+.stage{grid-area:1/2/3/3;margin:0}
+.lap{max-width:none}
+}
 @media (min-width:1100px) and (max-height:760px){
-.hero{padding-top:18px}
-h1{font-size:min(4.75vw,54px)}
-.lead{margin-top:10px;gap:18px}
+.hero{padding-top:24px}
 .install,.links .btn{height:40px}
-.stage{margin-top:28px}
-.lap{max-width:820px}
+.hero .wrap{grid-template-columns:minmax(0,1fr) minmax(0,600px)}
 }
 @media (min-width:1440px){
 main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--max) / 2 - var(--gut)) 0/1px 100% no-repeat,linear-gradient(var(--line),var(--line)) calc(50% + var(--max) / 2 + var(--gut)) 0/1px 100% no-repeat}
@@ -735,12 +735,10 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 .h-fine{display:none}
 .h-touch{display:inline}
 }
-:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg,.osw-note){display:none}
-:root:has(#og:target) .hero{padding-top:0}
-:root:has(#og:target) .hero .wrap{display:grid;grid-template-columns:minmax(0,1fr) 640px;gap:0 44px;align-items:center;min-height:574px}
-:root:has(#og:target) h1{grid-area:1/1;align-self:end;font-size:54px}
-:root:has(#og:target) .lead{grid-area:2/1;align-self:start}
-:root:has(#og:target) .stage{grid-area:1/2/3/3;margin:0}
+:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
+:root:has(#og:target) .hero{padding:0}
+:root:has(#og:target) .hero .wrap{grid-template-columns:minmax(0,1fr) 640px;gap:0 44px;min-height:574px}
+:root:has(#og:target) h1{font-size:54px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style>
 <script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
@@ -820,7 +818,6 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 </div>
 <div class="lap-base"></div>
 </div>
-<figcaption class="osw-note">The starter’s window on a desktop drawn for this page, over each system’s default wallpaper. The buttons work. <span class="osw-says"><span class="osw-say-mac">On macOS, GPUI draws the real one with Metal.</span><span class="osw-say-win">On Windows, GPUI draws the real one with DirectX.</span><span class="osw-say-linux">On Linux, GPUI draws the real one with Vulkan.</span></span></figcaption>
 </figure>
 </div>
 </div>
@@ -1293,6 +1290,22 @@ for (const pair of document.querySelectorAll('[data-active]')) {
 		// Reading layout applies the new state while transitions are off, so a preselect never crossfades.
 		void lap.offsetWidth;
 		lap.classList.remove('lap-still');
+	}
+
+	const inputs = [...(lap?.querySelectorAll('input[name=osw-os]') ?? [])];
+	if (inputs.length && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		let paused = false;
+		const cycle = setInterval(() => {
+			if (paused || document.hidden) return;
+			const i = inputs.findIndex((input) => input.checked);
+			inputs[(i + 1) % inputs.length].checked = true;
+		}, 4000);
+		// A visitor's own choice sticks; hovering or focusing the laptop only pauses the tour.
+		for (const input of inputs) input.addEventListener('input', () => clearInterval(cycle));
+		lap.addEventListener('pointerenter', () => (paused = true));
+		lap.addEventListener('pointerleave', () => (paused = false));
+		lap.addEventListener('focusin', () => (paused = true));
+		lap.addEventListener('focusout', () => (paused = lap.contains(document.activeElement)));
 	}
 
 	const count = lap?.querySelector('[data-count]');
