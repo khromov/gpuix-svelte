@@ -324,6 +324,7 @@ function page(current: Page, body: string) {
 <link rel="alternate" type="text/markdown" href="${current.name}.md">
 <style>${CSS}</style>
 <script src="prism.js" defer></script>
+<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
