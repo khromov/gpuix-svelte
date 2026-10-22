@@ -338,9 +338,11 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 @media (max-width:560px){
 .lap{gap:18px}
 .osw-seg{justify-self:stretch}
-.lap-lid{width:100%;padding:0;border-radius:0;background:none;box-shadow:none}
-.lap-lid::before,.lap-base{display:none}
-.scr{border-radius:10px;box-shadow:0 0 0 1px var(--osw-line)}
+.lap-lid{width:94%}
+.sec{padding:40px 0}
+.sec.tight{padding:32px 0}
+.hero{padding-bottom:32px}
+.stage{margin-top:32px}
 }
 @media (prefers-reduced-motion:reduce){
 :root{--osw-t:0s;--osw-q:0s}
@@ -374,7 +376,6 @@ figcaption{font-size:13.5px;line-height:1.55;color:var(--text-3)}
 .trio .more{margin-top:4px}
 
 .shp-set{margin-top:48px}
-.ship-note{margin-top:24px;max-width:52em}
 
 .shp-set{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;align-items:stretch}
 .shp-sprite{position:absolute;width:0;height:0;overflow:hidden}
@@ -695,9 +696,10 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .ex{grid-template-columns:repeat(2,minmax(0,1fr))}
 .show{grid-template-columns:repeat(2,minmax(0,1fr));gap:32px 24px}
 .show .main{grid-column:1/-1;padding-right:0}
-.sec{padding:72px 0}
-.sec.tight{padding:56px 0}
-.hero{padding-bottom:64px}
+.sec{padding:56px 0}
+.sec.tight{padding:44px 0}
+.hero{padding-bottom:44px}
+.trio{row-gap:48px}
 .install{flex:1 1 auto}
 #how-it-works .main{margin-bottom:28px}
 .shp-set{margin-top:36px}
@@ -1006,7 +1008,7 @@ Created my-app. Next:
 <div class="wrap">
 <div class="main">
 <h2 id="ship-h">Shipping</h2>
-<p><code>npm run build</code> needs Bun, whichever runtime you develop on, and writes one executable for the OS it runs on: about 90&nbsp;MB on macOS (Apple Silicon), with Bun and the GPUI addon inside. The <a href="shipping.html">shipping docs</a> cover the macOS <code>.app</code>, signing and notarization. The same app also runs in a browser, on GPUI’s WebAssembly build.</p>
+<p>You can easily ship self-contained, signed executables on Windows, Mac and Linux. <code>npm run build</code> bundles your app, the runtime and GPUI into a single file. The <a href="shipping.html">shipping docs</a> cover the macOS <code>.app</code>, signing and notarization, and the same app can also run in a browser on GPUI’s WebAssembly build.</p>
 </div>
 <div class="shp-set">
 <svg class="shp-sprite" aria-hidden="true" focusable="false">
@@ -1069,7 +1071,7 @@ Created my-app. Next:
 </div>
 </div>
 </div>
-<figcaption class="shp-cap"><span class="shp-os">macOS</span> <span class="shp-app">Finder</span><span class="shp-sr">. Drawing of the dist folder, holding one executable, app. Its icon is a black rounded square with depth and a soft shadow, with the gpuix-svelte mark above its name in white.</span></figcaption>
+<figcaption class="shp-cap"><span class="shp-os">macOS</span><span class="shp-sr">. Drawing of the dist folder, holding one executable, app. Its icon is a black rounded square with depth and a soft shadow, with the gpuix-svelte mark above its name in white.</span></figcaption>
 </figure>
 
 <figure class="shp-item">
@@ -1112,7 +1114,7 @@ Created my-app. Next:
 </div>
 <div class="shp-w-status"><span>1 item</span><span class="shp-w-modes"><span><svg class="shp-g"><use href="#shp-i-list"/></svg></span><span class="shp-w-on"><svg class="shp-g"><use href="#shp-i-tiles"/></svg></span></span></div>
 </div>
-<figcaption class="shp-cap"><span class="shp-os">Windows</span> <span class="shp-app">File Explorer</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a flat black square tile with the gpuix-svelte mark above its name in white.</span></figcaption>
+<figcaption class="shp-cap"><span class="shp-os">Windows</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a flat black square tile with the gpuix-svelte mark above its name in white.</span></figcaption>
 </figure>
 
 <figure class="shp-item">
@@ -1133,10 +1135,9 @@ Created my-app. Next:
 </span>
 </div>
 </div>
-<figcaption class="shp-cap"><span class="shp-os">Linux</span> <span class="shp-app">GNOME Files</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a black rounded tile with a grey base edge and the gpuix-svelte mark above its name in white.</span></figcaption>
+<figcaption class="shp-cap"><span class="shp-os">Linux</span><span class="shp-sr">. Drawing of the dist folder in my-app, holding one executable, app. Its icon is a black rounded tile with a grey base edge and the gpuix-svelte mark above its name in white.</span></figcaption>
 </figure>
 </div>
-<p class="note ship-note">The windows and the icon are drawn for this page. The starter’s build doesn’t set an icon.</p>
 </div>
 </section>
 
@@ -1144,7 +1145,7 @@ Created my-app. Next:
 <div class="wrap">
 <div class="main">
 <h2 id="ex-h">Examples</h2>
-<p>Eight examples to get you started on your first native app with Svelte. Each card links to its source in the repository’s <a href="https://github.com/khromov/gpuix-svelte/tree/main/examples"><code>examples/</code></a> folder.</p>
+<p>There are plenty of examples to get you started on your first native app with Svelte. Each card links to its source in the repository’s <a href="https://github.com/khromov/gpuix-svelte/tree/main/examples"><code>examples/</code></a> folder.</p>
 </div>
 <ul class="ex" role="list">
 <li class="ex-card">
@@ -1193,7 +1194,10 @@ Created my-app. Next:
 
 <section class="sec" id="svelte" aria-labelledby="svelte-h">
 <div class="wrap">
+<div class="main">
 <h2 id="svelte-h">Coming from Svelte on the web</h2>
+<p>Most of the things you know and love from Svelte work out of the box, but some things are different in the native gpuix environment.</p>
+</div>
 <div class="rows">
 <h3>Works as usual</h3>
 <ul class="tokens" role="list">
@@ -1201,12 +1205,12 @@ Created my-app. Next:
 </ul>
 <h3>Different</h3>
 <dl class="diffs">
-<div><dt>Elements are GPUI’s</dt><dd><code>div</code>, <code>text</code>, <code>img</code>, <code>input</code>, <code>textarea</code>, <code>markdown</code>, <code>virtual-list</code> and a few more. Other tags render as a <code>div</code>, with a warning.</dd></div>
+<div><dt>HTML elements map to native equivalents</dt><dd>A fixed set of tags: <code>div</code>, <code>text</code>, <code>img</code>, <code>input</code>, <code>textarea</code>, <code>markdown</code>, <code>virtual-list</code> and a few more. Anything else renders as a <code>div</code>, with a warning.</dd></div>
 <div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> on a clickable element lets clicks on its icons and badges reach it. <a href="styling.html#what-works-and-what-does-not">Styling</a></dd></div>
 <div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. <a href="guide.html#forms">Guide</a></dd></div>
 <div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. <a href="guide.html#keyboard-shortcuts-and-focus">Guide</a></dd></div>
 <div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. <a href="styling.html#theming-with-css-variables">Styling</a></dd></div>
-<div><dt>In the package</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. <a href="components.html">Components</a></dd></div>
+<div><dt>Included utilities</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. <a href="components.html">Components</a></dd></div>
 </dl>
 </div>
 </div>
@@ -1217,7 +1221,7 @@ Created my-app. Next:
 <div class="show">
 <div class="main">
 <h2 id="show-h">Showcase</h2>
-<p>Open an issue with a link and a screenshot, and your <span class="nw">gpuix-svelte</span> app can be listed here.</p>
+<p>Want to showcase what you built with <span class="nw">gpuix-svelte</span>? <a href="https://github.com/khromov/gpuix-svelte/issues/new">Open an issue</a> or PR to include it here!</p>
 </div>
 <div class="slot"><span class="slot-dots" aria-hidden="true"><i></i><i></i><i></i></span><a class="btn" href="https://github.com/khromov/gpuix-svelte/issues/new?title=Showcase%3A%20&amp;body=**App%3A**%20%0A**Link%3A**%20%0A**Screenshot%3A**%20(drag%20an%20image%20here)%0A**What%20it%20does%3A**%20">Your app here</a></div>
 <div class="slot" aria-hidden="true"><span class="slot-dots"><i></i><i></i><i></i></span></div>
