@@ -2,10 +2,13 @@
 // coloured in the browser by docs/assets/prism.js, a vendored Prism build. Beside each page goes a
 // standalone markdown copy, indexed by llms.txt (https://llmstxt.org) for coding agents. The
 // homepage (homepage/) is copied to the root, so the README renders as overview.html. --serve then
-// serves dist/docs on PORT (default 4321) and opens it in the browser.
+// serves dist/docs on PORT (default 4321), opens it in the browser (--no-open skips that) and
+// rebuilds whenever README.md, docs/, homepage/ or this script changes: the parent only watches
+// and restarts a child (--serve-child) that builds and serves, so an edit to the template here
+// takes effect too and a failed build just waits for the next save.
 
-import { spawn } from 'node:child_process';
-import { copyFileSync, cpSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { copyFileSync, cpSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, extname, join, posix, sep } from 'node:path';
@@ -376,27 +379,85 @@ ${next ? `<a class="next" href="${next.name}.html" rel="next"><span>Next</span>$
 `;
 }
 
-rmSync(out_dir, { recursive: true, force: true });
-mkdirSync(out_dir, { recursive: true });
-for (const p of PAGES) {
-	writeFileSync(join(out_dir, `${p.name}.html`), page(p, render(p.source)));
-	writeFileSync(join(out_dir, `${p.name}.md`), markdown(p.source));
+function build() {
+	rmSync(out_dir, { recursive: true, force: true });
+	mkdirSync(out_dir, { recursive: true });
+	for (const p of PAGES) {
+		writeFileSync(join(out_dir, `${p.name}.html`), page(p, render(p.source)));
+		writeFileSync(join(out_dir, `${p.name}.md`), markdown(p.source));
+	}
+	writeFileSync(join(out_dir, 'llms.txt'), llms_txt());
+	writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source).trim()).join('\n\n---\n\n') + '\n');
+	copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
+	copyFileSync(join(root, 'docs/assets/og-docs.png'), join(out_dir, 'og-docs.png'));
+	cpSync(join(root, 'docs/assets/fonts'), join(out_dir, 'fonts'), { recursive: true });
+	// A name the homepage shares with the docs output fails the build instead of silently replacing one of them.
+	for (const entry of readdirSync(join(root, 'homepage')).filter((e) => !e.startsWith('.'))) {
+		if (existsSync(join(out_dir, entry))) throw new Error(`[docs] homepage/${entry} collides with the docs output`);
+		cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
+	}
+	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, with homepage/ at the root → ${out_dir}`);
 }
-writeFileSync(join(out_dir, 'llms.txt'), llms_txt());
-writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source).trim()).join('\n\n---\n\n') + '\n');
-copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
-copyFileSync(join(root, 'docs/assets/og-docs.png'), join(out_dir, 'og-docs.png'));
-cpSync(join(root, 'docs/assets/fonts'), join(out_dir, 'fonts'), { recursive: true });
-// A name the homepage shares with the docs output fails the build instead of silently replacing one of them.
-for (const entry of readdirSync(join(root, 'homepage')).filter((e) => !e.startsWith('.'))) {
-	if (existsSync(join(out_dir, entry))) throw new Error(`[docs] homepage/${entry} collides with the docs output`);
-	cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
+
+if (process.argv.includes('--serve')) {
+	supervise();
+} else {
+	build();
+	if (process.argv.includes('--serve-child')) serve(process.argv.includes('--open'));
 }
-console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, with homepage/ at the root → ${out_dir}`);
 
-if (process.argv.includes('--serve')) serve();
+function supervise() {
+	const script = fileURLToPath(import.meta.url);
+	let child: ChildProcess | undefined;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let busy = false;
+	let again = false;
+	const start = (open: boolean) => {
+		child = spawn(process.execPath, [script, '--serve-child', ...(open ? ['--open'] : [])], { stdio: 'inherit' });
+	};
+	const cycle = async () => {
+		if (busy) {
+			again = true;
+			return;
+		}
+		busy = true;
+		console.log('[docs] change detected, rebuilding');
+		// The port is free only once the old child has exited.
+		const old = child;
+		if (old && old.exitCode === null) {
+			const gone = new Promise((r) => old.once('exit', r));
+			old.kill();
+			await gone;
+		}
+		start(false);
+		busy = false;
+		if (again) {
+			again = false;
+			void cycle();
+		}
+	};
+	const restart = () => {
+		clearTimeout(timer);
+		timer = setTimeout(cycle, 300);
+	};
+	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts']) {
+		const target = join(root, path);
+		watch(target, { recursive: statSync(target).isDirectory() }, (_, file) => {
+			if (!file || !basename(file).startsWith('.')) restart();
+		});
+	}
+	// A signal ends the parent without an 'exit' event, so the child is stopped by hand.
+	for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+		process.on(signal, () => {
+			child?.kill();
+			process.exit();
+		});
+	}
+	process.on('exit', () => child?.kill());
+	start(!process.argv.includes('--no-open'));
+}
 
-function serve() {
+function serve(open: boolean) {
 	const types: Record<string, string> = {
 		'.html': 'text/html; charset=utf-8',
 		'.md': 'text/markdown; charset=utf-8',
@@ -420,6 +481,7 @@ function serve() {
 	server.listen(Number(process.env.PORT || 4321), '127.0.0.1', () => {
 		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
 		console.log(`[docs] ${url}`);
+		if (!open) return;
 		// `start` is a cmd.exe builtin, and its first quoted argument is the window title.
 		const [command, ...args] =
 			process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '', url] : ['xdg-open', url];

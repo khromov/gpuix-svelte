@@ -72,8 +72,6 @@ ul[role=list]{list-style:none}
 .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;padding-right:calc(var(--gut) + max(0px,var(--corner) - max(var(--gut),(100vw - var(--max)) / 2)))}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
 .brand>a:first-child{font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
-.ver{font:500 12px/1 var(--mono);color:var(--text-2);border:1px solid var(--line-2);border-radius:999px;padding:5px 9px;text-decoration:none;white-space:nowrap}
-.ver:hover{color:var(--text);border-color:var(--line-3)}
 .nav ul{display:flex;gap:26px;margin:0;padding:0;list-style:none}
 .nav ul a{font-size:14px;color:var(--text-2);text-decoration:none;white-space:nowrap}
 .nav ul a:hover{color:var(--text)}
@@ -311,15 +309,15 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .osw-gx svg{display:block;width:calc(16 * var(--vp));height:calc(16 * var(--vp));fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
 
 .mk{display:flex;align-items:center;justify-content:center;height:calc(480 * var(--vp));background:#11111b;font:400 calc(16 * var(--vp))/1.6 var(--sys);color:#cdd6f4}
-.mk-card{display:flex;flex-direction:column;align-items:center;gap:calc(16 * var(--vp));padding:calc(32 * var(--vp));border-radius:calc(12 * var(--vp));background:#1e1e2e}
-.mk-count{font-size:calc(48 * var(--vp));font-weight:700;color:#cdd6f4;font-variant-numeric:tabular-nums}
-.mk-row{display:flex;gap:calc(12 * var(--vp))}
-.mk-btn{appearance:none;margin:0;border:0;padding:calc(12 * var(--vp)) calc(24 * var(--vp));border-radius:calc(8 * var(--vp));background:#313244;color:#cdd6f4;font:700 calc(16 * var(--vp))/1.6 var(--sys);cursor:pointer;transition:background-color var(--osw-q) ease}
+.mk-card{display:flex;flex-direction:column;align-items:center;gap:calc(24 * var(--vp));padding:calc(44 * var(--vp)) calc(56 * var(--vp));border-radius:calc(18 * var(--vp));background:#1e1e2e}
+.mk-count{font-size:calc(104 * var(--vp));line-height:1.2;font-weight:700;color:#cdd6f4;font-variant-numeric:tabular-nums}
+.mk-row{display:flex;gap:calc(20 * var(--vp))}
+.mk-btn{appearance:none;margin:0;border:0;padding:calc(16 * var(--vp)) calc(48 * var(--vp));border-radius:calc(14 * var(--vp));background:#313244;color:#cdd6f4;font:700 calc(34 * var(--vp))/1.4 var(--sys);cursor:pointer;transition:background-color var(--osw-q) ease}
 .mk-btn:hover{background:#45475a}
 .mk-btn:focus-visible{outline:2px solid #cdd6f4;outline-offset:2px;border-radius:calc(8 * var(--vp))}
 .mk-btn.primary{background:#a6e3a1;color:#1e1e2e}
 .mk-btn.primary:hover{background:#94e2d5}
-.mk-hint{font-size:calc(13 * var(--vp));color:#a6adc8;white-space:nowrap}
+.mk-hint{font-size:calc(19 * var(--vp));color:#a6adc8;white-space:nowrap}
 
 .osw-mac{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
 .lap:has([value=win]:checked) .osw-win{border-radius:calc(8 * var(--vp))}
@@ -732,9 +730,6 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 @media (max-width:560px) and (hover:hover){
 .h-more{display:none}
 }
-@media (max-width:400px){
-.ver{display:none}
-}
 @media (max-width:380px){
 .nav ul{gap:14px}
 .bar .hint{display:none}
@@ -755,7 +750,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <i id="og" hidden></i>
 <header class="top">
 <nav class="wrap nav" aria-label="Main">
-<div class="brand"><a href="./">gpuix-svelte</a><a class="ver" href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">v0.2.0</a></div>
+<div class="brand"><a href="./">gpuix-svelte</a></div>
 <ul>
 <li><a href="overview.html">Docs</a></li>
 <li><a href="#examples">Examples</a></li>
@@ -769,7 +764,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="wrap">
 <h1 id="title">Build native desktop apps with Svelte</h1>
 <div class="lead">
-<p>gpuix-svelte renders your Svelte components into a native, gpu-accelerated application on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no browser. Your UI shares its process with the whole of Node or Bun: files, processes, SQLite and native addons.</p>
+<p>gpuix-svelte renders your Svelte components into a native, gpu-accelerated application on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no browser. You can access anything on the users computer using Node or Bun APIs.</p>
 <div class="act">
 <div class="install"><code><span class="pr" aria-hidden="true">$</span>npm create gpuix-svelte@latest my-app<span class="caret" aria-hidden="true"></span></code><button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app" hidden>Copy</button></div>
 <div class="links"><a class="btn solid" href="overview.html">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
@@ -819,7 +814,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="osw-bar osw-gn"><span class="osw-title">gpuix-svelte starter</span><i class="osw-gx"><svg viewBox="0 0 16 16"><path d="M5 5l6 6m0-6l-6 6"/></svg></i></div>
 </div>
 <div class="mk" role="group" aria-label="The starter app’s counter">
-<div class="mk-card"><div class="mk-count" data-count aria-live="polite">0</div><div class="mk-row"><button class="mk-btn" type="button" data-step="-1" aria-label="Count down">-</button><button class="mk-btn primary" type="button" data-step="1" aria-label="Count up">+</button></div><div class="mk-hint">Edit App.svelte and save — the window hot-reloads.</div></div>
+<div class="mk-card"><div class="mk-count" data-count aria-live="polite">0</div><div class="mk-row"><button class="mk-btn" type="button" data-step="-1" aria-label="Count down">-</button><button class="mk-btn primary" type="button" data-step="1" aria-label="Count up">+</button></div><div class="mk-hint">Hello World from gpuix-svelte!</div></div>
 </div>
 </div>
 </div>

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gpuix-svelte · Logo candidates</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
+<style>
+@font-face{font-family:Geist;src:url(../assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(../assets/fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+:root{--bg:#000;--s1:#0a0a0a;--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.13);--text:#ededed;--text-2:#a1a1a1;--text-3:#8f8f8f;--accent:#ff3e00;--sans:Geist,ui-sans-serif,system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+.top{border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:56px}
+.nav a{font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none}
+.nav span{font-size:14px;color:var(--text-2)}
+h1{margin:48px 0 12px;font-size:clamp(30px,3.4vw,44px);line-height:1.1;letter-spacing:-.036em;font-weight:600}
+.lead{max-width:44em;margin:0;color:var(--text-2);text-wrap:pretty}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:36px 0 56px;padding:18px 20px;border:1px solid var(--line-2);border-radius:12px;background:var(--s1)}
+.row b{flex:0 0 100%;font-size:12px;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--text-3)}
+.row svg{width:24px;height:24px;color:#fff}
+.row i{display:grid;place-items:center;width:40px;height:40px;border-radius:9px;background:#000;border:1px solid var(--line)}
+.row i.lt{background:#fff;border-color:#ddd}
+.row i.lt svg{color:#111}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;margin:0 0 80px;padding:0;list-style:none}
+.card{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px 24px;padding:24px;border:1px solid var(--line-2);border-radius:14px;background:var(--s1)}
+.tiles{display:grid;grid-template-columns:repeat(2,auto);gap:10px;align-content:start}
+.tile{display:grid;place-items:center;width:128px;height:128px;border-radius:24px;background:#000;border:1px solid var(--line-2);color:#fff}
+.tile svg{width:96px;height:96px}
+.tile.lt{background:#fff;border-color:#ddd;color:#111}
+.small{grid-column:1/-1;display:flex;align-items:center;gap:14px;height:40px;padding:0 12px;border-radius:9px;background:#000;border:1px solid var(--line);color:#fff}
+.small svg{display:block;color:#fff}
+.small .s32{width:32px;height:32px}
+.small .s16{width:16px;height:16px}
+.small em{font:400 11px/1 var(--mono);color:var(--text-3);font-style:normal}
+.small i{width:1px;height:20px;background:var(--line-2)}
+.card h2{margin:4px 0 6px;font-size:19px;line-height:1.25;letter-spacing:-.02em;font-weight:600}
+.card h2 small{margin-right:10px;font:500 12px/1 var(--mono);color:var(--text-3);letter-spacing:0}
+.card p{margin:0 0 10px;font-size:14px;line-height:1.55;color:var(--text-2);text-wrap:pretty}
+.card p:last-child{margin:0}
+.card p b{font-weight:500;color:var(--text)}
+.foot{padding:28px 0 48px;border-top:1px solid var(--line);font-size:13px;color:var(--text-3)}
+@media (max-width:899px){
+.wrap{padding:0 16px}
+.grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+.card{grid-template-columns:minmax(0,1fr)}
+.tiles{grid-template-columns:repeat(2,1fr)}
+.tile{width:100%;height:auto;aspect-ratio:1}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="l1" viewBox="0 0 64 64"><rect x="6" y="10" width="52" height="44" rx="9" fill="#ff3e00"/><path d="M6 23h52" stroke="currentColor" stroke-width="2.5" stroke-opacity=".9"/><circle cx="14.5" cy="16.5" r="2.4" fill="currentColor"/><circle cx="22" cy="16.5" r="2.4" fill="currentColor"/><circle cx="29.5" cy="16.5" r="2.4" fill="currentColor"/></symbol>
+<symbol id="l2" viewBox="0 0 64 64"><path d="M32 11 56 51H8Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="7" stroke-linejoin="round"/></symbol>
+<symbol id="l3" viewBox="0 0 64 64"><rect x="24" y="7" width="32" height="32" rx="7" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-width="3"/><rect x="16" y="15" width="32" height="32" rx="7" fill="none" stroke="currentColor" stroke-opacity=".7" stroke-width="3"/><rect x="8" y="23" width="32" height="32" rx="7" fill="#ff3e00"/></symbol>
+<symbol id="l4" viewBox="0 0 64 64"><circle cx="29" cy="27" r="13" fill="none" stroke="#ff3e00" stroke-width="8"/><path d="M42 27v17c0 9-6 13-15 13" fill="none" stroke="#ff3e00" stroke-width="8" stroke-linecap="round"/></symbol>
+<symbol id="l5" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#000"/><rect x="2.75" y="2.75" width="58.5" height="58.5" rx="13.25" fill="none" stroke="#fff" stroke-opacity=".32" stroke-width="1.5"/><text x="32" y="35.2" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="600" font-size="8.6" textLength="46" lengthAdjust="spacingAndGlyphs" fill="#fff">gpuix-svelte</text></symbol>
+<symbol id="l6" viewBox="0 0 64 64"><path d="M19 15 7 32l12 17M45 15l12 17-12 17" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="24" y="21" width="16" height="22" rx="4" fill="#ff3e00"/></symbol>
+<symbol id="l7" viewBox="0 0 64 64"><rect x="9" y="9" width="21" height="21" rx="5.5" fill="currentColor"/><rect x="34" y="9" width="21" height="21" rx="5.5" fill="currentColor"/><rect x="9" y="34" width="21" height="21" rx="5.5" fill="currentColor"/><rect x="34" y="34" width="21" height="21" rx="5.5" fill="#ff3e00"/></symbol>
+<symbol id="l8" viewBox="0 0 64 64"><clipPath id="l8c"><rect x="6" y="6" width="52" height="52" rx="13"/></clipPath><g clip-path="url(#l8c)"><rect x="6" y="6" width="52" height="52" fill="#ff3e00"/><path d="M6 6h52L6 58Z" fill="currentColor"/></g></symbol>
+<symbol id="l9" viewBox="0 0 64 64"><path d="M38.8 13.2A20 20 0 1 1 19.1 16.7" fill="none" stroke="#ff3e00" stroke-width="7" stroke-linecap="round"/><path d="M33.5 5.5 43 12.5l-6.5 9" fill="none" stroke="#ff3e00" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><rect x="24" y="24" width="16" height="16" rx="4" fill="currentColor"/></symbol>
+<symbol id="l10" viewBox="0 0 64 64"><path d="M15 7v40l11-9.5L33.5 55l8.5-3.8-7.5-17H47Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="4" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="top"><div class="wrap nav"><a href="../">gpuix-svelte</a><span>Logo candidates</span></div></header>
+
+<main class="wrap">
+<h1>Ten marks for gpuix-svelte</h1>
+<p class="lead">Each one is a single SVG, drawn so it survives a 16 px favicon, a 512 px app icon and a monochrome print. Neutral parts use the surrounding text colour, so the same file works on black and on white; the accent is Svelte’s orange, #ff3e00. Pick one and the rest get deleted.</p>
+
+<div class="row" aria-label="All ten at 24 pixels">
+<b>At a glance</b>
+<i><svg><use href="#l1"/></svg></i><i><svg><use href="#l2"/></svg></i><i><svg><use href="#l3"/></svg></i><i><svg><use href="#l4"/></svg></i><i><svg><use href="#l5"/></svg></i><i><svg><use href="#l6"/></svg></i><i><svg><use href="#l7"/></svg></i><i><svg><use href="#l8"/></svg></i><i><svg><use href="#l9"/></svg></i><i><svg><use href="#l10"/></svg></i>
+<i class="lt"><svg><use href="#l1"/></svg></i><i class="lt"><svg><use href="#l2"/></svg></i><i class="lt"><svg><use href="#l3"/></svg></i><i class="lt"><svg><use href="#l4"/></svg></i><i class="lt"><svg><use href="#l5"/></svg></i><i class="lt"><svg><use href="#l6"/></svg></i><i class="lt"><svg><use href="#l7"/></svg></i><i class="lt"><svg><use href="#l8"/></svg></i><i class="lt"><svg><use href="#l9"/></svg></i><i class="lt"><svg><use href="#l10"/></svg></i>
+</div>
+
+<ul class="grid">
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l1"/></svg></div><div class="tile lt"><svg><use href="#l1"/></svg></div><div class="small"><svg class="s32"><use href="#l1"/></svg><i></i><svg class="s16"><use href="#l1"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>01</small>Window</h2>
+<p><b>A native window, filled with Svelte orange.</b> The title bar and three dots are the one shape every desktop user reads as “an app window”, and the orange body says what is inside it.</p>
+<p>It is literal, which is its strength: the project’s whole pitch is that Svelte ends up in a real window. The dots still read at 16 px. The risk is looking like a generic “desktop app” icon rather than a brand.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l2"/></svg></div><div class="tile lt"><svg><use href="#l2"/></svg></div><div class="small"><svg class="s32"><use href="#l2"/></svg><i></i><svg class="s16"><use href="#l2"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>02</small>Triangle</h2>
+<p><b>The GPU’s one primitive.</b> Everything GPUI paints is triangles, and a single orange triangle is the most honest way to say “drawn on the GPU”. It is also a delta, the symbol for change, which is what a reactive framework ships every frame.</p>
+<p>Scales to any size and stays one colour. It is also the most anonymous of the ten: many graphics projects use a triangle, so it needs the wordmark next to it to be recognisable.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l3"/></svg></div><div class="tile lt"><svg><use href="#l3"/></svg></div><div class="small"><svg class="s32"><use href="#l3"/></svg><i></i><svg class="s16"><use href="#l3"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>03</small>Panes</h2>
+<p><b>Three layers, the front one solid.</b> Component, shadow tree, native window: the mark draws the pipeline as depth, with the two outlines fading back and the orange pane in front being the one you can touch.</p>
+<p>Reads as stacked windows too, which fits a desktop toolkit. It has the most parts, and at 16 px the back outlines blur into a halo, so the favicon would be the front square alone.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l4"/></svg></div><div class="tile lt"><svg><use href="#l4"/></svg></div><div class="small"><svg class="s32"><use href="#l4"/></svg><i></i><svg class="s16"><use href="#l4"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>04</small>Monogram g</h2>
+<p><b>A geometric lowercase g.</b> Ring plus hook, two strokes of equal weight, in the spirit of Geist, the typeface the site is set in. The first letter of gpuix and nothing else.</p>
+<p>Ownable and quiet; a letter mark is the usual choice for a library. It says nothing about windows or GPUs, so it leans on the name for meaning, and the hook thins out at 16 px.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l5"/></svg></div><div class="tile lt"><svg><use href="#l5"/></svg></div><div class="small"><svg class="s32"><use href="#l5"/></svg><i></i><svg class="s16"><use href="#l5"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>05</small>Wordmark tile</h2>
+<p><b>The name on a black square.</b> This is what the site already uses for the favicon and for the app icons in the Shipping section, so choosing it changes nothing and keeps the mark and the name identical.</p>
+<p>Unambiguous at 48 px and above, where the text is legible; below that it becomes a black square with a grey smudge. No colour, which is either restraint or a missed chance, depending on taste.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l6"/></svg></div><div class="tile lt"><svg><use href="#l6"/></svg></div><div class="small"><svg class="s32"><use href="#l6"/></svg><i></i><svg class="s16"><use href="#l6"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>06</small>Brackets</h2>
+<p><b>Markup, with a window where the tag name goes.</b> The angle brackets are the Svelte side (you write components), the orange block between them is the native side (you get a window). Read left to right it is the whole renderer in one glyph.</p>
+<p>Developers decode brackets instantly, and it is the only candidate that shows both halves of the project. At 16 px the brackets thin to hairlines, so the favicon needs a heavier cut.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l7"/></svg></div><div class="tile lt"><svg><use href="#l7"/></svg></div><div class="small"><svg class="s32"><use href="#l7"/></svg><i></i><svg class="s16"><use href="#l7"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>07</small>Tiles</h2>
+<p><b>Four panes, one lit.</b> A window grid, a flexbox layout, GPU tiles: the two-by-two reads as all of them, and the single orange tile marks the one thing that is different, your Svelte component.</p>
+<p>The most robust of the ten at small sizes, since it is four blobs. It sits close to the Windows logo and to a dozen dashboard products, which is the reason to be careful with it.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l8"/></svg></div><div class="tile lt"><svg><use href="#l8"/></svg></div><div class="small"><svg class="s32"><use href="#l8"/></svg><i></i><svg class="s16"><use href="#l8"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>08</small>Split square</h2>
+<p><b>One square, two halves.</b> JavaScript and the GPU share one process, and the diagonal is the batch boundary between them: the neutral half is yours, the orange half is drawn. It is an app icon shape by construction.</p>
+<p>Bold, flat and impossible to misrender at any size. It is also the most abstract, so it carries no hint of windows or Svelte beyond the colour.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l9"/></svg></div><div class="tile lt"><svg><use href="#l9"/></svg></div><div class="small"><svg class="s32"><use href="#l9"/></svg><i></i><svg class="s16"><use href="#l9"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>09</small>Reload</h2>
+<p><b>Save, and the window comes back.</b> An orange arc around a small window: hot reload, the first thing the starter shows you, and the frame loop that redraws every tick.</p>
+<p>Friendly and dynamic, and the arrow survives 16 px better than expected. The shape is shared with every “refresh” button on earth, so on its own it reads as an action, not a product.</p></div>
+</li>
+
+<li class="card">
+<div class="tiles"><div class="tile"><svg><use href="#l10"/></svg></div><div class="tile lt"><svg><use href="#l10"/></svg></div><div class="small"><svg class="s32"><use href="#l10"/></svg><i></i><svg class="s16"><use href="#l10"/></svg><em>32 / 16 px</em></div></div>
+<div><h2><small>10</small>Pointer</h2>
+<p><b>The desktop’s own cursor, in orange.</b> Nothing says “not a web page” like the arrow that lives outside the browser. It points at the one fact the headline makes: these are desktop apps.</p>
+<p>Instantly recognisable and strong at every size. Its weakness is that it is borrowed: the arrow belongs to the operating system, so it looks like a tool for automation or remote control as readily as a UI framework.</p></div>
+</li>
+
+</ul>
+</main>
+
+<footer class="foot"><div class="wrap">A working page for picking the mark. Not linked from the site, and <code>noindex</code>.</div></footer>
+</body>
+</html>
