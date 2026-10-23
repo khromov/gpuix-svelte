@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/khromov/gpuix-svelte/compare/v0.2.0...v0.3.0) (2026-10-23)
+
+
+### Features
+
+* site ([#45](https://github.com/khromov/gpuix-svelte/issues/45)) ([8d48edd](https://github.com/khromov/gpuix-svelte/commit/8d48eddaa13a3af7895722369645928a1df30980))
+
 ## [0.2.0](https://github.com/khromov/gpuix-svelte/compare/v0.1.1...v0.2.0) (2026-10-13)
 
 
