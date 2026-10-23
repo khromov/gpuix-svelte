@@ -65,27 +65,28 @@ npx gpuix-svelte --bun app.ts    # Bun
 
 Runes, snippets, `{#each}`, `{#if}`, `{#await}`, `<svelte:boundary>` and `.svelte.ts` state modules
 all work as you'd expect. Scoped `<style>` blocks work too, for class rules (the
-[styling page](docs/styling.md) has the details). Underneath, GPUI's element tree is painted on
-the GPU, and your UI shares its process with the whole of Node or Bun: files, processes, SQLite
-and native addons.
+[styling page](docs/styling.md) has the details). GPUI paints the window on the GPU, and your app
+runs inside Node or Bun, so it can read files, spawn processes, open SQLite databases and load
+native addons directly.
 
 ## Coming from Svelte on the web
 
 - **Elements are GPUI's**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `markdown`,
   `virtual-list`, `anchored` and a few more. Any other tag renders as a `div`, with a one-time
   warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
-- **Styling is CSS text for a flexbox layout in logical pixels.** Lengths are `px` or `rem`
-  (16 px), and sizes (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>`
-  blocks take class rules with `:hover` and `:active`. Values GPUI can't use are dropped with a
-  warning. → [docs/styling.md](docs/styling.md)
+- **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes
+  (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
+  with `:hover` and `:active`. Values GPUI can't use are dropped with a warning.
+  → [docs/styling.md](docs/styling.md)
 - **Theming** is `var(--token)` in your styles plus one `set_css_vars({ token: '#fff' })` call.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
 - **Mouse events go to the element under the pointer.** Put `hitbox="self"` on a clickable
-  element and clicks on its decoration reach it. `onclick` is the primary button; right and middle
-  clicks are `onauxclick`. → [docs/styling.md#what-works-and-what-does-not](docs/styling.md#what-works-and-what-does-not)
-- **Inputs report through events**, with the value in the payload:
-  `<input value={text} onchange={(e) => (text = e.value)} />`. The compiler refuses `bind:` under
-  a custom renderer, and `{@attach}` hands you the element. → [docs/guide.md](docs/guide.md)
+  element and clicks on its icons and badges reach it. `onclick` is the primary button; right and
+  middle clicks are `onauxclick`.
+  → [docs/styling.md#what-works-and-what-does-not](docs/styling.md#what-works-and-what-does-not)
+- **Inputs report through events**, with the value on the event:
+  `<input value={text} onchange={(e) => (text = e.value)} />`. There is no `bind:`, and
+  `{@attach}` hands you the element. → [docs/guide.md](docs/guide.md)
 - **Keyboard shortcuts** go through `on_window_key('keydown', handler)`, which hears every key
   whatever has focus. → [docs/guide.md](docs/guide.md#keyboard-shortcuts-and-focus)
 - **`Scroller`, `Portal`, `Tooltip` and `Popover` ship with the package**: a scroll column with a
@@ -129,9 +130,9 @@ Svelte version](#about-the-svelte-version)). Run your entry through the package'
 ```
 
 The bin starts Node, or Bun when you pass `--bun` or launch it with `bun run`. Before your entry
-loads, it sets the `custom-renderer` module condition, which selects Svelte's client build with the
-renderer API, and installs the `.svelte` loader. Your `.ts` files need no loader: Node and Bun
-strip the types themselves, and the package ships as plain JavaScript.
+loads, it points `svelte` at the build with the custom renderer API and teaches the runtime to
+import `.svelte` files. Your `.ts` files need nothing extra: Node and Bun run TypeScript
+themselves.
 
 Runtime flags go before the entry, and a flag that takes a value needs the `=` form
 (`gpuix-svelte --experimental-ffi app.ts`, `gpuix-svelte --import=tsx app.ts`). Arguments after
@@ -175,10 +176,9 @@ GPUI elements, it also needs the `gpuixHTML` namespace:
 You'll also want a `*.svelte` module declaration and a `svelte.config.js` that turns off Svelte's
 DOM accessibility advice. [`starter/`](starter) has all three, ready to copy.
 
-With this config, `tsc` rejects what Node's built-in type stripping can't run.
-`erasableSyntaxOnly` catches enums, namespaces and parameter properties, `verbatimModuleSyntax`
-catches a type imported without `import type`, and `module: nodenext` requires a file extension
-on relative imports, which `allowImportingTsExtensions` lets you spell `.ts`. If your app needs
+Node and Bun run TypeScript by stripping the types, which rules out a few constructs: enums,
+namespaces, parameter properties, a type imported without `import type`, and a relative import
+without a file extension. This config makes `tsc` flag them before Node does. If your app needs
 that syntax anyway, install tsx and load it through the bin: `gpuix-svelte --import=tsx app.ts`.
 
 Event handlers take a `GpuixEvent` and `{@attach}` gets a `ShadowNode`. Both are exported as types:
@@ -214,8 +214,8 @@ prefix, such as `npm run bun:demo:counter`.
 
 Custom renderers live on an open Svelte pull request that moves on its own schedule. So each
 release of this package **bundles** the exact build of that pull request it was tested against,
-inside `node_modules/gpuix-svelte/node_modules/svelte`. Its loaders resolve every `svelte` import
-(yours, the compiled components' and its own) to that copy.
+inside `node_modules/gpuix-svelte/node_modules/svelte`, and every `svelte` import, yours included,
+resolves to that copy.
 
 In practice:
 
@@ -232,8 +232,8 @@ In practice:
   `position`, or a `<Portal>`, placed at the `onauxclick` coordinates.
 - `left`, `top`, `right` and `bottom` take pixels only. A progress bar's fill sizes with
   `width: 50%`.
-- `<svg>` takes its `color` from the nearest ancestor's style, which the renderer copies over.
-  Hover is handled natively, so give hover tones to the `<svg>` itself.
+- `<svg>` inherits `color` from its nearest ancestor, but not that ancestor's `:hover` colour, so
+  put hover colours on the `<svg>` itself.
 - Headless tests run on macOS and Windows.
 - Standalone binaries and web bundles are built with Bun, from a script modelled on the
   repository's. See [docs/shipping.md](docs/shipping.md).
@@ -247,11 +247,10 @@ projects it onto GPUI. Only elements and non-blank text get native nodes, and th
 lazily, once they're attached to the window. Every change in a frame is queued and shipped as one
 batch, which Rust applies before the next paint.
 
-Around that sit a `.svelte` loader for Node (`module.registerHooks`) and one for Bun
-(`Bun.plugin`), which compile components with the renderer baked in and turn `<style>` blocks into
-class rules. There's also a translator from CSS text to GPUI styles that expands shorthands and
-drops what GPUI would reject, a ~125 fps frame loop, and in-process hot reload. The full design
-notes are in [CLAUDE.md](CLAUDE.md).
+Around that sit a `.svelte` loader for Node and one for Bun, which compile components with the
+renderer baked in and turn `<style>` blocks into class rules, a translator from CSS to GPUI
+styles that expands shorthands and drops what GPUI would reject, a ~125 fps frame loop, and
+in-process hot reload. The full design notes are in [CLAUDE.md](CLAUDE.md).
 
 ## Contributing
 

@@ -2,17 +2,16 @@
 
 ## Forms
 
-The compiler refuses `bind:` under a custom renderer, so inputs report through events, and the
-payload carries the value:
+There is no `bind:` here, so inputs report through events, and the event carries the value:
 
 ```svelte
 <input value={text} onchange={(e) => (text = e.value)} onsubmit={(e) => send(e.value)} />
 <textarea value={notes} onchange={(e) => (notes = e.value)}></textarea>
 ```
 
-To get hold of an element, use `{@attach (node) => …}` (or `use:`). `node.nativeId` is what
-`get_native()`'s methods take, such as `getElementBounds()`, which returns
-`{ x, y, width, height }`, and `getScrollOffset()`.
+To get hold of an element, use `{@attach (node) => …}` (or `use:`). To measure it,
+`get_native().getElementBounds(node.nativeId)` returns `{ x, y, width, height }`, and
+`getScrollOffset(node.nativeId)` the scroll position of a scroll container.
 
 In a `<textarea>`, Enter inserts a newline unless the element has `onsubmit`. With `onsubmit`,
 Enter submits and Shift+Enter inserts the newline. In an `<input>`, Enter always submits.
@@ -33,15 +32,14 @@ report the match count through `onhighlight`. `TextSearch` keeps that state for 
 <div highlight={search.spec} onhighlight={search.on_highlight}>{body}</div>
 ```
 
-You can set `query`, `case_sensitive` and `whole_word` at any time. `total` is the count native
-reported, and `active` is the current match. `next()` and `prev()` wrap around, and `go_to(i)`
-ignores an index outside the matches. An empty query makes `spec` `null`, which clears the
-highlight. Besides the colours, the constructor takes a `radius` for the highlight's corners.
-Underneath, it's `@gpuix/native/host`'s `createTextSearchController`.
+You can set `query`, `case_sensitive` and `whole_word` at any time. `total` is the match count,
+and `active` is the current match. `next()` and `prev()` wrap around, and `go_to(i)` ignores an
+index outside the matches. An empty query makes `spec` `null`, which clears the highlight. Besides
+the colours, the constructor takes a `radius` for the highlight's corners.
 
-`find_ranges(text, query, { case_sensitive, whole_word })` runs native's matcher in JS and returns
-the `[start, end)` pairs that `highlight={{ ranges }}` takes. Use it for text native hasn't
-mounted, such as a virtual list's offscreen rows when you count a `matchIndexOffset`.
+`find_ranges(text, query, { case_sensitive, whole_word })` does the same matching in JS and
+returns the `[start, end)` pairs that `highlight={{ ranges }}` takes. Use it for text that is not
+on screen, such as a virtual list's offscreen rows, when a count has to cover the whole list.
 
 ## Keyboard shortcuts and focus
 
@@ -71,10 +69,10 @@ the same and survive remounts. A text field still receives the keys typed into i
 tells your handler that a field has focus, so it can step aside.
 
 `blur()` hands focus back from a field to the window, and `focus_element(node)` focuses an
-element. `focused_element()` returns the focused shadow node. `focus_next_within(node)` and
+element. `focused_element()` returns the focused element. `focus_next_within(node)` and
 `focus_previous_within(node)` cycle through the tab stops inside one element, wrapping there.
 
-Since native 0.7, Tab reaches `keydown` as an ordinary key and moves focus only if you wire it up.
+Tab reaches `keydown` as an ordinary key and moves focus only if you wire it up.
 `focus_next()` and `focus_previous()` walk every tab stop in the window in document order and wrap
 at the ends:
 
@@ -104,23 +102,21 @@ them:
 </div>
 ```
 
-GPUI has no resize event, so they poll native every 100 ms, and only while something reactive
-reads them. The first reactive read starts the poll, and it stops once the last effect reading it
-is destroyed. A read anywhere else (a click handler, module code) gets the last polled value while
-a poll is running, and makes one fresh native call otherwise. Keep any `$derived` over them inside
-a component: one in a `.svelte.ts` module that is first read outside an effect starts a poll that
-never stops.
+GPUI has no resize event, so they ask the window every 100 ms, but only while something reactive
+is reading them. A read anywhere else (a click handler, module code) always gets a current value.
+Keep any `$derived` over them inside a component: one in a `.svelte.ts` module that is first read
+outside an effect keeps polling for the life of the process.
 
 `window_insets` carries `safeArea`, `ime` and `effective` (each `{ top, right, bottom, left }`)
 plus `keyboardTop`, `keyboardVisible` and `visibleHeight`. The names are camelCase, like every
-other value that comes from native. The headless test renderer reports its real viewport size and
-zero insets. Before any window exists, the size reads as 800×600.
+other value GPUI reports. Headless tests see their real viewport size and zero insets. Before any
+window exists, the size reads as 800×600.
 
 ## Window and desktop helpers
 
-All of these come from `gpuix-svelte`, and they take shadow nodes (from `{@attach}`) wherever they
-take an element. Where the renderer lacks the call, they quietly do nothing: the headless test
-renderer has no window, and the browser build has no file system. The repository's
+All of these come from `gpuix-svelte`, and wherever they take an element they take the node an
+`{@attach}` gives you. Where the call doesn't exist, they quietly do nothing: headless tests have
+no window, and the browser build has no file system. The repository's
 [desktop-apis example](../examples/desktop-apis) puts most of them to work in one component, which
 drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`).
 
@@ -137,8 +133,8 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
 - `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`
   without going through a data URL. `set_image_pixels(node, width, height, rgba)` takes packed
   straight-alpha RGBA and scales it into the element's box, so upload at 2× for a sharp image on
-  retina screens. Native forgets either one when the element is destroyed or its `src` changes.
-  Called from `{@attach}`, both wait for the element to exist.
+  retina screens. The image is dropped when the element is destroyed or its `src` changes. Called
+  from `{@attach}`, both wait for the element to exist.
 
 Elements also take `onfiledrop`, for files dropped from the system's file manager. `e.paths` are
 absolute, and `e.x` / `e.y` is the drop point. `<virtual-list>` doesn't get it, so wrap a list in a
@@ -164,8 +160,8 @@ they keep recording while the overlay is hidden. A hot reload keeps whatever mod
 ## State that survives hot reload
 
 `render_hot` remounts the root every time you save a `.svelte` file, so component state resets. A
-`.svelte.ts` runes module loads once per process and is never cache-busted, which makes it the
-place for state that should outlive a reload: the current route, the theme, an app object.
+`.svelte.ts` module loads once and is not reloaded, which makes it the place for state that
+should outlive a reload: the current route, the theme, an app object.
 
 ```ts
 // state.svelte.ts

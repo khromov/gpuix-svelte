@@ -1,7 +1,7 @@
 # Components
 
 Four components ship in the package: `Scroller`, `Portal`, `Tooltip` and `Popover`. They're
-plain `.svelte` files, and your loader compiles them like your own components:
+plain `.svelte` files and compile like your own components:
 
 ```svelte
 <script>
@@ -14,9 +14,8 @@ plain `.svelte` files, and your loader compiles them like your own components:
 
 ## Scroller
 
-GPUI paints no scrollbar, so `Scroller` is a scroll column with a drawn thumb. It measures its
-painted bounds and scroll offset, draws the thumb in a gutter and drags it on an overlay. GPUI
-doesn't capture the pointer, so a move with no button held counts as the release.
+GPUI paints no scrollbar, so `Scroller` is a scroll column that draws its own thumb in a gutter,
+follows the wheel and lets you drag the thumb.
 
 Props:
 
@@ -41,17 +40,16 @@ list slows down in proportion to its length. With `virtual`, `Scroller` renders 
 - `estimate` (default `80`) is the height hint for rows GPUI hasn't measured yet.
 - `follow` becomes the list's own tail-following.
 
-The thumb then measures in rows, from `getListScrollTop` and the `visibleRange` event, and a drag
-scrolls with `scrollToItem`. In Substrate, a second-brain app built on this renderer, a timeline of
-50 cards went from ~24 ms to ~1.4 ms per frame.
+In Substrate, a second-brain app built on this renderer, a timeline of 50 cards went from ~24 ms to
+~1.4 ms per frame.
 
 ## Portal
 
 Paint order is document order, so a modal, toast or menu would otherwise have to be the root's
-last child. `<Portal>` renders from wherever the overlay is needed and still paints on top. The
-renderer moves only the native node to the root, so Svelte's `{#if}` blocks and teardown work as
-usual. The wrapper covers the window without a hitbox of its own, and its children position
-against the window and stay clickable:
+last child. `<Portal>` renders from wherever the overlay is needed and still paints on top. Svelte
+sees it where you wrote it, so `{#if}` blocks and teardown work as usual. The wrapper covers the
+window without taking clicks itself, and its children position against the window and stay
+clickable:
 
 ```svelte
 {#if confirming}
@@ -84,9 +82,9 @@ Props:
 Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you set for the whole
 app with `set_css_vars`.
 
-A decorative trigger (text, an icon, a badge) needs nothing more, because the wrapper hears the
-hover through `hitbox="self"`. A trigger with a listener of its own keeps its hitbox, which hides
-the wrapper's, so it spreads the handlers the `children` snippet receives:
+A decorative trigger (text, an icon, a badge) needs nothing more. A trigger with a handler of its
+own, such as a button, takes the hover for itself, so spread the handlers the `children` snippet
+receives onto it:
 
 ```svelte
 <Tooltip content="Save (⌘S)">
@@ -134,7 +132,7 @@ out of flow, and its layer sizes to its content, which rules it out for a scrim.
 styles the layer. It hears only `click`, `mouseenter`, `mouseleave` and `filedrop`, so
 `onmousedownoutside` goes on a child.
 
-Two native quirks, as of 0.10:
+Two GPUI quirks, as of `@gpuix/native` 0.10:
 
 - Give `<anchored>` itself a background (`#00000001` will do), or GPUI paints an opaque `#1a1a1a`
   behind it.

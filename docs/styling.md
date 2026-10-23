@@ -2,9 +2,9 @@
 
 ## What works and what does not
 
-There is no CSS engine. The renderer parses the `style` attribute into a plain object and sends it
-to GPUI, which lays everything out with flexbox (or a simple grid) in logical pixels. `<style>`
-blocks work for class rules, which are compiled the same way.
+There is no CSS engine. Each style is translated property by property into GPUI's own style
+object, and GPUI lays everything out with flexbox (or a simple grid) in pixels. `<style>` blocks
+work for class rules, which are translated the same way.
 
 ```svelte
 <div class="btn" style="padding: 8px 16px; border-radius: 8px">Click</div>
@@ -70,8 +70,8 @@ keywords are recognised.
   `auto`.
 - Spacing: `padding`, `margin` and their four sides, with 1 to 4 value shorthands.
 - Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
-- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` ships as
-  `scroll`, and since GPUI paints no scrollbars the two behave the same.
+- Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` is treated
+  as `scroll`, and since GPUI paints no scrollbars the two behave the same.
 - Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
   `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value
   shorthands.
@@ -109,14 +109,13 @@ These are accepted, but they mean something different from what CSS would.
   `.x:hover { color: #fff }`. When both exist, the attribute wins.
 - `selection-color` sets the colour of the text-selection highlight, the job CSS gives to
   `::selection`.
-- Mouse events never bubble, and with `pointer-events` unset, an element that paints a background
-  or is `position: absolute` blocks clicks to whatever is behind it. Put `hitbox="self"` on the
-  clickable element, and the renderer sets `pointer-events: none` on every descendant that has no
-  listener of its own, `<img>` and `<svg>` included, so badges and icons pass the click through.
-  A few descendants keep their hitbox: a child with its own handler, focusable elements
-  (`tabindex` or `autofocus`), scroll containers, and the elements that take input themselves
-  (`input`, `textarea`, `code`, `diff`, `markdown`, `virtual-list`, `anchored`, `canvas`). A
-  `pointer-events` you set yourself still wins.
+- Mouse events never bubble, and an element that paints a background or is `position: absolute`
+  blocks clicks to whatever is behind it. Put `hitbox="self"` on the clickable element, and clicks
+  on its badges, icons and images pass straight through to it. Descendants that take input keep
+  their own hitbox: a child with its own handler, focusable elements (`tabindex` or `autofocus`),
+  scroll containers, and the input-taking elements (`input`, `textarea`, `code`, `diff`,
+  `markdown`, `virtual-list`, `anchored`, `canvas`). A `pointer-events` you set yourself still
+  wins.
 - `onclick` is the primary button alone, as in the DOM. A right or middle click is `onauxclick`,
   where `e.isRightClick` tells the two apart and `e.x` / `e.y` are window coordinates, so a menu
   rendered through `<Portal>` can be placed right at them. macOS's ctrl+click arrives as an
@@ -153,15 +152,14 @@ control. A palette is one object, and a theme switch is one call:
 </style>
 ```
 
-`set_css_vars` restyles exactly the elements whose style read a variable, in one batch. A call
-whose values are all already in force does nothing. `var()` works on any property, pixel-only ones
-included, and inside inline `style=` too. Keys work with or without the `--`, and setting one to
-`null` unsets it.
+`set_css_vars` restyles only the elements that use a variable, all in one frame, and a call that
+changes nothing does nothing. `var()` works on any property, pixel-only ones included, and inside
+inline `style=` too. Keys work with or without the `--`, and setting one to `null` unsets it.
 
 `var(--name, fallback)` uses the fallback while the variable is unset. Without a fallback, the
-declaration is dropped and the name is warned about once, when the frame that read it ships.
-Because the warning waits for that frame, variables set by an `$effect` like the one above (which
-runs after Svelte has styled the tree) are never reported.
+declaration is dropped and a warning names the variable once. Setting the palette from an
+`$effect` like the one above is fine: the check runs after your effects have, so a variable the
+effect defines is never reported.
 
 Substrate, a second-brain app built on this renderer, themes itself exactly this way: one palette
 object per mode, handed over from its root component in an `$effect`.
