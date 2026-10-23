@@ -142,6 +142,7 @@ a { color: var(--link); }
 .links { margin-left: auto; margin-right: max(0px, var(--corner) + 8px - var(--gut) - max(0px, (100vw - 1200px - var(--gut) * 2) / 2)); display: flex; gap: 24px; }
 .links a { color: var(--muted); font-size: 14px; text-decoration: none; }
 .links a:hover, .links a[aria-current] { color: var(--fg); }
+.links a[aria-current] { text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--accent); }
 .github-corner { position: absolute; top: 0; right: 0; z-index: 20; display: block; width: var(--corner); height: var(--corner); pointer-events: none; }
 .github-corner svg { display: block; width: 100%; height: 100%; fill: #1c1c1c; color: #ededed; pointer-events: none; transition: fill 0.15s ease; }
 .github-corner path { pointer-events: auto; }

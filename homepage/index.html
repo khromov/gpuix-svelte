@@ -39,7 +39,7 @@
 --c-p:#8c8c8c;--c-t:#88b4e2;--c-a:#d3b98e;--c-s:#97c69c;--c-k:#e09cbc;--c-n:#e6b07e;--c-id:#d4d4d4;--c-ln:#5e5e5e;
 }
 *,*::before,*::after{box-sizing:border-box}
-html{background:var(--bg);-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:24px}
+html{background:var(--bg);-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:80px}
 body{position:relative;margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 img{display:block;max-width:100%;height:auto}
 figure{margin:0}
@@ -68,14 +68,15 @@ ul[role=list]{list-style:none}
 }
 @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
 
-.top{border-bottom:1px solid var(--line)}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;padding-right:calc(var(--gut) + max(0px,var(--corner) - max(var(--gut),(100vw - var(--max)) / 2)))}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
 .brand>a:first-child{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
 .mark{display:block;flex:none;width:22px;height:22px;color:#fff}
 .nav ul{display:flex;gap:26px;margin:0;padding:0;list-style:none}
 .nav ul a{font-size:14px;color:var(--text-2);text-decoration:none;white-space:nowrap}
-.nav ul a:hover{color:var(--text)}
+.nav ul a:hover,.nav ul a[aria-current]{color:var(--text)}
+.nav ul a[aria-current]{text-decoration:underline;text-underline-offset:5px;text-decoration-color:var(--accent)}
 
 .hero{padding:30px 0 80px}
 h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;text-wrap:balance}
@@ -767,7 +768,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 <div class="wrap">
 <h1 id="title">Build native desktop apps with Svelte</h1>
 <div class="lead">
-<p>gpuix-svelte renders your Svelte components into a native, gpu-accelerated application on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no browser. You can access anything on the users computer using Node or Bun APIs.</p>
+<p>gpuix-svelte renders your Svelte components into a native, gpu-accelerated application on <b>macOS</b>, <b>Windows</b> and <b>Linux</b>, with no browser. You can access anything on the user's computer using Node or Bun APIs.</p>
 <div class="act">
 <div class="install"><code><span class="pr" aria-hidden="true">$</span>npm create gpuix-svelte@latest my-app<span class="caret" aria-hidden="true"></span></code><button class="copy" type="button" data-copy="npm create gpuix-svelte@latest my-app" hidden>Copy</button></div>
 <div class="links"><a class="btn solid" href="overview.html">Read the docs</a><a class="btn" href="https://github.com/khromov/gpuix-svelte">View on GitHub</a></div>
@@ -856,7 +857,7 @@ Created my-app. Next:
 <div class="wrap">
 <div class="main">
 <h2 id="how-h">How it works</h2>
-<p><span class="nw">gpuix-svelte</span> uses the new Svelte <a href="https://github.com/sveltejs/svelte/pull/18511">custom renderers</a> feature, which lets the compiler emit calls to a renderer of your choice.</p>
+<p><span class="nw">gpuix-svelte</span> uses the experimental Svelte <a href="https://github.com/sveltejs/svelte/pull/18511">custom renderers</a> feature, which lets the compiler emit calls to a renderer of your choice.</p>
 </div>
 <figure class="hiw-fig">
 <div class="hiw-map">
@@ -968,7 +969,7 @@ Created my-app. Next:
 </section>
 <section id="testing" aria-labelledby="test-h">
 <h3 id="test-h">Testing</h3>
-<p>Testing is built in too. Mount a component headlessly and click through it with real hit testing, no window needed, or drive a running app from another process.</p>
+<p>Testing is built in, too. Mount a component headlessly and click through it with real hit testing, no window needed, or drive a running app from another process.</p>
 <div class="editor">
 <div class="bar"><span><span class="dim">starter/</span>test.ts</span></div>
 <pre class="code soft sm"><code>
@@ -1201,11 +1202,11 @@ Created my-app. Next:
 <h3>Different</h3>
 <dl class="diffs">
 <div><dt>HTML elements map to native equivalents</dt><dd>A fixed set of tags: <code>div</code>, <code>text</code>, <code>img</code>, <code>input</code>, <code>textarea</code>, <code>markdown</code>, <code>virtual-list</code> and a few more. Anything else renders as a <code>div</code>, with a warning.</dd></div>
-<div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> on a clickable element lets clicks on its icons and badges reach it. <a href="styling.html#what-works-and-what-does-not">Styling</a></dd></div>
-<div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. <a href="guide.html#forms">Guide</a></dd></div>
-<div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. <a href="guide.html#keyboard-shortcuts-and-focus">Guide</a></dd></div>
-<div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. <a href="styling.html#theming-with-css-variables">Styling</a></dd></div>
-<div><dt>Included utilities</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. <a href="components.html">Components</a></dd></div>
+<div><dt>Mouse events don’t bubble</dt><dd>They go to the element under the pointer. <code>hitbox="self"</code> on a clickable element lets clicks on its icons and badges reach it. More in the <a href="styling.html#what-works-and-what-does-not">styling docs</a>.</dd></div>
+<div><dt>No <code>bind:</code></dt><dd>Inputs report through events with the value in the payload, and <code>{@attach}</code> hands you the element. More in the <a href="guide.html#forms">guide</a>.</dd></div>
+<div><dt>Keyboard shortcuts</dt><dd><code>on_window_key('keydown', handler)</code> hears every key, whatever has focus. More in the <a href="guide.html#keyboard-shortcuts-and-focus">guide</a>.</dd></div>
+<div><dt>Theming</dt><dd><code>var(--token)</code> in your styles and one <code>set_css_vars()</code> call. A theme switch restyles in one batch. More in the <a href="styling.html#theming-with-css-variables">styling docs</a>.</dd></div>
+<div><dt>Included utilities</dt><dd><code>Scroller</code>, <code>Portal</code>, <code>Tooltip</code> and <code>Popover</code>, plus helpers for the window, the file picker, file drops and focus. More in the <a href="components.html">components docs</a>.</dd></div>
 </dl>
 </div>
 </div>
@@ -1244,6 +1245,9 @@ Created my-app. Next:
 
 <script>
 for (const el of document.querySelectorAll('[data-js]')) el.hidden = false;
+
+const examples_link = document.querySelector('.nav a[href="#examples"]');
+new IntersectionObserver(([e]) => examples_link.toggleAttribute('aria-current', e.isIntersecting), { rootMargin: '-56px 0px -60% 0px' }).observe(document.getElementById('examples'));
 
 for (const button of document.querySelectorAll('[data-copy]')) {
 	let timer;

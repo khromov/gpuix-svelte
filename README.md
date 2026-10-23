@@ -82,7 +82,7 @@ and native addons.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
 - **Mouse events go to the element under the pointer.** Put `hitbox="self"` on a clickable
   element and clicks on its decoration reach it. `onclick` is the primary button; right and middle
-  clicks are `onauxclick`. → [docs/styling.md](docs/styling.md) (non-standard semantics)
+  clicks are `onauxclick`. → [docs/styling.md#what-works-and-what-does-not](docs/styling.md#what-works-and-what-does-not)
 - **Inputs report through events**, with the value in the payload:
   `<input value={text} onchange={(e) => (text = e.value)} />`. The compiler refuses `bind:` under
   a custom renderer, and `{@attach}` hands you the element. → [docs/guide.md](docs/guide.md)
