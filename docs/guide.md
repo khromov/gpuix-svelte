@@ -120,8 +120,9 @@ zero insets. Before any window exists, the size reads as 800×600.
 
 All of these come from `gpuix-svelte`, and they take shadow nodes (from `{@attach}`) wherever they
 take an element. Where the renderer lacks the call, they quietly do nothing: the headless test
-renderer has no window, and the browser build has no file system. `examples/desktop-apis`
-(`npm run demo:desktop`) puts most of them to work.
+renderer has no window, and the browser build has no file system. The repository's
+[desktop-apis example](../examples/desktop-apis) puts most of them to work in one component, which
+drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`).
 
 - `set_window_title(title)`, `activate_window()`, `minimize_window()`, `zoom_window()` and
   `toggle_fullscreen()`.

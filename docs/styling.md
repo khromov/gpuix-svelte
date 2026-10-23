@@ -1,8 +1,5 @@
 # Styling
 
-In a clone of the repo, `npm run demo:styling` renders each style string next to what GPUI made
-of it.
-
 ## What works and what does not
 
 There is no CSS engine. The renderer parses the `style` attribute into a plain object and sends it
@@ -168,3 +165,12 @@ runs after Svelte has styled the tree) are never reported.
 
 Substrate, a second-brain app built on this renderer, themes itself exactly this way: one palette
 object per mode, handed over from its root component in an `$effect`.
+
+## Seeing it for yourself
+
+The repository's [styling playground](../examples/styling-playground) renders each style string
+next to what GPUI made of it, in three groups: reads like CSS, looks like CSS but is not, and
+GPUI-only. It is one ordinary component,
+[`StylingPlayground.svelte`](../examples/styling-playground/StylingPlayground.svelte), so copy it
+into a project made with `npm create gpuix-svelte` and point `app.ts` at it, or run
+`npm run demo:styling` in a clone of the repository.

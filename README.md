@@ -191,7 +191,10 @@ Event handlers take a `GpuixEvent` and `{@attach}` gets a `ShadowNode`. Both are
 
 ## Examples
 
-Clone the repository to run them (`bun install`, then the command):
+Every example under [`examples/`](examples/) is an ordinary app: its `.svelte` components and a
+`main.ts` that calls `render_hot`, so any of them drops into a project made with
+`npm create gpuix-svelte`. The scripts below run them in a clone of the repository (`bun install`,
+then the command):
 
 | | |
 |---|---|
