@@ -98,14 +98,19 @@ under System Settings → Privacy & Security. See [Signing](#signing).
 The Bun binary above is 80 MB because it carries Bun itself. The same app runs on
 [QuickJS-ng](https://github.com/quickjs-ng/quickjs) instead, inside `gpuix-qjs`: a host executable
 that links the GPUI renderer and the QuickJS engine together, with no Node and no Bun at runtime.
-The whole thing comes to about 20 MB, nearly all of it GPUI.
+The whole thing comes to about 17 MB, nearly all of it GPUI.
 
 ```bash
 npx gpuix-svelte --qjs standalone.ts                      # develop: a window, remounting on every save
-npx gpuix-svelte --qjs standalone.ts --compile            # → dist/<dir name> (one executable)
+npx gpuix-svelte --qjs standalone.ts --compile            # → dist/<dir name>-qjs (one executable)
 npx gpuix-svelte --qjs standalone.ts --compile --app \
-    --icon icon.png --id com.example.myapp                # macOS: → dist/<dir name>.app, signed
+    --icon icon.png --id com.example.myapp                # macOS: → dist/<dir name>-qjs.app, signed
 ```
+
+The flags may sit on either side of the entry; `--out <dir>` picks the bundle directory (default
+`dist/qjs/<dir name>`), `--outfile <path>` the executable or `.app`. The bundle directory is
+cleared on every build, so the tool refuses one it did not create itself or that contains your
+project.
 
 What is different from the Node and Bun paths:
 
@@ -113,7 +118,8 @@ What is different from the Node and Bun paths:
   entry is the same `standalone.ts` the Bun build uses. In development the bundle is rebuilt on every
   save under the entry's directory and the host re-imports it, which remounts on the same window.
   The Svelte runtime sits in its own chunk and stays loaded, so state in `.svelte.ts` modules is
-  reset by a reload (they are part of the app chunk) and there is no restart warning.
+  reset by a reload (they are part of the app chunk) and there is no restart warning. If that
+  runtime chunk itself changes (a `gpuix-svelte` upgrade, say), the host restarts instead.
 - **Bundling still needs Bun**, as the Bun and web builds do, because the `.svelte` files are
   compiled by Bun's bundler. Node users get one with `npm i -D bun`: the `bun` package puts the
   binary in `node_modules/.bin`, where `npx gpuix-svelte --qjs` finds it.

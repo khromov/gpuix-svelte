@@ -7,7 +7,8 @@ import App from './App.svelte';
 render(App, { title: 'qjs test', width: 320, height: 200 });
 console.log('[qjs-test] mounted');
 
+// Well after the first paint: a keystroke before the window has focus is lost.
 setTimeout(() => {
 	// The production renderer has `simulateKeystrokes`; the type only declares it on the test one.
 	(get_native() as unknown as { simulateKeystrokes(keys: string): void } | null)?.simulateKeystrokes('space');
-}, 400);
+}, 800);

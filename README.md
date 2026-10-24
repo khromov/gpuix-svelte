@@ -238,7 +238,7 @@ In practice:
 - Headless tests run on macOS and Windows.
 - Standalone binaries and web bundles are built with Bun, from a script modelled on the
   repository's. An app can also ship on QuickJS (`npx gpuix-svelte --qjs standalone.ts --compile`),
-  about 20 MB instead of 80 with no Node or Bun inside. See [docs/shipping.md](docs/shipping.md).
+  about 17 MB instead of 90 with no Node or Bun inside. See [docs/shipping.md](docs/shipping.md).
 
 ## How it works
 

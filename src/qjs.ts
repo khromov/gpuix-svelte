@@ -12,9 +12,9 @@
  * scripts/compile.ts: its plugin hooks are the ones src/plugin.ts already exports.
  */
 
-import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BunPlugin } from 'bun';
 
@@ -23,45 +23,95 @@ if (!process.versions.bun) {
 	process.exit(1);
 }
 
+const USAGE =
+	'usage: gpuix-svelte --qjs <entry.ts> [--production] [--build-only] [--out <dir>] [-- args]\n' +
+	'       gpuix-svelte --qjs <entry.ts> --compile [--outfile <path>] [--app [--icon <png>] [--id <bundle id>]]';
+
+function fail(message: string): never {
+	console.error(`[qjs] ${message}\n${USAGE}`);
+	process.exit(2);
+}
+
 const argv = process.argv.slice(2);
 const dash = argv.indexOf('--');
 const own = dash === -1 ? argv : argv.slice(0, dash);
 const app_args = dash === -1 ? [] : argv.slice(dash + 1);
-const VALUED = ['--out', '--outfile', '--icon', '--id'];
-const value_of = (flag: string) => (own.includes(flag) ? own[own.indexOf(flag) + 1] : undefined);
-const positional = own.filter((arg, i) => !arg.startsWith('--') && !VALUED.includes(own[i - 1] ?? ''));
-const compile = own.includes('--compile');
-const app = own.includes('--app');
-const production = compile || own.includes('--production');
-const build_only = own.includes('--build-only');
+const VALUED = new Set(['--out', '--outfile', '--icon', '--id']);
+const BOOLEAN = new Set(['--production', '--build-only', '--compile', '--app']);
+const options = new Map<string, string>();
+const positional: string[] = [];
+for (let i = 0; i < own.length; i++) {
+	const arg = own[i];
+	if (!arg.startsWith('--')) {
+		positional.push(arg);
+		continue;
+	}
+	const eq = arg.indexOf('=');
+	const name = eq === -1 ? arg : arg.slice(0, eq);
+	if (VALUED.has(name)) {
+		const value = eq === -1 ? own[++i] : arg.slice(eq + 1);
+		if (value === undefined || value.startsWith('--')) fail(`${name} needs a value`);
+		options.set(name, value);
+	} else if (BOOLEAN.has(name)) {
+		options.set(name, 'true');
+	} else {
+		fail(`unknown flag ${arg}`);
+	}
+}
+const compile = options.has('--compile');
+const app = options.has('--app');
+const production = compile || options.has('--production');
+const build_only = options.has('--build-only');
 
-if (positional.length !== 1 || (app && !compile)) {
-	console.error(
-		'usage: gpuix-svelte --qjs <entry.ts> [--production] [--build-only] [--out <dir>] [-- args]\n' +
-			'       gpuix-svelte --qjs <entry.ts> --compile [--outfile <path>] [--app [--icon <png>] [--id <bundle id>]]'
-	);
-	process.exit(2);
-}
-if (app && process.platform !== 'darwin') {
-	console.error(`[qjs] --app wraps the binary in a macOS .app bundle; nothing to wrap on ${process.platform}`);
-	process.exit(1);
-}
+if (positional.length !== 1) fail('exactly one entry is expected');
+if (app && !compile) fail('--app needs --compile');
+if (app && process.platform !== 'darwin') fail(`--app wraps the binary in a macOS .app bundle; nothing to wrap on ${process.platform}`);
 
 const entry = resolve(positional[0]);
 const app_name = basename(dirname(entry));
-const out = value_of('--out') ? resolve(value_of('--out')!) : join(process.cwd(), 'dist/qjs', app_name);
+const out = options.has('--out') ? resolve(options.get('--out')!) : join(process.cwd(), 'dist/qjs', app_name);
 // Through the package's own exports: src/qjs-runtime.ts here, lib/qjs-runtime.js once packed.
 const runtime_entry = fileURLToPath(import.meta.resolve('gpuix-svelte/qjs-runtime'));
 const entry_js = join(out, basename(entry).replace(/\.[cm]?[jt]s$/, '.js'));
+const runtime_js = join(out, basename(runtime_entry).replace(/\.[cm]?[jt]s$/, '.js'));
+// Written into `out` by every build; its absence in a non-empty directory means the directory is not ours to clear.
+const MARKER = '.gpuix-qjs';
+
+const inside = (parent: string, child: string) => {
+	const rel = relative(parent, child);
+	return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+};
+if (out === parse(out).root || inside(out, process.cwd()) || inside(out, entry)) {
+	fail(`refusing to use ${out} as the output directory: it contains the project or the entry`);
+}
+if (existsSync(out) && readdirSync(out).length > 0 && !existsSync(join(out, MARKER))) {
+	fail(`refusing to clear ${out}: not a directory this tool created (empty it yourself, or pick another --out)`);
+}
 
 // Imported after the guard: a static import would hoist `bun` above it.
 const { load_module, load_svelte, resolve_svelte } = await import('./plugin.ts');
 
 const conditions = ['custom-renderer', 'quickjs', production ? 'production' : 'development'];
 
-let chunks: string[] = [];
+const show = (path: string) => {
+	const rel = relative(process.cwd(), path);
+	return rel && !rel.startsWith('..') ? rel : path;
+};
 
-async function build(): Promise<boolean> {
+/** The chunks the runtime entry imports: the ones a reload must find unchanged. */
+function runtime_chunks(): string {
+	if (!existsSync(runtime_js)) return '';
+	const source = readFileSync(runtime_js, 'utf8');
+	return [...source.matchAll(/from\s*"(\.\/chunk-[^"]+)"|import\s*\(\s*"(\.\/chunk-[^"]+)"/g)]
+		.map((match) => match[1] ?? match[2])
+		.sort()
+		.join(',');
+}
+
+let chunks = '';
+
+/** Builds into `out`. Resolves to whether it succeeded and whether the shared runtime chunk changed. */
+async function build(): Promise<{ ok: boolean; runtime_changed: boolean }> {
 	// `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
 	// no plugin silently becomes a file asset, so count what actually went through it.
 	let components = 0;
@@ -82,6 +132,7 @@ async function build(): Promise<boolean> {
 
 	rmSync(out, { recursive: true, force: true });
 	mkdirSync(out, { recursive: true });
+	writeFileSync(join(out, MARKER), 'written by gpuix-svelte --qjs; this directory is cleared on every build\n');
 
 	const result = await Bun.build({
 		entrypoints: [entry, runtime_entry],
@@ -100,32 +151,32 @@ async function build(): Promise<boolean> {
 
 	if (!result.success) {
 		for (const message of result.logs) console.error(message);
-		return false;
+		return { ok: false, runtime_changed: false };
 	}
 	if (components === 0) {
 		console.error('[qjs] no .svelte file went through the plugin');
-		return false;
+		return { ok: false, runtime_changed: false };
 	}
 	if (!existsSync(entry_js)) {
 		console.error(`[qjs] expected ${entry_js} among ${result.outputs.map((o) => basename(o.path)).join(', ')}`);
-		return false;
+		return { ok: false, runtime_changed: false };
 	}
 
-	const next = result.outputs.filter((output) => output.kind === 'chunk').map((output) => basename(output.path));
-	if (chunks.length && (next.length !== chunks.length || next.some((name, i) => name !== chunks[i]))) {
-		console.warn('[qjs] the shared runtime chunk changed, so the reload loads a second Svelte runtime; restart for a clean state');
-	}
+	const next = runtime_chunks();
+	const runtime_changed = chunks !== '' && next !== chunks;
 	chunks = next;
 
 	console.log(`[qjs] built ${show(out)} (${result.outputs.length} files${production ? ', production' : ''})`);
-	return true;
+	return { ok: true, runtime_changed };
 }
 
 /**
- * The host binary: `GPUIX_QJS`, or the prebuilt package for this platform
- * (`gpuix-qjs-<platform>-<arch>`), which the gpuix fork's packages/qjs publishes.
+ * The host binary: `GPUIX_QJS`, the prebuilt package for this platform
+ * (`gpuix-qjs-<platform>-<arch>`, which the gpuix fork's packages/qjs publishes), or
+ * a gpuix checkout built beside a checkout of this repository.
  */
 function find_host(): string {
+	const exe = process.platform === 'win32' ? 'gpuix-qjs.exe' : 'gpuix-qjs';
 	const from_env = process.env.GPUIX_QJS;
 	if (from_env) {
 		const host = resolve(from_env);
@@ -136,17 +187,14 @@ function find_host(): string {
 	const name = `gpuix-qjs-${process.platform}-${process.arch}`;
 	try {
 		const manifest = fileURLToPath(import.meta.resolve(`${name}/package.json`));
-		const host = join(dirname(manifest), process.platform === 'win32' ? 'gpuix-qjs.exe' : 'gpuix-qjs');
+		const host = join(dirname(manifest), exe);
 		if (existsSync(host)) return host;
 	} catch {
 		// Not installed.
 	}
-	// The repo's own development case: the gpuix fork checked out beside this one and built.
-	const sibling = fileURLToPath(new URL('../../gpuix/packages/native/target/release/gpuix-qjs', import.meta.url));
+	const sibling = fileURLToPath(new URL(`../../gpuix/packages/native/target/release/${exe}`, import.meta.url));
 	if (existsSync(sibling)) return sibling;
-	console.error(
-		`[qjs] no QuickJS host: install ${name}, or set GPUIX_QJS to a gpuix-qjs binary built from the gpuix fork's packages/qjs (\`cargo build --release\` there; a ../gpuix checkout is found on its own)`
-	);
+	console.error(`[qjs] no QuickJS host: install ${name}, or set GPUIX_QJS to a gpuix-qjs binary built from the gpuix fork's packages/qjs (\`cargo build --release\` there)`);
 	process.exit(1);
 }
 
@@ -160,10 +208,7 @@ function run(command: string, args: string[]): string {
 }
 
 const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
-const show = (path: string) => {
-	const rel = relative(process.cwd(), path);
-	return rel && !rel.startsWith('..') ? rel : path;
-};
+const xml = (text: string) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 // iconutil only reads an .iconset directory holding the ten standard sizes,
 // which sips cuts from the 1024px source; both ship with macOS.
@@ -184,11 +229,11 @@ const plist = (executable: string, id: string, name: string, icon: boolean) => `
 <plist version="1.0">
 <dict>
 	<key>CFBundleExecutable</key>
-	<string>${executable}</string>${icon ? '\n\t<key>CFBundleIconFile</key>\n\t<string>AppIcon</string>' : ''}
+	<string>${xml(executable)}</string>${icon ? '\n\t<key>CFBundleIconFile</key>\n\t<string>AppIcon</string>' : ''}
 	<key>CFBundleIdentifier</key>
-	<string>${id}</string>
+	<string>${xml(id)}</string>
 	<key>CFBundleName</key>
-	<string>${name}</string>
+	<string>${xml(name)}</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>LSMinimumSystemVersion</key>
@@ -198,6 +243,9 @@ const plist = (executable: string, id: string, name: string, icon: boolean) => `
 </dict>
 </plist>
 `;
+
+/** The bundle's files, without the build marker and the runtime entry nothing imports. */
+const app_files = () => readdirSync(out).filter((name) => name !== MARKER && name !== basename(runtime_js) && statSync(join(out, name)).isFile());
 
 /**
  * The bundle beside the host binary inside a `.app`, where codesign can seal it:
@@ -214,21 +262,19 @@ function compile_app(host: string, outfile: string) {
 	mkdirSync(join(resources, 'gpuix-app'), { recursive: true });
 	copyFileSync(host, join(macos, executable));
 	chmodSync(join(macos, executable), 0o755);
-	cpSync(out, join(resources, 'gpuix-app'), { recursive: true });
+	for (const name of app_files()) copyFileSync(join(out, name), join(resources, 'gpuix-app', name));
 	writeFileSync(join(resources, 'gpuix-app', 'gpuix-app.json'), JSON.stringify({ entry: basename(entry_js) }));
-	const icon = value_of('--icon');
+	const icon = options.get('--icon');
 	if (icon) write_icns(resolve(icon), join(resources, 'AppIcon.icns'));
-	const id = value_of('--id') ?? `dev.gpuix.svelte.${executable.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+	const id = options.get('--id') ?? `dev.gpuix.svelte.${executable.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 	writeFileSync(join(bundle, 'Contents', 'Info.plist'), plist(executable, id, executable, Boolean(icon)));
 
+	// Inner binary first, then the bundle: `--deep` is deprecated for signing.
 	const identity = process.env.CODESIGN_IDENTITY;
-	if (identity) {
-		run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--deep', '--sign', identity, bundle]);
-		console.log(`[qjs] signed as ${identity}`);
-	} else {
-		run('codesign', ['--force', '--deep', '-s', '-', bundle]);
-		console.log('[qjs] CODESIGN_IDENTITY not set; signed ad hoc');
-	}
+	const sign = identity ? ['--force', '--options', 'runtime', '--timestamp', '--sign', identity] : ['--force', '-s', '-'];
+	run('codesign', [...sign, join(macos, executable)]);
+	run('codesign', [...sign, bundle]);
+	console.log(identity ? `[qjs] signed as ${identity}` : '[qjs] CODESIGN_IDENTITY not set; signed ad hoc');
 	run('codesign', ['--verify', '--strict', bundle]);
 	console.log(`[qjs] ${show(bundle)} (${mb(statSync(join(macos, executable)).size)} MB binary + bundle)`);
 }
@@ -241,36 +287,88 @@ function compile_binary(host: string, outfile: string) {
 	}
 }
 
-if (!(await build())) process.exit(1);
+if (!(await build()).ok) process.exit(1);
 if (build_only) process.exit(0);
 
 const host = find_host();
 
 if (compile) {
-	const outfile = value_of('--outfile')
-		? resolve(value_of('--outfile')!)
-		: join(process.cwd(), 'dist', app_name + (process.platform === 'win32' ? '.exe' : ''));
+	const outfile = options.has('--outfile')
+		? resolve(options.get('--outfile')!)
+		: join(process.cwd(), 'dist', `${app_name}-qjs${process.platform === 'win32' ? '.exe' : ''}`);
 	mkdirSync(dirname(outfile), { recursive: true });
 	if (app) compile_app(host, outfile);
 	else compile_binary(host, outfile);
 	process.exit(0);
 }
 
-console.log(`[qjs] ${show(host)} ${show(entry_js)}`);
-const child = spawn(host, [entry_js, ...app_args], { stdio: ['pipe', 'inherit', 'inherit'] });
-child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
-const stop = () => child.kill();
+let child: ChildProcess;
+let stopping = false;
+
+function start_host() {
+	console.log(`[qjs] ${show(host)} ${show(entry_js)}`);
+	// `GPUIX_QJS_DEV` is what makes the host read its stdin for `reload` lines, and exit when that closes.
+	child = spawn(host, [entry_js, ...app_args], { stdio: ['pipe', 'inherit', 'inherit'], env: { ...process.env, GPUIX_QJS_DEV: '1' } });
+	child.on('error', (error) => {
+		console.error(`[qjs] could not start ${host}: ${error.message}`);
+		process.exit(1);
+	});
+	child.on('exit', (code, signal) => {
+		if (!stopping) process.exit(code ?? (signal ? 1 : 0));
+	});
+}
+
+start_host();
+const stop = () => {
+	stopping = true;
+	child.kill();
+	process.exit(0);
+};
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
+process.on('SIGHUP', stop);
 
-// Editors write in bursts; coalesce them. A rebuild that fails leaves the running app alone.
+// Editors write in bursts; coalesce them, and never run two builds at once: a
+// second build would wipe `out` under the first. A rebuild that fails leaves the
+// running app alone. A changed runtime chunk means the cached Svelte runtime no
+// longer matches the app, so the host restarts instead of reloading into two.
 let timer: ReturnType<typeof setTimeout> | undefined;
+let building = false;
+let dirty = false;
+async function rebuild() {
+	if (building) {
+		dirty = true;
+		return;
+	}
+	building = true;
+	try {
+		let result;
+		do {
+			dirty = false;
+			result = await build();
+		} while (dirty);
+		if (!result.ok) return;
+		if (result.runtime_changed) {
+			console.warn('[qjs] the shared runtime chunk changed; restarting the host so it loads one Svelte runtime');
+			stopping = true;
+			child.once('exit', () => {
+				stopping = false;
+				start_host();
+			});
+			child.kill();
+			return;
+		}
+		child.stdin?.write('reload\n');
+	} catch (error) {
+		console.error(`[qjs] rebuild failed: ${(error as Error).message}`);
+	} finally {
+		building = false;
+	}
+}
 watch(dirname(entry), { recursive: true }, (_event, file) => {
 	if (!file || file.includes('node_modules')) return;
 	if (!/\.(svelte|[cm]?[jt]s)$/.test(file)) return;
-	if (resolve(dirname(entry), file).startsWith(out)) return;
+	if (inside(out, resolve(dirname(entry), file))) return;
 	clearTimeout(timer);
-	timer = setTimeout(async () => {
-		if (await build()) child.stdin.write('reload\n');
-	}, 60);
+	timer = setTimeout(rebuild, 60);
 });

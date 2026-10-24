@@ -48,29 +48,44 @@ export const blur = () => win()?.blur?.();
 type Host = { gpuixHost?: { openUrl(url: string): void }; window?: { open(url: string, target: string): unknown } };
 
 /**
- * Opens a URL in the user's browser: the QuickJS host's opener, `window.open` in a
- * browser, the platform command under Node and Bun. The Node import is computed so
- * no bundler follows it into a browser or QuickJS bundle.
+ * Opens a web or mail URL in the user's browser: the QuickJS host's opener, `window.open`
+ * in a browser, the platform command under Node and Bun. Only `http`, `https` and `mailto`:
+ * the argument usually comes from content, and `open` would launch a `file:` app bundle as
+ * readily as a page. The Node import is computed so no bundler follows it into a browser
+ * or QuickJS bundle. Never throws; a failure is logged.
  */
 export function open_url(url: string): void {
+	let href: string;
+	try {
+		const parsed = new URL(url);
+		if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) throw new Error(`only http, https and mailto URLs are opened, not ${parsed.protocol}`);
+		href = parsed.href;
+	} catch (error) {
+		console.error(`[gpuix-svelte] not opening ${JSON.stringify(url)}: ${(error as Error).message}`);
+		return;
+	}
 	const host = globalThis as unknown as Host;
-	if (host.gpuixHost) return host.gpuixHost.openUrl(url);
+	if (host.gpuixHost) return host.gpuixHost.openUrl(href);
 	if (host.window?.open) {
-		host.window.open(url, '_blank');
+		host.window.open(href, '_blank');
 		return;
 	}
 	const child_process = 'node:child_process';
-	import(child_process).then(
-		({ spawn }: typeof import('node:child_process')) => {
+	import(child_process)
+		.then(({ spawn }: typeof import('node:child_process')) => {
+			// Not `cmd /C start`: cmd would interpret `&` and `%` inside the URL.
 			const command =
-				process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/C', 'start', '', url] : ['xdg-open', url];
+				process.platform === 'darwin'
+					? ['open', href]
+					: process.platform === 'win32'
+						? ['rundll32', 'url.dll,FileProtocolHandler', href]
+						: ['xdg-open', href];
 			const child = spawn(command[0], command.slice(1), { stdio: 'ignore', detached: true });
 			// An unhandled 'error' event (no xdg-open on the box) would take the window down with it.
 			child.on('error', (error) => console.error('[gpuix-svelte] could not open browser:', error.message));
 			child.unref();
-		},
-		(error: unknown) => console.error('[gpuix-svelte] could not open browser:', (error as Error).message)
-	);
+		})
+		.catch((error: unknown) => console.error('[gpuix-svelte] could not open browser:', (error as Error).message));
 }
 
 export function focus_element(node: NodeRef) {

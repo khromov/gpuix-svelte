@@ -7,10 +7,12 @@
  * symlinks node→bun under `--bun`), so the runtime is read off how this launcher
  * was invoked rather than off the script text.
  *
- * `gpuix-svelte --qjs <entry> [--production] [--build-only] [--out <dir>] [-- args]` is
- * the QuickJS path instead: `bun <gpuix-svelte/qjs> ...`, which bundles the entry and runs
- * it on the `gpuix-qjs` host. Bun is the bundler there whatever launched this, so it needs
- * one on PATH — the `bun` npm package puts one in node_modules/.bin, which npm scripts see.
+ * `gpuix-svelte --qjs <entry> [--production] [--build-only] [--out <dir>] [-- args]` and
+ * `gpuix-svelte --qjs <entry> --compile [--outfile <path>] [--app [--icon <png>] [--id <id>]]`
+ * are the QuickJS path instead: `bun <gpuix-svelte/qjs> ...`, which bundles the entry and
+ * runs it on the `gpuix-qjs` host, or packs it. Its flags may sit on either side of the
+ * entry. Bun is the bundler there whatever launched this, so it needs one on PATH — the
+ * `bun` npm package puts one in node_modules/.bin, which npm scripts see.
  */
 
 import { spawn } from 'node:child_process';
@@ -41,20 +43,23 @@ const loader = bun
 	? ['--preload', fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'))]
 	: ['--import', import.meta.resolve('gpuix-svelte/register')];
 
+// Bun is a shim on PATH rather than a resolvable executable on Windows, so a bare `bun`
+// goes through cmd.exe there; under cmd, arguments with spaces (a path under `C:\Users\Jane
+// Doe`) have to be quoted by hand. A real executable path never needs the shell.
+const quote = (/** @type {string} */ arg) => (/[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg);
+const via_shell = (/** @type {string} */ command) => command === 'bun' && process.platform === 'win32';
+const launch = (/** @type {string} */ command, /** @type {string[]} */ args) =>
+	spawn(command, via_shell(command) ? args.map(quote) : args, { stdio: 'inherit', shell: via_shell(command) });
+
 const child = qjs
-	? spawn(process.versions.bun ? process.execPath : 'bun', [fileURLToPath(import.meta.resolve('gpuix-svelte/qjs')), entry, ...rest], {
-			stdio: 'inherit',
-			shell: process.platform === 'win32'
-		})
-	: spawn(
-			bun ? 'bun' : process.execPath,
-			[...flags.filter((flag) => flag !== '--bun'), ...conditions, ...loader, entry, ...rest],
-			{
-				stdio: 'inherit',
-				// Bun is a shim on PATH rather than a resolvable executable on Windows.
-				shell: bun && process.platform === 'win32'
-			}
-		);
+	? // The qjs flags may precede the entry; only the runtime selectors are this launcher's.
+		launch(process.versions.bun ? process.execPath : 'bun', [
+			fileURLToPath(import.meta.resolve('gpuix-svelte/qjs')),
+			...flags.filter((flag) => flag !== '--qjs' && flag !== '--bun'),
+			entry,
+			...rest
+		])
+	: launch(bun ? 'bun' : process.execPath, [...flags.filter((flag) => flag !== '--bun'), ...conditions, ...loader, entry, ...rest]);
 
 child.on('error', (error) => {
 	if (qjs && /** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') {

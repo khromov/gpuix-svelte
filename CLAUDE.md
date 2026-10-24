@@ -144,8 +144,9 @@ carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun inst
 but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks its runtime
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
-both into `test` / `bun:test`. `compile`, `compile:app` and `demo:web` are Bun-only, `bun:typecheck`
-is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
+both into `test` / `bun:test`. `compile`, `compile:app`, `demo:web`, `qjs` and the `demo:*:qjs`
+scripts are Bun-only (the last through the bin's `--qjs`, which spawns Bun whatever launched it),
+`bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
 (`lint`, `check:svelte`, `docs`, `vendor`, `parity`, `pack`, `publish:npm`) has none. Repo-local
 scripts that need no loader run on plain `node`, which strips their types itself.
 
@@ -335,8 +336,8 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
 The third runtime is **`gpuix-qjs`**, a Rust executable in the gpuix fork (`../gpuix/packages/qjs`,
 khromov/gpuix) that links `gpuix-native` as an rlib with quickjs-ng through `rquickjs` and exposes
 `@gpuix/native` as a native module whose `GpuixRenderer` has the napi class's method names. The
-point is size: no Node or Bun inside, so an app is ~18 MB (the stripped host, nearly all GPUI)
-plus its bundle, against ~90 MB for `Bun.build({ compile })`. `docs/shipping.md` has the user
+point is size: no Node or Bun inside, so an app is ~17 MB (the stripped host, nearly all GPUI)
+plus its bundle (~110 KB for Hacker News), against ~90 MB for `Bun.build({ compile })`. `docs/shipping.md` has the user
 side; `packages/qjs/README.md` in the fork has the host's. As with the web build, `renderer.ts`,
 `style.ts` and `events.ts` are untouched: same mutation protocol, same `(err, event)` callback.
 
@@ -347,23 +348,45 @@ side; `packages/qjs/README.md` in the fork has the host's. As with the web build
   `browser`, so `hot.ts`'s `node:fs` never enters the bundle while esm-env's `BROWSER` stays false),
   `@gpuix/native` left external through an `onResolve` (an `external` entry would also externalize
   `@gpuix/native/host`, which is plain JS to bundle), and **two entrypoints with `splitting`**: the
-  app and `src/qjs-runtime.ts`, which re-exports `svelte` and `gpuix-svelte`. The second entry
-  exists only to make the bundler split everything the two share into a chunk; on a reload the host
-  re-imports the app entry with `?v=N` while that chunk stays cached, so the remount is one Svelte
-  runtime unmounting and mounting — the `bun --hot` hazard avoided. A changed chunk hash prints a
-  warning: the next reload loads a second runtime.
+  app and `src/qjs-runtime.ts`, which re-exports the **whole** client runtime (`svelte`,
+  `svelte/internal/client`, `svelte/reactivity`, `svelte/store`, `svelte/easing`, `gpuix-svelte`
+  and its renderer). The second entry exists only to make the bundler split everything the two
+  share into a chunk; on a reload the host re-imports the app entry with `?v=N` while that chunk
+  stays cached, so the remount is one Svelte runtime unmounting and mounting — the `bun --hot`
+  hazard avoided. Re-exporting only `svelte` was not enough: the chunk holds just what some entry
+  imports, so an app's first `{#if}` pulled a new internal in and changed the chunk's hash on the
+  very reload that followed (review finding; `test:qjs` now adds an `{#if}` in its edit). When the
+  runtime chunk does change — the chunks `qjs-runtime.js` imports, compared across builds — the
+  host is restarted rather than reloaded into two runtimes. Builds are single-flight (a save during
+  a build marks it dirty and rebuilds once after), the output directory carries a `.gpuix-qjs`
+  marker and the tool refuses to clear one without it or one that contains the project or the
+  entry (`rmSync` on a user-supplied `--out` was the other review finding), and the qjs flags may
+  sit on either side of the entry (the bin forwards everything but `--qjs`/`--bun`).
 - **Dev reload is driven from outside the host.** `src/qjs.ts` watches the entry's directory
   (`fs.watch`, recursive), rebuilds, and writes `reload\n` to the host's stdin; the host re-imports.
   `.svelte.ts` modules are part of the app chunk, so a reload resets their state (no restart
   warning, unlike `render_hot`). The entry is the static one (`standalone.ts`), since a bundle has
   no source to re-import; `examples/counter/standalone.ts` exists for this.
-- **The host owns timers, console, `process` and the module loader.** Timers are a thread-local
-  table run one pass per loop turn (a 0 ms timer scheduled from a callback runs next turn, so the
-  frame loop after a slow frame cannot starve jobs or reloads), with the job queue drained after
-  every callback. `process.platform` is Node's spelling (`darwin`, not Rust's `macos`), because app
-  code compares against it. Module names are absolute paths, a `?query` included, so `?v=N` is a
-  distinct module; relative specifiers resolve lexically against the importer, which also works
-  for the virtual `/$bundle/` names of a packed app. The event callback: GPUI raises events inside
+- **The host owns timers, `process` and the module loader; `console` and the web APIs are JS in
+  its `prelude.js`.** Timers are a thread-local table run one pass per loop turn (a 0 ms timer
+  scheduled from a callback runs next turn, so the frame loop after a slow frame cannot starve jobs
+  or reloads), each taken out of the table at its own turn so a `clearTimeout` from an earlier
+  callback in the same pass still cancels it, delays coerced Node's way (anything not a finite
+  number in `1..=2^31-1` is 1 ms, so `setInterval(fn, 0)` cannot spin), and `clearTimeout(undefined)`
+  a no-op — rquickjs's `Opt<T>` is `None` only for a *missing* argument, so the timer natives take
+  `Value`s (`Tooltip.svelte` clears an unset timer on every hover; review finding). The job queue is
+  drained after every callback through the raw `JS_ExecutePendingJob`, because rquickjs's wrapper
+  drops a job's exception, and unhandled rejections are reported only once the drain is empty,
+  since the engine flags a rejection before the `.then` written right after it has attached.
+  `process.platform` is Node's spelling (`darwin`, not Rust's `macos`), because app code compares
+  against it; `process.argv` is `[exe, script, ...args]` everywhere, a packed app's virtual entry
+  filling the script slot. Module names are absolute paths, a `?query` included (looked for only
+  after the last separator, so Windows' `\\?\` prefix is stripped and never mistaken for one), so
+  `?v=N` is a distinct module; relative specifiers resolve lexically against the importer, and the
+  virtual `/$bundle/` names of a packed app are joined as strings since `Path` would make them
+  relative on Windows. stdin is read for `reload` lines only under `GPUIX_QJS_DEV=1`, which
+  `src/qjs.ts` sets (a backgrounded host reading a terminal would be stopped with SIGTTIN), and its
+  closing exits the host, so a crashed dev server leaves no window behind. The event callback: GPUI raises events inside
   `tick()`'s AppKit pump into an `Arc<Mutex<Vec<EventPayload>>>` and `tick()` calls the JS
   callback for each before returning, so `handle_event` runs with the window idle, as under Node's
   threadsafe function. `promptForPaths` settles on a background thread, so its result parks in a
@@ -403,9 +426,10 @@ side; `packages/qjs/README.md` in the fork has the host's. As with the web build
   Linux have been run — Linux via `packages/qjs/docker/Dockerfile` under OrbStack, where it links
   with no extra flag, passes the host's `tests/smoke.js` and opens a mapped window under Xvfb on
   lavapipe; what it paints is unverified, since `captureScreenshot` is macOS/Windows-only and Xvfb
-  framebuffer grabs came back blank), and the published `gpuix-qjs-<platform>-<arch>` packages
-  `find_host()` looks for after `GPUIX_QJS` and the `../gpuix` build (`packages/qjs/npm/make.mjs`
-  assembles them; publishing needs the user's npm token and a `gpuix-qjs@<version>` tag).
+  framebuffer grabs came back blank; and the Windows path handling in the host is written but
+  unexercised), and the published `gpuix-qjs-<platform>-<arch>` packages `find_host()` looks for
+  between `GPUIX_QJS` and the `../gpuix` build (`packages/qjs/npm/make.mjs` assembles them;
+  publishing needs the user's npm token and a `gpuix-qjs@<version>` tag).
 
 ## Hard constraints
 
@@ -420,10 +444,11 @@ side; `packages/qjs/README.md` in the fork has the host's. As with the web build
   declarations beside it, plus a copy of `src/html.d.ts`), rewrites the declarations' `./x.ts`
   specifiers to `./x.js`, and for the length of `npm pack`/`npm publish` points `main` and every
   `src/*.ts` export at `lib/*.js` (TypeScript finds each `.d.ts` beside its `.js`, so there are no
-  `types` conditions) and ships `lib`, `src/components` and `bin` only. tsc wraps the two computed
+  `types` conditions) and ships `lib`, `src/components` and `bin` only. tsc wraps the three computed
   `import()`s in an inlined `__rewriteRelativeImportExtension` helper: `render_hot`'s, where it is
-  inert because the specifier is always a `file://` URL, and `render.ts`'s
-  `'./automation-server.ts'`, which it rewrites to `.js`. The starter's tsconfig carries
+  inert because the specifier is always a `file://` URL, `render.ts`'s
+  `'./automation-server.ts'`, which it rewrites to `.js`, and `window.ts`'s `'node:child_process'`
+  in `open_url`, inert again (a bare specifier). The starter's tsconfig carries
   `erasableSyntaxOnly`, `verbatimModuleSyntax` and `allowImportingTsExtensions`, so an app's `tsc`
   rejects what Node's stripping cannot run. `bin/gpuix-svelte.js` is plain JS (checked via
   `checkJs`) because it is what starts the runtime (`svelte.config.js` is editor-only and outside
@@ -818,7 +843,8 @@ a locked version moves within its range with `bun update <pkg>`), run scripts wi
 `npm run <script>`; packing and publishing stay on npm (`npm pack` bundles the vendored svelte and
 its dependencies, and `npm publish` does the OIDC trusted publishing). Keep the source
 runtime-agnostic — `node:*` builtins only, no `Bun.*` calls and no `bun` imports outside
-`src/plugin.ts`, `scripts/compile.ts` and `scripts/web.ts` (Bun is the bundler there). Import types
+`src/plugin.ts`, `src/qjs.ts`, `scripts/compile.ts` and `scripts/web.ts` (Bun is the bundler
+there). Import types
 with `import type`, and components import the renderer's types (`ShadowNode` for `{@attach}`,
 `GpuixEvent` for handlers) from `'gpuix-svelte'`; `.svelte` files use `<script lang="ts">` — the
 compiler strips the types itself, and svelte-check (part of `typecheck`) checks them.

@@ -126,8 +126,9 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
   resolves to absolute paths, or to `null` on cancel and headlessly. In a browser it rejects. It
   has no file-type filter.
 - `open_url(url)` opens a link in the user's browser: the platform command under Node and Bun
-  (`open`, `xdg-open`, `start`), `window.open` in a browser, the host's opener on QuickJS. A
-  missing opener is logged, never thrown.
+  (`open`, `xdg-open`, `rundll32`), `window.open` in a browser, the host's opener on QuickJS. Only
+  `http`, `https` and `mailto` URLs are opened, since the argument usually comes from content; an
+  invalid or other URL, and a missing opener, are logged, never thrown.
 - `on_selection_change(handler)` hears every change to the window's text selection, a clear
   included. `e.value` is the selected text, and `undefined` after a clear. It returns its
   unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.

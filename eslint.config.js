@@ -9,5 +9,5 @@ export default ts.config(
 	...svelte.configs.recommended,
 	{ files: ['**/*.svelte', '**/*.svelte.ts'], languageOptions: { parserOptions: { parser: ts.parser } } },
 	{ languageOptions: { globals: { ...globals.node, Bun: 'readonly' } } },
-	{ ignores: ['**/node_modules', 'dist', 'lib', 'vendor', 'starter', 'packages/*/template', 'docs/assets', 'test/.samples-tmp'] }
+	{ ignores: ['**/node_modules', 'dist', 'lib', 'vendor', 'starter', 'packages/*/template', 'docs/assets', 'test/.samples-tmp', 'test/.qjs-tmp', 'test/.bench-tmp'] }
 );
