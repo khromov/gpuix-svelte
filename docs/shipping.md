@@ -93,6 +93,53 @@ under System Settings → Privacy & Security. See [Signing](#signing).
 > [`scripts/compile.ts`](../scripts/compile.ts) is where to copy the `.app` wrapping from: it
 > writes the `Info.plist`, cuts the `.icns` from a PNG with `sips` and `iconutil`, and signs.
 
+## Build a smaller binary on QuickJS
+
+The Bun binary above is 80 MB because it carries Bun itself. The same app runs on
+[QuickJS-ng](https://github.com/quickjs-ng/quickjs) instead, inside `gpuix-qjs`: a host executable
+that links the GPUI renderer and the QuickJS engine together, with no Node and no Bun at runtime.
+The whole thing comes to about 20 MB, nearly all of it GPUI.
+
+```bash
+npx gpuix-svelte --qjs standalone.ts                      # develop: a window, remounting on every save
+npx gpuix-svelte --qjs standalone.ts --compile            # → dist/<dir name> (one executable)
+npx gpuix-svelte --qjs standalone.ts --compile --app \
+    --icon icon.png --id com.example.myapp                # macOS: → dist/<dir name>.app, signed
+```
+
+What is different from the Node and Bun paths:
+
+- **The entry is the static one.** `render_hot` re-imports from disk; QuickJS runs a bundle, so the
+  entry is the same `standalone.ts` the Bun build uses. In development the bundle is rebuilt on every
+  save under the entry's directory and the host re-imports it, which remounts on the same window.
+  The Svelte runtime sits in its own chunk and stays loaded, so state in `.svelte.ts` modules is
+  reset by a reload (they are part of the app chunk) and there is no restart warning.
+- **Bundling still needs Bun**, as the Bun and web builds do, because the `.svelte` files are
+  compiled by Bun's bundler. Node users get one with `npm i -D bun`: the `bun` package puts the
+  binary in `node_modules/.bin`, where `npx gpuix-svelte --qjs` finds it.
+- **The host binary comes from the gpuix fork**, [`packages/qjs`](https://github.com/khromov/gpuix/tree/main/packages/qjs).
+  Until the prebuilt `gpuix-qjs-<platform>-<arch>` packages are published, build it there with
+  `cargo build --release` and point `GPUIX_QJS` at `packages/native/target/release/gpuix-qjs`.
+- **The runtime is an engine, not Node.** `setTimeout`, `console`, `process.env`, `process.exit`,
+  `queueMicrotask`, `performance.now` and `structuredClone` exist; `node:*` modules, `fetch`,
+  `TextEncoder`, workers and SQLite do not. An app that reads files or talks to the network stays
+  on Node or Bun. `@gpuix/native/host` and `gpuix-svelte` itself need nothing more than the above.
+- **Two shapes of output.** `--compile` appends the bundle to a copy of the host, one file that runs
+  on any of the three platforms it is built on. macOS's `codesign` refuses a Mach-O with data after
+  it, so `--compile --app` instead puts the bundle beside the binary inside the `.app`, where the
+  bundle signature seals it; the result is signed ad hoc, or with `CODESIGN_IDENTITY` as in
+  [Signing](#signing). QuickJS has no JIT, so the hardened runtime needs none of the JIT
+  entitlements the Bun build does. Notarization is the same `notarytool` flow as for the Bun `.app`.
+- **Desktop only, no automation server.** The host has the window APIs (`getElementBounds`,
+  `scrollTo`, `promptForPaths`, `captureScreenshot`, `GPUIX_SCREENSHOT`) but not the test renderer
+  or `GPUIX_AUTOMATION`; test with `gpuix-svelte/test` under Node or Bun, which is the same
+  renderer code. The Linux host builds and opens a window (tried in Docker, software Vulkan);
+  Windows has not been tried yet.
+
+> **In the repository**, `npm run demo:counter:qjs` and `npm run demo:tictactoe:qjs` run two of the
+> examples this way, `npm run qjs -- <entry>` any other, and `npm run test:qjs` drives a keystroke
+> and a reload through the host when `GPUIX_QJS` is set.
+
 ## Run it in a browser
 
 The same components run on the web, because GPUI itself compiles to WebAssembly and paints a

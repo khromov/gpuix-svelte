@@ -205,10 +205,11 @@ then the command):
 | `npm run demo:styling` | Which CSS reaches GPUI and which is dropped, side by side |
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
+| `npm run demo:counter:qjs` | The counter on the QuickJS host, a 20 MB runtime with no Node or Bun in it (`demo:tictactoe:qjs` too; needs the host binary, see [docs/shipping.md](docs/shipping.md)) |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 
-Each of these, apart from `demo:web` (which always runs on Bun), has a Bun twin under a `bun:`
-prefix, such as `npm run bun:demo:counter`.
+Each of these, apart from `demo:web` and the `:qjs` ones (which always bundle with Bun), has a Bun
+twin under a `bun:` prefix, such as `npm run bun:demo:counter`.
 
 ## About the Svelte version
 
@@ -236,7 +237,8 @@ In practice:
   put hover colours on the `<svg>` itself.
 - Headless tests run on macOS and Windows.
 - Standalone binaries and web bundles are built with Bun, from a script modelled on the
-  repository's. See [docs/shipping.md](docs/shipping.md).
+  repository's. An app can also ship on QuickJS (`npx gpuix-svelte --qjs standalone.ts --compile`),
+  about 20 MB instead of 80 with no Node or Bun inside. See [docs/shipping.md](docs/shipping.md).
 
 ## How it works
 

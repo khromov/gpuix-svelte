@@ -50,6 +50,11 @@ npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU bui
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
                            # to skip serving. BUN ONLY. See "Rendering to the web"
+npm run demo:counter:qjs   # the counter on the QuickJS host (`bin --qjs`): Bun bundles
+npm run demo:tictactoe:qjs # examples/*/standalone.ts to dist/qjs/<dir>, gpuix-qjs runs it, a save
+npm run qjs -- <entry>     # rebuilds and remounts in place. The host is GPUIX_QJS, the prebuilt
+                           # package, or ../gpuix's release build; `--compile [--app]` packs the
+                           # app instead. See "Running on QuickJS"
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram beside highlighted source and the same component
                            # running live, with a quiz. Prose is examples/tutorial/content/*.md, the
@@ -85,6 +90,8 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
                            # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
+npm run test:qjs           # opens a window on the QuickJS host: a GPUI keystroke reaches Svelte, an
+                           # edit to the copied fixture remounts in place; skips without GPUIX_QJS
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
@@ -320,6 +327,72 @@ There is no automated test: `gpuix-svelte/test` is built on `TestGpuixRenderer`,
 Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe-swiftshader
 --remote-debugging-port=9222`, then navigate and read `Runtime.consoleAPICalled`. Avoid
 `--virtual-time-budget`: GPUI never goes idle, so Chrome fast-forwards frames forever and hangs.
+
+### Running on QuickJS
+
+The third runtime is **`gpuix-qjs`**, a Rust executable in the gpuix fork (`../gpuix/packages/qjs`,
+khromov/gpuix) that links `gpuix-native` as an rlib with quickjs-ng through `rquickjs` and exposes
+`@gpuix/native` as a native module whose `GpuixRenderer` has the napi class's method names. The
+point is size: no Node or Bun inside, so an app is ~18 MB (the stripped host, nearly all GPUI)
+plus its bundle, against ~90 MB for `Bun.build({ compile })`. `docs/shipping.md` has the user
+side; `packages/qjs/README.md` in the fork has the host's. As with the web build, `renderer.ts`,
+`style.ts` and `events.ts` are untouched: same mutation protocol, same `(err, event)` callback.
+
+- **The JS side is `bin --qjs` → `src/qjs.ts` under Bun.** It is `Bun.build` with `src/plugin.ts`'s
+  hooks (so Bun is still the bundler; under Node the bin spawns `bun` from PATH, which the `bun` npm
+  package provides in `node_modules/.bin`; there is no standalone Bun bundler package), `target:
+  'node'` plus the `quickjs` export condition this package carries on `.` (→ `src/web.ts`, like
+  `browser`, so `hot.ts`'s `node:fs` never enters the bundle while esm-env's `BROWSER` stays false),
+  `@gpuix/native` left external through an `onResolve` (an `external` entry would also externalize
+  `@gpuix/native/host`, which is plain JS to bundle), and **two entrypoints with `splitting`**: the
+  app and `src/qjs-runtime.ts`, which re-exports `svelte` and `gpuix-svelte`. The second entry
+  exists only to make the bundler split everything the two share into a chunk; on a reload the host
+  re-imports the app entry with `?v=N` while that chunk stays cached, so the remount is one Svelte
+  runtime unmounting and mounting — the `bun --hot` hazard avoided. A changed chunk hash prints a
+  warning: the next reload loads a second runtime.
+- **Dev reload is driven from outside the host.** `src/qjs.ts` watches the entry's directory
+  (`fs.watch`, recursive), rebuilds, and writes `reload\n` to the host's stdin; the host re-imports.
+  `.svelte.ts` modules are part of the app chunk, so a reload resets their state (no restart
+  warning, unlike `render_hot`). The entry is the static one (`standalone.ts`), since a bundle has
+  no source to re-import; `examples/counter/standalone.ts` exists for this.
+- **The host owns timers, console, `process` and the module loader.** Timers are a thread-local
+  table run one pass per loop turn (a 0 ms timer scheduled from a callback runs next turn, so the
+  frame loop after a slow frame cannot starve jobs or reloads), with the job queue drained after
+  every callback. `process.platform` is Node's spelling (`darwin`, not Rust's `macos`), because app
+  code compares against it. Module names are absolute paths, a `?query` included, so `?v=N` is a
+  distinct module; relative specifiers resolve lexically against the importer, which also works
+  for the virtual `/$bundle/` names of a packed app. The event callback: GPUI raises events inside
+  `tick()`'s AppKit pump into an `Arc<Mutex<Vec<EventPayload>>>` and `tick()` calls the JS
+  callback for each before returning, so `handle_event` runs with the window idle, as under Node's
+  threadsafe function. `promptForPaths` settles on a background thread, so its result parks in a
+  queue the next `tick()` resolves the promise from. `setFrameWakeCallback` answers `false`.
+- **Packed apps.** `gpuix-qjs --pack <dir> --entry <file> --out <exe>` appends the bundle to a copy
+  of itself (`[files][u64 len]["GPUIXQJS"]`), and at startup the trailer decides whether `argv[1]`
+  is a bundle path or the app's. macOS `codesign` refuses appended data ("main executable failed
+  strict validation"), so `--compile --app` instead copies the bundle to
+  `Contents/Resources/gpuix-app/` with a `gpuix-app.json` naming the entry — the host's sidecar
+  lookup — and signs the `.app` (ad hoc, or `CODESIGN_IDENTITY`; no JIT entitlements, QuickJS
+  being an interpreter). The single-file form is for Linux/Windows and unsigned local use.
+- **gpuix-native changes it needed** (fork only, no upstream issue yet — the user wants to approve
+  its text first): `pub type EventCallback` and `GpuixRenderer::with_event_callback` (the napi
+  constructor delegates to it), `PathPromptSink` + `prompt_for_paths_with` replacing the
+  `JsDeferred` plumbing, `set_image_pixels_bytes` / `set_image_bytes` / `register_font_bytes`, and
+  serde derives on `EventPayload`, `WindowOptions` and the other payload structs on every target.
+  The host's `build.rs` links with `-undefined dynamic_lookup` because the napi bindings compile in
+  and reference `napi_*` symbols nothing calls. Two toolchain traps: `strip = "debuginfo"` (Rust
+  1.97's release default) misaligns proc-macro dylibs and macOS 27 refuses to load them ("can't
+  find crate for `rquickjs_macro`"), hence `[profile.release.build-override] strip = "none"`; and
+  the build needs Xcode's Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`) with
+  `DEVELOPER_DIR` at Xcode, not the command-line tools.
+- **Not there yet:** the test renderer and `GPUIX_AUTOMATION` (the host serves neither; `test:qjs`
+  drives it through `simulateKeystrokes` and a fixture edit instead), `fetch`/`TextEncoder`/any
+  `node:*`, a Windows build (the fork's `qjs.yml` builds all three platforms, but only macOS and
+  Linux have been run — Linux via `packages/qjs/docker/Dockerfile` under OrbStack, where it links
+  with no extra flag, passes the host's `tests/smoke.js` and opens a mapped window under Xvfb on
+  lavapipe; what it paints is unverified, since `captureScreenshot` is macOS/Windows-only and Xvfb
+  framebuffer grabs came back blank), and the published `gpuix-qjs-<platform>-<arch>` packages
+  `find_host()` looks for after `GPUIX_QJS` and the `../gpuix` build (`packages/qjs/npm/make.mjs`
+  assembles them; publishing needs the user's npm token and a `gpuix-qjs@<version>` tag).
 
 ## Hard constraints
 
