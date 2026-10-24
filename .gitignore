@@ -5,6 +5,7 @@ node_modules
 # test:coverage working copy of svelte's sample suite, test:qjs's editable copy of test/qjs
 test/.samples-tmp
 test/.qjs-tmp
+test/.bench-tmp
 
 # compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib
