@@ -120,10 +120,13 @@ What is different from the Node and Bun paths:
 - **The host binary comes from the gpuix fork**, [`packages/qjs`](https://github.com/khromov/gpuix/tree/main/packages/qjs).
   Until the prebuilt `gpuix-qjs-<platform>-<arch>` packages are published, build it there with
   `cargo build --release` and point `GPUIX_QJS` at `packages/native/target/release/gpuix-qjs`.
-- **The runtime is an engine, not Node.** `setTimeout`, `console`, `process.env`, `process.exit`,
-  `queueMicrotask`, `performance.now` and `structuredClone` exist; `node:*` modules, `fetch`,
-  `TextEncoder`, workers and SQLite do not. An app that reads files or talks to the network stays
-  on Node or Bun. `@gpuix/native/host` and `gpuix-svelte` itself need nothing more than the above.
+- **The runtime is an engine plus what the host adds, not Node.** The host provides `setTimeout`
+  and friends, `console`, `process` (`env`, `argv`, `platform`, `exit`, `cwd`), `queueMicrotask`,
+  `performance.now`, `structuredClone`, `TextEncoder`/`TextDecoder` (UTF-8), `URL`/`URLSearchParams`,
+  and `fetch` with `Headers`/`Request`/`Response` over the HTTP client GPUI already carries (whole
+  bodies, no streams, `AbortSignal` ignored). `node:*` modules, workers and SQLite do not exist, so
+  an app that reads files or spawns processes stays on Node or Bun; `open_url` from `gpuix-svelte`
+  covers the one process most apps spawn, the browser. The Hacker News example runs unchanged.
 - **Two shapes of output.** `--compile` appends the bundle to a copy of the host, one file that runs
   on any of the three platforms it is built on. macOS's `codesign` refuses a Mach-O with data after
   it, so `--compile --app` instead puts the bundle beside the binary inside the `.app`, where the
@@ -136,9 +139,9 @@ What is different from the Node and Bun paths:
   renderer code. The Linux host builds and opens a window (tried in Docker, software Vulkan);
   Windows has not been tried yet.
 
-> **In the repository**, `npm run demo:counter:qjs` and `npm run demo:tictactoe:qjs` run two of the
-> examples this way, `npm run qjs -- <entry>` any other, and `npm run test:qjs` drives a keystroke
-> and a reload through the host when `GPUIX_QJS` is set.
+> **In the repository**, `npm run demo:counter:qjs`, `npm run demo:tictactoe:qjs` and
+> `npm run demo:hn:qjs` run three of the examples this way, `npm run qjs -- <entry>` any other, and
+> `npm run test:qjs` drives a keystroke and a reload through the host when it is present.
 
 ## Run it in a browser
 

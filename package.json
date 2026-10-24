@@ -65,6 +65,7 @@
 		"qjs": "node bin/gpuix-svelte.js --qjs",
 		"demo:counter:qjs": "node bin/gpuix-svelte.js --qjs examples/counter/standalone.ts",
 		"demo:tictactoe:qjs": "node bin/gpuix-svelte.js --qjs examples/tic-tac-toe/standalone.ts",
+		"demo:hn:qjs": "node bin/gpuix-svelte.js --qjs examples/hacker-news/standalone.ts",
 		"test:qjs": "node bin/gpuix-svelte.js test/qjs.ts",
 		"bun:test:qjs": "node bin/gpuix-svelte.js --bun test/qjs.ts",
 		"tutorial": "node bin/gpuix-svelte.js examples/tutorial/main.ts",

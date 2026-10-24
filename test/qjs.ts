@@ -11,13 +11,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
 
-const host = process.env.GPUIX_QJS;
-if (!host) {
-	console.log('[test:qjs] GPUIX_QJS not set — skipping');
+const root = fileURLToPath(new URL('../', import.meta.url));
+
+// The same lookup `gpuix-svelte/qjs` makes, minus the prebuilt package: the env var or the
+// sibling fork's release build. Without either there is nothing to drive, so skip.
+const sibling = join(root, '../gpuix/packages/native/target/release/gpuix-qjs');
+if (!process.env.GPUIX_QJS && !existsSync(sibling)) {
+	console.log('[test:qjs] no gpuix-qjs host (GPUIX_QJS unset, no ../gpuix build) — skipping');
 	process.exit(0);
 }
-
-const root = fileURLToPath(new URL('../', import.meta.url));
 const fixture = join(root, 'test/qjs');
 // A copy, because the test edits the component to trigger a reload.
 const tmp = join(root, 'test/.qjs-tmp');

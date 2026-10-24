@@ -45,6 +45,34 @@ export const prompt_for_paths = (options?: PathPromptOptions): Promise<string[] 
 /** Gives focus back from an `<input>` / `<textarea>` to the window. */
 export const blur = () => win()?.blur?.();
 
+type Host = { gpuixHost?: { openUrl(url: string): void }; window?: { open(url: string, target: string): unknown } };
+
+/**
+ * Opens a URL in the user's browser: the QuickJS host's opener, `window.open` in a
+ * browser, the platform command under Node and Bun. The Node import is computed so
+ * no bundler follows it into a browser or QuickJS bundle.
+ */
+export function open_url(url: string): void {
+	const host = globalThis as unknown as Host;
+	if (host.gpuixHost) return host.gpuixHost.openUrl(url);
+	if (host.window?.open) {
+		host.window.open(url, '_blank');
+		return;
+	}
+	const child_process = 'node:child_process';
+	import(child_process).then(
+		({ spawn }: typeof import('node:child_process')) => {
+			const command =
+				process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/C', 'start', '', url] : ['xdg-open', url];
+			const child = spawn(command[0], command.slice(1), { stdio: 'ignore', detached: true });
+			// An unhandled 'error' event (no xdg-open on the box) would take the window down with it.
+			child.on('error', (error) => console.error('[gpuix-svelte] could not open browser:', error.message));
+			child.unref();
+		},
+		(error: unknown) => console.error('[gpuix-svelte] could not open browser:', (error as Error).message)
+	);
+}
+
 export function focus_element(node: NodeRef) {
 	with_native_id(node, (id) => win()?.focusElement?.(id));
 }

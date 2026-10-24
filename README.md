@@ -205,7 +205,7 @@ then the command):
 | `npm run demo:styling` | Which CSS reaches GPUI and which is dropped, side by side |
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
-| `npm run demo:counter:qjs` | The counter on the QuickJS host, a 20 MB runtime with no Node or Bun in it (`demo:tictactoe:qjs` too; needs the host binary, see [docs/shipping.md](docs/shipping.md)) |
+| `npm run demo:counter:qjs` | The counter on the QuickJS host, an 18 MB runtime with no Node or Bun in it (`demo:tictactoe:qjs` and `demo:hn:qjs` too; needs the host binary, see [docs/shipping.md](docs/shipping.md)) |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 
 Each of these, apart from `demo:web` and the `:qjs` ones (which always bundle with Bun), has a Bun

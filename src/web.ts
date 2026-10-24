@@ -27,6 +27,7 @@ export {
 	toggle_fullscreen,
 	prompt_for_paths,
 	blur,
+	open_url,
 	focus_element,
 	focused_element,
 	focus_next,

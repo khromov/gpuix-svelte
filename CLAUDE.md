@@ -52,7 +52,8 @@ npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU bui
                            # to skip serving. BUN ONLY. See "Rendering to the web"
 npm run demo:counter:qjs   # the counter on the QuickJS host (`bin --qjs`): Bun bundles
 npm run demo:tictactoe:qjs # examples/*/standalone.ts to dist/qjs/<dir>, gpuix-qjs runs it, a save
-npm run qjs -- <entry>     # rebuilds and remounts in place. The host is GPUIX_QJS, the prebuilt
+npm run demo:hn:qjs        # rebuilds and remounts in place (hn: fetch + URL through the host). The
+npm run qjs -- <entry>     # host is GPUIX_QJS, the prebuilt
                            # package, or ../gpuix's release build; `--compile [--app]` packs the
                            # app instead. See "Running on QuickJS"
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
@@ -91,7 +92,8 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:qjs           # opens a window on the QuickJS host: a GPUI keystroke reaches Svelte, an
-                           # edit to the copied fixture remounts in place; skips without GPUIX_QJS
+                           # edit to the copied fixture remounts in place; skips when neither
+                           # GPUIX_QJS nor a ../gpuix release build exists
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
@@ -366,6 +368,16 @@ side; `packages/qjs/README.md` in the fork has the host's. As with the web build
   callback for each before returning, so `handle_event` runs with the window idle, as under Node's
   threadsafe function. `promptForPaths` settles on a background thread, so its result parks in a
   queue the next `tick()` resolves the promise from. `setFrameWakeCallback` answers `false`.
+  The web APIs beyond that are `src/prelude.js` in the host over four natives: `fetch`
+  (`Headers`/`Request`/`Response`, whole bodies) runs each request on its own thread through zed's
+  `reqwest_client`, which gpuix-native already links for `<img src=https://…>`, so it costs no
+  second HTTP/TLS stack; `URL`/`URLSearchParams` wrap the `url` crate's parse; `TextEncoder`/
+  `TextDecoder` are UTF-8 only; and `globalThis.gpuixHost.openUrl` is what `open_url` in
+  `window.ts` uses there (Node/Bun spawn the platform opener through a computed `import()`, a
+  browser uses `window.open`). Background threads settle promises through one `COMPLETIONS` queue
+  the main loop drains each turn, and they send on the same `Wake` channel stdin's `reload` uses,
+  because a loop that waits on stdin alone never wakes for a `fetch` when no timer is pending — the
+  host's `tests/smoke.js` hung on exactly that before the channel was unified.
 - **Packed apps.** `gpuix-qjs --pack <dir> --entry <file> --out <exe>` appends the bundle to a copy
   of itself (`[files][u64 len]["GPUIXQJS"]`), and at startup the trailer decides whether `argv[1]`
   is a bundle path or the app's. macOS `codesign` refuses appended data ("main executable failed
@@ -385,8 +397,9 @@ side; `packages/qjs/README.md` in the fork has the host's. As with the web build
   the build needs Xcode's Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`) with
   `DEVELOPER_DIR` at Xcode, not the command-line tools.
 - **Not there yet:** the test renderer and `GPUIX_AUTOMATION` (the host serves neither; `test:qjs`
-  drives it through `simulateKeystrokes` and a fixture edit instead), `fetch`/`TextEncoder`/any
-  `node:*`, a Windows build (the fork's `qjs.yml` builds all three platforms, but only macOS and
+  drives it through `simulateKeystrokes` and a fixture edit instead), any `node:*` module (files,
+  processes, sockets; `open_url` is the one spawn apps commonly need), streaming `fetch` bodies
+  and `AbortSignal`, `Intl`, a Windows build (the fork's `qjs.yml` builds all three platforms, but only macOS and
   Linux have been run — Linux via `packages/qjs/docker/Dockerfile` under OrbStack, where it links
   with no extra flag, passes the host's `tests/smoke.js` and opens a mapped window under Xvfb on
   lavapipe; what it paints is unverified, since `captureScreenshot` is macOS/Windows-only and Xvfb

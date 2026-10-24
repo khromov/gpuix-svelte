@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { spawn } from 'node:child_process';
+	import { open_url } from 'gpuix-svelte';
 
 	type Story = { id: number; title: string; url?: string; by: string; score: number; time: number; descendants?: number };
 
@@ -38,16 +38,9 @@
 		load();
 	}
 
+	// `open_url` is the platform opener on Node and Bun and the host's on QuickJS.
 	function open(story: Story) {
-		const url = story.url ?? `https://news.ycombinator.com/item?id=${story.id}`;
-		const cmd =
-			process.platform === 'darwin' ? ['open', url]
-			: process.platform === 'win32' ? ['cmd', '/c', 'start', '', url]
-			: ['xdg-open', url];
-		const child = spawn(cmd[0], cmd.slice(1), { stdio: 'ignore', detached: true });
-		// An unhandled 'error' event (no xdg-open on the box) would take the window down with it.
-		child.on('error', (err) => console.error('[hacker-news] could not open browser:', err.message));
-		child.unref();
+		open_url(story.url ?? `https://news.ycombinator.com/item?id=${story.id}`);
 	}
 
 	function domain(story: Story) {
