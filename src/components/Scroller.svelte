@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { get_native, type GpuixEvent, type Native, type ShadowNode } from 'gpuix-svelte';
 
-	// GPUI paints no scrollbars, so the column draws a thumb sized from its painted
+	// GPUI's own thumb can't be dragged, so the column draws a thumb sized from its painted
 	// bounds and moved by its scroll offset, and drags it on a panel-sized overlay.
 	let {
 		children,

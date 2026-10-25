@@ -14,8 +14,9 @@ plain `.svelte` files and compile like your own components:
 
 ## Scroller
 
-GPUI paints no scrollbar, so `Scroller` is a scroll column that draws its own thumb in a gutter,
-follows the wheel and lets you drag the thumb.
+GPUI's own scrollbar (`scrollbar-color`, see the styling reference) can't be dragged, so `Scroller`
+is a scroll column that draws its own thumb in a gutter, follows the wheel and lets you drag the
+thumb.
 
 Props:
 
@@ -134,8 +135,8 @@ styles the layer. It hears only `click`, `mouseenter`, `mouseleave` and `filedro
 
 Two GPUI quirks, as of `@gpuix/native` 0.11:
 
-- Give `<anchored>` itself a background (`#00000001` will do), or GPUI paints an opaque `#1a1a1a`
-  behind it.
+- Give `<anchored>` itself a background (`transparent` will do), or GPUI paints an opaque
+  `#1a1a1a` behind it.
 - `align="center"` lands half the layer's own width (or height) short of centre. That's why the
   components hang their layer from a zero-sized box that flex places on the trigger's edge, with
   the `anchor` corner named explicitly.
@@ -155,3 +156,4 @@ Its props:
 | `deferred` | paint in a later layer, above everything drawn so far | `true` |
 | `priority` | order among deferred layers; higher paints later | `1` |
 | `occlude` | block hit testing on what lies beneath | `true` |
+| `fill` | `window` covers the whole window and follows a resize; ignores the placement props | — |

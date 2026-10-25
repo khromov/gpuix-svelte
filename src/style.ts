@@ -65,13 +65,17 @@ const NUMBER_ONLY = new Set([
 /** Rust `bool`s: the string CSS text hands over would fail to deserialize. */
 const BOOLEAN = new Set(['keyboardFocusDim']);
 
-const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/;
+/** A unitless `aspect-ratio`, `1.5` or `16 / 9`; a length is no ratio, so it must not coerce like one. */
+const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(?:\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+)))?$/;
+
+/** GPUI paints a thumb and no track, so only the first colour of `scrollbar-color: thumb track` applies. */
+const FIRST_COLOR = /^(?:[^\s(]+\([^)]*\)|\S+)/;
 
 /** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
 const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
 
 /** A struct on the Rust side — CSS text can never produce one. */
-const NEVER = new Set(['boxShadow']);
+const NEVER = new Set(['boxShadow', 'hover', 'active', 'focusVisible']);
 
 /** GPUI has no `inset` field, so that one expands even when it holds one value. */
 const BOX: Record<string, string[] | undefined> = {
@@ -227,8 +231,10 @@ function accepts(key: string, value: StyleValue) {
  */
 function assign(out: GpuiStyle, key: string, value: string) {
 	let coerced = coerce(value);
-	const ratio = key === 'aspectRatio' ? RATIO.exec(value) : null;
-	if (ratio) coerced = parseFloat(ratio[1]) / parseFloat(ratio[2]);
+	if (key === 'aspectRatio') {
+		const ratio = RATIO.exec(value);
+		coerced = ratio ? parseFloat(ratio[1]) / (ratio[2] ? parseFloat(ratio[2]) : 1) : value;
+	} else if (key === 'scrollbarColor') coerced = FIRST_COLOR.exec(value)?.[0] ?? value;
 	else if (BOOLEAN.has(key) && (value === 'true' || value === 'false')) coerced = value === 'true';
 	else if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
 	else if (typeof coerced === 'string' && DIMENSION.has(key) && INTRINSIC.test(coerced)) coerced = 'auto';

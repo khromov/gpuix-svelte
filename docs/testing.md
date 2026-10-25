@@ -38,8 +38,10 @@ for the helpers first.)
 The headless viewport has two limits. On macOS it's at most 538 px tall, so keep test layouts
 short; `click` tells you when a target falls outside. Windows ignores the requested size and opens
 1024×749, so read the real size from `get_native().getWindowSize()` rather than asserting the one
-you asked for. Headless rendering also fires no `focus`/`blur` events (a real window does), so
-`focus()` and `unfocus()` stand in for them.
+you asked for. `focus()` moves native focus, and the `focus` and `blur`
+events it causes reach your handlers as they would in a window. The test renderer has no way to
+blur, so `unfocus()` reports a `blur` for the focused element itself (native still holds focus, and
+its own `blur` for that element is not reported again when focus later moves).
 
 ## Every other input
 

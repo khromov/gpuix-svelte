@@ -54,6 +54,13 @@ check('aspect-ratio takes a ratio or a number', [parse_css_text('aspect-ratio: 1
 	{ aspectRatio: 2 },
 	{ aspectRatio: 1.5 }
 ]);
+check('aspect-ratio drops a length rather than reading it as a ratio', parse_css_text('aspect-ratio: 16px'), {});
+check('scrollbar-color keeps the thumb of a thumb-and-track pair', parse_css_text('scrollbar-color: rgb(1, 2, 3) #000'), {
+	scrollbarColor: 'rgb(1, 2, 3)'
+});
+check('a nested pseudo style written as a declaration is dropped', parse_css_text('focus-visible: red; hover: red; color: blue'), {
+	color: 'blue'
+});
 check('keyboard-focus-dim becomes a bool, anything else is dropped', parse_css_text('keyboard-focus-dim: false; outline-width: 1em'), {
 	keyboardFocusDim: false
 });
@@ -204,4 +211,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 40);
+finish('style', 43);

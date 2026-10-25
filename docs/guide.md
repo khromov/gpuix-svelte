@@ -72,7 +72,8 @@ tells your handler that a field has focus, so it can step aside.
 element. `focused_element()` returns the focused element. `focus_next_within(node)` and
 `focus_previous_within(node)` cycle through the tab stops inside one element, wrapping there.
 
-Tab reaches `keydown` as an ordinary key and moves focus only if you wire it up.
+Tab reaches `keydown` as an ordinary key and moves focus only if you wire it up. It never types a
+tab character into an `<input>` or `<textarea>`.
 `focus_next()` and `focus_previous()` walk every tab stop in the window in document order and wrap
 at the ends:
 
@@ -89,7 +90,8 @@ call `focus_element(node)`.
 GPUI can also dim every other focusable element to 40% opacity while one has keyboard focus,
 which shows where Tab can go. gpuix-svelte leaves that off; `render(App, { keyboardFocusDim: true })`
 turns it on (and `mount_headless` takes the same option), and `keyboard-focus-dim: false` in an
-element's style exempts it.
+element's style exempts it. That style is not inherited, so it goes on the focusable element
+itself.
 
 ## Window size and insets
 

@@ -108,8 +108,9 @@ These are accepted, but they mean something different from what CSS would.
   while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
   `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
   `.x:hover { color: #fff }`. When both exist, the attribute wins.
-- `scrollbar-color` (one colour, the thumb's) and `scrollbar-width` (in px) make GPUI paint a
-  thumb on an `overflow: scroll` container or a `<virtual-list>`. Without them it paints no
+- `scrollbar-color` makes GPUI paint a thumb on an `overflow: scroll` container or a
+  `<virtual-list>`, and `scrollbar-width` (in px, default 6) sizes it. There is no track, so of the
+  standard `thumb track` pair only the first colour applies. Without a colour GPUI paints no
   scrollbar at all, and the thumb never takes the pointer.
 - `keyboard-focus-dim: false` keeps an element at full opacity when the window has the dim on
   (`render(App, { keyboardFocusDim: true })`, see the guide's focus section).

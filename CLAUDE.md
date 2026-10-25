@@ -160,8 +160,9 @@ width follows `mount_headless`'s `width`/`height` on macOS, but its height caps 
 (`MAX_HEADLESS_HEIGHT`) — elements laid out below that can't be hit (`click` throws; shift the
 layout up inside an absolute wrapper to reach them) — and Windows ignores the request and opens a
 1024×749 viewport, so never assert against the size you asked for; read `native.getWindowSize()`
-(`test/portal.ts` does). The headless renderer emits no `focus`/`blur`, which is what
-`focus()`/`unfocus()` stand in for.
+(`test/portal.ts` does). Since native 0.11 the headless renderer emits `focus`/`blur` itself, so
+`focus()` leaves both to native; `unfocus()` still reports a blur (the test renderer has no `blur()`)
+and `deliver()` drops native's repeat of it when focus later moves on.
 
 `src/window.ts` (window title/activate/minimize/zoom/fullscreen, `prompt_for_paths`, `blur`, the
 focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, the debug-overlay wrappers)
@@ -395,9 +396,11 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   tree are destroyed at commit and re-materialize if shown again), `setCustomProp` not
   `setCustomPropValue`, and `commitMutations?.()` only where it exists. The package is ESM with an
   `index.cjs` under the `require` condition. Prebuilds exist for darwin-arm64 / linux-x64 /
-  win32-x64 only. On Linux `TestGpuixRenderer` is a constructor that throws
-  (`hasTestGpuixRenderer()` says so) — gpuix builds it with `--no-default-features` until wgpu grows
-  image readback — so CI there can only check that the binding loads. Its `/host`, `/runtime` and
+  win32-x64 / win32-arm64 only (CI covers no arm64 Windows); since 0.11 the Linux one links
+  `libxcb`, `libxkbcommon` and `libxkbcommon-x11`, which CI's linux job installs. On Linux
+  `TestGpuixRenderer` is a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix
+  builds it with `--no-default-features` until wgpu grows image readback — so CI there can only
+  check that the binding loads. Its `/host`, `/runtime` and
   `/testing` entry points are the framework-neutral layer `@gpuix/react` and `@gpuix/solid` share;
   this renderer takes `/host`'s window observers, text search and types, and `/automation`, but
   keeps its own `render.ts` / `renderer.ts` / `test.ts`, because that layer's event map and
@@ -406,6 +409,8 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   tag; get `npm test` and `npm run bun:test` passing on the new version before anything uses the
   new surface; and in the same change go through `npm run parity`'s output and redo
   `docs/styling.md`'s lists if `style.rs` moved (see "Regenerating the styling reference").
+  0.11's terminal mode is untested here: native `init()` honours `GPUIX_TERMINAL=1` on its own, and
+  `render()` logs to the stdout that mode draws on.
 
 ## Architecture
 
@@ -548,15 +553,15 @@ Unknown events are dropped silently.
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
 `docs/components.md` documents their props and the native `<anchored>`.
 
-- **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground
-  and Substrate all use it). GPUI paints no scrollbar and captures no pointer, so it measures
-  `getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the thumb
-  restyle after a wheel event is throttled to one per 50 ms because each one is a full native
-  frame. A plain scroll container lays out and paints every child every frame, so `virtual` swaps
-  in GPUI's `<virtual-list>` (each direct child a row, which needs `width: 100%`; `follow` →
-  `followTail`). There the thumb works in rows: the viewport from `getListScrollTop`, the row
-  height a running mean of `visibleRange` reports seeded with `estimate`, drag via `scrollToItem`.
-  Its colours are `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
+- **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground and
+  Substrate all use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
+  measures `getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the
+  thumb restyle after a wheel event is throttled to one per 50 ms because each one is a full native
+  frame. A plain scroll container lays out and paints every child every frame, so `virtual` swaps in
+  GPUI's `<virtual-list>` (each direct child a row, which needs `width: 100%`; `follow` →
+  `followTail`). There the thumb works in rows: the viewport from `getListScrollTop`, the row height
+  a running mean of `visibleRange` reports seeded with `estimate`, drag via `scrollToItem`. Its
+  colours are `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
 - **`Portal`** is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
   renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
   teardown walk, anchors and `{#if}` blocks are untouched) and only the **native** node hangs off
@@ -566,15 +571,16 @@ Unknown events are dropped silently.
   parent's native child list, and `commit()` destroys any portal that is no longer `live`, because
   its ancestor's `destroyElement` never reaches it.
 - **`Tooltip`** and **`Popover`** hang a native `<anchored>` layer from a 0×0 dot on the trigger's
-  edge, with `align="start"` and the `anchor` corner named explicitly, because native 0.11's
-  `align: center` centres the content-sized layer box and then anchors its centre again, landing
-  half a layer off (`test:tooltip` asserts the quirk, so it fails once upstream fixes it). The
-  layer carries `background-color: #00000001`, or native paints `#1a1a1a` behind it. `Tooltip`
-  tracks hover per source (wrapper, spread trigger handlers, tip) because a pointer jumping onto the
-  tip gets the tip's `mouseEnter` before the trigger's `mouseLeave`. `Popover`'s `mouseDownOutside`
-  sits on the panel (`<anchored>` only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`).
-  Both forward a `style` prop to the tip or panel: `var()` resolves from one global map and a
-  parent's scoped rules cannot reach in, so inline style is the only per-instance hook.
+  edge, with `align="start"` and the `anchor` corner named explicitly, because native 0.11's `align:
+  center` centres the content-sized layer box and then anchors its centre again, landing half a
+  layer off (`test:tooltip` asserts the quirk, so it fails once upstream fixes it). The layer
+  carries `background-color: #00000001`, or native paints `#1a1a1a` behind it (since 0.11 any
+  declared background opts out, `transparent` included). `Tooltip` tracks hover per source (wrapper,
+  spread trigger handlers, tip) because a pointer jumping onto the tip gets the tip's `mouseEnter`
+  before the trigger's `mouseLeave`. `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>`
+  only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`). Both forward a `style` prop to the
+  tip or panel: `var()` resolves from one global map and a parent's scoped rules cannot reach in, so
+  inline style is the only per-instance hook.
 
 ### Regenerating the styling reference
 
@@ -585,7 +591,8 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
 
 - `style.rs`, `struct StyleDesc` — every key and its type. `Option<f64>` keys are pixel-only,
   `DimensionValue` takes `%`/`auto`, `String` keys are keyword-matched, and anything that is a
-  struct (`BoxShadowValue`, `BackgroundValue::Gradient`) is unreachable from CSS text. Its
+  struct (`BoxShadowValues`, `BackgroundValue::Gradient`, the nested `hover` / `active` /
+  `focusVisible` styles, which `NEVER` refuses as declarations) is unreachable from CSS text. Its
   `parse_cursor` is the cursor keyword list.
 - `renderer.rs`, `fn apply_styles` — the keywords each `String` key actually matches; a key that is
   in `StyleDesc` but not here is accepted and ignored (`display: none`; `visibility: hidden` is
@@ -629,9 +636,10 @@ are the ones that bite most often, and the renderer behaviour behind them.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or
   `autofocus`); Tab reaches `keyDown` as an ordinary key and does not move focus, so an app wires
   `e.key === 'tab'` to `focus_next()` / `focus_previous()`, which walk the window's tab stops as of
-  the last painted frame (a stop rendered this tick joins after it paints). Native 0.11's Tab
-  handling (moving focus) lives in the React/Solid adapters, not native, so it does not apply here;
-  its keyboard-focus dim does, and `create_root` ships `setKeyboardFocusDim` off unless
+  the last painted frame (a stop rendered this tick joins after it paints). Native 0.11 moves
+  focus on Tab only in its React/Solid adapters, but its root key handler stops every Tab after the
+  listeners ran, so Tab no longer types `\t` into an `<input>`/`<textarea>`. Its keyboard-focus dim
+  does apply, and `create_root` ships `setKeyboardFocusDim` off unless
   `render`/`mount_headless` get `keyboardFocusDim: true`. For shortcuts use
   `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s `onKeyDown`/`onKeyUp`
   options are the same thing kept across remounts) — it fires whatever has focus, and `e.editing`
@@ -642,15 +650,15 @@ are the ones that bite most often, and the renderer behaviour behind them.
   has `onsubmit`.
 - `window_size` / `window_insets` are reactive getter objects, not runes: `window.ts` wraps
   `@gpuix/native/host`'s `observeWindowSize` / `observeWindowInsets` (100 ms poll, structural
-  compare) in `createSubscriber`, because native 0.11 still has no resize event. The poll starts on
-  the first tracking read and stops a microtask after the last reader's effect is destroyed. A
-  read outside an effect gets the last polled value while a poll is live and one fresh native call
-  otherwise, and a module-level `$derived` first read outside any effect owns its poll forever
-  (`createSubscriber` semantics; Svelte's `MediaQuery` does the same). The host object resolves
-  `get_native()` on every call, so a poll that outlives a remount follows the new native. Insets
-  keep upstream's camelCase fields (`safeArea`, `keyboardVisible`, …), like every other native
-  payload. Headlessly the size is the real viewport and the insets are zero; with no native at all
-  it is upstream's 800×600 fallback.
+  compare) in `createSubscriber`, because native 0.11 still has no window resize event (`layout` is
+  per element). The poll starts on the first tracking read and stops a microtask after the last
+  reader's effect is destroyed. A read outside an effect gets the last polled value while a poll is
+  live and one fresh native call otherwise, and a module-level `$derived` first read outside any
+  effect owns its poll forever (`createSubscriber` semantics; Svelte's `MediaQuery` does the same).
+  The host object resolves `get_native()` on every call, so a poll that outlives a remount follows
+  the new native. Insets keep upstream's camelCase fields (`safeArea`, `keyboardVisible`, …), like
+  every other native payload. Headlessly the size is the real viewport and the insets are zero; with
+  no native at all it is upstream's 800×600 fallback.
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` reports the border box since native 0.11). GPUI routes

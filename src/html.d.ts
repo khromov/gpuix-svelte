@@ -157,6 +157,7 @@ interface AnchoredAttributes extends GpuixAttributes {
 	deferred?: Flag;
 	priority?: Count;
 	occlude?: Flag;
+	fill?: 'window';
 }
 
 /** `<svelte:window>` and friends have nothing to bind to here; Svelte's own tags take their own attributes. */
