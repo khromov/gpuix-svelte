@@ -6,7 +6,7 @@
  */
 
 import { focused_element } from 'gpuix-svelte';
-import { mount_headless, find_test_id, focus, press, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, element_of, all_text, focus, press, check, finish } from 'gpuix-svelte/test';
 
 const Tab = (await import('./Tab.svelte')).default;
 const { unmount } = mount_headless(Tab);
@@ -48,9 +48,18 @@ press('ctrl-tab');
 check('a modified Tab is left alone', at(), id('child'));
 
 unmount();
-mount_headless(Tab, { tabNavigation: false });
+const untabbed = mount_headless(Tab, { tabNavigation: false });
 focus(find_test_id('field')!);
 press('tab');
 check('tabNavigation: false leaves Tab to the app', at(), id('field'));
 
-finish('tab', 8);
+// The native-0.11 demo can't be driven from a window in CI, so walk its first stops here.
+untabbed.unmount();
+const WhatsNew = (await import('../examples/native-0.11/WhatsNew.svelte')).default;
+mount_headless(WhatsNew, { width: 1180, height: 500 });
+press('tab');
+check('the native-0.11 demo: Tab lands on its first button', all_text().includes('focused: One'), true);
+press('tab');
+check('and its :focus-visible rule reaches GPUI', [all_text().includes('focused: Two'), element_of('Two')!.style!.focusVisible?.outlineWidth], [true, 2]);
+
+finish('tab', 10);

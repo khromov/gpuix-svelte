@@ -43,8 +43,8 @@ work for class rules, which are translated the same way.
   `border-width` and `border-color`), `background: linear-gradient(...)` and `box-shadow`.
 - Unitless `line-height`: `line-height: 1.5` means 1.5 px, so give it a unit.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
-- Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`
-  and `:active`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
+- Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
+  `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
   compiler refuses them with a warning.
 - `transform`, `transition`, `z-index` and `letter-spacing` are ignored without a warning.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
@@ -83,7 +83,8 @@ keywords are recognised.
 - Visibility: `visibility: hidden` paints nothing, keeps the layout box and leaves the tab order.
 - Interaction: `cursor` with the CSS keyword set (`pointer`, `text`, `grab`, `grabbing`, `move`,
   `crosshair`, `not-allowed`, the `*-resize` family, `copy`, `alias`, `context-menu`, `default`);
-  `pointer-events: none | auto`; `user-select: none`; `:hover` and `:active` rules in `<style>`.
+  `pointer-events: none | auto`; `user-select: none`; `:hover`, `:active` and `:focus-visible`
+  rules in `<style>`, the last applying after keyboard focus only, like CSS.
 
 </details>
 
@@ -107,7 +108,8 @@ These are accepted, but they mean something different from what CSS would.
 - `hover="..."` and `active="..."` are attributes that take the same CSS text as `style` and apply
   while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
   `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
-  `.x:hover { color: #fff }`. When both exist, the attribute wins.
+  `.x:hover { color: #fff }`. When both exist, the attribute wins. `focus-visible="..."` is the
+  same for `:focus-visible`.
 - `scrollbar-color` makes GPUI paint a thumb on an `overflow: scroll` container or a
   `<virtual-list>`, and `scrollbar-width` (in px, default 6) sizes it. There is no track, so of the
   standard `thumb track` pair only the first colour applies. Without a colour GPUI paints no

@@ -46,6 +46,10 @@ npm run demo:styling       # styling playground: style strings next to what GPUI
 npm run demo:desktop       # desktop APIs (examples/desktop-apis): window controls, prompt_for_paths,
                            # onfiledrop, set_image/set_image_pixels (a live waveform), selection,
                            # scroll_into_view, focus walking, aria props
+npm run demo:native-0.11   # what native 0.11 added (examples/native-0.11): :focus-visible and the
+                           # focus dim, Tab with preventDefault, onlayout/onscrollchange, GPUI's
+                           # scrollbar, the new style keys, elements_at, BGRA pixels, register_font
+                           # (font.ts reads the family name) and <anchored fill="window">
 npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU build — bundles it to
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
@@ -72,6 +76,9 @@ npm run test:scroller      # the shipped Scroller: wheel, thumb drag, follow, sc
 npm run test:hitbox        # hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
+npm run test:tab           # Tab/Shift+Tab move focus, preventDefault keeps it, stopPropagation skips
+                           # the ancestor and window handlers; ctrl-tab and tabNavigation: false
+                           # leave focus alone
 npm run test:window        # window_size / window_insets: polled only while read, restarted on remount
 npm run test:portal        # <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:host          # aria props in GPUI's a11y tree, file drop, motionComplete,
@@ -165,7 +172,8 @@ layout up inside an absolute wrapper to reach them) — and Windows ignores the 
 and `deliver()` drops native's repeat of it when focus later moves on.
 
 `src/window.ts` (window title/activate/minimize/zoom/fullscreen, `prompt_for_paths`, `blur`, the
-focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, the debug-overlay wrappers)
+focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, `register_font`,
+`elements_at`, the debug-overlay wrappers)
 no-ops wherever the renderer lacks the method, so app code never needs `get_native()?.x?.()`
 guards. Its node-taking helpers go through `with_native_id`, which defers the call past the next
 commit while mutations are queued — from an `{@attach}` the element's `createElement` has not
@@ -444,26 +452,27 @@ build). Reported upstream on #18511; drop the flag once it lands.
 
 It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
 renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
-(`modernAst: true`) and appends a `define_styles(scope, rules)` call to the component: one rule
-per compound selector, keyed by the `svelte-<hash>` scope class the compiler already stamps on
-every matched element (`cssHash` captures it). Only classes, one optional tag, and
-`:hover`/`:active` are accepted — combinators, `:global`, attribute selectors, at-rules and
-nesting are refused with a warning naming the file — and declarations go through
-`parse_css_text` at compile time, so the value checks below apply to them too. Rules are
-emitted weakest first (tags under classes, then source order), and the renderer's
-`class_rules()` picks the ones whose classes the element carries on every `class` change, so
-`class:` directives and dynamic class strings restyle for free. `build_style` then lays the
-inline `style` on top; `:hover` rules become GPUI's native `hover` object with the `hover=`
-attribute winning. A block that reads a `var(--name[, fallback])` is emitted as `css` text
-instead of a parsed `style`, because the map it resolves against lives at runtime: `style.ts`
-substitutes on every `parse_css_text` (inline `style=` included), memoises each such rule per
-`set_css_vars()` generation, and the renderer flags nodes whose style read a variable so
-`set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch — a call
-whose values are all already in force is a no-op. An undefined variable without a fallback drops
-that declaration and is warned about once at the next `commit()`, not where it was read: the root's
-palette `$effect` runs after Svelte has styled the tree, so a name it defines is never reported.
-Merging also honours shorthands: a later `padding: 20px` clears the longhands an earlier
-`padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
+(`modernAst: true`) and appends a `define_styles(scope, rules)` call to the component: one rule per
+compound selector, keyed by the `svelte-<hash>` scope class the compiler already stamps on every
+matched element (`cssHash` captures it). Only classes, one optional tag, and
+`:hover`/`:active`/`:focus-visible` are accepted — combinators, `:global`, attribute selectors,
+at-rules and nesting are refused with a warning naming the file — and declarations go through
+`parse_css_text` at compile time, so the value checks below apply to them too. Rules are emitted
+weakest first (tags under classes, then source order), and the renderer's `class_rules()` picks the
+ones whose classes the element carries on every `class` change, so `class:` directives and dynamic
+class strings restyle for free. `build_style` then lays the inline `style` on top; `:hover` rules
+become GPUI's native `hover` object with the `hover=` attribute winning, and likewise
+`:focus-visible` / `focus-visible=` for `focusVisible`. A block that reads a `var(--name[,
+fallback])` is emitted as `css` text instead of a parsed `style`, because the map it resolves
+against lives at runtime: `style.ts` substitutes on every `parse_css_text` (inline `style=`
+included), memoises each such rule per `set_css_vars()` generation, and the renderer flags nodes
+whose style read a variable so `set_css_vars(vars)` (exported from the package) restyles exactly
+those, in one batch — a call whose values are all already in force is a no-op. An undefined
+variable without a fallback drops that declaration and is warned about once at the next `commit()`,
+not where it was read: the root's palette `$effect` runs after Svelte has styled the tree, so a
+name it defines is never reported. Merging also honours shorthands: a later `padding: 20px` clears
+the longhands an earlier `padding: 12px 24px` expanded to, since GPUI reads longhands over the
+shorthand.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both
@@ -523,8 +532,9 @@ with a query, and a package component is not what is being edited.
 **`style.ts`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The
 raw string is kept on the shadow node because Svelte read-modify-writes it for `style:` directives.
-`hover`/`active` are GPUI's native pseudo-styles — nested objects CSS text can't express, so they
-arrive as their own attributes and get folded back in.
+`hover`/`active`/`focusVisible` are GPUI's native pseudo-styles — nested objects CSS text can't
+express, so they arrive as their own attributes (`focus-visible=` for the last) and get folded back
+in.
 
 Unknown *keys* need no allowlist — serde drops them. Unknown **values** are the opposite: a key
 GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and that throw loses
@@ -615,12 +625,13 @@ are the ones that bite most often, and the renderer behaviour behind them.
   handed to `set_css_vars({ token: '#fff' })` once from the root (Substrate does it in an `$effect`
   over its `LIGHT`/`DARK` objects — a theme switch is one call), and `style:` / inline `style="..."`
   only for measured values. Class rules accept `.btn`, `.btn.primary`, `.a, .b`, one tag, and
-  `:hover` / `:active`; specificity is class count then source order, inline `style` always wins.
-  Box shorthands work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths are logical pixels —
-  and neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
-  `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning. `flex: 1`,
-  `border: 1px solid ...`, unitless `line-height` and `display: none` misbehave in a class rule as
-  inline (see the styling playground). Shared reactive state goes in `.svelte.ts` modules.
+  `:hover` / `:active` / `:focus-visible`; specificity is class count then source order, inline
+  `style` always wins. Box shorthands work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths
+  are logical pixels — and neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the
+  `auto` halves of `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning.
+  `flex: 1`, `border: 1px solid ...`, unitless `line-height` and `display: none` misbehave in a
+  class rule as inline (see the styling playground). Shared reactive state goes in `.svelte.ts`
+  modules.
 - Only GPUI tags exist (`div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list`, `anchored`, `canvas`, ...); anything else degrades to `div` with a
   one-time warning. `<img src>` is a filesystem path, a `data:` URL or an http(s) URL GPUI fetches
@@ -634,13 +645,18 @@ are the ones that bite most often, and the renderer behaviour behind them.
   and re-copies it whenever that ancestor restyles; a parent's `:hover` colour does not reach it,
   since hover is native.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or
-  `autofocus`); Tab reaches `keyDown` as an ordinary key and does not move focus, so an app wires
-  `e.key === 'tab'` to `focus_next()` / `focus_previous()`, which walk the window's tab stops as of
-  the last painted frame (a stop rendered this tick joins after it paints). Native 0.11 moves
-  focus on Tab only in its React/Solid adapters, but its root key handler stops every Tab after the
-  listeners ran, so Tab no longer types `\t` into an `<input>`/`<textarea>`. Its keyboard-focus dim
-  does apply, and `create_root` ships `setKeyboardFocusDim` off unless
-  `render`/`mount_headless` get `keyboardFocusDim: true`. For shortcuts use
+  `autofocus`). Native 0.11 stops every Tab after the listeners ran (so it never types `\t` into an
+  `<input>`/`<textarea>`) and leaves moving focus to the host, so `renderer.ts` does what upstream's
+  `renderer-state.js` does for `@gpuix/react`/`@gpuix/solid`: every key event of one `keystrokeId`
+  shares one flags object (`flags_for`), `stopPropagation()` skips the handlers still to come —
+  the focusable ancestors, then the window's — and `key_default` runs on the `windowKeyDown`,
+  which native sends last, calling `focusNext`/`focusPrevious` for a Tab without ctrl/alt/cmd that
+  nobody prevented. That needs window key events on whether or not anything subscribed, so
+  `sync_window_events` keeps `keyDown` on while `tab_navigation` is (`render`/`mount_headless`'s
+  `tabNavigation`, default true). The walk is the tab stops as of the last painted frame (a stop
+  rendered this tick joins after it paints). The keyboard-focus dim is native: `create_root` ships
+  `setKeyboardFocusDim` off unless `render`/`mount_headless` get `keyboardFocusDim: true`, and
+  `set_keyboard_focus_dim()` queues the same op at runtime. For shortcuts use
   `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s `onKeyDown`/`onKeyUp`
   options are the same thing kept across remounts) — it fires whatever has focus, and `e.editing`
   says a text field has focus and is getting the same key. The renderer tracks that itself by

@@ -72,24 +72,36 @@ tells your handler that a field has focus, so it can step aside.
 element. `focused_element()` returns the focused element. `focus_next_within(node)` and
 `focus_previous_within(node)` cycle through the tab stops inside one element, wrapping there.
 
-Tab reaches `keydown` as an ordinary key and moves focus only if you wire it up. It never types a
-tab character into an `<input>` or `<textarea>`.
-`focus_next()` and `focus_previous()` walk every tab stop in the window in document order and wrap
-at the ends:
+Tab and Shift+Tab move focus through the window's tab stops, in document order and wrapping at
+the ends, as in a browser. Tab never types a tab character into an `<input>` or `<textarea>`, and
+Ctrl, Alt and Cmd combinations are left alone. The move happens after every key handler for that
+keystroke has run, so any of them can keep it:
 
-```js
-on_window_key('keydown', (e) => {
-  if (e.key === 'tab') e.modifiers.shift ? focus_previous() : focus_next();
-});
+```svelte
+<div tabindex="0" onkeydown={(e) => {
+  if (e.key !== 'tab') return;
+  e.preventDefault(); // keep this Tab, say to indent
+  indent();
+}}></div>
 ```
 
-Both walk the tab stops of the last painted frame, so a stop that an `{#if}` has just rendered
-joins the order once it has painted. To focus a particular new element, give it `autofocus` or
-call `focus_element(node)`.
+A key goes to the focused element, then to each focusable ancestor that listens, then to the
+window's `on_window_key` handlers. `e.stopPropagation()` skips the ones after it, and
+`e.defaultPrevented` tells a later handler that an earlier one called `preventDefault()`.
+`e.keystrokeId` is the same on every event of one keystroke. `render(App, { tabNavigation: false })`
+turns the default off; then `focus_next()` and `focus_previous()` are yours to call. They walk
+the same order, as do the Tab moves themselves.
 
-GPUI can also dim every other focusable element to 40% opacity while one has keyboard focus,
-which shows where Tab can go. gpuix-svelte leaves that off; `render(App, { keyboardFocusDim: true })`
-turns it on (and `mount_headless` takes the same option), and `keyboard-focus-dim: false` in an
+The order is the tab stops of the last painted frame, so a stop that an `{#if}` has just rendered
+joins it once it has painted. To focus a particular new element, give it `autofocus` or call
+`focus_element(node)`.
+
+`:focus-visible` rules and the `focus-visible="..."` attribute style an element while it has
+keyboard focus (not after a click), and `outline-width`, `outline-color` and `outline-offset` draw
+the ring outside its border. GPUI can also dim every other focusable element to 40% opacity while
+one has keyboard focus, which shows where Tab can go. gpuix-svelte leaves that off:
+`render(App, { keyboardFocusDim: true })` turns it on (and `mount_headless` takes the same option),
+`set_keyboard_focus_dim(enabled)` switches it at runtime, and `keyboard-focus-dim: false` in an
 element's style exempts it. That style is not inherited, so it goes on the focusable element
 itself.
 
@@ -125,7 +137,8 @@ All of these come from `gpuix-svelte`, and wherever they take an element they ta
 `{@attach}` gives you. Where the call doesn't exist, they quietly do nothing: headless tests have
 no window, and the browser build has no file system. The repository's
 [desktop-apis example](../examples/desktop-apis) puts most of them to work in one component, which
-drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`).
+drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`), and
+[native-0.11](../examples/native-0.11) shows what `@gpuix/native` 0.11 added (`npm run demo:native-0.11`).
 
 - `set_window_title(title)`, `activate_window()`, `minimize_window()`, `zoom_window()` and
   `toggle_fullscreen()`.
@@ -138,10 +151,18 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
 - `scroll_into_view(node)` scrolls the nearest scroll container or `<virtual-list>` until `node`
   shows.
 - `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`
-  without going through a data URL. `set_image_pixels(node, width, height, rgba)` takes packed
-  straight-alpha RGBA and scales it into the element's box, so upload at 2× for a sharp image on
-  retina screens. The image is dropped when the element is destroyed or its `src` changes. Called
-  from `{@attach}`, both wait for the element to exist.
+  without going through a data URL. `set_image_pixels(node, width, height, pixels, format)` takes
+  packed straight-alpha pixels and scales them into the element's box, so upload at 2× for a sharp
+  image on retina screens. `format` is `'rgba'` (the default) or `'bgra'`, GPUI's own order, which
+  skips a per-pixel swizzle and is what ffmpeg's `-pix_fmt bgra` and most raw canvas buffers
+  produce. The image is dropped when the element is destroyed or its `src` changes. Called from
+  `{@attach}`, both wait for the element to exist.
+- `register_font(bytes)` adds a TrueType or OpenType file (or collection), so `font-family` can
+  name the families it declares. Text that asked for the family earlier picks it up on the next
+  frame. It throws on a file GPUI can't use, and does nothing in a browser.
+- `elements_at(x, y)` returns the elements painted under a window point, topmost first, like the
+  DOM's `elementsFromPoint`. It skips anything clipped away or `pointer-events: none`, and returns
+  nothing in a browser.
 
 Elements also take `onfiledrop`, for files dropped from the system's file manager. `e.paths` are
 absolute, and `e.x` / `e.y` is the drop point. `<virtual-list>` doesn't get it, so wrap a list in a

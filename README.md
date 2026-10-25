@@ -80,7 +80,7 @@ native addons directly.
   warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
 - **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
-  with `:hover` and `:active`. Values GPUI can't use are dropped with a warning.
+  with `:hover`, `:active` and `:focus-visible`. Values GPUI can't use are dropped with a warning.
   → [docs/styling.md](docs/styling.md)
 - **Theming** is `var(--token)` in your styles plus one `set_css_vars({ token: '#fff' })` call.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
@@ -208,6 +208,7 @@ then the command):
 | `npm run demo:glass` | A translucent control center over macOS vibrancy (`demo:glass-ffi`: real Liquid Glass via FFI, macOS 26+) |
 | `npm run demo:styling` | Which CSS reaches GPUI and which is dropped, side by side |
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
+| `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 

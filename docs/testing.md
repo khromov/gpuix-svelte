@@ -23,7 +23,8 @@ when you add or remove a check. Leave it out, and `finish` only asks for at leas
 ## Mounting, reading and clicking
 
 `mount_headless(Component, { props, width, height })` mounts the component and waits for the
-first paint. `settle()` flushes Svelte's effects and lets GPUI paint again. For timers and
+first paint. It also takes `rootStyle`, `keyboardFocusDim` and `tabNavigation`, as `render()` does,
+so `press('tab')` moves focus unless you pass `tabNavigation: false`. `settle()` flushes Svelte's effects and lets GPUI paint again. For timers and
 promises, `await wait(ms)` waits and then settles.
 
 To find elements, `find_text`, `find_test_id` and `element_of` look them up by text or `testid`,
