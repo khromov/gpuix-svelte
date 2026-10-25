@@ -29,6 +29,10 @@ is. On Bun, run `bun create gpuix-svelte my-app`, then `cd my-app`, `bun install
 `bun run start`. Building a standalone executable (`npm run build`) needs [Bun](https://bun.com)
 whichever runtime you develop on.
 
+On Linux the binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11`. Desktop installs ship
+them, but a minimal container does not (`apt install libxcb1 libxkbcommon0 libxkbcommon-x11-0`).
+Both Wayland and X11 sessions work.
+
 ## What it looks like
 
 ```svelte
