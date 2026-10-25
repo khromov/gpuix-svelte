@@ -51,6 +51,8 @@ interface GpuixAttributes extends GpuixEvents {
 	/** CSS text applied while the pointer is over the element; wins over a `:hover` rule. */
 	hover?: Text;
 	active?: Text;
+	/** CSS text applied while the element has keyboard focus, like `:focus-visible`; wins over that rule. */
+	'focus-visible'?: Text;
 	/** Shield every descendant without a listener of its own from hit testing. */
 	hitbox?: 'self' | null | undefined;
 	/** Paint natively from the root, on top of everything mounted before it. */

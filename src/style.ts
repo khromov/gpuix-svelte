@@ -74,6 +74,13 @@ const FIRST_COLOR = /^(?:[^\s(]+\([^)]*\)|\S+)/;
 /** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
 const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
 
+/** Each native pseudo style and the attribute that sets it inline. */
+const PSEUDO_ATTRS = [
+	['hover', 'hover'],
+	['active', 'active'],
+	['focusVisible', 'focus-visible']
+] as const;
+
 /** A struct on the Rust side — CSS text can never produce one. */
 const NEVER = new Set(['boxShadow', 'hover', 'active', 'focusVisible']);
 
@@ -334,9 +341,9 @@ function rule_style(rule: StyleRule): GpuiStyle {
 }
 
 /**
- * `hover` and `active` are GPUI's natively-handled pseudo styles — they are
+ * `hover`, `active` and `focusVisible` are GPUI's natively-handled pseudo styles —
  * nested objects, which CSS text can't express, so they arrive as their own
- * attributes (or as `:hover`/`:active` rules) and get folded back in here.
+ * attributes (or as `:hover`/`:active`/`:focus-visible` rules) and get folded back in here.
  *
  * `attrs` are the raw attribute strings off the shadow node; `rules` the element's
  * matching `<style>` rules, weakest first.
@@ -344,20 +351,20 @@ function rule_style(rule: StyleRule): GpuiStyle {
 export function build_style(attrs: ShadowAttrs, rules: readonly StyleRule[] = []): GpuiStyle {
 	vars_read = false;
 	const style: GpuiStyle = {};
-	let hover: GpuiStyle | null = null;
-	let active: GpuiStyle | null = null;
+	const pseudo: Partial<Record<'hover' | 'active' | 'focusVisible', GpuiStyle>> = {};
 
 	for (const rule of rules) {
 		const declared = rule_style(rule);
-		if (rule.pseudo === 'hover') hover = merge(hover ?? {}, declared);
-		else if (rule.pseudo === 'active') active = merge(active ?? {}, declared);
+		if (rule.pseudo) pseudo[rule.pseudo] = merge(pseudo[rule.pseudo] ?? {}, declared);
 		else merge(style, declared);
 	}
 
 	// Inline wins over a class, as in CSS.
 	merge(style, parse_css_text(attrs.style as string | undefined));
-	if (hover || attrs.hover) style.hover = merge(hover ?? {}, parse_css_text(attrs.hover as string | undefined));
-	if (active || attrs.active) style.active = merge(active ?? {}, parse_css_text(attrs.active as string | undefined));
+	for (const [key, attr] of PSEUDO_ATTRS) {
+		const inline = attrs[attr] as string | undefined;
+		if (pseudo[key] || inline) style[key] = merge(pseudo[key] ?? {}, parse_css_text(inline));
+	}
 
 	return style;
 }

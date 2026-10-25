@@ -70,9 +70,12 @@ function bust_child_specifiers(code: string, query: string): string {
 
 type Selector = Pick<ClassRule, 'classes' | 'tag' | 'pseudo'>;
 
+/** GPUI's native pseudo styles, by the CSS name that reaches them. */
+const PSEUDOS: Record<string, Pseudo | undefined> = { hover: 'hover', active: 'active', 'focus-visible': 'focusVisible' };
+
 /**
- * One compound selector: classes, at most one tag, and `:hover`/`:active`, which
- * map onto GPUI's native pseudo styles. There is no runtime to match anything else.
+ * One compound selector: classes, at most one tag, and `:hover`/`:active`/`:focus-visible`,
+ * which map onto GPUI's native pseudo styles. There is no runtime to match anything else.
  */
 function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
 	if (complex.children.length !== 1 || complex.children[0].combinator) return null;
@@ -86,8 +89,8 @@ function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
 			classes.push(s.name);
 		} else if (s.type === 'TypeSelector' && tag === null) {
 			tag = s.name;
-		} else if (s.type === 'PseudoClassSelector' && s.args === null && pseudo === null && (s.name === 'hover' || s.name === 'active')) {
-			pseudo = s.name;
+		} else if (s.type === 'PseudoClassSelector' && s.args === null && pseudo === null && PSEUDOS[s.name]) {
+			pseudo = PSEUDOS[s.name] ?? null;
 		} else {
 			return null;
 		}
@@ -103,7 +106,7 @@ function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
 function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string): ClassRule[] {
 	const rules: ClassRule[] = [];
 	const refuse = (text: string) =>
-		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — only class and tag selectors, plus :hover/:active, reach GPUI`);
+		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — only class and tag selectors, plus :hover/:active/:focus-visible, reach GPUI`);
 
 	for (const node of css.children) {
 		if (node.type !== 'Rule') {

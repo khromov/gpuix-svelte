@@ -9,6 +9,7 @@ import type { DebugFrameOverlayMode } from '@gpuix/native/host';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
 	set_native,
+	set_tab_navigation,
 	create_root,
 	commit,
 	is_dirty,
@@ -151,8 +152,18 @@ export function overlay_on_render(
 
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
-	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, debugFrameOverlay, keyboardFocusDim, ...window_options } =
-		options;
+	const {
+		props = {},
+		rootStyle,
+		onEvent,
+		onKeyDown,
+		onKeyUp,
+		onSelectionChange,
+		debugFrameOverlay,
+		keyboardFocusDim,
+		tabNavigation = true,
+		...window_options
+	} = options;
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -195,6 +206,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	}
 
 	set_native(slot.native);
+	set_tab_navigation(tabNavigation);
 
 	const overlay = overlay_on_render(env('GPUIX_FPS'), debugFrameOverlay, slot.overlay, created);
 	if (overlay) set_debug_overlay(overlay as DebugFrameOverlayMode);

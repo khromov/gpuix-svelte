@@ -6,7 +6,7 @@
 
 import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
-import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.ts';
+import renderer, { set_native, set_tab_navigation, get_native, create_root, commit, dispatch } from './renderer.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
 
 /** On macOS the headless viewport can be any width but never taller than this; Windows ignores the requested size. */
@@ -86,6 +86,7 @@ export interface MountHeadlessOptions {
 	height?: number;
 	rootStyle?: GpuiStyle;
 	keyboardFocusDim?: boolean;
+	tabNavigation?: boolean;
 }
 
 function native(): TestGpuixRenderer {
@@ -97,7 +98,7 @@ function native(): TestGpuixRenderer {
 export function mount_headless<Exports extends Record<string, unknown> = Record<string, unknown>>(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see AnyComponent
 	Component: Component<any, Exports, any>,
-	{ props = {}, width, height, rootStyle, keyboardFocusDim }: MountHeadlessOptions = {}
+	{ props = {}, width, height, rootStyle, keyboardFocusDim, tabNavigation = true }: MountHeadlessOptions = {}
 ) {
 	if (typeof hasTestGpuixRenderer === 'function' && !hasTestGpuixRenderer()) {
 		throw new Error('[gpuix-svelte/test] this @gpuix/native build has no TestGpuixRenderer (the Linux prebuild ships without one)');
@@ -105,6 +106,7 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 
 	const instance = new TestGpuixRenderer(width, height);
 	set_native(instance);
+	set_tab_navigation(tabNavigation);
 	const root = create_root(rootStyle, keyboardFocusDim);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');

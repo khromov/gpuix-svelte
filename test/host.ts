@@ -1,9 +1,10 @@
 /**
- * The native capabilities 0.8–0.10 added, through the helpers the package wraps them
+ * The native capabilities 0.8–0.11 added, through the helpers the package wraps them
  * in: accessibility props, file drops, motion completion, the selection hook, focus
- * walking, image uploads and scroll_into_view.
+ * walking, image uploads, scroll_into_view, hit lookups and font registration.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
 import {
 	on_selection_change,
 	scroll_into_view,
@@ -14,6 +15,8 @@ import {
 	focused_element,
 	set_image,
 	set_image_pixels,
+	elements_at,
+	register_font,
 	minimize_window,
 	zoom_window,
 	toggle_fullscreen,
@@ -133,10 +136,42 @@ try {
 }
 check('set_image_pixels takes a plain Uint8Array', pixels_error, null);
 
+let bgra_error: unknown = null;
+try {
+	set_image_pixels(img, 2, 2, new Uint8Array(16).fill(128), 'bgra');
+	native.flush();
+} catch (error) {
+	bgra_error = error;
+}
+check('and BGRA, native 0.11', bgra_error, null);
+
+const target = bounds(find_test_id('delete')!)!;
+const under = elements_at(target.x + target.width / 2, target.y + target.height / 2);
+check('elements_at maps the ids under a point back to shadow nodes', under.some((n) => n.nativeId === f('delete')), true);
+
+check('register_font throws on bytes that are no font', (() => {
+	try {
+		register_font(new Uint8Array([1, 2, 3, 4]));
+		return 'accepted';
+	} catch {
+		return 'threw';
+	}
+})(), 'threw');
+const font = ['/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Helvetica.ttc', 'C:\\Windows\\Fonts\\arial.ttf'].find((path) =>
+	existsSync(path)
+);
+let font_error: unknown = font ? null : 'no system font to try';
+try {
+	if (font) register_font(readFileSync(font));
+} catch (error) {
+	font_error = (error as Error).message;
+}
+check('register_font takes a system font', font_error, null);
+
 minimize_window();
 zoom_window();
 toggle_fullscreen();
 check('window controls are no-ops headlessly', true);
 check('prompt_for_paths resolves null without a picker', await prompt_for_paths({ multiple: true }).catch((e: Error) => e.message), null);
 
-finish('host', 23);
+finish('host', 27);

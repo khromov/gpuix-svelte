@@ -14,6 +14,7 @@ export {
 	set_auto_commit,
 	dispatch,
 	set_css_vars,
+	set_keyboard_focus_dim,
 	on_window_key,
 	on_selection_change
 } from './renderer.ts';
@@ -35,7 +36,9 @@ export {
 	focus_previous_within,
 	scroll_into_view,
 	set_image,
-	set_image_pixels
+	set_image_pixels,
+	register_font,
+	elements_at
 } from './window.ts';
 export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
 export type {
@@ -53,6 +56,7 @@ export type {
 	Native,
 	RenderOptions,
 	WindowKeyType,
+	PixelFormat,
 	AnyComponent
 } from './types.ts';
 export type { GpuixTheme, HighlightSpec, MotionProps } from '@gpuix/native/host';

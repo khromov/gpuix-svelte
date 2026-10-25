@@ -5,7 +5,7 @@
  */
 
 import { TestGpuixRenderer } from '@gpuix/native';
-import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit } from '../src/renderer.ts';
+import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
 import { handle_event, start_frame_loop } from '../src/render.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
@@ -91,8 +91,12 @@ import { check, finish } from 'gpuix-svelte/test';
 	create_root(undefined, true);
 	commit();
 	check('and on when asked for', shipped.includes('["setKeyboardFocusDim",true]'), true);
+
+	set_keyboard_focus_dim(false);
+	commit();
+	check('set_keyboard_focus_dim switches it at runtime', shipped, '[["setKeyboardFocusDim",false]]');
 }
 
 set_auto_commit(false);
 
-finish('lifecycle', 9);
+finish('lifecycle', 10);
