@@ -10,7 +10,6 @@ import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
 	set_native,
 	set_tab_navigation,
-	create_root,
 	commit,
 	is_dirty,
 	dispatch,
@@ -20,6 +19,7 @@ import renderer, {
 	on_selection_change
 } from './renderer.ts';
 import { set_debug_overlay } from './window.ts';
+import { create_window_root, wants_titlebar } from './titlebar.ts';
 import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 
 /**
@@ -150,6 +150,15 @@ export function overlay_on_render(
 	return option === applied ? undefined : option;
 }
 
+/** Native 0.11 cannot close a window, so the title bar's close button ends the app the way closing its only window would. */
+function close(slot: Host) {
+	try {
+		if (slot.component) unmount(slot.component);
+	} finally {
+		globalThis.process?.exit?.(0);
+	}
+}
+
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
 	const {
@@ -162,6 +171,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		debugFrameOverlay,
 		keyboardFocusDim,
 		tabNavigation = true,
+		titlebar,
 		...window_options
 	} = options;
 	const slot = host();
@@ -218,16 +228,17 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (onKeyUp) slot.keys.push(on_window_key('keyup', onKeyUp));
 	if (onSelectionChange) slot.keys.push(on_selection_change(onSelectionChange));
 
-	const root = create_root(rootStyle, keyboardFocusDim);
+	const bar = wants_titlebar(titlebar, env) ? { title: window_options.title ?? '', on_close: () => close(slot) } : null;
+	const { root, target } = create_window_root(rootStyle, keyboardFocusDim, bar);
 	// Queued after `setRoot`, so the tree is never rootless mid-batch — on
 	// Windows/Linux the UI thread paints without waiting for us.
 	if (retiring !== null) queue_destroy(retiring);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');
-	renderer.insert(root, anchor, null);
+	renderer.insert(target, anchor, null);
 
 	slot.root = root;
-	const component = mount(Component, { renderer, target: root, anchor, props });
+	const component = mount(Component, { renderer, target, anchor, props });
 	slot.component = component;
 
 	flushSync();

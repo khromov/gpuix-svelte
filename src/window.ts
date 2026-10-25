@@ -6,6 +6,7 @@
 
 import type { PathPromptOptions } from '@gpuix/native';
 import { get_native, node_of, with_native_id } from './renderer.ts';
+import { set_titlebar_title } from './titlebar.ts';
 import type { PixelFormat, ShadowNode, WindowNative } from './types.ts';
 import { createSubscriber } from 'svelte/reactivity';
 import {
@@ -26,7 +27,10 @@ type NodeRef = { nativeId?: number | null } | null | undefined;
 
 const win = () => get_native() as WindowNative | null;
 
-export const set_window_title = (title: string) => win()?.setWindowTitle?.(title);
+export function set_window_title(title: string) {
+	win()?.setWindowTitle?.(title);
+	set_titlebar_title(title);
+}
 
 /** Brings a window opened with `show: false` or `focus: false` forward. */
 export const activate_window = () => win()?.activateWindow?.();

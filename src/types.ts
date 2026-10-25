@@ -163,4 +163,9 @@ export interface RenderOptions extends WindowOptions {
 	keyboardFocusDim?: boolean;
 	/** Tab and Shift+Tab move focus unless a key handler calls `preventDefault()`; false leaves Tab to the app. */
 	tabNavigation?: boolean;
+	/**
+	 * Draw a title bar (title, minimise, maximise, close) above the app. `'auto'` draws it only on GNOME
+	 * under Wayland, which gives a GPUI window none; it can't be dragged, since native has no window move.
+	 */
+	titlebar?: boolean | 'auto';
 }

@@ -131,6 +131,18 @@ plus `keyboardTop`, `keyboardVisible` and `visibleHeight`. The names are camelCa
 other value GPUI reports. Headless tests see their real viewport size and zero insets. Before any
 window exists, the size reads as 800×600.
 
+## Title bar on GNOME
+
+On GNOME under Wayland a gpuix window has no title bar: GNOME leaves drawing it to the app, and
+GPUI draws none. `render(App, { titlebar: 'auto' })` draws a simple one above your app there, with
+the window title (it follows `set_window_title`) and minimise, maximise and close buttons, and
+leaves every other platform alone. `titlebar: true` draws it everywhere. It can't be dragged to
+move the window, since `@gpuix/native` has no window move yet; Super+drag still moves it. A
+double-click maximises, and close unmounts the app and ends the process. Its colours are
+`--titlebar-bg`, `--titlebar-fg`, `--titlebar-hover` and `--titlebar-close`, set through
+`set_css_vars`. Running the app under X11 instead (`WAYLAND_DISPLAY` unset) gets GNOME's own title
+bar, at the cost of fractional scaling and per-monitor refresh rates.
+
 ## Window and desktop helpers
 
 All of these come from `gpuix-svelte`, and wherever they take an element they take the node an

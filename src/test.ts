@@ -6,7 +6,8 @@
 
 import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
-import renderer, { set_native, set_tab_navigation, get_native, create_root, commit, dispatch } from './renderer.ts';
+import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch } from './renderer.ts';
+import { create_window_root } from './titlebar.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
 
 /** On macOS the headless viewport can be any width but never taller than this; Windows ignores the requested size. */
@@ -87,6 +88,8 @@ export interface MountHeadlessOptions {
 	rootStyle?: GpuiStyle;
 	keyboardFocusDim?: boolean;
 	tabNavigation?: boolean;
+	/** `render`'s title bar, with this title; its close button unmounts the component instead of exiting. */
+	titlebar?: string;
 }
 
 function native(): TestGpuixRenderer {
@@ -98,7 +101,7 @@ function native(): TestGpuixRenderer {
 export function mount_headless<Exports extends Record<string, unknown> = Record<string, unknown>>(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see AnyComponent
 	Component: Component<any, Exports, any>,
-	{ props = {}, width, height, rootStyle, keyboardFocusDim, tabNavigation = true }: MountHeadlessOptions = {}
+	{ props = {}, width, height, rootStyle, keyboardFocusDim, tabNavigation = true, titlebar }: MountHeadlessOptions = {}
 ) {
 	if (typeof hasTestGpuixRenderer === 'function' && !hasTestGpuixRenderer()) {
 		throw new Error('[gpuix-svelte/test] this @gpuix/native build has no TestGpuixRenderer (the Linux prebuild ships without one)');
@@ -107,11 +110,14 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 	const instance = new TestGpuixRenderer(width, height);
 	set_native(instance);
 	set_tab_navigation(tabNavigation);
-	const root = create_root(rootStyle, keyboardFocusDim);
+	const mounted: { component?: Exports } = {};
+	const bar = titlebar === undefined ? null : { title: titlebar, on_close: () => mounted.component && unmount(mounted.component) };
+	const { root, target } = create_window_root(rootStyle, keyboardFocusDim, bar);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');
-	renderer.insert(root, anchor, null);
-	const component = mount(Component, { renderer, target: root, anchor, props });
+	renderer.insert(target, anchor, null);
+	const component = mount(Component, { renderer, target, anchor, props });
+	mounted.component = component;
 	blurred = null;
 	settle();
 
