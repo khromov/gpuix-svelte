@@ -6,7 +6,7 @@
  */
 
 import { focused_element } from 'gpuix-svelte';
-import { mount_headless, find_test_id, element_of, all_text, focus, press, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find, find_test_id, all_text, focus, press, check, finish } from 'gpuix-svelte/test';
 
 const Tab = (await import('./Tab.svelte')).default;
 const { unmount } = mount_headless(Tab);
@@ -60,6 +60,7 @@ mount_headless(WhatsNew, { width: 1180, height: 500 });
 press('tab');
 check('the native-0.11 demo: Tab lands on its first button', all_text().includes('focused: One'), true);
 press('tab');
-check('and its :focus-visible rule reaches GPUI', [all_text().includes('focused: Two'), element_of('Two')!.style!.focusVisible?.outlineWidth], [true, 2]);
+const two = find((n) => n.id === at());
+check('and its :focus-visible rule reaches GPUI', [all_text().includes('focused: Two'), two?.style?.focusVisible?.outlineWidth], [true, 2]);
 
 finish('tab', 10);
