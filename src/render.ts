@@ -40,6 +40,7 @@ interface Host {
 	loop: { stop(): void } | null;
 	keys: Array<() => void>;
 	overlay?: DebugFrameOverlayMode;
+	focus_dim?: boolean;
 }
 
 function host(): Host {
@@ -150,6 +151,12 @@ export function overlay_on_render(
 	return option === applied ? undefined : option;
 }
 
+/** The keyboard-focus dim to ship, or `null` to keep a runtime `set_keyboard_focus_dim` across a `render_hot` remount. */
+export function focus_dim_on_render(option: boolean | undefined, applied: boolean | undefined, created: boolean): boolean | null {
+	const enabled = option ?? false;
+	return created || enabled !== applied ? enabled : null;
+}
+
 /** Native 0.11 cannot close a window, so the title bar's close button ends the app the way closing its only window would. */
 function close(slot: Host) {
 	try {
@@ -171,7 +178,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		debugFrameOverlay,
 		keyboardFocusDim,
 		tabNavigation = true,
-		titlebar = 'auto',
+		titlebar,
 		...window_options
 	} = options;
 	const slot = host();
@@ -229,7 +236,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (onSelectionChange) slot.keys.push(on_selection_change(onSelectionChange));
 
 	const bar = wants_titlebar(titlebar, env) ? { title: window_options.title ?? '', on_close: () => close(slot) } : null;
-	const { root, target } = create_window_root(rootStyle, keyboardFocusDim, bar);
+	const { root, target } = create_window_root(rootStyle, focus_dim_on_render(keyboardFocusDim, slot.focus_dim, created), bar);
+	slot.focus_dim = keyboardFocusDim ?? false;
 	// Queued after `setRoot`, so the tree is never rootless mid-batch — on
 	// Windows/Linux the UI thread paints without waiting for us.
 	if (retiring !== null) queue_destroy(retiring);

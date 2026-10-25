@@ -54,7 +54,7 @@ export function set_titlebar_title(title: string) {
 /** The window's root, and the node the app mounts into: the root itself, or the box under the bar. */
 export function create_window_root(
 	root_style: GpuiStyle | undefined,
-	keyboard_focus_dim: boolean | undefined,
+	keyboard_focus_dim: boolean | null | undefined,
 	titlebar: TitlebarSpec | null
 ): { root: ShadowNode; target: ShadowNode } {
 	if (!titlebar) {
@@ -85,8 +85,12 @@ export function create_window_root(
 	return { root, target };
 }
 
-/** `'auto'` draws the bar only where nothing else would: GNOME, which GPUI reaches over Wayland. */
-export function wants_titlebar(option: boolean | 'auto', env: (name: string) => string | undefined): boolean {
-	if (option !== 'auto') return option === true;
-	return globalThis.process?.platform === 'linux' && !!env('WAYLAND_DISPLAY') && /gnome/i.test(env('XDG_CURRENT_DESKTOP') ?? '');
+/** `'auto'`, the default, draws the bar only where nothing else would: GNOME, which GPUI reaches over Wayland. */
+export function wants_titlebar(
+	option: boolean | 'auto' | undefined,
+	env: (name: string) => string | undefined,
+	platform = globalThis.process?.platform
+): boolean {
+	if (option !== undefined && option !== 'auto') return option;
+	return platform === 'linux' && !!env('WAYLAND_DISPLAY') && /gnome/i.test(env('XDG_CURRENT_DESKTOP') ?? '');
 }

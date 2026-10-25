@@ -74,7 +74,6 @@ const FIRST_COLOR = /^(?:[^\s(]+\([^)]*\)|\S+)/;
 /** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
 const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
 
-/** Each native pseudo style and the attribute that sets it inline. */
 const PSEUDO_ATTRS = [
 	['hover', 'hover'],
 	['active', 'active'],

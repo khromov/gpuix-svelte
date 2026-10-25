@@ -111,7 +111,12 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 	set_native(instance);
 	set_tab_navigation(tabNavigation);
 	const mounted: { component?: Exports } = {};
-	const bar = titlebar === undefined ? null : { title: titlebar, on_close: () => mounted.component && unmount(mounted.component) };
+	const close = () => {
+		const component = mounted.component;
+		mounted.component = undefined;
+		return component ? unmount(component) : Promise.resolve();
+	};
+	const bar = titlebar === undefined ? null : { title: titlebar, on_close: close };
 	const { root, target } = create_window_root(rootStyle, keyboardFocusDim, bar);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');
@@ -121,7 +126,7 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 	blurred = null;
 	settle();
 
-	return { native: instance, root, anchor, component, unmount: () => unmount(component) };
+	return { native: instance, root, anchor, component, unmount: close };
 }
 
 /** What `unfocus()` reported blurred while native kept it focused, so native's own blur for it is a repeat. */

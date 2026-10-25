@@ -24,6 +24,9 @@
 	.btn:hover {
 		color: blue;
 	}
+	.btn:constructor {
+		color: purple;
+	}
 	.btn:focus-visible {
 		outline-width: 2px;
 		outline-color: #000000;

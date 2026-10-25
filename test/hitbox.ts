@@ -71,10 +71,16 @@ check('and still leaves the other alone', find_test_id('own')!.style!.color, 'bl
 	native.flush();
 	check('and removing it shields the element again', badge_pe(), 'none');
 
+	renderer.addEventListener(badge, 'layout', handler);
+	commit();
+	native.flush();
+	check('a layout listener takes no pointer, so it keeps the shield', badge_pe(), 'none');
+	renderer.removeEventListener(badge, 'layout', handler);
+
 	renderer.removeAttribute(card, 'hitbox');
 	commit();
 	native.flush();
 	check('removing the attribute restores the default', badge_pe(), null);
 }
 
-finish('hitbox', 20);
+finish('hitbox', 21);

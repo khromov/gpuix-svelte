@@ -68,6 +68,9 @@ const FOCUS_ATTRS = new Set(['tabIndex', 'tabindex', 'autoFocus', 'autofocus']);
 /** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
 const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
 
+/** Reports that need no pointer, so listening for one leaves a decorative element shielded. */
+const PASSIVE_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'highlight']);
+
 /** Always listen for focus/blur on these, so window key handlers can tell typing from a shortcut. */
 const TEXT_INPUTS = new Set(['input', 'textarea']);
 
@@ -285,7 +288,8 @@ function descends(n: ShadowNode, ancestor: ShadowNode) {
  * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
  */
 function shielded(el: ShadowNode, style: GpuiStyle) {
-	if (el.listeners.size > 0 || INTERACTIVE_TAGS.has(el.name)) return false;
+	if (INTERACTIVE_TAGS.has(el.name)) return false;
+	for (const event of el.listeners.keys()) if (!PASSIVE_EVENTS.has(event)) return false;
 	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
 	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
 	return hitbox_root(el) !== null;
@@ -657,6 +661,7 @@ export function set_native(instance: NativeSink) {
 
 /** `render`'s `tabNavigation`: false leaves Tab to the app, as before native 0.11. */
 export function set_tab_navigation(enabled: boolean) {
+	if (enabled === tab_navigation) return;
 	tab_navigation = enabled;
 	if (native) sync_window_events();
 }
@@ -713,10 +718,10 @@ export const get_native = (): Native | null => native as Native | null;
 
 export const node_of = (id: number | null | undefined): ShadowNode | null => (id == null ? null : (by_id.get(id) ?? null));
 
-/** `position: relative`, so a portal's `inset: 0` means the window. */
+/** `position: relative`, so a portal's `inset: 0` means the window; a `null` dim leaves native's flag as it is. */
 export function create_root(
 	style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' },
-	keyboard_focus_dim = false
+	keyboard_focus_dim: boolean | null = false
 ): ShadowNode {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
@@ -728,7 +733,7 @@ export function create_root(
 	emit(['createElement', root.nativeId, 'div']);
 	emit(['setStyle', root.nativeId, style]);
 	emit(['setRoot', root.nativeId]);
-	set_keyboard_focus_dim(keyboard_focus_dim);
+	if (keyboard_focus_dim !== null) set_keyboard_focus_dim(keyboard_focus_dim);
 
 	return root;
 }

@@ -127,7 +127,8 @@ These are accepted, but they mean something different from what CSS would.
 - Mouse events never bubble, and an element that paints a background or is `position: absolute`
   blocks clicks to whatever is behind it. Put `hitbox="self"` on the clickable element, and clicks
   on its badges, icons and images pass straight through to it. Descendants that take input keep
-  their own hitbox: a child with its own handler, focusable elements (`tabindex` or `autofocus`),
+  their own hitbox: a child with its own handler (other than `onlayout`, `onscrollchange`,
+  `onmotioncomplete` and `onhighlight`, which take no pointer), focusable elements (`tabindex` or `autofocus`),
   scroll containers, and the input-taking elements (`input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list`, `anchored`, `canvas`). A `pointer-events` you set yourself still
   wins.

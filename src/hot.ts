@@ -4,21 +4,17 @@
  */
 
 import { watch } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { render } from './render.ts';
 import type { AnyComponent, RenderOptions } from './types.ts';
 
-// Bun keys ES modules by path alone, so the `?v=N` that busts Node's cache reaches nothing
-// there, but it re-evaluates one dropped from `require.cache`, where Node never puts an ES module.
-const module_cache = createRequire(import.meta.url).cache;
+// Set by `plugin.ts`, since Bun keys ES modules by path alone and the `?v=N` below reaches nothing there.
+const INVALIDATE = Symbol.for('gpuix-svelte.invalidate');
 
 /** The newest `url` and the components under it; `.svelte.ts` modules keep their single instance. */
 export async function import_fresh(url: URL, version: number): Promise<Record<string, unknown>> {
-	for (const key of Object.keys(module_cache)) {
-		if (key.endsWith('.svelte') && !key.includes('node_modules')) delete module_cache[key];
-	}
+	(globalThis as Record<symbol, (() => void) | undefined>)[INVALIDATE]?.();
 	return import(`${url.href}?v=${version}`);
 }
 

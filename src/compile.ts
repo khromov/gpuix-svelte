@@ -70,8 +70,11 @@ function bust_child_specifiers(code: string, query: string): string {
 
 type Selector = Pick<ClassRule, 'classes' | 'tag' | 'pseudo'>;
 
-/** GPUI's native pseudo styles, by the CSS name that reaches them. */
-const PSEUDOS: Record<string, Pseudo | undefined> = { hover: 'hover', active: 'active', 'focus-visible': 'focusVisible' };
+const PSEUDOS = new Map<string, Pseudo>([
+	['hover', 'hover'],
+	['active', 'active'],
+	['focus-visible', 'focusVisible']
+]);
 
 /**
  * One compound selector: classes, at most one tag, and `:hover`/`:active`/`:focus-visible`,
@@ -89,8 +92,8 @@ function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
 			classes.push(s.name);
 		} else if (s.type === 'TypeSelector' && tag === null) {
 			tag = s.name;
-		} else if (s.type === 'PseudoClassSelector' && s.args === null && pseudo === null && PSEUDOS[s.name]) {
-			pseudo = PSEUDOS[s.name] ?? null;
+		} else if (s.type === 'PseudoClassSelector' && s.args === null && pseudo === null && PSEUDOS.has(s.name)) {
+			pseudo = PSEUDOS.get(s.name) ?? null;
 		} else {
 			return null;
 		}

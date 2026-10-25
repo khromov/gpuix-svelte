@@ -6,7 +6,7 @@
 
 import { TestGpuixRenderer } from '@gpuix/native';
 import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
-import { handle_event, start_frame_loop } from '../src/render.ts';
+import { focus_dim_on_render, handle_event, start_frame_loop } from '../src/render.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 // --- a throwing commit must not kill the frame loop -----------------------
@@ -95,8 +95,22 @@ import { check, finish } from 'gpuix-svelte/test';
 	set_keyboard_focus_dim(false);
 	commit();
 	check('set_keyboard_focus_dim switches it at runtime', shipped, '[["setKeyboardFocusDim",false]]');
+
+	create_root(undefined, null);
+	commit();
+	check('a null dim leaves it alone', shipped.includes('setKeyboardFocusDim'), false);
+	check(
+		'render ships the option on a new window or when it changed, never on a remount, so a runtime switch survives',
+		[
+			focus_dim_on_render(undefined, undefined, true),
+			focus_dim_on_render(undefined, false, false),
+			focus_dim_on_render(true, false, false),
+			focus_dim_on_render(true, true, false)
+		],
+		[false, null, true, null]
+	);
 }
 
 set_auto_commit(false);
 
-finish('lifecycle', 10);
+finish('lifecycle', 12);

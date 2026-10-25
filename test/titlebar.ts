@@ -5,13 +5,14 @@
 
 import { set_window_title } from 'gpuix-svelte';
 import { mount_headless, tree, find_text, bounds, click, settle, all_text, check, finish, type TreeNode } from 'gpuix-svelte/test';
+import { wants_titlebar } from '../src/titlebar.ts';
 
 interface A11yNode {
 	aria?: { role?: string; label?: string };
 }
 
 const Titled = (await import('./Titled.svelte')).default;
-const { native } = mount_headless(Titled, { titlebar: 'My app' });
+const { native, unmount: unmount_titled } = mount_headless(Titled, { titlebar: 'My app' });
 
 const bar = () => tree().children?.[0] as TreeNode;
 const buttons = () => bar().children?.filter((c) => c.events?.includes('click')) ?? [];
@@ -36,6 +37,14 @@ check('minimise and maximise are no-ops headlessly', all_text().includes('app bo
 click(close);
 check('close unmounts the app (render exits the process instead)', all_text().includes('app body'), false);
 
+const warn = console.warn;
+const warnings: string[] = [];
+console.warn = (message) => warnings.push(String(message));
+click(close);
+await unmount_titled();
+console.warn = warn;
+check('a second close, or unmount() after one, unmounts nothing twice', warnings, []);
+
 const padded = mount_headless(Titled, { titlebar: 'Padded', rootStyle: { display: 'flex', flexDirection: 'row', paddingLeft: 40 } });
 check(
 	'rootStyle styles the box below the bar, not the bar',
@@ -48,4 +57,18 @@ const plain = mount_headless(Titled);
 check('without the option there is no bar', all_text().includes('Renamed') || buttons().length > 0, false);
 plain.unmount();
 
-finish('titlebar', 8);
+const desktop = (vars: Record<string, string>) => (name: string) => vars[name];
+const gnome = desktop({ WAYLAND_DISPLAY: 'wayland-0', XDG_CURRENT_DESKTOP: 'ubuntu:GNOME' });
+check('by default render() draws it on GNOME under Wayland', wants_titlebar(undefined, gnome, 'linux'), true);
+check(
+	'and nowhere else: KDE, GNOME under X11, macOS',
+	[
+		wants_titlebar(undefined, desktop({ WAYLAND_DISPLAY: 'wayland-0', XDG_CURRENT_DESKTOP: 'KDE' }), 'linux'),
+		wants_titlebar(undefined, desktop({ XDG_CURRENT_DESKTOP: 'ubuntu:GNOME' }), 'linux'),
+		wants_titlebar('auto', gnome, 'darwin')
+	],
+	[false, false, false]
+);
+check('false and true overrule it', [wants_titlebar(false, gnome, 'linux'), wants_titlebar(true, desktop({}), 'win32')], [false, true]);
+
+finish('titlebar', 12);

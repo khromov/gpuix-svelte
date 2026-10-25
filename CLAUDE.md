@@ -534,9 +534,10 @@ by parsing the emitted JS with `acorn` (Svelte's own parser, and the one depende
 byte-identical. Only relative, absolute and `file:` specifiers are busted: Node refuses a bare one
 with a query, and a package component is not what is being edited. The query does nothing on Bun
 1.4.4, which keys ES modules by path alone (and no longer hands `?v=N` to `onLoad` either), so
-`import_fresh` first deletes every `.svelte` key outside `node_modules` from `require.cache`: Bun
-re-evaluates a module dropped from there, and Node never puts an ES module in it, so this is a
-no-op on Node. `.svelte.ts` modules don't match, so their state still survives a reload.
+`plugin.ts` puts a purge of every `.svelte` key outside `node_modules` from `require.cache` on a
+`Symbol.for('gpuix-svelte.invalidate')` global, which `import_fresh` calls first when it is there:
+Bun re-evaluates a module dropped from that cache, and on Node, where nothing sets the global, the
+query alone does the job. `.svelte.ts` modules don't match, so their state still survives a reload.
 
 **`style.ts`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The
@@ -663,9 +664,11 @@ are the ones that bite most often, and the renderer behaviour behind them.
   nobody prevented. That needs window key events on whether or not anything subscribed, so
   `sync_window_events` keeps `keyDown` on while `tab_navigation` is (`render`/`mount_headless`'s
   `tabNavigation`, default true). The walk is the tab stops as of the last painted frame (a stop
-  rendered this tick joins after it paints). The keyboard-focus dim is native: `create_root` ships
-  `setKeyboardFocusDim` off unless `render`/`mount_headless` get `keyboardFocusDim: true`, and
-  `set_keyboard_focus_dim()` queues the same op at runtime. For shortcuts use
+  rendered this tick joins after it paints). The keyboard-focus dim is native and kept on the tree
+  across `setRoot`: `create_root` ships `setKeyboardFocusDim` off unless `render`/`mount_headless`
+  get `keyboardFocusDim: true` (a `null` ships nothing), and `set_keyboard_focus_dim()` queues the
+  same op at runtime. `render` ships it only on a new window or when the option changed
+  (`focus_dim_on_render`), as with the overlay, so a runtime switch survives a `render_hot` remount. For shortcuts use
   `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s `onKeyDown`/`onKeyUp`
   options are the same thing kept across remounts) — it fires whatever has focus, and `e.editing`
   says a text field has focus and is getting the same key. The renderer tracks that itself by
@@ -705,7 +708,8 @@ are the ones that bite most often, and the renderer behaviour behind them.
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child
   with a `background-color` (or `position: absolute`) swallows clicks meant for a clickable
   ancestor — put `hitbox="self"` on the clickable element and the renderer ships
-  `pointer-events: none` for every descendant that has no listener of its own, is not an
+  `pointer-events: none` for every descendant that has no listener of its own (`PASSIVE_EVENTS`,
+  `layout`/`scrollChange`/`motionComplete`/`highlight`, take no pointer and don't count), is not an
   input-taking native type (`INTERACTIVE_TAGS`), is not focusable (`tabindex`/`autofocus`) and does
   not scroll; a nested button keeps its hitbox (and shields its own decoration), and adding or
   removing a listener later restyles that element. An explicit `pointer-events` on the descendant

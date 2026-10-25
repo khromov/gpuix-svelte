@@ -21,7 +21,8 @@ console.warn = warn;
 const refused = warnings.filter((w) => w.includes('has no GPUI equivalent'));
 check('the sheet registers under the scope class', /\$define_styles\("svelte-[a-z0-9]+"/.test(code), true);
 check('a descendant selector is refused at compile time', refused.some((w) => w.includes('`.card .title`')), true);
-check('every other selector is accepted', refused.length, 1);
+check('so is a pseudo-class named like an Object.prototype key', refused.some((w) => w.includes('`.btn:constructor`')), true);
+check('every other selector is accepted', refused.length, 2);
 
 // The appended import must survive the cache-buster pass, and stay unbusted itself.
 const busted = compile_svelte(FIXTURE, '?v=7');
@@ -63,4 +64,4 @@ check('class:on toggling off restyles', element_of('toggle')!.style!.backgroundC
 click_text('dynamic');
 check('swapping the class string restyles', element_of('dynamic')!.style!.opacity, 1);
 
-finish('css', 19);
+finish('css', 20);
