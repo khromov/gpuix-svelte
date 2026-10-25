@@ -253,7 +253,7 @@
 	.drop { display: flex; align-items: center; justify-content: center; height: 70px; border-radius: 10px; border-width: 2px; border-color: var(--hover); background-color: var(--well); color: var(--faint); }
 	.preview { width: 240px; height: 160px; border-radius: 8px; }
 	.wave { width: 380px; height: 70px; border-radius: 8px; background-color: var(--well); }
-	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; background-color: var(--well); }
+	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; background-color: var(--well); pointer-events: auto; }
 	.item { padding: 4px 10px; color: var(--faint); }
 	.hit { color: var(--bg); background-color: var(--accent); }
 	.toggle { position: relative; width: 44px; height: 24px; border-radius: 12px; background-color: var(--raised); cursor: pointer; }

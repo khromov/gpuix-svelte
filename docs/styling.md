@@ -114,6 +114,12 @@ These are accepted, but they mean something different from what CSS would.
   `<virtual-list>`, and `scrollbar-width` (in px, default 6) sizes it. There is no track, so of the
   standard `thumb track` pair only the first colour applies. Without a colour GPUI paints no
   scrollbar at all, and the thumb never takes the pointer.
+- A scroll area inside another one needs `pointer-events: auto`. GPUI scrolls every scroll
+  container under the pointer on each wheel event, inner and outer at once, so a list inside a
+  scrolling page moves a little while the page carries it away. An explicit `pointer-events: auto`
+  makes the inner one occlude what is behind it, so only it takes the wheel (there is no handing
+  over to the page at its ends, as `overscroll-behavior: contain` would do). Behind it, hover and
+  clicks stop too.
 - `keyboard-focus-dim: false` keeps an element at full opacity when the window has the dim on
   (`render(App, { keyboardFocusDim: true })`, see the guide's focus section).
 - `selection-color` sets the colour of the text-selection highlight, the job CSS gives to

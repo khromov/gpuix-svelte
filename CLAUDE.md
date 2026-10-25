@@ -696,6 +696,14 @@ are the ones that bite most often, and the renderer behaviour behind them.
   (see the sliders in `examples/liquid-glass/LiquidGlass.svelte`). A left mousedown also starts a
   text selection that every later move extends across whatever text lies in between, unless the
   element under the pointer (or an ancestor) has `user-select: none` — put it on every drag handle.
+- **A wheel scrolls every scroll container under the pointer at once.** GPUI's
+  `paint_scroll_listener` (unchanged from 0.10 to 0.11) never stops propagation, and every painted
+  element is `block_mouse_except_scroll`, so a list inside a `Scroller` page moves both. Native
+  occludes only for an explicit `pointer-events: auto` (`should_occlude` → `occlude()`), which
+  takes the containers behind it out of `should_handle_scroll` — so the inner scroll area carries
+  it, as the native-0.11 and desktop-apis lists do. The tutorial instead turns the right panel's
+  scrolling off for the step whose sample scrolls (`previewFill`). Native 0.11's own thumb
+  (`scrollbar-color`) is paint-only and can't be dragged.
 - `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
   `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
   example.

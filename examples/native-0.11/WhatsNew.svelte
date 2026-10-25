@@ -206,7 +206,7 @@
 						<text {@attach (node: ShadowNode) => void (rows[n - 1] = node)} class="item">{`Row ${n}`}</text>
 					{/each}
 				</div>
-				<text class="faint">That thumb is GPUI's own: scrollbar-color and scrollbar-width</text>
+				<text class="faint">The thumb is GPUI's own (scrollbar-color, scrollbar-width): it follows the scroll but can't be dragged. pointer-events: auto keeps the wheel from scrolling the page too</text>
 			</div>
 
 			<div class="card">
@@ -305,7 +305,7 @@
 	.trap.on { border-color: var(--warn); color: var(--warn); }
 	.trap:focus-visible { outline-width: 2px; outline-color: var(--warn); outline-offset: 2px; }
 	.measured { padding: 8px; border-radius: 8px; background-color: var(--well); }
-	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; background-color: var(--well); scrollbar-color: var(--accent); scrollbar-width: 6px; }
+	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; background-color: var(--well); scrollbar-color: var(--accent); scrollbar-width: 6px; pointer-events: auto; }
 	.item { padding: 4px 10px; color: var(--faint); }
 	.ratio { display: flex; align-items: center; justify-content: center; width: 180px; aspect-ratio: 16 / 9; border-radius: 8px; background-color: var(--raised); font-size: 12px; }
 	.dashed { padding: 12px; border-width: 2px; border-style: dashed; border-color: var(--faint); border-radius: 8px; font-size: 12px; }
