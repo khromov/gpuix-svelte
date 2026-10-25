@@ -55,8 +55,17 @@ const NUMBER_ONLY = new Set([
 	'borderBottomRightRadius',
 	'fontSize',
 	'lineHeight',
-	'lineClamp'
+	'lineClamp',
+	'aspectRatio',
+	'outlineWidth',
+	'outlineOffset',
+	'scrollbarWidth'
 ]);
+
+/** Rust `bool`s: the string CSS text hands over would fail to deserialize. */
+const BOOLEAN = new Set(['keyboardFocusDim']);
+
+const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/;
 
 /** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
 const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
@@ -202,8 +211,9 @@ function coerce(value: string): StyleValue {
 function accepts(key: string, value: StyleValue) {
 	if (NEVER.has(key)) return false;
 	if (NUMBER_ONLY.has(key)) return typeof value === 'number';
+	if (BOOLEAN.has(key)) return typeof value === 'boolean';
 	if (DIMENSION.has(key)) {
-		return typeof value === 'number' || value === 'auto' || PERCENT.test(value);
+		return typeof value === 'number' || value === 'auto' || (typeof value === 'string' && PERCENT.test(value));
 	}
 	// Not a key we have typed: serde drops it if GPUI doesn't know it either, but
 	// a length-shaped string on one it does know would throw, so keep those out.
@@ -217,7 +227,10 @@ function accepts(key: string, value: StyleValue) {
  */
 function assign(out: GpuiStyle, key: string, value: string) {
 	let coerced = coerce(value);
-	if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
+	const ratio = key === 'aspectRatio' ? RATIO.exec(value) : null;
+	if (ratio) coerced = parseFloat(ratio[1]) / parseFloat(ratio[2]);
+	else if (BOOLEAN.has(key) && (value === 'true' || value === 'false')) coerced = value === 'true';
+	else if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
 	else if (typeof coerced === 'string' && DIMENSION.has(key) && INTRINSIC.test(coerced)) coerced = 'auto';
 
 	if (!accepts(key, coerced)) {

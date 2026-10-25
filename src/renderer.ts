@@ -691,7 +691,10 @@ export const get_native = (): Native | null => native as Native | null;
 export const node_of = (id: number | null | undefined): ShadowNode | null => (id == null ? null : (by_id.get(id) ?? null));
 
 /** `position: relative`, so a portal's `inset: 0` means the window. */
-export function create_root(style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' }): ShadowNode {
+export function create_root(
+	style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' },
+	keyboard_focus_dim = false
+): ShadowNode {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
 	root.live = true;
@@ -702,6 +705,7 @@ export function create_root(style: GpuiStyle = { display: 'flex', width: '100%',
 	emit(['createElement', root.nativeId, 'div']);
 	emit(['setStyle', root.nativeId, style]);
 	emit(['setRoot', root.nativeId]);
+	emit(['setKeyboardFocusDim', keyboard_focus_dim]);
 
 	return root;
 }

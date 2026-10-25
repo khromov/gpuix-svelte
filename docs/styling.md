@@ -61,20 +61,21 @@ keywords are recognised.
 - Layout: `display: flex | grid`; `flex-direction: row | column`;
   `flex-wrap: wrap | wrap-reverse | nowrap`; `flex-grow`, `flex-shrink`, `flex-basis`; `gap`,
   `row-gap`, `column-gap`.
-- Alignment: `align-items: center | start | end`;
+- Alignment: `align-items: center | start | end | stretch | baseline`;
   `align-self: center | start | end | stretch | baseline`;
   `align-content: center | start | end | space-between | space-around | space-evenly | stretch | normal`;
-  `justify-content: center | start | end | space-between | space-around`. The `flex-` prefixed
-  forms work too. `justify-content` has no `space-evenly`.
+  `justify-content: center | start | end | space-between | space-around | space-evenly`. The
+  `flex-` prefixed forms work too.
 - Sizing: `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` in px, `%` or
-  `auto`.
+  `auto`; `aspect-ratio` as a number or `16 / 9`.
 - Spacing: `padding`, `margin` and their four sides, with 1 to 4 value shorthands.
 - Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
 - Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` is treated
-  as `scroll`, and since GPUI paints no scrollbars the two behave the same.
+  as `scroll`, and the two behave the same.
 - Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
   `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value
-  shorthands.
+  shorthands; `border-style: solid | dashed`; `outline-width`, `outline-color`,
+  `outline-offset`.
 - Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
   `text-align: left | center | right | start`; `line-height` in px or rem;
   `white-space: nowrap | normal`; `text-overflow: ellipsis`;
@@ -107,6 +108,11 @@ These are accepted, but they mean something different from what CSS would.
   while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
   `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
   `.x:hover { color: #fff }`. When both exist, the attribute wins.
+- `scrollbar-color` (one colour, the thumb's) and `scrollbar-width` (in px) make GPUI paint a
+  thumb on an `overflow: scroll` container or a `<virtual-list>`. Without them it paints no
+  scrollbar at all, and the thumb never takes the pointer.
+- `keyboard-focus-dim: false` keeps an element at full opacity when the window has the dim on
+  (`render(App, { keyboardFocusDim: true })`, see the guide's focus section).
 - `selection-color` sets the colour of the text-selection highlight, the job CSS gives to
   `::selection`.
 - Mouse events never bubble, and an element that paints a background or is `position: absolute`

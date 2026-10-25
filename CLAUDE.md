@@ -389,7 +389,7 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   `.gitignore` un-ignores `vendor/*.tgz` for this; `files` keeps it out of the npm package (the
   bundled `node_modules` copy is what ships). `bun.lock` records the tarball's sha512, so a new
   build is a new lockfile entry.
-- **`@gpuix/native` range is `>=0.10.0 <0.11.0`** (pre-1.0, so every minor may break; upstream
+- **`@gpuix/native` range is `>=0.11.0 <0.12.0`** (pre-1.0, so every minor may break; upstream
   recommends an exact pin for its own adapters) and the renderer speaks its mutation contract:
   applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes that leave the live
   tree are destroyed at commit and re-materialize if shown again), `setCustomProp` not
@@ -566,7 +566,7 @@ Unknown events are dropped silently.
   parent's native child list, and `commit()` destroys any portal that is no longer `live`, because
   its ancestor's `destroyElement` never reaches it.
 - **`Tooltip`** and **`Popover`** hang a native `<anchored>` layer from a 0×0 dot on the trigger's
-  edge, with `align="start"` and the `anchor` corner named explicitly, because native 0.10's
+  edge, with `align="start"` and the `anchor` corner named explicitly, because native 0.11's
   `align: center` centres the content-sized layer box and then anchors its centre again, landing
   half a layer off (`test:tooltip` asserts the quirk, so it fails once upstream fixes it). The
   layer carries `background-color: #00000001`, or native paints `#1a1a1a` behind it. `Tooltip`
@@ -629,7 +629,10 @@ are the ones that bite most often, and the renderer behaviour behind them.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or
   `autofocus`); Tab reaches `keyDown` as an ordinary key and does not move focus, so an app wires
   `e.key === 'tab'` to `focus_next()` / `focus_previous()`, which walk the window's tab stops as of
-  the last painted frame (a stop rendered this tick joins after it paints). For shortcuts use
+  the last painted frame (a stop rendered this tick joins after it paints). Native 0.11's Tab
+  handling (moving focus) lives in the React/Solid adapters, not native, so it does not apply here;
+  its keyboard-focus dim does, and `create_root` ships `setKeyboardFocusDim` off unless
+  `render`/`mount_headless` get `keyboardFocusDim: true`. For shortcuts use
   `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s `onKeyDown`/`onKeyUp`
   options are the same thing kept across remounts) — it fires whatever has focus, and `e.editing`
   says a text field has focus and is getting the same key. The renderer tracks that itself by
@@ -639,7 +642,7 @@ are the ones that bite most often, and the renderer behaviour behind them.
   has `onsubmit`.
 - `window_size` / `window_insets` are reactive getter objects, not runes: `window.ts` wraps
   `@gpuix/native/host`'s `observeWindowSize` / `observeWindowInsets` (100 ms poll, structural
-  compare) in `createSubscriber`, because native 0.10 still has no resize event. The poll starts on
+  compare) in `createSubscriber`, because native 0.11 still has no resize event. The poll starts on
   the first tracking read and stops a microtask after the last reader's effect is destroyed. A
   read outside an effect gets the last polled value while a poll is live and one fresh native call
   otherwise, and a module-level `$derived` first read outside any effect owns its poll forever
@@ -650,10 +653,10 @@ are the ones that bite most often, and the renderer behaviour behind them.
   it is upstream's 800×600 fallback.
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
-  menu at the cursor (`getElementBounds` on that panel reports its content box, so it sits inset by
-  the border and padding). GPUI routes macOS's ctrl+click to `click`, not `auxClick`, so a surface
-  that wants the platform's secondary click needs both handlers; Substrate's `is_secondary(e)` in
-  `lib/ui.svelte.ts` is that check written once.
+  menu at the cursor (`getElementBounds` reports the border box since native 0.11). GPUI routes
+  macOS's ctrl+click to `click`, not `auxClick`, so a surface that wants the platform's secondary
+  click needs both handlers; Substrate's `is_secondary(e)` in `lib/ui.svelte.ts` is that check
+  written once.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child

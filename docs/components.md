@@ -132,7 +132,7 @@ out of flow, and its layer sizes to its content, which rules it out for a scrim.
 styles the layer. It hears only `click`, `mouseenter`, `mouseleave` and `filedrop`, so
 `onmousedownoutside` goes on a child.
 
-Two GPUI quirks, as of `@gpuix/native` 0.10:
+Two GPUI quirks, as of `@gpuix/native` 0.11:
 
 - Give `<anchored>` itself a background (`#00000001` will do), or GPUI paints an opaque `#1a1a1a`
   behind it.

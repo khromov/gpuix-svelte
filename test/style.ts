@@ -45,6 +45,19 @@ check('inset expands even when single', parse_css_text('inset: 0'), {
 	left: 0
 });
 
+check('native 0.11 pixel keys take lengths', parse_css_text('outline-width: 2px; outline-offset: 1px; scrollbar-width: 6px'), {
+	outlineWidth: 2,
+	outlineOffset: 1,
+	scrollbarWidth: 6
+});
+check('aspect-ratio takes a ratio or a number', [parse_css_text('aspect-ratio: 16 / 8'), parse_css_text('aspect-ratio: 1.5')], [
+	{ aspectRatio: 2 },
+	{ aspectRatio: 1.5 }
+]);
+check('keyboard-focus-dim becomes a bool, anything else is dropped', parse_css_text('keyboard-focus-dim: false; outline-width: 1em'), {
+	keyboardFocusDim: false
+});
+
 check('single values keep GPUI shorthand', parse_css_text('padding: 12px; gap: 8px'), {
 	padding: 12,
 	gap: 8
@@ -191,4 +204,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 37);
+finish('style', 40);

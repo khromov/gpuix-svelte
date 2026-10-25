@@ -25,6 +25,10 @@ export const GPUI_EVENTS: readonly string[] = [
 	'focus',
 	'blur',
 	'scroll',
+	// the offset after any scroll (wheel, `scrollTo`, `scrollIntoView`); `scroll` is wheel input only
+	'scrollChange',
+	// the border box after the first paint and on every size change
+	'layout',
 	// a Finder / OS file drop on this element; `paths` are absolute
 	'fileDrop',
 	// a native `motion` track reached its target

@@ -43,7 +43,7 @@ export interface ShadowNode {
 	next: ShadowNode | null;
 }
 
-export type StyleValue = number | string;
+export type StyleValue = number | string | boolean;
 
 /** What `setStyle` ships: camelCase keys, bare-number lengths, `hover`/`active` nested. */
 export interface GpuiStyle {
@@ -76,6 +76,7 @@ export type Mutation =
 	| ['setText', number, string]
 	| ['setEventListener', number, string, boolean]
 	| ['setRoot', number]
+	| ['setKeyboardFocusDim', boolean]
 	| ['setCustomProp', number, string, unknown];
 
 /** What a handler receives: the native payload plus the DOM-shaped fields Svelte and app code read. */
@@ -152,4 +153,6 @@ export interface RenderOptions extends WindowOptions {
 	onSelectionChange?: (event: GpuixEvent) => void;
 	/** GPUI's draw-time readout, top right; `GPUIX_FPS` outranks it. */
 	debugFrameOverlay?: DebugFrameOverlayMode;
+	/** Native 0.11's 40% dim of every other focusable while one has keyboard focus; off unless this is true. */
+	keyboardFocusDim?: boolean;
 }

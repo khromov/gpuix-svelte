@@ -71,8 +71,9 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('first root is live', JSON.parse(native.getTreeJson()).id, first.nativeId);
 
 	let batches = 0;
+	let shipped = '';
 	const applyBatch = native.applyBatch.bind(native);
-	native.applyBatch = (json) => (batches++, applyBatch(json));
+	native.applyBatch = (json) => (batches++, (shipped = json), applyBatch(json));
 
 	// What `render()` does on a remount, in the same order.
 	const retiring = first.nativeId!;
@@ -85,8 +86,13 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('the swap costs exactly one batch', batches, 1);
 	check('the new root survives it', JSON.parse(native.getTreeJson()).id, second.nativeId);
 	check('and the old root is gone', native.getRetainedElementCount(), 1);
+	check('native 0.11 focus dim is off by default', shipped.includes('["setKeyboardFocusDim",false]'), true);
+
+	create_root(undefined, true);
+	commit();
+	check('and on when asked for', shipped.includes('["setKeyboardFocusDim",true]'), true);
 }
 
 set_auto_commit(false);
 
-finish('lifecycle', 7);
+finish('lifecycle', 9);

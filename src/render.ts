@@ -151,7 +151,8 @@ export function overlay_on_render(
 
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
-	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, debugFrameOverlay, ...window_options } = options;
+	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, debugFrameOverlay, keyboardFocusDim, ...window_options } =
+		options;
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -205,7 +206,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (onKeyUp) slot.keys.push(on_window_key('keyup', onKeyUp));
 	if (onSelectionChange) slot.keys.push(on_selection_change(onSelectionChange));
 
-	const root = create_root(rootStyle);
+	const root = create_root(rootStyle, keyboardFocusDim);
 	// Queued after `setRoot`, so the tree is never rootless mid-batch — on
 	// Windows/Linux the UI thread paints without waiting for us.
 	if (retiring !== null) queue_destroy(retiring);

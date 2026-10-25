@@ -34,6 +34,10 @@ interface GpuixEvents {
 	onfocus?: Handler;
 	onblur?: Handler;
 	onscroll?: Handler;
+	/** `e.scrollX` / `e.scrollY` after the offset moved, for any cause. */
+	onscrollchange?: Handler;
+	/** `e.width` / `e.height` (and `e.x` / `e.y`) of the border box, after first paint and on each resize. */
+	onlayout?: Handler;
 	onfiledrop?: Handler;
 	onmotioncomplete?: Handler;
 	onhighlight?: Handler;

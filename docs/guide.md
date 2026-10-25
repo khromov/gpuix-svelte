@@ -86,6 +86,11 @@ Both walk the tab stops of the last painted frame, so a stop that an `{#if}` has
 joins the order once it has painted. To focus a particular new element, give it `autofocus` or
 call `focus_element(node)`.
 
+GPUI can also dim every other focusable element to 40% opacity while one has keyboard focus,
+which shows where Tab can go. gpuix-svelte leaves that off; `render(App, { keyboardFocusDim: true })`
+turns it on (and `mount_headless` takes the same option), and `keyboard-focus-dim: false` in an
+element's style exempts it.
+
 ## Window size and insets
 
 `window_size` and `window_insets` are reactive wherever a template, `$derived` or `$effect` reads

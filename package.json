@@ -136,7 +136,7 @@
 		"bun:test:coverage": "node bin/gpuix-svelte.js --bun test/coverage.ts"
 	},
 	"dependencies": {
-		"@gpuix/native": ">=0.10.0 <0.11.0",
+		"@gpuix/native": ">=0.11.0 <0.12.0",
 		"acorn": "^8.19.0",
 		"svelte": "file:vendor/svelte-5.57.2-694f791.tgz"
 	},

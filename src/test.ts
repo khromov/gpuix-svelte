@@ -85,6 +85,7 @@ export interface MountHeadlessOptions {
 	width?: number;
 	height?: number;
 	rootStyle?: GpuiStyle;
+	keyboardFocusDim?: boolean;
 }
 
 function native(): TestGpuixRenderer {
@@ -96,7 +97,7 @@ function native(): TestGpuixRenderer {
 export function mount_headless<Exports extends Record<string, unknown> = Record<string, unknown>>(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see AnyComponent
 	Component: Component<any, Exports, any>,
-	{ props = {}, width, height, rootStyle }: MountHeadlessOptions = {}
+	{ props = {}, width, height, rootStyle, keyboardFocusDim }: MountHeadlessOptions = {}
 ) {
 	if (typeof hasTestGpuixRenderer === 'function' && !hasTestGpuixRenderer()) {
 		throw new Error('[gpuix-svelte/test] this @gpuix/native build has no TestGpuixRenderer (the Linux prebuild ships without one)');
@@ -104,7 +105,7 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 
 	const instance = new TestGpuixRenderer(width, height);
 	set_native(instance);
-	const root = create_root(rootStyle);
+	const root = create_root(rootStyle, keyboardFocusDim);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');
 	renderer.insert(root, anchor, null);
