@@ -4,7 +4,7 @@
  */
 
 import { set_window_title } from 'gpuix-svelte';
-import { mount_headless, tree, find_text, bounds, click, all_text, check, finish, type TreeNode } from 'gpuix-svelte/test';
+import { mount_headless, tree, find_text, bounds, click, settle, all_text, check, finish, type TreeNode } from 'gpuix-svelte/test';
 
 interface A11yNode {
 	aria?: { role?: string; label?: string };
@@ -25,6 +25,7 @@ check('with minimise, maximise and close buttons', labels(), ['Minimize window',
 check('and the app lays out below it', (bounds(find_text('app body')!)?.y ?? 0) >= 34, true);
 
 set_window_title('Renamed');
+settle();
 check('set_window_title updates the bar', all_text().includes('Renamed') && !all_text().includes('My app'), true);
 
 const [minimize, maximize, close] = buttons();
