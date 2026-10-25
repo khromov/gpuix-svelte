@@ -4,10 +4,23 @@
  */
 
 import { watch } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { render } from './render.ts';
-import type { RenderOptions } from './types.ts';
+import type { AnyComponent, RenderOptions } from './types.ts';
+
+// Bun keys ES modules by path alone, so the `?v=N` that busts Node's cache reaches nothing
+// there, but it re-evaluates one dropped from `require.cache`, where Node never puts an ES module.
+const module_cache = createRequire(import.meta.url).cache;
+
+/** The newest `url` and the components under it; `.svelte.ts` modules keep their single instance. */
+export async function import_fresh(url: URL, version: number): Promise<Record<string, unknown>> {
+	for (const key of Object.keys(module_cache)) {
+		if (key.endsWith('.svelte') && !key.includes('node_modules')) delete module_cache[key];
+	}
+	return import(`${url.href}?v=${version}`);
+}
 
 /**
  * An in-process watch keeps one Svelte runtime for the life of the process, so the
@@ -22,7 +35,7 @@ export async function render_hot(entry: string | URL, options: RenderOptions = {
 	const path = fileURLToPath(url);
 
 	let version = 0;
-	const load = async () => (await import(`${url.href}?v=${++version}`)).default;
+	const load = async () => (await import_fresh(url, ++version)).default as AnyComponent;
 
 	render(await load(), options);
 

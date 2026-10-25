@@ -4,8 +4,10 @@
  * root against children Node has already cached.
  */
 
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { compile_svelte } from '../src/compile.ts';
+import { import_fresh } from '../src/hot.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 const FIXTURE = fileURLToPath(new URL('./HotImports.svelte', import.meta.url));
@@ -39,4 +41,25 @@ check('and survives verbatim', bare('Scroller'), true);
 const plain = compile_svelte(FIXTURE);
 check('no query means no rewrite', plain.includes('?v='), false);
 
-finish('compile', 13);
+// The query alone reloads nothing on Bun, which keys modules by path, so this runs the
+// reload itself on whichever runtime the suite is on.
+const dir = new URL('./.hot-tmp/', import.meta.url);
+mkdirSync(dir, { recursive: true });
+const root = new URL('Root.svelte', dir);
+const write_child = (v: number) => writeFileSync(new URL('Child.svelte', dir), `<script module>export const marker = 'child-${v}';</script>\n`);
+const write_root = (v: number) =>
+	writeFileSync(root, `<script module>import { marker as child } from './Child.svelte';\nexport const marker = 'root-${v}/' + child;</script>\n`);
+
+try {
+	write_child(1);
+	write_root(1);
+	await import_fresh(root, 1);
+	write_child(2);
+	check('a reload picks up an edited child', (await import_fresh(root, 2)).marker, 'root-1/child-2');
+	write_root(2);
+	check('and an edited root', (await import_fresh(root, 3)).marker, 'root-2/child-2');
+} finally {
+	rmSync(dir, { recursive: true, force: true });
+}
+
+finish('compile', 15);

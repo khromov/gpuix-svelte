@@ -67,7 +67,8 @@ npm run test:autocommit    # the microtask drain used where there is no frame lo
 npm run test:style         # CSS shorthand expansion, and what must never reach serde
 npm run test:teardown      # removal marks dirty, blank text demotes, listeners survive
 npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch
-npm run test:compile       # the ?v=N cache-buster reaches every child specifier
+npm run test:compile       # the ?v=N cache-buster reaches every child specifier, and a reload
+                           # picks up an edited child and root on the runtime running it
 npm run test:css           # <style> class rules: specificity, inline wins, :hover, class: toggles
 npm run test:module        # a .svelte.ts runes module compiles and is one shared instance
 npm run test:vars          # var() in class rules and inline styles, set_css_vars restyles in one
@@ -527,7 +528,11 @@ by parsing the emitted JS with `acorn` (Svelte's own parser, and the one depende
 `@gpuix/native` and the bundled svelte) and splicing the query in at each specifier's offset, so a
 `.svelte` string inside ordinary code or a comment is left alone and the rest of the output stays
 byte-identical. Only relative, absolute and `file:` specifiers are busted: Node refuses a bare one
-with a query, and a package component is not what is being edited.
+with a query, and a package component is not what is being edited. The query does nothing on Bun
+1.4.4, which keys ES modules by path alone (and no longer hands `?v=N` to `onLoad` either), so
+`import_fresh` first deletes every `.svelte` key outside `node_modules` from `require.cache`: Bun
+re-evaluates a module dropped from there, and Node never puts an ES module in it, so this is a
+no-op on Node. `.svelte.ts` modules don't match, so their state still survives a reload.
 
 **`style.ts`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The

@@ -4,6 +4,7 @@ node_modules
 
 # test:coverage working copy of svelte's sample suite
 test/.samples-tmp
+test/.hot-tmp
 
 # compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib
