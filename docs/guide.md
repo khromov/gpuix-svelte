@@ -134,10 +134,12 @@ window exists, the size reads as 800×600.
 ## Title bar on GNOME
 
 On GNOME under Wayland a gpuix window has no title bar: GNOME leaves drawing it to the app, and
-GPUI draws none. `render(App, { titlebar: 'auto' })` draws a simple one above your app there, with
-the window title (it follows `set_window_title`) and minimise, maximise and close buttons, and
-leaves every other platform alone. `titlebar: true` draws it everywhere. It can't be dragged to
-move the window, since `@gpuix/native` has no window move yet; Super+drag still moves it. A
+GPUI draws none. So `render()` draws a simple one above your app there, with the window title (it
+follows `set_window_title`) and minimise, maximise and close buttons, and leaves every other
+platform alone. That is its `titlebar` option's default, `'auto'`: `titlebar: false` turns the bar
+off and `titlebar: true` draws it everywhere. Your app then mounts in the box below the bar, and
+`rootStyle` styles that box, so a `<Portal>` still covers the whole window. The bar can't be dragged
+to move the window, since `@gpuix/native` has no window move yet; Super+drag still moves it. A
 double-click maximises, and close unmounts the app and ends the process. Its colours are
 `--titlebar-bg`, `--titlebar-fg`, `--titlebar-hover` and `--titlebar-close`, set through
 `set_css_vars`. Running the app under X11 instead (`WAYLAND_DISPLAY` unset) gets GNOME's own title

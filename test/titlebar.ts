@@ -36,8 +36,16 @@ check('minimise and maximise are no-ops headlessly', all_text().includes('app bo
 click(close);
 check('close unmounts the app (render exits the process instead)', all_text().includes('app body'), false);
 
+const padded = mount_headless(Titled, { titlebar: 'Padded', rootStyle: { display: 'flex', flexDirection: 'row', paddingLeft: 40 } });
+check(
+	'rootStyle styles the box below the bar, not the bar',
+	[bounds(bar())?.x, bounds(bar())?.width === native.getWindowSize().width, (bounds(find_text('app body')!)?.x ?? 0) >= 40],
+	[0, true, true]
+);
+padded.unmount();
+
 const plain = mount_headless(Titled);
 check('without the option there is no bar', all_text().includes('Renamed') || buttons().length > 0, false);
 plain.unmount();
 
-finish('titlebar', 7);
+finish('titlebar', 8);

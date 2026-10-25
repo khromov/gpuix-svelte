@@ -78,7 +78,8 @@ npm run test:hitbox        # hitbox="self" shielding through real hit testing, <
 npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
 npm run test:titlebar      # render's titlebar option through mount_headless: title, buttons, layout
-                           # below the bar, set_window_title, close unmounts
+                           # below the bar, rootStyle on the box below it, set_window_title, close
+                           # unmounts
 npm run test:tab           # Tab/Shift+Tab move focus, preventDefault keeps it, stopPropagation skips
                            # the ancestor and window handlers; ctrl-tab and tabNavigation: false
                            # leave focus alone
@@ -684,13 +685,15 @@ are the ones that bite most often, and the renderer behaviour behind them.
   every other native payload. Headlessly the size is the real viewport and the insets are zero; with
   no native at all it is upstream's 800×600 fallback.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component. The root
-  becomes a column (a given `rootStyle` still styles that outer root), the bar is its first child,
-  and the app mounts into a `position: relative` content div below it, so a `<Portal>` still covers
-  the whole window, bar included. `'auto'` means Linux with `WAYLAND_DISPLAY` set and
-  `XDG_CURRENT_DESKTOP` naming GNOME, which leaves a GPUI window bare (GPUI asks for server-side
-  decorations and GNOME has none, so it falls back to client-side ones that nothing draws); KDE
-  draws its own and X11 gets mutter's frame. Native 0.11 has no window close, move or resize, so
-  close unmounts and calls `process.exit(0)` and the bar can't be dragged (Super+drag moves it).
+  becomes a column, the bar is its first child, and the app mounts into a `position: relative` box
+  below it, which a given `rootStyle` styles (through a class rule, so the box's defaults merge
+  under it) — a row direction or padding meant for the app never reaches the bar — while a
+  `<Portal>` still covers the whole window, bar included. The default `'auto'` means Linux with
+  `WAYLAND_DISPLAY` set and `XDG_CURRENT_DESKTOP` naming GNOME, which leaves a GPUI window bare
+  (GPUI asks for server-side decorations and GNOME has none, so it falls back to client-side ones
+  that nothing draws); KDE draws its own and X11 gets mutter's frame. `mount_headless` draws none
+  unless given a title. Native 0.11 has no window close, move or resize, so close unmounts and
+  calls `process.exit(0)` and the bar can't be dragged (Super+drag moves it).
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` reports the border box since native 0.11). GPUI routes

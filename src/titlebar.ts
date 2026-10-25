@@ -4,11 +4,12 @@
  * this static bar instead: the title, minimise, maximise and close.
  */
 
-import renderer, { create_root, get_native } from './renderer.ts';
+import renderer, { create_root, define_styles, get_native } from './renderer.ts';
 import type { GpuiStyle, GpuixEvent, ShadowNode, WindowNative } from './types.ts';
 
 const COLUMN: GpuiStyle = { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', position: 'relative' };
-const CONTENT = 'display: flex; flex-grow: 1; min-height: 0; width: 100%; position: relative';
+const CONTENT: GpuiStyle = { display: 'flex', flexGrow: 1, minHeight: 0, width: '100%', position: 'relative' };
+const CONTENT_CLASS = 'gpuix-titlebar-content';
 const BAR =
 	'display: flex; flex-direction: row; align-items: center; gap: 2px; height: 34px; padding-left: 14px; padding-right: 4px; ' +
 	'background-color: var(--titlebar-bg, #181825); color: var(--titlebar-fg, #cdd6f4); user-select: none';
@@ -50,7 +51,7 @@ export function set_titlebar_title(title: string) {
 	if (title_text) renderer.setText(title_text, title);
 }
 
-/** The window's root, and the node the app mounts into: the root itself, or the column under the bar. */
+/** The window's root, and the node the app mounts into: the root itself, or the box under the bar. */
 export function create_window_root(
 	root_style: GpuiStyle | undefined,
 	keyboard_focus_dim: boolean | undefined,
@@ -62,7 +63,7 @@ export function create_window_root(
 		return { root, target: root };
 	}
 
-	const root = create_root(root_style ?? COLUMN, keyboard_focus_dim);
+	const root = create_root(COLUMN, keyboard_focus_dim);
 	const bar = element('div', BAR, root);
 	renderer.setAttribute(bar, 'hitbox', 'self');
 	renderer.addEventListener(bar, 'click', (e: GpuixEvent) => {
@@ -76,11 +77,16 @@ export function create_window_root(
 	button(bar, 'Maximize window', MAXIMIZE, 'var(--titlebar-hover, #313244)', () => native()?.zoomWindow?.());
 	button(bar, 'Close window', CLOSE, 'var(--titlebar-close, #e64553)', titlebar.on_close);
 
-	return { root, target: element('div', CONTENT, root) };
+	// `rootStyle` styles the box the app mounts into, so its padding or row direction never reaches the bar.
+	define_styles(CONTENT_CLASS, [{ classes: [CONTENT_CLASS], tag: null, pseudo: null, style: { ...CONTENT, ...root_style } }]);
+	const target = renderer.createElement('div');
+	renderer.setAttribute(target, 'class', CONTENT_CLASS);
+	renderer.insert(root, target, null);
+	return { root, target };
 }
 
 /** `'auto'` draws the bar only where nothing else would: GNOME, which GPUI reaches over Wayland. */
-export function wants_titlebar(option: boolean | 'auto' | undefined, env: (name: string) => string | undefined): boolean {
+export function wants_titlebar(option: boolean | 'auto', env: (name: string) => string | undefined): boolean {
 	if (option !== 'auto') return option === true;
 	return globalThis.process?.platform === 'linux' && !!env('WAYLAND_DISPLAY') && /gnome/i.test(env('XDG_CURRENT_DESKTOP') ?? '');
 }

@@ -171,7 +171,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		debugFrameOverlay,
 		keyboardFocusDim,
 		tabNavigation = true,
-		titlebar,
+		titlebar = 'auto',
 		...window_options
 	} = options;
 	const slot = host();
