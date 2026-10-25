@@ -4,7 +4,7 @@
  * that every test used to spell out, bound to whatever native the renderer holds.
  */
 
-import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type HighlightMatch } from '@gpuix/native';
+import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
 import renderer, { set_native, get_native, create_root, commit, dispatch } from './renderer.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
@@ -110,34 +110,43 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 	const anchor = renderer.createComment('');
 	renderer.insert(root, anchor, null);
 	const component = mount(Component, { renderer, target: root, anchor, props });
-	focused = null;
+	blurred = null;
 	settle();
 
 	return { native: instance, root, anchor, component, unmount: () => unmount(component) };
 }
 
-let focused: number | null = null;
+/** What `unfocus()` reported blurred while native kept it focused, so native's own blur for it is a repeat. */
+let blurred: number | null = null;
 
-/**
- * Focuses an element through native and stands in for the `focus`/`blur` events the
- * headless renderer never emits (a window does), so `editing` and `onfocus` follow.
- */
+function deliver(event: EventPayload) {
+	if (event.eventType === 'blur' && event.elementId === blurred) {
+		blurred = null;
+		return;
+	}
+	dispatch(event);
+}
+
+/** Focuses an element through native, whose `focus`/`blur` events reach the tree as a window's would. */
 export function focus(target: Target) {
 	const id = id_of(target);
-	unfocus();
+	if (id === blurred && native().getFocusedElementId() === id) {
+		blurred = null;
+		dispatch({ elementId: id, eventType: 'focus' });
+		settle();
+		return;
+	}
 	native().focusElement(id);
 	native().flush();
-	drain();
-	dispatch({ elementId: id, eventType: 'focus' });
-	focused = id;
-	settle();
+	pump();
 }
 
 /** The counterpart of `blur()`, which the test renderer lacks: reports the blur to the tree. */
 export function unfocus() {
-	if (focused === null) return;
-	dispatch({ elementId: focused, eventType: 'blur' });
-	focused = null;
+	const id = native().getFocusedElementId();
+	if (id == null || id === blurred) return;
+	dispatch({ elementId: id, eventType: 'blur' });
+	blurred = id;
 	settle();
 }
 
@@ -196,7 +205,7 @@ export const bounds = (target: Target) => native().getElementBounds(id_of(target
 
 /** Hands every event native queued to the renderer, as the window's callback would. */
 export function drain() {
-	for (const event of native().drainEvents()) dispatch(event);
+	for (const event of native().drainEvents()) deliver(event);
 }
 
 // A component that emits on every paint would otherwise keep pump() going forever.
@@ -210,7 +219,7 @@ export function pump() {
 	for (let round = 0; round < MAX_PUMP_ROUNDS; round++) {
 		const events = native().drainEvents();
 		if (round > 0 && events.length === 0) return;
-		for (const event of events) dispatch(event);
+		for (const event of events) deliver(event);
 		settle();
 	}
 }
