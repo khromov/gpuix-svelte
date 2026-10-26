@@ -55,14 +55,33 @@ const NUMBER_ONLY = new Set([
 	'borderBottomRightRadius',
 	'fontSize',
 	'lineHeight',
-	'lineClamp'
+	'lineClamp',
+	'aspectRatio',
+	'outlineWidth',
+	'outlineOffset',
+	'scrollbarWidth'
 ]);
+
+/** Rust `bool`s: the string CSS text hands over would fail to deserialize. */
+const BOOLEAN = new Set(['keyboardFocusDim']);
+
+/** A unitless `aspect-ratio`, `1.5` or `16 / 9`; a length is no ratio, so it must not coerce like one. */
+const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(?:\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+)))?$/;
+
+/** GPUI paints a thumb and no track, so only the first colour of `scrollbar-color: thumb track` applies. */
+const FIRST_COLOR = /^(?:[^\s(]+\([^)]*\)|\S+)/;
 
 /** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
 const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
 
+const PSEUDO_ATTRS = [
+	['hover', 'hover'],
+	['active', 'active'],
+	['focusVisible', 'focus-visible']
+] as const;
+
 /** A struct on the Rust side — CSS text can never produce one. */
-const NEVER = new Set(['boxShadow']);
+const NEVER = new Set(['boxShadow', 'hover', 'active', 'focusVisible']);
 
 /** GPUI has no `inset` field, so that one expands even when it holds one value. */
 const BOX: Record<string, string[] | undefined> = {
@@ -202,8 +221,9 @@ function coerce(value: string): StyleValue {
 function accepts(key: string, value: StyleValue) {
 	if (NEVER.has(key)) return false;
 	if (NUMBER_ONLY.has(key)) return typeof value === 'number';
+	if (BOOLEAN.has(key)) return typeof value === 'boolean';
 	if (DIMENSION.has(key)) {
-		return typeof value === 'number' || value === 'auto' || PERCENT.test(value);
+		return typeof value === 'number' || value === 'auto' || (typeof value === 'string' && PERCENT.test(value));
 	}
 	// Not a key we have typed: serde drops it if GPUI doesn't know it either, but
 	// a length-shaped string on one it does know would throw, so keep those out.
@@ -217,7 +237,12 @@ function accepts(key: string, value: StyleValue) {
  */
 function assign(out: GpuiStyle, key: string, value: string) {
 	let coerced = coerce(value);
-	if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
+	if (key === 'aspectRatio') {
+		const ratio = RATIO.exec(value);
+		coerced = ratio ? parseFloat(ratio[1]) / (ratio[2] ? parseFloat(ratio[2]) : 1) : value;
+	} else if (key === 'scrollbarColor') coerced = FIRST_COLOR.exec(value)?.[0] ?? value;
+	else if (BOOLEAN.has(key) && (value === 'true' || value === 'false')) coerced = value === 'true';
+	else if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
 	else if (typeof coerced === 'string' && DIMENSION.has(key) && INTRINSIC.test(coerced)) coerced = 'auto';
 
 	if (!accepts(key, coerced)) {
@@ -315,9 +340,9 @@ function rule_style(rule: StyleRule): GpuiStyle {
 }
 
 /**
- * `hover` and `active` are GPUI's natively-handled pseudo styles — they are
+ * `hover`, `active` and `focusVisible` are GPUI's natively-handled pseudo styles —
  * nested objects, which CSS text can't express, so they arrive as their own
- * attributes (or as `:hover`/`:active` rules) and get folded back in here.
+ * attributes (or as `:hover`/`:active`/`:focus-visible` rules) and get folded back in here.
  *
  * `attrs` are the raw attribute strings off the shadow node; `rules` the element's
  * matching `<style>` rules, weakest first.
@@ -325,20 +350,20 @@ function rule_style(rule: StyleRule): GpuiStyle {
 export function build_style(attrs: ShadowAttrs, rules: readonly StyleRule[] = []): GpuiStyle {
 	vars_read = false;
 	const style: GpuiStyle = {};
-	let hover: GpuiStyle | null = null;
-	let active: GpuiStyle | null = null;
+	const pseudo: Partial<Record<'hover' | 'active' | 'focusVisible', GpuiStyle>> = {};
 
 	for (const rule of rules) {
 		const declared = rule_style(rule);
-		if (rule.pseudo === 'hover') hover = merge(hover ?? {}, declared);
-		else if (rule.pseudo === 'active') active = merge(active ?? {}, declared);
+		if (rule.pseudo) pseudo[rule.pseudo] = merge(pseudo[rule.pseudo] ?? {}, declared);
 		else merge(style, declared);
 	}
 
 	// Inline wins over a class, as in CSS.
 	merge(style, parse_css_text(attrs.style as string | undefined));
-	if (hover || attrs.hover) style.hover = merge(hover ?? {}, parse_css_text(attrs.hover as string | undefined));
-	if (active || attrs.active) style.active = merge(active ?? {}, parse_css_text(attrs.active as string | undefined));
+	for (const [key, attr] of PSEUDO_ATTRS) {
+		const inline = attrs[attr] as string | undefined;
+		if (pseudo[key] || inline) style[key] = merge(pseudo[key] ?? {}, parse_css_text(inline));
+	}
 
 	return style;
 }

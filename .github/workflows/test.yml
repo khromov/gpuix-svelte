@@ -71,6 +71,8 @@ jobs:
       - run: npm run lint
       - run: npm pack --dry-run
         working-directory: packages/create-gpuix-svelte
+      # Since native 0.11 the binding links gpui's X11 client, and a runner has no desktop libs.
+      - run: sudo apt-get update && sudo apt-get install -y libxcb1 libxkbcommon0 libxkbcommon-x11-0
       - run: node -e "const n = require('@gpuix/native'); if (typeof n.GpuixRenderer !== 'function') { console.error('GpuixRenderer missing from the linux prebuild'); process.exit(1) } console.log('binding ok')"
 
   # Build-only: a runner has no display. It checks that the bundle resolves with the

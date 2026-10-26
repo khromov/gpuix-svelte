@@ -8,6 +8,8 @@
 	let key_up = $state('');
 	let moving = $state(false);
 	let status = $state('waiting');
+	const focusables = ['a', 'b'] as const;
+	const focus_count = $state({ a: [0, 0], b: [0, 0] });
 	const rows = Array.from({ length: 10 }, (_, i) => i);
 
 	const timer = setTimeout(() => (status = 'ready'), 200);
@@ -46,4 +48,10 @@
 	</div>
 	<text>{status}</text>
 	<div testid="far" style="position: absolute; top: 900px; left: 0; width: 20px; height: 20px"></div>
+	<div style="position: absolute; top: 400px; left: 300px; display: flex; gap: 4px">
+		{#each focusables as name (name)}
+			<div testid={`focus-${name}`} tabindex="0" style="width: 10px; height: 10px" onfocus={() => focus_count[name][0]++} onblur={() => focus_count[name][1]++}></div>
+		{/each}
+		<text testid="focus-log">{`a:${focus_count.a.join('/')} b:${focus_count.b.join('/')}`}</text>
+	</div>
 </div>

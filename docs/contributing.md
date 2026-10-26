@@ -30,6 +30,8 @@ npm run demo:glass-ffi    # the same app on real Liquid Glass: NSGlassEffectView
 npm run demo:styling      # styling playground: which CSS text reaches GPUI and which is dropped
 npm run demo:desktop      # desktop APIs: window controls, file picker and drops, live image
                           # pixels, selection, focus walking, accessibility props
+npm run demo:native-0.11  # what @gpuix/native 0.11 added: focus-visible, focus dim, Tab,
+                          # onlayout/onscrollchange, new styles, register_font, elements_at
 npm run demo:web          # tic-tac-toe in a browser, on GPUI's WebAssembly/WebGPU build (Bun only)
 npm run tutorial          # interactive onboarding guide: 12 steps with live samples and quizzes
 npm test                  # typecheck, then the headless renderer tests

@@ -12,6 +12,7 @@ import {
 	bounds,
 	click,
 	focus,
+	unfocus,
 	type,
 	hover,
 	mouse_down,
@@ -98,6 +99,17 @@ type('h i');
 key_up('x');
 check("key_up reaches the focused field's onkeyup", has('field: hi up: x'), true);
 
+const focus_log = () => node('focus-log').children?.[0]?.text;
+focus(node('focus-a'));
+focus(node('focus-b'));
+check('focus reports one focus and one blur per move, from native', focus_log(), 'a:1/1 b:1/0');
+unfocus();
+focus(node('focus-b'));
+check('unfocus blurs, and refocusing what native still holds focuses it again', focus_log(), 'a:1/1 b:2/1');
+unfocus();
+focus(node('focus-a'));
+check("native's own later blur after unfocus is not reported twice", focus_log(), 'a:2/1 b:2/2');
+
 const left = () => Math.round(bounds(node('mover'))!.x - bounds(node('hover'))!.x);
 const t0 = clock_pause();
 click(node('start'));
@@ -119,4 +131,4 @@ const tail = process.platform === 'darwin' ? 'headless viewport (its height caps
 check('center() outside the viewport says so, naming the cap where there is one', /outside the \d+×\d+ /.test(outside) && outside.endsWith(tail), true);
 check('point_of passes a point through and centres a node', [point_of({ x: 3, y: 4 }), point_of(node('pad'))], [{ x: 3, y: 4 }, pad]);
 
-finish('helpers', 21);
+finish('helpers', 24);

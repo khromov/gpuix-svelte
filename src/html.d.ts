@@ -34,6 +34,10 @@ interface GpuixEvents {
 	onfocus?: Handler;
 	onblur?: Handler;
 	onscroll?: Handler;
+	/** `e.scrollX` / `e.scrollY` after the offset moved, for any cause. */
+	onscrollchange?: Handler;
+	/** `e.width` / `e.height` (and `e.x` / `e.y`) of the border box, after first paint and on each resize. */
+	onlayout?: Handler;
 	onfiledrop?: Handler;
 	onmotioncomplete?: Handler;
 	onhighlight?: Handler;
@@ -47,6 +51,8 @@ interface GpuixAttributes extends GpuixEvents {
 	/** CSS text applied while the pointer is over the element; wins over a `:hover` rule. */
 	hover?: Text;
 	active?: Text;
+	/** CSS text applied while the element has keyboard focus, like `:focus-visible`; wins over that rule. */
+	'focus-visible'?: Text;
 	/** Shield every descendant without a listener of its own from hit testing. */
 	hitbox?: 'self' | null | undefined;
 	/** Paint natively from the root, on top of everything mounted before it. */
@@ -153,6 +159,7 @@ interface AnchoredAttributes extends GpuixAttributes {
 	deferred?: Flag;
 	priority?: Count;
 	occlude?: Flag;
+	fill?: 'window';
 }
 
 /** `<svelte:window>` and friends have nothing to bind to here; Svelte's own tags take their own attributes. */

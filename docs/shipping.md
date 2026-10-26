@@ -83,7 +83,8 @@ console.log(`built ${outfile}`);
 The result is around 80 MB: the Bun runtime, the Svelte runtime and the GPUI addon, which is 17 MB
 or more on every platform. npm installs only the addon prebuilt for the host, so each platform
 builds its own binary. Run the same command on macOS (arm64), Linux (x64) or Windows (x64) to get
-that platform's binary.
+that platform's binary. A Linux binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11` from
+the system, which desktop installs have and a minimal container lacks.
 
 The output is unsigned by default, and macOS blocks a downloaded unsigned copy until you allow it
 under System Settings → Privacy & Security. See [Signing](#signing).

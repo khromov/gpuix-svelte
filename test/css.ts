@@ -21,7 +21,8 @@ console.warn = warn;
 const refused = warnings.filter((w) => w.includes('has no GPUI equivalent'));
 check('the sheet registers under the scope class', /\$define_styles\("svelte-[a-z0-9]+"/.test(code), true);
 check('a descendant selector is refused at compile time', refused.some((w) => w.includes('`.card .title`')), true);
-check('every other selector is accepted', refused.length, 1);
+check('so is a pseudo-class named like an Object.prototype key', refused.some((w) => w.includes('`.btn:constructor`')), true);
+check('every other selector is accepted', refused.length, 2);
 
 // The appended import must survive the cache-buster pass, and stay unbusted itself.
 const busted = compile_svelte(FIXTURE, '?v=7');
@@ -43,6 +44,12 @@ check(
 check(':hover becomes the native hover style', element_of('toggle')!.style!.hover?.color, 'blue');
 check('inline style wins over the class', pick(element_of('inline')!.style!, 'color', 'paddingTop'), ['#000000', 4]);
 check('the hover attribute wins over :hover', element_of('attr')!.style!.hover?.color, '#ffffff');
+check(':focus-visible becomes the native focusVisible style', element_of('toggle')!.style!.focusVisible?.outlineWidth, 2);
+check(
+	'the focus-visible attribute merges over it',
+	pick(element_of('focus')!.style!.focusVisible, 'outlineWidth', 'outlineColor'),
+	[2, '#ffffff']
+);
 check('a compound selector beats a single class whatever the source order', element_of('compound')!.style!.color, 'green');
 // A tag narrows a selector, so `div.tagged` outranks the `.tagged` declared after it.
 check('a tag alongside the class outranks the class alone', element_of('tagged')!.style!.color, 'teal');
@@ -57,4 +64,4 @@ check('class:on toggling off restyles', element_of('toggle')!.style!.backgroundC
 click_text('dynamic');
 check('swapping the class string restyles', element_of('dynamic')!.style!.opacity, 1);
 
-finish('css', 17);
+finish('css', 20);

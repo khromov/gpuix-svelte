@@ -23,8 +23,11 @@ when you add or remove a check. Leave it out, and `finish` only asks for at leas
 ## Mounting, reading and clicking
 
 `mount_headless(Component, { props, width, height })` mounts the component and waits for the
-first paint. `settle()` flushes Svelte's effects and lets GPUI paint again. For timers and
-promises, `await wait(ms)` waits and then settles.
+first paint. It also takes `rootStyle`, `keyboardFocusDim` and `tabNavigation`, as `render()` does,
+so `press('tab')` moves focus unless you pass `tabNavigation: false`. It draws no title bar unless
+you pass `titlebar: 'Title'`, and that bar's close button unmounts the component rather than
+exiting. `settle()` flushes Svelte's effects and lets GPUI paint again. For timers and promises,
+`await wait(ms)` waits and then settles.
 
 To find elements, `find_text`, `find_test_id` and `element_of` look them up by text or `testid`,
 and `tree()` returns the whole element tree. `painted()`, `all_text()`, `bounds()`
@@ -38,8 +41,10 @@ for the helpers first.)
 The headless viewport has two limits. On macOS it's at most 538 px tall, so keep test layouts
 short; `click` tells you when a target falls outside. Windows ignores the requested size and opens
 1024×749, so read the real size from `get_native().getWindowSize()` rather than asserting the one
-you asked for. Headless rendering also fires no `focus`/`blur` events (a real window does), so
-`focus()` and `unfocus()` stand in for them.
+you asked for. `focus()` moves native focus, and the `focus` and `blur`
+events it causes reach your handlers as they would in a window. The test renderer has no way to
+blur, so `unfocus()` reports a `blur` for the focused element itself (native still holds focus, and
+its own `blur` for that element is not reported again when focus later moves).
 
 ## Every other input
 

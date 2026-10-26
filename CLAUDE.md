@@ -46,6 +46,10 @@ npm run demo:styling       # styling playground: style strings next to what GPUI
 npm run demo:desktop       # desktop APIs (examples/desktop-apis): window controls, prompt_for_paths,
                            # onfiledrop, set_image/set_image_pixels (a live waveform), selection,
                            # scroll_into_view, focus walking, aria props
+npm run demo:native-0.11   # what native 0.11 added (examples/native-0.11): :focus-visible and the
+                           # focus dim, Tab with preventDefault, onlayout/onscrollchange, GPUI's
+                           # scrollbar, the new style keys, elements_at, BGRA pixels, register_font
+                           # (font.ts reads the family name) and <anchored fill="window">
 npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU build — bundles it to
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
@@ -62,8 +66,10 @@ npm run test:smoke         # mount + click Counter headlessly
 npm run test:autocommit    # the microtask drain used where there is no frame loop
 npm run test:style         # CSS shorthand expansion, and what must never reach serde
 npm run test:teardown      # removal marks dirty, blank text demotes, listeners survive
-npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch
-npm run test:compile       # the ?v=N cache-buster reaches every child specifier
+npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch; when the focus
+                           # dim ships
+npm run test:compile       # the ?v=N cache-buster reaches every child specifier, and a reload
+                           # picks up an edited child and root on the runtime running it
 npm run test:css           # <style> class rules: specificity, inline wins, :hover, class: toggles
 npm run test:module        # a .svelte.ts runes module compiles and is one shared instance
 npm run test:vars          # var() in class rules and inline styles, set_css_vars restyles in one
@@ -72,6 +78,12 @@ npm run test:scroller      # the shipped Scroller: wheel, thumb drag, follow, sc
 npm run test:hitbox        # hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
+npm run test:titlebar      # render's titlebar option through mount_headless: title, buttons, layout
+                           # below the bar, rootStyle on the box below it, set_window_title, close
+                           # unmounts once; and where wants_titlebar's 'auto' default draws it
+npm run test:tab           # Tab/Shift+Tab move focus, preventDefault keeps it, stopPropagation skips
+                           # the ancestor and window handlers; ctrl-tab and tabNavigation: false
+                           # leave focus alone
 npm run test:window        # window_size / window_insets: polled only while read, restarted on remount
 npm run test:portal        # <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:host          # aria props in GPUI's a11y tree, file drop, motionComplete,
@@ -160,11 +172,13 @@ width follows `mount_headless`'s `width`/`height` on macOS, but its height caps 
 (`MAX_HEADLESS_HEIGHT`) — elements laid out below that can't be hit (`click` throws; shift the
 layout up inside an absolute wrapper to reach them) — and Windows ignores the request and opens a
 1024×749 viewport, so never assert against the size you asked for; read `native.getWindowSize()`
-(`test/portal.ts` does). The headless renderer emits no `focus`/`blur`, which is what
-`focus()`/`unfocus()` stand in for.
+(`test/portal.ts` does). Since native 0.11 the headless renderer emits `focus`/`blur` itself, so
+`focus()` leaves both to native; `unfocus()` still reports a blur (the test renderer has no `blur()`)
+and `deliver()` drops native's repeat of it when focus later moves on.
 
 `src/window.ts` (window title/activate/minimize/zoom/fullscreen, `prompt_for_paths`, `blur`, the
-focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, the debug-overlay wrappers)
+focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, `register_font`,
+`elements_at`, the debug-overlay wrappers)
 no-ops wherever the renderer lacks the method, so app code never needs `get_native()?.x?.()`
 guards. Its node-taking helpers go through `with_native_id`, which defers the call past the next
 commit while mutations are queued — from an `{@attach}` the element's `createElement` has not
@@ -389,15 +403,17 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   `.gitignore` un-ignores `vendor/*.tgz` for this; `files` keeps it out of the npm package (the
   bundled `node_modules` copy is what ships). `bun.lock` records the tarball's sha512, so a new
   build is a new lockfile entry.
-- **`@gpuix/native` range is `>=0.10.0 <0.11.0`** (pre-1.0, so every minor may break; upstream
+- **`@gpuix/native` range is `>=0.11.0 <0.12.0`** (pre-1.0, so every minor may break; upstream
   recommends an exact pin for its own adapters) and the renderer speaks its mutation contract:
   applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes that leave the live
   tree are destroyed at commit and re-materialize if shown again), `setCustomProp` not
   `setCustomPropValue`, and `commitMutations?.()` only where it exists. The package is ESM with an
   `index.cjs` under the `require` condition. Prebuilds exist for darwin-arm64 / linux-x64 /
-  win32-x64 only. On Linux `TestGpuixRenderer` is a constructor that throws
-  (`hasTestGpuixRenderer()` says so) — gpuix builds it with `--no-default-features` until wgpu grows
-  image readback — so CI there can only check that the binding loads. Its `/host`, `/runtime` and
+  win32-x64 / win32-arm64 only (CI covers no arm64 Windows); since 0.11 the Linux one links
+  `libxcb`, `libxkbcommon` and `libxkbcommon-x11`, which CI's linux job installs. On Linux
+  `TestGpuixRenderer` is a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix
+  builds it with `--no-default-features` until wgpu grows image readback — so CI there can only
+  check that the binding loads. Its `/host`, `/runtime` and
   `/testing` entry points are the framework-neutral layer `@gpuix/react` and `@gpuix/solid` share;
   this renderer takes `/host`'s window observers, text search and types, and `/automation`, but
   keeps its own `render.ts` / `renderer.ts` / `test.ts`, because that layer's event map and
@@ -406,6 +422,8 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   tag; get `npm test` and `npm run bun:test` passing on the new version before anything uses the
   new surface; and in the same change go through `npm run parity`'s output and redo
   `docs/styling.md`'s lists if `style.rs` moved (see "Regenerating the styling reference").
+  0.11's terminal mode is untested here: native `init()` honours `GPUIX_TERMINAL=1` on its own, and
+  `render()` logs to the stdout that mode draws on.
 
 ## Architecture
 
@@ -423,6 +441,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
   automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts
+  titlebar.ts  render's `titlebar` option: a static bar above the app root (GNOME Wayland draws none)
   window.ts    window, picker, focus, image, overlay helpers  ─ no-op where native lacks the method; window_size / window_insets poll
   search.ts    TextSearch, find_ranges                  ─ createSubscriber, so no runes in src/
   components/  Scroller, Portal, Tooltip, Popover .svelte  ─ `gpuix-svelte/components/*`
@@ -439,26 +458,27 @@ build). Reported upstream on #18511; drop the flag once it lands.
 
 It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
 renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
-(`modernAst: true`) and appends a `define_styles(scope, rules)` call to the component: one rule
-per compound selector, keyed by the `svelte-<hash>` scope class the compiler already stamps on
-every matched element (`cssHash` captures it). Only classes, one optional tag, and
-`:hover`/`:active` are accepted — combinators, `:global`, attribute selectors, at-rules and
-nesting are refused with a warning naming the file — and declarations go through
-`parse_css_text` at compile time, so the value checks below apply to them too. Rules are
-emitted weakest first (tags under classes, then source order), and the renderer's
-`class_rules()` picks the ones whose classes the element carries on every `class` change, so
-`class:` directives and dynamic class strings restyle for free. `build_style` then lays the
-inline `style` on top; `:hover` rules become GPUI's native `hover` object with the `hover=`
-attribute winning. A block that reads a `var(--name[, fallback])` is emitted as `css` text
-instead of a parsed `style`, because the map it resolves against lives at runtime: `style.ts`
-substitutes on every `parse_css_text` (inline `style=` included), memoises each such rule per
-`set_css_vars()` generation, and the renderer flags nodes whose style read a variable so
-`set_css_vars(vars)` (exported from the package) restyles exactly those, in one batch — a call
-whose values are all already in force is a no-op. An undefined variable without a fallback drops
-that declaration and is warned about once at the next `commit()`, not where it was read: the root's
-palette `$effect` runs after Svelte has styled the tree, so a name it defines is never reported.
-Merging also honours shorthands: a later `padding: 20px` clears the longhands an earlier
-`padding: 12px 24px` expanded to, since GPUI reads longhands over the shorthand.
+(`modernAst: true`) and appends a `define_styles(scope, rules)` call to the component: one rule per
+compound selector, keyed by the `svelte-<hash>` scope class the compiler already stamps on every
+matched element (`cssHash` captures it). Only classes, one optional tag, and
+`:hover`/`:active`/`:focus-visible` are accepted — combinators, `:global`, attribute selectors,
+at-rules and nesting are refused with a warning naming the file — and declarations go through
+`parse_css_text` at compile time, so the value checks below apply to them too. Rules are emitted
+weakest first (tags under classes, then source order), and the renderer's `class_rules()` picks the
+ones whose classes the element carries on every `class` change, so `class:` directives and dynamic
+class strings restyle for free. `build_style` then lays the inline `style` on top; `:hover` rules
+become GPUI's native `hover` object with the `hover=` attribute winning, and likewise
+`:focus-visible` / `focus-visible=` for `focusVisible`. A block that reads a `var(--name[,
+fallback])` is emitted as `css` text instead of a parsed `style`, because the map it resolves
+against lives at runtime: `style.ts` substitutes on every `parse_css_text` (inline `style=`
+included), memoises each such rule per `set_css_vars()` generation, and the renderer flags nodes
+whose style read a variable so `set_css_vars(vars)` (exported from the package) restyles exactly
+those, in one batch — a call whose values are all already in force is a no-op. An undefined
+variable without a fallback drops that declaration and is warned about once at the next `commit()`,
+not where it was read: the root's palette `$effect` runs after Svelte has styled the tree, so a
+name it defines is never reported. Merging also honours shorthands: a later `padding: 20px` clears
+the longhands an earlier `padding: 12px 24px` expanded to, since GPUI reads longhands over the
+shorthand.
 
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both
@@ -513,13 +533,19 @@ by parsing the emitted JS with `acorn` (Svelte's own parser, and the one depende
 `@gpuix/native` and the bundled svelte) and splicing the query in at each specifier's offset, so a
 `.svelte` string inside ordinary code or a comment is left alone and the rest of the output stays
 byte-identical. Only relative, absolute and `file:` specifiers are busted: Node refuses a bare one
-with a query, and a package component is not what is being edited.
+with a query, and a package component is not what is being edited. The query does nothing on Bun
+1.4.4, which keys ES modules by path alone (and no longer hands `?v=N` to `onLoad` either), so
+`plugin.ts` puts a purge of every `.svelte` key outside `node_modules` from `require.cache` on a
+`Symbol.for('gpuix-svelte.invalidate')` global, which `import_fresh` calls first when it is there:
+Bun re-evaluates a module dropped from that cache, and on Node, where nothing sets the global, the
+query alone does the job. `.svelte.ts` modules don't match, so their state still survives a reload.
 
 **`style.ts`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths. `12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings. The
 raw string is kept on the shadow node because Svelte read-modify-writes it for `style:` directives.
-`hover`/`active` are GPUI's native pseudo-styles — nested objects CSS text can't express, so they
-arrive as their own attributes and get folded back in.
+`hover`/`active`/`focusVisible` are GPUI's native pseudo-styles — nested objects CSS text can't
+express, so they arrive as their own attributes (`focus-visible=` for the last) and get folded back
+in.
 
 Unknown *keys* need no allowlist — serde drops them. Unknown **values** are the opposite: a key
 GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and that throw loses
@@ -548,15 +574,15 @@ Unknown events are dropped silently.
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
 `docs/components.md` documents their props and the native `<anchored>`.
 
-- **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground
-  and Substrate all use it). GPUI paints no scrollbar and captures no pointer, so it measures
-  `getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the thumb
-  restyle after a wheel event is throttled to one per 50 ms because each one is a full native
-  frame. A plain scroll container lays out and paints every child every frame, so `virtual` swaps
-  in GPUI's `<virtual-list>` (each direct child a row, which needs `width: 100%`; `follow` →
-  `followTail`). There the thumb works in rows: the viewport from `getListScrollTop`, the row
-  height a running mean of `visibleRange` reports seeded with `estimate`, drag via `scrollToItem`.
-  Its colours are `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
+- **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground and
+  Substrate all use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
+  measures `getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the
+  thumb restyle after a wheel event is throttled to one per 50 ms because each one is a full native
+  frame. A plain scroll container lays out and paints every child every frame, so `virtual` swaps in
+  GPUI's `<virtual-list>` (each direct child a row, which needs `width: 100%`; `follow` →
+  `followTail`). There the thumb works in rows: the viewport from `getListScrollTop`, the row height
+  a running mean of `visibleRange` reports seeded with `estimate`, drag via `scrollToItem`. Its
+  colours are `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
 - **`Portal`** is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
   renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
   teardown walk, anchors and `{#if}` blocks are untouched) and only the **native** node hangs off
@@ -566,15 +592,16 @@ Unknown events are dropped silently.
   parent's native child list, and `commit()` destroys any portal that is no longer `live`, because
   its ancestor's `destroyElement` never reaches it.
 - **`Tooltip`** and **`Popover`** hang a native `<anchored>` layer from a 0×0 dot on the trigger's
-  edge, with `align="start"` and the `anchor` corner named explicitly, because native 0.10's
-  `align: center` centres the content-sized layer box and then anchors its centre again, landing
-  half a layer off (`test:tooltip` asserts the quirk, so it fails once upstream fixes it). The
-  layer carries `background-color: #00000001`, or native paints `#1a1a1a` behind it. `Tooltip`
-  tracks hover per source (wrapper, spread trigger handlers, tip) because a pointer jumping onto the
-  tip gets the tip's `mouseEnter` before the trigger's `mouseLeave`. `Popover`'s `mouseDownOutside`
-  sits on the panel (`<anchored>` only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`).
-  Both forward a `style` prop to the tip or panel: `var()` resolves from one global map and a
-  parent's scoped rules cannot reach in, so inline style is the only per-instance hook.
+  edge, with `align="start"` and the `anchor` corner named explicitly, because native 0.11's `align:
+  center` centres the content-sized layer box and then anchors its centre again, landing half a
+  layer off (`test:tooltip` asserts the quirk, so it fails once upstream fixes it). The layer
+  carries `background-color: #00000001`, or native paints `#1a1a1a` behind it (since 0.11 any
+  declared background opts out, `transparent` included). `Tooltip` tracks hover per source (wrapper,
+  spread trigger handlers, tip) because a pointer jumping onto the tip gets the tip's `mouseEnter`
+  before the trigger's `mouseLeave`. `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>`
+  only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`). Both forward a `style` prop to the
+  tip or panel: `var()` resolves from one global map and a parent's scoped rules cannot reach in, so
+  inline style is the only per-instance hook.
 
 ### Regenerating the styling reference
 
@@ -585,7 +612,8 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
 
 - `style.rs`, `struct StyleDesc` — every key and its type. `Option<f64>` keys are pixel-only,
   `DimensionValue` takes `%`/`auto`, `String` keys are keyword-matched, and anything that is a
-  struct (`BoxShadowValue`, `BackgroundValue::Gradient`) is unreachable from CSS text. Its
+  struct (`BoxShadowValues`, `BackgroundValue::Gradient`, the nested `hover` / `active` /
+  `focusVisible` styles, which `NEVER` refuses as declarations) is unreachable from CSS text. Its
   `parse_cursor` is the cursor keyword list.
 - `renderer.rs`, `fn apply_styles` — the keywords each `String` key actually matches; a key that is
   in `StyleDesc` but not here is accepted and ignored (`display: none`; `visibility: hidden` is
@@ -608,12 +636,13 @@ are the ones that bite most often, and the renderer behaviour behind them.
   handed to `set_css_vars({ token: '#fff' })` once from the root (Substrate does it in an `$effect`
   over its `LIGHT`/`DARK` objects — a theme switch is one call), and `style:` / inline `style="..."`
   only for measured values. Class rules accept `.btn`, `.btn.primary`, `.a, .b`, one tag, and
-  `:hover` / `:active`; specificity is class count then source order, inline `style` always wins.
-  Box shorthands work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths are logical pixels —
-  and neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the `auto` halves of
-  `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning. `flex: 1`,
-  `border: 1px solid ...`, unitless `line-height` and `display: none` misbehave in a class rule as
-  inline (see the styling playground). Shared reactive state goes in `.svelte.ts` modules.
+  `:hover` / `:active` / `:focus-visible`; specificity is class count then source order, inline
+  `style` always wins. Box shorthands work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths
+  are logical pixels — and neither do `%` or `auto` outside `width`/`height`/`min*`/`max*`, so the
+  `auto` halves of `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning.
+  `flex: 1`, `border: 1px solid ...`, unitless `line-height` and `display: none` misbehave in a
+  class rule as inline (see the styling playground). Shared reactive state goes in `.svelte.ts`
+  modules.
 - Only GPUI tags exist (`div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list`, `anchored`, `canvas`, ...); anything else degrades to `div` with a
   one-time warning. `<img src>` is a filesystem path, a `data:` URL or an http(s) URL GPUI fetches
@@ -627,9 +656,20 @@ are the ones that bite most often, and the renderer behaviour behind them.
   and re-copies it whenever that ancestor restyles; a parent's `:hover` colour does not reach it,
   since hover is native.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or
-  `autofocus`); Tab reaches `keyDown` as an ordinary key and does not move focus, so an app wires
-  `e.key === 'tab'` to `focus_next()` / `focus_previous()`, which walk the window's tab stops as of
-  the last painted frame (a stop rendered this tick joins after it paints). For shortcuts use
+  `autofocus`). Native 0.11 stops every Tab after the listeners ran (so it never types `\t` into an
+  `<input>`/`<textarea>`) and leaves moving focus to the host, so `renderer.ts` does what upstream's
+  `renderer-state.js` does for `@gpuix/react`/`@gpuix/solid`: every key event of one `keystrokeId`
+  shares one flags object (`flags_for`), `stopPropagation()` skips the handlers still to come —
+  the focusable ancestors, then the window's — and `key_default` runs on the `windowKeyDown`,
+  which native sends last, calling `focusNext`/`focusPrevious` for a Tab without ctrl/alt/cmd that
+  nobody prevented. That needs window key events on whether or not anything subscribed, so
+  `sync_window_events` keeps `keyDown` on while `tab_navigation` is (`render`/`mount_headless`'s
+  `tabNavigation`, default true). The walk is the tab stops as of the last painted frame (a stop
+  rendered this tick joins after it paints). The keyboard-focus dim is native and kept on the tree
+  across `setRoot`: `create_root` ships `setKeyboardFocusDim` off unless `render`/`mount_headless`
+  get `keyboardFocusDim: true` (a `null` ships nothing), and `set_keyboard_focus_dim()` queues the
+  same op at runtime. `render` ships it only on a new window or when the option changed
+  (`focus_dim_on_render`), as with the overlay, so a runtime switch survives a `render_hot` remount. For shortcuts use
   `on_window_key('keydown', handler)` (an unsubscribe comes back; `render`'s `onKeyDown`/`onKeyUp`
   options are the same thing kept across remounts) — it fires whatever has focus, and `e.editing`
   says a text field has focus and is getting the same key. The renderer tracks that itself by
@@ -639,27 +679,38 @@ are the ones that bite most often, and the renderer behaviour behind them.
   has `onsubmit`.
 - `window_size` / `window_insets` are reactive getter objects, not runes: `window.ts` wraps
   `@gpuix/native/host`'s `observeWindowSize` / `observeWindowInsets` (100 ms poll, structural
-  compare) in `createSubscriber`, because native 0.10 still has no resize event. The poll starts on
-  the first tracking read and stops a microtask after the last reader's effect is destroyed. A
-  read outside an effect gets the last polled value while a poll is live and one fresh native call
-  otherwise, and a module-level `$derived` first read outside any effect owns its poll forever
-  (`createSubscriber` semantics; Svelte's `MediaQuery` does the same). The host object resolves
-  `get_native()` on every call, so a poll that outlives a remount follows the new native. Insets
-  keep upstream's camelCase fields (`safeArea`, `keyboardVisible`, …), like every other native
-  payload. Headlessly the size is the real viewport and the insets are zero; with no native at all
-  it is upstream's 800×600 fallback.
+  compare) in `createSubscriber`, because native 0.11 still has no window resize event (`layout` is
+  per element). The poll starts on the first tracking read and stops a microtask after the last
+  reader's effect is destroyed. A read outside an effect gets the last polled value while a poll is
+  live and one fresh native call otherwise, and a module-level `$derived` first read outside any
+  effect owns its poll forever (`createSubscriber` semantics; Svelte's `MediaQuery` does the same).
+  The host object resolves `get_native()` on every call, so a poll that outlives a remount follows
+  the new native. Insets keep upstream's camelCase fields (`safeArea`, `keyboardVisible`, …), like
+  every other native payload. Headlessly the size is the real viewport and the insets are zero; with
+  no native at all it is upstream's 800×600 fallback.
+- `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component. The root
+  becomes a column, the bar is its first child, and the app mounts into a `position: relative` box
+  below it, which a given `rootStyle` styles (through a class rule, so the box's defaults merge
+  under it) — a row direction or padding meant for the app never reaches the bar — while a
+  `<Portal>` still covers the whole window, bar included. The default `'auto'` means Linux with
+  `WAYLAND_DISPLAY` set and `XDG_CURRENT_DESKTOP` naming GNOME, which leaves a GPUI window bare
+  (GPUI asks for server-side decorations and GNOME has none, so it falls back to client-side ones
+  that nothing draws); KDE draws its own and X11 gets mutter's frame. `mount_headless` draws none
+  unless given a title. Native 0.11 has no window close, move or resize, so close unmounts and
+  calls `process.exit(0)` and the bar can't be dragged (Super+drag moves it).
 - **`onclick` is the primary button only; a right or middle click is `onauxclick`**, told apart by
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
-  menu at the cursor (`getElementBounds` on that panel reports its content box, so it sits inset by
-  the border and padding). GPUI routes macOS's ctrl+click to `click`, not `auxClick`, so a surface
-  that wants the platform's secondary click needs both handlers; Substrate's `is_secondary(e)` in
-  `lib/ui.svelte.ts` is that check written once.
+  menu at the cursor (`getElementBounds` reports the border box since native 0.11). GPUI routes
+  macOS's ctrl+click to `click`, not `auxClick`, so a surface that wants the platform's secondary
+  click needs both handlers; Substrate's `is_secondary(e)` in `lib/ui.svelte.ts` is that check
+  written once.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child
   with a `background-color` (or `position: absolute`) swallows clicks meant for a clickable
   ancestor — put `hitbox="self"` on the clickable element and the renderer ships
-  `pointer-events: none` for every descendant that has no listener of its own, is not an
+  `pointer-events: none` for every descendant that has no listener of its own (`PASSIVE_EVENTS`,
+  `layout`/`scrollChange`/`motionComplete`/`highlight`, take no pointer and don't count), is not an
   input-taking native type (`INTERACTIVE_TAGS`), is not focusable (`tabindex`/`autofocus`) and does
   not scroll; a nested button keeps its hitbox (and shields its own decoration), and adding or
   removing a listener later restyles that element. An explicit `pointer-events` on the descendant
@@ -669,6 +720,14 @@ are the ones that bite most often, and the renderer behaviour behind them.
   (see the sliders in `examples/liquid-glass/LiquidGlass.svelte`). A left mousedown also starts a
   text selection that every later move extends across whatever text lies in between, unless the
   element under the pointer (or an ancestor) has `user-select: none` — put it on every drag handle.
+- **A wheel scrolls every scroll container under the pointer at once.** GPUI's
+  `paint_scroll_listener` (unchanged from 0.10 to 0.11) never stops propagation, and every painted
+  element is `block_mouse_except_scroll`, so a list inside a `Scroller` page moves both. Native
+  occludes only for an explicit `pointer-events: auto` (`should_occlude` → `occlude()`), which
+  takes the containers behind it out of `should_handle_scroll` — so the inner scroll area carries
+  it, as the native-0.11 and desktop-apis lists do. The tutorial instead turns the right panel's
+  scrolling off for the step whose sample scrolls (`previewFill`). Native 0.11's own thumb
+  (`scrollbar-color`) is paint-only and can't be dragged.
 - `motion={{ initial, animate, transition }}` animates `left`/`top`/`width`/`height`/`opacity`/
   `borderRadius` natively (durations in seconds) — used for the toggle knobs in the liquid-glass
   example.

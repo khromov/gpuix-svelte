@@ -11,6 +11,7 @@
 <div class={kind} onclick={() => (kind = kind === 'a' ? 'b' : 'a')}>dynamic</div>
 <div class="card"><div class="title">nested</div></div>
 <div class="tagged">tagged</div>
+<div class="btn" focus-visible="outline-color: #ffffff">focus</div>
 
 <style>
 	.btn.primary {
@@ -22,6 +23,13 @@
 	}
 	.btn:hover {
 		color: blue;
+	}
+	.btn:constructor {
+		color: purple;
+	}
+	.btn:focus-visible {
+		outline-width: 2px;
+		outline-color: #000000;
 	}
 	.on {
 		background-color: #333333;

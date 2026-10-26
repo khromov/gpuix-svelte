@@ -43,7 +43,8 @@ every mount and hot reload.
 - Elements are GPUI's: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `markdown`,
   `virtual-list`, `anchored`. `<img src>` takes a file path, a `data:` URL or an http(s) URL, plus
   a width and a height.
-- Style with `<style>` class rules (`.btn`, `.btn.primary`, `.btn:hover`, `.btn:active`) and inline
+- Style with `<style>` class rules (`.btn`, `.btn.primary`, `.btn:hover`, `.btn:active`,
+  `.btn:focus-visible` with `outline-*` for the keyboard focus ring) and inline
   `style=`. Layout is flexbox in logical pixels: lengths in `px` or `rem` (16 px), and `%`/`auto` for `width`,
   `height`, `min-*` and `max-*`. Use `flex-grow: 1` for `flex: 1`, and `border-width` plus
   `border-color` for `border`. The styling page lists every property.
@@ -55,7 +56,12 @@ every mount and hot reload.
   children paint a background, and it receives their clicks. `onclick` is the primary button; right
   and middle clicks are `onauxclick`.
 - App-wide keyboard shortcuts: `on_window_key('keydown', handler)` from `gpuix-svelte`, returned
-  from an `$effect` so it unsubscribes.
+  from an `$effect` so it unsubscribes. Tab and Shift+Tab already move focus between `tabindex`
+  elements; don't wire them to `focus_next()`, and call `e.preventDefault()` in a key handler to
+  keep a Tab.
+- On GNOME under Wayland, which draws no title bar for the window, `render()` draws one (title,
+  minimise, maximise, close) and mounts the app in the box below it, which its `rootStyle` styles.
+  `render(App, { titlebar: false })` turns it off, `true` draws it everywhere.
 - Scrolling content goes in `Scroller` (`gpuix-svelte/components/Scroller.svelte`), which draws the
   scrollbar; modals, menus and toasts go in `Portal` (`gpuix-svelte/components/Portal.svelte`),
   which paints on top; hover tips and dropdowns that sit beside a trigger go in `Tooltip` and

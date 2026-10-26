@@ -6,7 +6,8 @@
 
 import type { PathPromptOptions } from '@gpuix/native';
 import { get_native, node_of, with_native_id } from './renderer.ts';
-import type { ShadowNode, WindowNative } from './types.ts';
+import { set_titlebar_title } from './titlebar.ts';
+import type { PixelFormat, ShadowNode, WindowNative } from './types.ts';
 import { createSubscriber } from 'svelte/reactivity';
 import {
 	observeWindowInsets,
@@ -26,7 +27,10 @@ type NodeRef = { nativeId?: number | null } | null | undefined;
 
 const win = () => get_native() as WindowNative | null;
 
-export const set_window_title = (title: string) => win()?.setWindowTitle?.(title);
+export function set_window_title(title: string) {
+	win()?.setWindowTitle?.(title);
+	set_titlebar_title(title);
+}
 
 /** Brings a window opened with `show: false` or `focus: false` forward. */
 export const activate_window = () => win()?.activateWindow?.();
@@ -78,10 +82,20 @@ export function set_image(node: NodeRef, bytes: Uint8Array) {
 	with_native_id(node, (id) => win()?.setImage?.(id, bytes));
 }
 
-/** Packed straight-alpha RGBA, scaled into the element's box like any image, so a 2× bitmap stays sharp on retina. */
-export function set_image_pixels(node: NodeRef, width: number, height: number, rgba: Uint8Array) {
-	with_native_id(node, (id) => win()?.setImagePixels?.(id, width, height, rgba));
+/** Packed straight-alpha pixels, scaled into the element's box like any image, so a 2× bitmap stays sharp on retina. */
+export function set_image_pixels(node: NodeRef, width: number, height: number, pixels: Uint8Array, format: PixelFormat = 'rgba') {
+	with_native_id(node, (id) => win()?.setImagePixels?.(id, width, height, pixels, format));
 }
+
+/**
+ * A TrueType or OpenType file (or collection), usable by `font-family` under the names it declares.
+ * Throws on a font GPUI can't use; the wasm build has no fonts to add to, so it does nothing there.
+ */
+export const register_font = (bytes: Uint8Array) => win()?.registerFont?.(bytes);
+
+/** The elements painted under a window point, topmost first, like the DOM's `elementsFromPoint`. */
+export const elements_at = (x: number, y: number): ShadowNode[] =>
+	(win()?.getElementsAt?.(x, y) ?? []).map(node_of).filter((n) => n !== null);
 
 const OVERLAY_MODES = new Set<string>(['hidden', 'minimal', 'full']);
 const warned_overlays = new Set<string>();

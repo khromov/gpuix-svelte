@@ -7,7 +7,16 @@ import { watch } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { render } from './render.ts';
-import type { RenderOptions } from './types.ts';
+import type { AnyComponent, RenderOptions } from './types.ts';
+
+// Set by `plugin.ts`, since Bun keys ES modules by path alone and the `?v=N` below reaches nothing there.
+const INVALIDATE = Symbol.for('gpuix-svelte.invalidate');
+
+/** The newest `url` and the components under it; `.svelte.ts` modules keep their single instance. */
+export async function import_fresh(url: URL, version: number): Promise<Record<string, unknown>> {
+	(globalThis as Record<symbol, (() => void) | undefined>)[INVALIDATE]?.();
+	return import(`${url.href}?v=${version}`);
+}
 
 /**
  * An in-process watch keeps one Svelte runtime for the life of the process, so the
@@ -22,7 +31,7 @@ export async function render_hot(entry: string | URL, options: RenderOptions = {
 	const path = fileURLToPath(url);
 
 	let version = 0;
-	const load = async () => (await import(`${url.href}?v=${++version}`)).default;
+	const load = async () => (await import_fresh(url, ++version)).default as AnyComponent;
 
 	render(await load(), options);
 

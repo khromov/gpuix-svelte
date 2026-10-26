@@ -43,8 +43,8 @@ work for class rules, which are translated the same way.
   `border-width` and `border-color`), `background: linear-gradient(...)` and `box-shadow`.
 - Unitless `line-height`: `line-height: 1.5` means 1.5 px, so give it a unit.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
-- Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`
-  and `:active`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
+- Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
+  `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
   compiler refuses them with a warning.
 - `transform`, `transition`, `z-index` and `letter-spacing` are ignored without a warning.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
@@ -61,20 +61,21 @@ keywords are recognised.
 - Layout: `display: flex | grid`; `flex-direction: row | column`;
   `flex-wrap: wrap | wrap-reverse | nowrap`; `flex-grow`, `flex-shrink`, `flex-basis`; `gap`,
   `row-gap`, `column-gap`.
-- Alignment: `align-items: center | start | end`;
+- Alignment: `align-items: center | start | end | stretch | baseline`;
   `align-self: center | start | end | stretch | baseline`;
   `align-content: center | start | end | space-between | space-around | space-evenly | stretch | normal`;
-  `justify-content: center | start | end | space-between | space-around`. The `flex-` prefixed
-  forms work too. `justify-content` has no `space-evenly`.
+  `justify-content: center | start | end | space-between | space-around | space-evenly`. The
+  `flex-` prefixed forms work too.
 - Sizing: `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` in px, `%` or
-  `auto`.
+  `auto`; `aspect-ratio` as a number or `16 / 9`.
 - Spacing: `padding`, `margin` and their four sides, with 1 to 4 value shorthands.
 - Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
 - Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` is treated
-  as `scroll`, and since GPUI paints no scrollbars the two behave the same.
+  as `scroll`, and the two behave the same.
 - Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
   `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value
-  shorthands.
+  shorthands; `border-style: solid | dashed`; `outline-width`, `outline-color`,
+  `outline-offset`.
 - Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
   `text-align: left | center | right | start`; `line-height` in px or rem;
   `white-space: nowrap | normal`; `text-overflow: ellipsis`;
@@ -82,7 +83,8 @@ keywords are recognised.
 - Visibility: `visibility: hidden` paints nothing, keeps the layout box and leaves the tab order.
 - Interaction: `cursor` with the CSS keyword set (`pointer`, `text`, `grab`, `grabbing`, `move`,
   `crosshair`, `not-allowed`, the `*-resize` family, `copy`, `alias`, `context-menu`, `default`);
-  `pointer-events: none | auto`; `user-select: none`; `:hover` and `:active` rules in `<style>`.
+  `pointer-events: none | auto`; `user-select: none`; `:hover`, `:active` and `:focus-visible`
+  rules in `<style>`, the last applying after keyboard focus only, like CSS.
 
 </details>
 
@@ -106,13 +108,27 @@ These are accepted, but they mean something different from what CSS would.
 - `hover="..."` and `active="..."` are attributes that take the same CSS text as `style` and apply
   while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
   `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
-  `.x:hover { color: #fff }`. When both exist, the attribute wins.
+  `.x:hover { color: #fff }`. When both exist, the attribute wins. `focus-visible="..."` is the
+  same for `:focus-visible`.
+- `scrollbar-color` makes GPUI paint a thumb on an `overflow: scroll` container or a
+  `<virtual-list>`, and `scrollbar-width` (in px, default 6) sizes it. There is no track, so of the
+  standard `thumb track` pair only the first colour applies. Without a colour GPUI paints no
+  scrollbar at all, and the thumb never takes the pointer.
+- A scroll area inside another one needs `pointer-events: auto`. GPUI scrolls every scroll
+  container under the pointer on each wheel event, inner and outer at once, so a list inside a
+  scrolling page moves a little while the page carries it away. An explicit `pointer-events: auto`
+  makes the inner one occlude what is behind it, so only it takes the wheel (there is no handing
+  over to the page at its ends, as `overscroll-behavior: contain` would do). Behind it, hover and
+  clicks stop too.
+- `keyboard-focus-dim: false` keeps an element at full opacity when the window has the dim on
+  (`render(App, { keyboardFocusDim: true })`, see the guide's focus section).
 - `selection-color` sets the colour of the text-selection highlight, the job CSS gives to
   `::selection`.
 - Mouse events never bubble, and an element that paints a background or is `position: absolute`
   blocks clicks to whatever is behind it. Put `hitbox="self"` on the clickable element, and clicks
   on its badges, icons and images pass straight through to it. Descendants that take input keep
-  their own hitbox: a child with its own handler, focusable elements (`tabindex` or `autofocus`),
+  their own hitbox: a child with its own handler (other than `onlayout`, `onscrollchange`,
+  `onmotioncomplete` and `onhighlight`, which take no pointer), focusable elements (`tabindex` or `autofocus`),
   scroll containers, and the input-taking elements (`input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list`, `anchored`, `canvas`). A `pointer-events` you set yourself still
   wins.

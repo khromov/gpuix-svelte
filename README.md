@@ -29,6 +29,11 @@ is. On Bun, run `bun create gpuix-svelte my-app`, then `cd my-app`, `bun install
 `bun run start`. Building a standalone executable (`npm run build`) needs [Bun](https://bun.com)
 whichever runtime you develop on.
 
+On Linux the binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11`. Desktop installs ship
+them, but a minimal container does not (`apt install libxcb1 libxkbcommon0 libxkbcommon-x11-0`).
+Both Wayland and X11 sessions work. GNOME under Wayland gives a gpuix window no title bar, so there
+`render()` draws a simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
+
 ## What it looks like
 
 ```svelte
@@ -76,7 +81,7 @@ native addons directly.
   warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
 - **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
-  with `:hover` and `:active`. Values GPUI can't use are dropped with a warning.
+  with `:hover`, `:active` and `:focus-visible`. Values GPUI can't use are dropped with a warning.
   → [docs/styling.md](docs/styling.md)
 - **Theming** is `var(--token)` in your styles plus one `set_css_vars({ token: '#fff' })` call.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
@@ -103,7 +108,7 @@ native addons directly.
 |---|---|
 | [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
 | [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
-| [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, window and desktop helpers, state that survives hot reload |
+| [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 
@@ -204,6 +209,7 @@ then the command):
 | `npm run demo:glass` | A translucent control center over macOS vibrancy (`demo:glass-ffi`: real Liquid Glass via FFI, macOS 26+) |
 | `npm run demo:styling` | Which CSS reaches GPUI and which is dropped, side by side |
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
+| `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 

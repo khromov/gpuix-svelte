@@ -18,7 +18,8 @@ import type {
 	NativeSink,
 	NodeKind,
 	ShadowNode,
-	WindowKeyType
+	WindowKeyType,
+	WindowNative
 } from './types.ts';
 
 /** Anything not listed here degrades to `div`. */
@@ -56,7 +57,7 @@ const UNIVERSAL_PROPS = new Set([
 ]);
 
 /** Attributes that feed `setStyle`; `class` does so through the component's `<style>` rules. */
-const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'class']);
+const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'focus-visible', 'class']);
 
 /** Attributes the renderer consumes itself; never forwarded as props. */
 const RENDERER_ATTRS = new Set(['hitbox', 'portal']);
@@ -66,6 +67,9 @@ const FOCUS_ATTRS = new Set(['tabIndex', 'tabindex', 'autoFocus', 'autofocus']);
 
 /** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
 const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
+
+/** Reports that need no pointer, so listening for one leaves a decorative element shielded. */
+const PASSIVE_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'highlight']);
 
 /** Always listen for focus/blur on these, so window key handlers can tell typing from a shortcut. */
 const TEXT_INPUTS = new Set(['input', 'textarea']);
@@ -129,6 +133,17 @@ const warned_tags = new Set<string>();
  * one pseudo node, never materialised, holds their listeners under that id.
  */
 const window_node = node('window' as NodeKind, 'window', '');
+
+/** Tab moves focus after every handler had its say, as `@gpuix/react` and `@gpuix/solid` do. */
+let tab_navigation = true;
+
+const KEY_EVENTS = new Set(['keyDown', 'keyUp', 'windowKeyDown', 'windowKeyUp']);
+
+type KeystrokeFlags = { id: number | undefined; prevented: boolean; stopped: boolean };
+
+// Native emits one keystroke's element events and then its window event back to back,
+// so only the latest keystroke needs flags.
+let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: false };
 
 /** scope class -> that component's `<style>` rules, weakest first (see compile.ts). */
 const stylesheets = new Map<string, ClassRule[]>();
@@ -273,7 +288,8 @@ function descends(n: ShadowNode, ancestor: ShadowNode) {
  * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
  */
 function shielded(el: ShadowNode, style: GpuiStyle) {
-	if (el.listeners.size > 0 || INTERACTIVE_TAGS.has(el.name)) return false;
+	if (INTERACTIVE_TAGS.has(el.name)) return false;
+	for (const event of el.listeners.keys()) if (!PASSIVE_EVENTS.has(event)) return false;
 	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
 	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
 	return hitbox_root(el) !== null;
@@ -640,14 +656,26 @@ export function set_native(instance: NativeSink) {
 
 	// The id map is new, so the window listeners need a fresh registration.
 	window_node.nativeId = null;
-	if (window_node.listeners.size > 0) sync_window_events();
+	if (window_node.listeners.size > 0 || tab_navigation) sync_window_events();
+}
+
+/** `render`'s `tabNavigation`: false leaves Tab to the app, as before native 0.11. */
+export function set_tab_navigation(enabled: boolean) {
+	if (enabled === tab_navigation) return;
+	tab_navigation = enabled;
+	if (native) sync_window_events();
+}
+
+/** Native 0.11's 40% dim of every other focusable while one has keyboard focus. */
+export function set_keyboard_focus_dim(enabled: boolean) {
+	emit(['setKeyboardFocusDim', enabled]);
 }
 
 function sync_window_events() {
 	if (window_node.nativeId === null) window_node.nativeId = ++next_id;
 	by_id.set(window_node.nativeId, window_node);
 	native?.setWindowKeyEvents?.(
-		window_node.listeners.has('windowKeyDown'),
+		tab_navigation || window_node.listeners.has('windowKeyDown'),
 		window_node.listeners.has('windowKeyUp'),
 		window_node.nativeId
 	);
@@ -690,8 +718,11 @@ export const get_native = (): Native | null => native as Native | null;
 
 export const node_of = (id: number | null | undefined): ShadowNode | null => (id == null ? null : (by_id.get(id) ?? null));
 
-/** `position: relative`, so a portal's `inset: 0` means the window. */
-export function create_root(style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' }): ShadowNode {
+/** `position: relative`, so a portal's `inset: 0` means the window; a `null` dim leaves native's flag as it is. */
+export function create_root(
+	style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' },
+	keyboard_focus_dim: boolean | null = false
+): ShadowNode {
 	const root = node('element', 'div', '');
 	root.nativeId = ++next_id;
 	root.live = true;
@@ -702,6 +733,7 @@ export function create_root(style: GpuiStyle = { display: 'flex', width: '100%',
 	emit(['createElement', root.nativeId, 'div']);
 	emit(['setStyle', root.nativeId, style]);
 	emit(['setRoot', root.nativeId]);
+	if (keyboard_focus_dim !== null) set_keyboard_focus_dim(keyboard_focus_dim);
 
 	return root;
 }
@@ -789,28 +821,54 @@ export function dispatch(payload: EventPayload) {
 		else if (payload.eventType === 'blur' && focused_input === target) focused_input = null;
 	}
 
+	const flags = KEY_EVENTS.has(payload.eventType) ? flags_for(payload) : null;
 	const handlers = target.listeners.get(payload.eventType);
-	if (!handlers || handlers.length === 0) return;
+	if (handlers && handlers.length > 0 && !flags?.stopped) {
+		let immediate = false;
+		const event: GpuixEvent = {
+			...payload,
+			type: payload.eventType,
+			target,
+			currentTarget: target,
+			editing: focused_input !== null,
+			defaultPrevented: flags?.prevented ?? false,
+			cancelBubble: false,
+			preventDefault() {
+				event.defaultPrevented = true;
+				if (flags) flags.prevented = true;
+			},
+			stopPropagation() {
+				event.cancelBubble = true;
+				if (flags) flags.stopped = true;
+			},
+			stopImmediatePropagation() {
+				event.stopPropagation();
+				immediate = true;
+			},
+			composedPath: () => []
+		};
 
-	const event: GpuixEvent = {
-		...payload,
-		type: payload.eventType,
-		target,
-		currentTarget: target,
-		editing: focused_input !== null,
-		defaultPrevented: false,
-		cancelBubble: false,
-		preventDefault() {
-			this.defaultPrevented = true;
-		},
-		stopPropagation() {
-			this.cancelBubble = true;
-		},
-		stopImmediatePropagation() {
-			this.cancelBubble = true;
-		},
-		composedPath: () => []
-	};
+		for (const handler of handlers.slice()) {
+			handler.call(target, event);
+			if (immediate) break;
+		}
+	}
 
-	for (const handler of handlers.slice()) handler.call(target, event);
+	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload);
+}
+
+/** A key event without an id is synthetic and never shares flags with another. */
+function flags_for(payload: EventPayload): KeystrokeFlags {
+	if (payload.keystrokeId == null) return { id: undefined, prevented: false, stopped: false };
+	if (keystroke.id !== payload.keystrokeId) keystroke = { id: payload.keystrokeId, prevented: false, stopped: false };
+	return keystroke;
+}
+
+/** Runs on the window event, which native sends after every element's, so any handler could have prevented it. */
+function key_default(payload: EventPayload) {
+	const modifiers = payload.modifiers;
+	if (!tab_navigation || payload.key !== 'tab' || modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	const host = native as WindowNative | null;
+	if (modifiers?.shift) host?.focusPrevious?.();
+	else host?.focusNext?.();
 }

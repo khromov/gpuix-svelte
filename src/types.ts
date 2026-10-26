@@ -43,16 +43,20 @@ export interface ShadowNode {
 	next: ShadowNode | null;
 }
 
-export type StyleValue = number | string;
+export type StyleValue = number | string | boolean;
 
-/** What `setStyle` ships: camelCase keys, bare-number lengths, `hover`/`active` nested. */
+/** `bgra` is GPUI's own order, so it skips the per-pixel swizzle `rgba` needs. */
+export type PixelFormat = 'rgba' | 'bgra';
+
+/** What `setStyle` ships: camelCase keys, bare-number lengths, `hover`/`active`/`focusVisible` nested. */
 export interface GpuiStyle {
 	[key: string]: StyleValue | GpuiStyle | undefined;
 	hover?: GpuiStyle;
 	active?: GpuiStyle;
+	focusVisible?: GpuiStyle;
 }
 
-export type Pseudo = 'hover' | 'active' | null;
+export type Pseudo = 'hover' | 'active' | 'focusVisible' | null;
 
 /**
  * One `<style>` rule's declarations. A block that reads a `var()` ships as CSS text
@@ -76,6 +80,7 @@ export type Mutation =
 	| ['setText', number, string]
 	| ['setEventListener', number, string, boolean]
 	| ['setRoot', number]
+	| ['setKeyboardFocusDim', boolean]
 	| ['setCustomProp', number, string, unknown];
 
 /** What a handler receives: the native payload plus the DOM-shaped fields Svelte and app code read. */
@@ -123,11 +128,13 @@ export type WindowNative = Partial<
 		| 'focusPrevious'
 		| 'focusNextWithin'
 		| 'focusPreviousWithin'
+		| 'getElementsAt'
 	>
 > & {
 	// napi's `Buffer` parameters take any Uint8Array, and the wasm build declares Uint8Array.
 	setImage?(elementId: number, bytes: Uint8Array): void;
-	setImagePixels?(elementId: number, width: number, height: number, pixels: Uint8Array): void;
+	setImagePixels?(elementId: number, width: number, height: number, pixels: Uint8Array, format?: PixelFormat): void;
+	registerFont?(data: Uint8Array): void;
 } & Partial<
 	Pick<
 		GpuixRenderer,
@@ -152,4 +159,14 @@ export interface RenderOptions extends WindowOptions {
 	onSelectionChange?: (event: GpuixEvent) => void;
 	/** GPUI's draw-time readout, top right; `GPUIX_FPS` outranks it. */
 	debugFrameOverlay?: DebugFrameOverlayMode;
+	/** Native 0.11's 40% dim of every other focusable while one has keyboard focus; off unless this is true. */
+	keyboardFocusDim?: boolean;
+	/** Tab and Shift+Tab move focus unless a key handler calls `preventDefault()`; false leaves Tab to the app. */
+	tabNavigation?: boolean;
+	/**
+	 * A title bar (title, minimise, maximise, close) above the app. The default `'auto'` draws it only on
+	 * GNOME under Wayland, which gives a GPUI window none; `false` never draws it and `true` always does.
+	 * It can't be dragged, since native has no window move.
+	 */
+	titlebar?: boolean | 'auto';
 }

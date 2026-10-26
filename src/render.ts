@@ -9,7 +9,7 @@ import type { DebugFrameOverlayMode } from '@gpuix/native/host';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
 	set_native,
-	create_root,
+	set_tab_navigation,
 	commit,
 	is_dirty,
 	dispatch,
@@ -19,6 +19,7 @@ import renderer, {
 	on_selection_change
 } from './renderer.ts';
 import { set_debug_overlay } from './window.ts';
+import { create_window_root, wants_titlebar } from './titlebar.ts';
 import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
 
 /**
@@ -39,6 +40,7 @@ interface Host {
 	loop: { stop(): void } | null;
 	keys: Array<() => void>;
 	overlay?: DebugFrameOverlayMode;
+	focus_dim?: boolean;
 }
 
 function host(): Host {
@@ -149,9 +151,36 @@ export function overlay_on_render(
 	return option === applied ? undefined : option;
 }
 
+/** The keyboard-focus dim to ship, or `null` to keep a runtime `set_keyboard_focus_dim` across a `render_hot` remount. */
+export function focus_dim_on_render(option: boolean | undefined, applied: boolean | undefined, created: boolean): boolean | null {
+	const enabled = option ?? false;
+	return created || enabled !== applied ? enabled : null;
+}
+
+/** Native 0.11 cannot close a window, so the title bar's close button ends the app the way closing its only window would. */
+function close(slot: Host) {
+	try {
+		if (slot.component) unmount(slot.component);
+	} finally {
+		globalThis.process?.exit?.(0);
+	}
+}
+
 /** Mounts a compiled `.svelte` component into the window, creating it on the first call. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
-	const { props = {}, rootStyle, onEvent, onKeyDown, onKeyUp, onSelectionChange, debugFrameOverlay, ...window_options } = options;
+	const {
+		props = {},
+		rootStyle,
+		onEvent,
+		onKeyDown,
+		onKeyUp,
+		onSelectionChange,
+		debugFrameOverlay,
+		keyboardFocusDim,
+		tabNavigation = true,
+		titlebar,
+		...window_options
+	} = options;
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -194,6 +223,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	}
 
 	set_native(slot.native);
+	set_tab_navigation(tabNavigation);
 
 	const overlay = overlay_on_render(env('GPUIX_FPS'), debugFrameOverlay, slot.overlay, created);
 	if (overlay) set_debug_overlay(overlay as DebugFrameOverlayMode);
@@ -205,16 +235,18 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (onKeyUp) slot.keys.push(on_window_key('keyup', onKeyUp));
 	if (onSelectionChange) slot.keys.push(on_selection_change(onSelectionChange));
 
-	const root = create_root(rootStyle);
+	const bar = wants_titlebar(titlebar, env) ? { title: window_options.title ?? '', on_close: () => close(slot) } : null;
+	const { root, target } = create_window_root(rootStyle, focus_dim_on_render(keyboardFocusDim, slot.focus_dim, created), bar);
+	slot.focus_dim = keyboardFocusDim ?? false;
 	// Queued after `setRoot`, so the tree is never rootless mid-batch — on
 	// Windows/Linux the UI thread paints without waiting for us.
 	if (retiring !== null) queue_destroy(retiring);
 	// A comment anchor, so `mount` doesn't append a stray text node of its own.
 	const anchor = renderer.createComment('');
-	renderer.insert(root, anchor, null);
+	renderer.insert(target, anchor, null);
 
 	slot.root = root;
-	const component = mount(Component, { renderer, target: root, anchor, props });
+	const component = mount(Component, { renderer, target, anchor, props });
 	slot.component = component;
 
 	flushSync();
