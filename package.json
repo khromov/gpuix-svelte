@@ -1,6 +1,6 @@
 {
 	"name": "gpuix-svelte",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Svelte custom renderer for GPUI (Zed's GPU-accelerated UI framework), via @gpuix/native",
 	"type": "module",
 	"license": "MIT",
