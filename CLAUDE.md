@@ -66,7 +66,8 @@ npm run test:smoke         # mount + click Counter headlessly
 npm run test:autocommit    # the microtask drain used where there is no frame loop
 npm run test:style         # CSS shorthand expansion, and what must never reach serde
 npm run test:teardown      # removal marks dirty, blank text demotes, listeners survive
-npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch
+npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch; when the focus
+                           # dim ships
 npm run test:compile       # the ?v=N cache-buster reaches every child specifier, and a reload
                            # picks up an edited child and root on the runtime running it
 npm run test:css           # <style> class rules: specificity, inline wins, :hover, class: toggles
@@ -79,7 +80,7 @@ npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
 npm run test:titlebar      # render's titlebar option through mount_headless: title, buttons, layout
                            # below the bar, rootStyle on the box below it, set_window_title, close
-                           # unmounts
+                           # unmounts once; and where wants_titlebar's 'auto' default draws it
 npm run test:tab           # Tab/Shift+Tab move focus, preventDefault keeps it, stopPropagation skips
                            # the ancestor and window handlers; ctrl-tab and tabNavigation: false
                            # leave focus alone

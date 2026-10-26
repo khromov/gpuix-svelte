@@ -31,7 +31,8 @@ whichever runtime you develop on.
 
 On Linux the binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11`. Desktop installs ship
 them, but a minimal container does not (`apt install libxcb1 libxkbcommon0 libxkbcommon-x11-0`).
-Both Wayland and X11 sessions work.
+Both Wayland and X11 sessions work. GNOME under Wayland gives a gpuix window no title bar, so there
+`render()` draws a simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
 
 ## What it looks like
 
@@ -107,7 +108,7 @@ native addons directly.
 |---|---|
 | [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
 | [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
-| [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, window and desktop helpers, state that survives hot reload |
+| [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 

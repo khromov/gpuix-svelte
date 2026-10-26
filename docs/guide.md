@@ -10,7 +10,8 @@ There is no `bind:` here, so inputs report through events, and the event carries
 ```
 
 To get hold of an element, use `{@attach (node) => …}` (or `use:`). To measure it,
-`get_native().getElementBounds(node.nativeId)` returns `{ x, y, width, height }`, and
+`get_native().getElementBounds(node.nativeId)` returns its border box (padding and border
+included) as `{ x, y, width, height }` in window coordinates, and
 `getScrollOffset(node.nativeId)` the scroll position of a scroll container.
 
 In a `<textarea>`, Enter inserts a newline unless the element has `onsubmit`. With `onsubmit`,
@@ -101,7 +102,7 @@ keyboard focus (not after a click), and `outline-width`, `outline-color` and `ou
 the ring outside its border. GPUI can also dim every other focusable element to 40% opacity while
 one has keyboard focus, which shows where Tab can go. gpuix-svelte leaves that off:
 `render(App, { keyboardFocusDim: true })` turns it on (and `mount_headless` takes the same option),
-`set_keyboard_focus_dim(enabled)` switches it at runtime, and `keyboard-focus-dim: false` in an
+`set_keyboard_focus_dim(enabled)` switches it at runtime (a hot reload keeps the switch), and `keyboard-focus-dim: false` in an
 element's style exempts it. That style is not inherited, so it goes on the focusable element
 itself.
 
@@ -180,7 +181,16 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
 
 Elements also take `onfiledrop`, for files dropped from the system's file manager. `e.paths` are
 absolute, and `e.x` / `e.y` is the drop point. `<virtual-list>` doesn't get it, so wrap a list in a
-`div` to take drops. `onmotioncomplete` fires when a `motion` track reaches its target. `role` and
+`div` to take drops. `onmotioncomplete` fires when a `motion` track reaches its target.
+
+`onlayout` reports an element's border box after its first paint and again whenever its size
+changes: `e.width` and `e.height`, with `e.x` / `e.y` in window coordinates. `onscrollchange`
+reports a scroll container's offset as `e.scrollX` / `e.scrollY` (0 at the start, negative as the
+content moves) after every scroll, including `scroll_into_view()` and `scrollTo`, where `onscroll`
+hears only wheel input. Neither one takes the pointer, so neither costs a `hitbox="self"` ancestor
+its clicks.
+
+`role` and
 the `aria-label`, `aria-description`, `aria-id`, `aria-expanded`, `aria-selected`,
 `aria-valuetext` and `aria-level` attributes reach VoiceOver and other accessibility clients
 through GPUI. A `<text>` is a label by default, and any other element needs a `role` to show up

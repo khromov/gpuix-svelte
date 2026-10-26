@@ -59,6 +59,9 @@ every mount and hot reload.
   from an `$effect` so it unsubscribes. Tab and Shift+Tab already move focus between `tabindex`
   elements; don't wire them to `focus_next()`, and call `e.preventDefault()` in a key handler to
   keep a Tab.
+- On GNOME under Wayland, which draws no title bar for the window, `render()` draws one (title,
+  minimise, maximise, close) and mounts the app in the box below it, which its `rootStyle` styles.
+  `render(App, { titlebar: false })` turns it off, `true` draws it everywhere.
 - Scrolling content goes in `Scroller` (`gpuix-svelte/components/Scroller.svelte`), which draws the
   scrollbar; modals, menus and toasts go in `Portal` (`gpuix-svelte/components/Portal.svelte`),
   which paints on top; hover tips and dropdowns that sit beside a trigger go in `Tooltip` and
