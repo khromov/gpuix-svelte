@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.0](https://github.com/khromov/gpuix-svelte/compare/v0.2.0...v0.3.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* Tab and Shift+Tab now move focus between tab stops once every key handler has run, and key events follow upstream's propagation rules. To migrate:
+    - If your app moves focus on Tab itself (an `on_window_key('keydown', …)` handler calling `focus_next()` / `focus_previous()`), delete that code, or Tab moves focus twice. To keep handling Tab yourself instead, pass `render(App, { tabNavigation: false })`, and `mount_headless(App, { tabNavigation: false })` in tests that press Tab.
+    - To keep a single Tab inside an element (to indent, say), call `e.preventDefault()` in its `onkeydown`.
+    - `e.stopPropagation()` in an `onkeydown` now also keeps that keystroke from the focusable ancestors' handlers and from `on_window_key` handlers. Remove the call where a window shortcut must still fire.
+    - Tab no longer types a tab character into `<input>` or `<textarea>`.
+    - `get_native().getElementBounds()` now reports the border box, padding and border included. Drop any offset that made up for the old content box.
+    - On Linux the native binding now loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11`. Desktops ship them; a minimal container needs `apt install libxcb1 libxkbcommon0 libxkbcommon-x11-0`.
+    - On GNOME under Wayland, `render()` now draws a 34px title bar above the app by default, and the app mounts in a box below it, which `rootStyle` styles. Pass `render(App, { titlebar: false })` to keep the bare window.
+
+### Features
+
+* `:focus-visible` rules and a `focus-visible="…"` attribute for keyboard focus styles, drawn with `outline-width`, `outline-color` and `outline-offset` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* `aspect-ratio`, `outline-*`, `scrollbar-color` / `scrollbar-width` (GPUI's own scrollbar), `border-style: dashed`, `align-items: stretch | baseline` and `justify-content: space-evenly` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* `onlayout` and `onscrollchange` events, and `<anchored fill="window">` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* `register_font(bytes)`, `elements_at(x, y)` and BGRA uploads through `set_image_pixels(node, w, h, pixels, 'bgra')` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* `render()` draws a title bar on GNOME under Wayland, which gives a GPUI window none: the title, minimise, maximise and close. It is the new `titlebar` option's default, `'auto'`; `false` turns it off and `true` draws it everywhere. It can't be dragged yet ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* **examples:** a native 0.11 demo of all of the above, `npm run demo:native-0.11` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* keyboard focus dim from native 0.11, off by default: `render(App, { keyboardFocusDim: true })` or `set_keyboard_focus_dim(true)` turns it on, and `keyboard-focus-dim: false` exempts an element ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* site ([#45](https://github.com/khromov/gpuix-svelte/issues/45)) ([8d48edd](https://github.com/khromov/gpuix-svelte/commit/8d48eddaa13a3af7895722369645928a1df30980))
+* Tab and Shift+Tab move focus by default, as in `@gpuix/react` and `@gpuix/solid` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+
+
+### Bug Fixes
+
+* `hover:`, `active:` and `focus-visible:` written as declarations, and `aspect-ratio` lengths, are dropped with a warning instead of failing the whole frame ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* `render_hot` reloads edited components on Bun again; Bun 1.4.4 ignores the `?v=N` cache-buster, so a save re-rendered the old code ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* **examples:** the wheel scrolls a list nested in a scrolling page; GPUI scrolls every scroll area under the pointer, so give the inner one `pointer-events: auto` ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* open the window under X11 on Linux, not only under Wayland, by moving to `@gpuix/native` 0.11 ([#46](https://github.com/khromov/gpuix-svelte/issues/46)) ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+* **test:** `focus()` and `unfocus()` fire `focus` and `blur` once each, now that the headless renderer reports them itself ([#49](https://github.com/khromov/gpuix-svelte/issues/49)) ([d103a6e](https://github.com/khromov/gpuix-svelte/commit/d103a6efe4b0497061468c92628add536ee25e52))
+
 ## [0.2.0](https://github.com/khromov/gpuix-svelte/compare/v0.1.1...v0.2.0) (2026-10-13)
 
 

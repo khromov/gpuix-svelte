@@ -1,6 +1,6 @@
 {
 	"name": "create-gpuix-svelte",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Scaffold a gpuix-svelte app: Svelte components in a native GPUI window",
 	"type": "module",
 	"license": "MIT",
