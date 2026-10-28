@@ -26,6 +26,7 @@ const PAGES = [
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
+	{ source: 'docs/embedding.md', name: 'embedding', nav: 'Embedding', about: 'mounting a Svelte component inside a Rust GPUI app that owns the window: the gpuix-svelte-embed crate, gpuix-svelte/embed, host calls and events' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
 type Page = (typeof PAGES)[number];

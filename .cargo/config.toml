@@ -1,0 +1,4 @@
+# gpui and the zed crates are the bulk of the build and identical to the fork's, so
+# sharing its target dir means a build of one warms the other.
+[build]
+target-dir = "../gpuix/packages/native/target"

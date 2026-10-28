@@ -1,0 +1,4 @@
+[toolchain]
+# The gpuix fork's pin, which in turn is zed's for the gpui revision it vendors.
+channel = "1.97.1"
+profile = "minimal"

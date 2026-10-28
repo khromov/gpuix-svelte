@@ -111,6 +111,7 @@ native addons directly.
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
+| [Embedding](docs/embedding.md) | The other way around: a Svelte component inside a Rust GPUI app that owns the window, with calls and events between them |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)).
 

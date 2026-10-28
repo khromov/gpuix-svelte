@@ -1,0 +1,20 @@
+[package]
+name = "gpuix-svelte-embed"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Mount a Svelte component, running in a Bun sidecar, inside a GPUI app you own"
+license = "MIT"
+
+[dependencies]
+# The fork's feat/embed branch, checked out beside this repo, until it lands upstream.
+# Its gpui comes from the zed submodule in that checkout, so this crate must share it.
+gpuix-native = { path = "../../../gpuix/packages/native" }
+gpui = { path = "../../../gpuix/zed/crates/gpui", default-features = false }
+serde = "1"
+serde_json = "1"
+futures = "0.3"
+log = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
