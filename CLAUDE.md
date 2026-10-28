@@ -102,8 +102,8 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:embed         # gpuix-svelte/embed against a host written in TS: batches answered over
-                           # the FIFO, props, host.call both ways, a bounds query, a click by id,
-                           # exit on EOF; skips on Windows (no FIFO)
+                           # the FIFO (a named pipe on Windows), props, host.call both ways, a
+                           # bounds query, a click by id, exit on EOF
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
@@ -305,7 +305,7 @@ embeddable library, so the slot is a **sidecar**: `crates/gpuix-svelte-embed`'s 
 spawns `bun` on an entry that calls `embed()` from `src/embed.ts` (`gpuix-svelte/embed`), and
 the two speak the renderer's own contract over pipes, one `<kind> <id> <json>` line per message.
 Batches (the `applyBatch` JSON, unchanged) go up stdout; `embed.ts` reads their answer, the
-destroyed ids the renderer purges by, with a blocking `readSync` on a FIFO whose path the host
+destroyed ids the renderer purges by, with a blocking `readSync` on a FIFO (on Windows a named pipe) whose path the host
 passes as `GPUIX_EMBED_REPLY`, which keeps `NativeSink.applyBatch` synchronous without touching
 `renderer.ts`. Events, props, host events and call replies come down stdin. `embed.ts` never
 imports `@gpuix/native` (type imports only), so a slot's component needs no addon and a
@@ -319,8 +319,11 @@ batch under the tree mutex and answers on the FIFO, then a foreground `cx.spawn`
 the view, runs `on_call` handlers with the slot's `Context`, and answers `query` messages
 (`bounds` → `painted_bounds`, which reads the thread-local map and so must run on the UI
 thread). Dropping the entity closes stdin, which is the sidecar's cue to unmount and exit; a
-reaper thread kills it after 2 s. It is Unix-only (`mkfifo`), and window key events, selection
-change and the scroll reads `Scroller` makes are not forwarded yet (`Wire` returns `null`).
+reaper thread kills it after 2 s. On Windows the reply channel is a one-instance outbound named
+pipe (`CreateNamedPipeW`), and the reader thread `ConnectNamedPipe`s it on the sidecar's first
+line, which comes only after the sidecar has opened its end, so a sidecar that dies early cannot
+hang it. Window key events, selection change and the scroll reads `Scroller` makes are not
+forwarded yet (`Wire` returns `null`).
 
 Three things about building it. `gpuix-native` is an rlib upstream already, but the crate needs
 four small changes that live on the fork's `feat/embed` branch (branched from upstream main, to
@@ -333,7 +336,8 @@ of Zed) and `.cargo/config.toml` shares the fork's `target/`, so a build here ne
 on that branch. The napi bindings compile in with the rlib and reference `napi_*` symbols only
 Node provides; `examples/rust-host/build.rs` links the binary with them unresolved
 (`-undefined dynamic_lookup` on macOS, `--unresolved-symbols=ignore-all` on Linux, untested
-there), and a host app needs the same. On this machine `xcode-select -p` is the Command Line
+there), and a host app needs the same; on Windows napi-sys resolves them at runtime, so MSVC links
+without either. On this machine `xcode-select -p` is the Command Line
 Tools, which lack the `metal` shader compiler gpui_apple's build script runs, so cargo needs
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. `test:embed` covers the JS half with
 a host written in TS and needs none of this; the Rust half has no CI (the fork + submodule +

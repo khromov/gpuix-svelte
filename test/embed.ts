@@ -1,6 +1,7 @@
 /**
  * The sidecar half of embedding, driven by a host written here instead of in Rust:
- * batches arrive on stdout and are answered through the FIFO, props re-render
+ * batches arrive on stdout and are answered through the FIFO (a named pipe on
+ * Windows), props re-render
  * through `$props()`, a host event reaches `host.on`, `host.call` round-trips a
  * reply and a rejection, a bounds query is answered synchronously, a click
  * dispatches by id, and EOF on stdin exits cleanly.
@@ -8,26 +9,62 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, mkdtempSync, openSync, rmSync, writeSync } from 'node:fs';
+import { createServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { check, finish } from 'gpuix-svelte/test';
 import type { Mutation } from 'gpuix-svelte';
 
-if (process.platform === 'win32') {
-	console.log('embed: skipped, the host answers through a FIFO and Windows has none yet');
-	process.exit(0);
+const ID_BASE = 2 ** 32;
+const windows = process.platform === 'win32';
+
+interface ReplyPipe {
+	path: string;
+	write(line: string): void;
+	close(): void;
 }
 
-const ID_BASE = 2 ** 32;
-const dir = mkdtempSync(join(tmpdir(), 'gpuix-svelte-embed-'));
-const fifo = join(dir, 'reply.fifo');
-execFileSync('mkfifo', [fifo]);
-// Read+write, so opening never waits for the sidecar, which opens its end read-only.
-const reply = openSync(fifo, 'r+');
+function open_fifo(): ReplyPipe {
+	const dir = mkdtempSync(join(tmpdir(), 'gpuix-svelte-embed-'));
+	const path = join(dir, 'reply.fifo');
+	execFileSync('mkfifo', [path]);
+	// Read+write, so opening never waits for the sidecar, which opens its end read-only.
+	const fd = openSync(path, 'r+');
+	return {
+		path,
+		write: (line) => writeSync(fd, line),
+		close() {
+			closeSync(fd);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+}
+
+async function open_named_pipe(): Promise<ReplyPipe> {
+	const path = `\\\\.\\pipe\\gpuix-svelte-embed-test-${process.pid}`;
+	let socket: Socket | undefined;
+	// The sidecar can write its first batch to stdout before this side sees the connection.
+	const queued: string[] = [];
+	const server = createServer((connection) => {
+		socket = connection;
+		for (const line of queued.splice(0)) socket.write(line);
+	});
+	await new Promise<void>((resolve) => server.listen(path, resolve));
+	return {
+		path,
+		write: (line) => (socket ? socket.write(line) : queued.push(line)),
+		close() {
+			socket?.destroy();
+			server.close();
+		}
+	};
+}
+
+const reply = windows ? await open_named_pipe() : open_fifo();
 
 const child = spawn(process.execPath, ['bin/gpuix-svelte.js', 'test/embed/entry.ts'], {
 	stdio: ['pipe', 'pipe', 'inherit'],
-	env: { ...process.env, GPUIX_EMBED: '1', GPUIX_EMBED_REPLY: fifo, GPUIX_EMBED_ID_BASE: String(ID_BASE) }
+	env: { ...process.env, GPUIX_EMBED: '1', GPUIX_EMBED_REPLY: reply.path, GPUIX_EMBED_ID_BASE: String(ID_BASE) }
 });
 
 const mutations: Mutation[] = [];
@@ -36,7 +73,7 @@ const queries: Array<{ id: number; q: string; args: unknown[] }> = [];
 let batches = 0;
 
 const send = (kind: string, id: number, body: unknown) => child.stdin.write(`${kind} ${id} ${JSON.stringify(body)}\n`);
-const answer = (status: 'ok' | 'err', id: number, body: unknown) => writeSync(reply, `${status} ${id} ${JSON.stringify(body)}\n`);
+const answer = (status: 'ok' | 'err', id: number, body: unknown) => reply.write(`${status} ${id} ${JSON.stringify(body)}\n`);
 
 let buffer = '';
 child.stdout.setEncoding('utf8');
@@ -112,8 +149,7 @@ try {
 	check('EOF on stdin exits cleanly', await exited, 0);
 } finally {
 	child.kill();
-	closeSync(reply);
-	rmSync(dir, { recursive: true, force: true });
+	reply.close();
 }
 
 finish('embed', 8);

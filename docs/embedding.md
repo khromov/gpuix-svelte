@@ -9,7 +9,7 @@ plugin a user wrote without recompiling your binary. The
 view like any other, and [`gpuix-svelte/embed`](../src/embed.ts) gives the component the host it
 runs in.
 
-It is a prototype: the API is small and will move, it is Unix-only, and it depends on three small
+It is a prototype: the API is small and will move, and it depends on three small
 changes to `@gpuix/native` that are not upstream yet (see [Status](#status)).
 
 ## How it works
@@ -200,8 +200,9 @@ For a host in another language, or a sidecar that is not Bun: one message per li
 | host → sidecar | `emit` | `{"name":"...","data":...}` | |
 | host → sidecar | EOF | | unmounts and exits |
 
-The renderer needs a batch's answer before it continues, so the host opens a FIFO, passes its
-path as `GPUIX_EMBED_REPLY`, and the sidecar reads answers from it with a blocking read. The host
+The renderer needs a batch's answer before it continues, so the host opens a FIFO (on Windows an
+outbound named pipe, `\\.\pipe\...`, which the sidecar opens read-only), passes its path as
+`GPUIX_EMBED_REPLY`, and the sidecar reads answers from it with a blocking read. The host
 also sets `GPUIX_EMBED=1` and `GPUIX_EMBED_ID_BASE`: each slot numbers its elements from its own
 2^32 range, because the bounds GPUI records at paint time are keyed by element id for the whole
 process. [`test/embed.ts`](../test/embed.ts) is a host written in TypeScript against this table, and
@@ -209,7 +210,6 @@ is what `npm test` runs.
 
 ## Status
 
-- Unix only. The answers travel through a FIFO; Windows needs a named pipe, which is not written.
 - The three `@gpuix/native` changes the crate needs are on the fork's `feat/embed` branch and
   small: `GpuixView` and its constructor become public, its window title becomes optional so an
   embedded view never renames the host's window, `EventPayload` serializes on desktop targets, and

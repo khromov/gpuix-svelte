@@ -8,13 +8,13 @@
 //! The wire is one JSON line per message, `<kind> <id> <json>`: batches, queries
 //! and host calls come up the sidecar's stdout, events, props, host events and call
 //! replies go down its stdin, and the answers to batches and queries, which the
-//! renderer needs synchronously, go through a FIFO the sidecar blocks on.
+//! renderer needs synchronously, go through a FIFO (a named pipe on Windows) the
+//! sidecar blocks on.
 
 use std::collections::HashMap;
-use std::ffi::CString;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender};
@@ -120,12 +120,7 @@ impl SvelteSlot {
             io::Error::new(io::ErrorKind::InvalidInput, "SlotOptions::command is empty")
         })?;
 
-        let reply_path = std::env::temp_dir().join(format!(
-            "gpuix-svelte-embed-{}-{index}.fifo",
-            std::process::id()
-        ));
-        // Opened read+write so this open never waits for the sidecar, which opens
-        // its end read-only and blocks on it for each answer.
+        let reply_path = reply_path(index);
         let reply = open_fifo(&reply_path)?;
 
         let mut command = Command::new(program);
@@ -340,8 +335,17 @@ fn read_sidecar(
     tree: Arc<Mutex<RetainedTree>>,
     tx: UnboundedSender<Msg>,
 ) {
+    let mut connected = false;
     for line in BufReader::new(stdout).lines() {
         let Ok(line) = line else { break };
+        // The sidecar opens the reply pipe before it writes anything, so waiting for it here never hangs.
+        if !connected {
+            if let Err(error) = accept_sidecar(&reply) {
+                log::error!("gpuix-svelte-embed: the sidecar never opened the reply pipe: {error}");
+                break;
+            }
+            connected = true;
+        }
         let Some((kind, id, body)) = parse_frame(&line) else {
             log::warn!("gpuix-svelte-embed: unparseable line from the sidecar: {line}");
             continue;
@@ -419,9 +423,19 @@ fn answer_query(query: &str, args: &Value) -> Result<Value, String> {
 }
 
 #[cfg(unix)]
-fn open_fifo(path: &std::path::Path) -> io::Result<File> {
+fn reply_path(index: u64) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "gpuix-svelte-embed-{}-{index}.fifo",
+        std::process::id()
+    ))
+}
+
+/// Opened read+write so this open never waits for the sidecar, which opens its
+/// end read-only and blocks on it for each answer.
+#[cfg(unix)]
+fn open_fifo(path: &Path) -> io::Result<File> {
     let _ = std::fs::remove_file(path);
-    let c_path = CString::new(path.as_os_str().as_encoded_bytes())
+    let c_path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "fifo path has a NUL"))?;
     // SAFETY: a plain libc call on a NUL-terminated path that outlives it.
     if unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) } != 0 {
@@ -430,11 +444,69 @@ fn open_fifo(path: &std::path::Path) -> io::Result<File> {
     File::options().read(true).write(true).open(path)
 }
 
-#[cfg(not(unix))]
-fn open_fifo(_path: &std::path::Path) -> io::Result<File> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "gpuix-svelte-embed answers the sidecar through a FIFO; \
-         Windows needs a named pipe, which is not written yet",
+#[cfg(unix)]
+fn accept_sidecar(_reply: &File) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn reply_path(index: u64) -> PathBuf {
+    PathBuf::from(format!(
+        r"\\.\pipe\gpuix-svelte-embed-{}-{index}",
+        std::process::id()
     ))
+}
+
+/// The server end of a one-instance, outbound, byte-mode named pipe; the
+/// sidecar's `openSync(path, 'r')` is its only client.
+#[cfg(windows)]
+fn open_fifo(path: &Path) -> io::Result<File> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::FromRawHandle;
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_OUTBOUND,
+    };
+    use windows_sys::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    };
+
+    let name: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: a NUL-terminated name that outlives the call, and no security attributes.
+    let handle = unsafe {
+        CreateNamedPipeW(
+            name.as_ptr(),
+            PIPE_ACCESS_OUTBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1,
+            64 * 1024,
+            0,
+            0,
+            std::ptr::null(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a handle CreateNamedPipeW just returned, owned by nothing else.
+    Ok(unsafe { File::from_raw_handle(handle as _) })
+}
+
+/// Waits for the sidecar to open its end; one that already has is not an error.
+#[cfg(windows)]
+fn accept_sidecar(reply: &File) -> io::Result<()> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::ERROR_PIPE_CONNECTED;
+    use windows_sys::Win32::System::Pipes::ConnectNamedPipe;
+
+    // SAFETY: a valid pipe handle opened without FILE_FLAG_OVERLAPPED, so no OVERLAPPED is needed.
+    if unsafe { ConnectNamedPipe(reply.as_raw_handle() as _, std::ptr::null_mut()) } != 0 {
+        return Ok(());
+    }
+    let error = io::Error::last_os_error();
+    if error.raw_os_error() == Some(ERROR_PIPE_CONNECTED as i32) {
+        Ok(())
+    } else {
+        Err(error)
+    }
 }

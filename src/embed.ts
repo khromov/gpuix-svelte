@@ -1,9 +1,10 @@
 /**
  * The sidecar half of embedding: a Rust app that owns the window (the
  * `gpuix-svelte-embed` crate) spawns this process with `GPUIX_EMBED=1`, takes the
- * renderer's batches off stdout, answers them through a FIFO, and sends events,
- * props and host events down stdin. Nothing here loads `@gpuix/native`, so a
- * component meant for a slot is plain JS and needs no prebuilt addon.
+ * renderer's batches off stdout, answers them through a FIFO (a named pipe on
+ * Windows), and sends events, props and host events down stdin. Nothing here
+ * loads `@gpuix/native`, so a component meant for a slot is plain JS and needs
+ * no prebuilt addon.
  *
  * One message per line, `<kind> <id> <json>`, in both directions.
  */
@@ -114,7 +115,7 @@ function write_all(fd: number, text: string) {
 	}
 }
 
-/** Reads answers off the FIFO, one blocking line at a time, in request order. */
+/** Reads answers off the FIFO or named pipe, one blocking line at a time, in request order. */
 class Replies {
 	#fd: number;
 	#buffer = '';
