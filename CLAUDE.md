@@ -55,9 +55,9 @@ npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU bui
                            # --production for the minified/production-Svelte bundle, --build-only
                            # to skip serving. BUN ONLY. See "Rendering to the web"
 npm run demo:embed         # cargo run of examples/rust-host: a Rust gpui app that owns the window
-                           # and mounts Widget.svelte through crates/gpuix-svelte-embed and a Bun
-                           # sidecar. Needs the gpuix fork at ../gpuix on feat/embed; see
-                           # "Embedding in a Rust app"
+                           # and mounts Widget.svelte twice, side by side, through
+                           # crates/gpuix-svelte-embed, one Bun sidecar each. Needs the gpuix fork
+                           # at ../gpuix on feat/embed; see "Embedding in a Rust app"
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram beside highlighted source and the same component
                            # running live, with a quiz. Prose is examples/tutorial/content/*.md, the

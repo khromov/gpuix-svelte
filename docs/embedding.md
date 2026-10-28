@@ -164,10 +164,14 @@ embed(Widget);
 ## The demo
 
 [`examples/rust-host`](../examples/rust-host) is a gpui app with a native toolbar and status line
-above a `SvelteSlot` running [`Widget.svelte`](../examples/rust-host/Widget.svelte). The toolbar's
-buttons push new props (a ping counter and a theme the widget reads for its palette) and mount or
-unmount the slot; the host emits a `tick` every second that the widget shows; the widget's
-`host.call('notify', text)` lands in the host's status line and resolves with the host's uptime.
+above two `SvelteSlot`s, each running [`Widget.svelte`](../examples/rust-host/Widget.svelte) in a
+sidecar of its own, so their counters and state never touch. The orange frames are drawn by the
+host; everything inside one is the sidecar's. The toolbar's buttons push new props (a ping counter
+and a theme the widgets read for their palette) and mount or unmount both slots; the host emits a
+`tick` every second that the widgets show; a widget's `host.call('notify', text)` lands in the
+host's status line, named after the slot it came from, and resolves with the host's uptime.
+
+![The demo: a native toolbar and status line over two framed Svelte slots](assets/embedding.png)
 
 ```bash
 npm run demo:embed      # cargo run -p gpuix-svelte-rust-host

@@ -55,6 +55,8 @@ function rewrite(href: string, from: string, as: 'html' | 'md') {
 	const target = posix.normalize(posix.join(posix.dirname(from), path)).replace(/\/$/, '');
 	const page = PAGES.find((p) => p.source === target);
 	if (page) return as === 'html' ? `${page.name}.html${anchor}` : `${SITE}${page.name}.md${anchor}`;
+	// An image has to resolve to the file itself, not to GitHub's page about it.
+	if (/\.(png|jpe?g|gif|svg|webp)$/i.test(target)) return `${REPO.replace('github.com', 'raw.githubusercontent.com')}/main/${target}`;
 	return `${REPO}/blob/main/${target}${anchor}`;
 }
 

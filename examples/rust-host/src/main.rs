@@ -1,5 +1,6 @@
-//! A Rust GPUI app that owns the window and mounts `Widget.svelte` into the area
-//! under its own toolbar. The toolbar is plain gpui; the slot is a `SvelteSlot`.
+//! A Rust GPUI app that owns the window and mounts `Widget.svelte` twice, side by
+//! side under its own toolbar: one sidecar and one component instance per slot, so
+//! the two share nothing. The toolbar is plain gpui; each slot is a `SvelteSlot`.
 //! Run it with `npm run demo:embed` from the repository root.
 
 use std::time::{Duration, Instant};
@@ -12,9 +13,10 @@ use gpuix_svelte_embed::{SlotOptions, SvelteSlot};
 use serde_json::{json, Value};
 
 const REPO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+const SLOTS: [&str; 2] = ["left", "right"];
 
 struct Host {
-    slot: Option<Entity<SvelteSlot>>,
+    slots: Vec<Option<Entity<SvelteSlot>>>,
     started: Instant,
     pings: u32,
     dark: bool,
@@ -24,26 +26,33 @@ struct Host {
 impl Host {
     fn new(cx: &mut Context<Self>) -> Self {
         let mut host = Self {
-            slot: None,
+            slots: vec![None; SLOTS.len()],
             started: Instant::now(),
             pings: 0,
             dark: true,
             last_call: "nothing yet".into(),
         };
-        host.mount(cx);
+        host.mount_all(cx);
         host
     }
 
-    fn props(&self) -> Value {
+    fn props(&self, index: usize) -> Value {
         json!({
-            "user": "andre",
+            "user": SLOTS[index],
             "theme": if self.dark { "dark" } else { "light" },
             "pings": self.pings,
         })
     }
 
-    fn mount(&mut self, cx: &mut Context<Self>) {
-        let options = SlotOptions::bun("examples/rust-host/widget.ts", REPO).props(self.props());
+    fn mount_all(&mut self, cx: &mut Context<Self>) {
+        for index in 0..SLOTS.len() {
+            self.mount(index, cx);
+        }
+    }
+
+    fn mount(&mut self, index: usize, cx: &mut Context<Self>) {
+        let options =
+            SlotOptions::bun("examples/rust-host/widget.ts", REPO).props(self.props(index));
         let slot = match SvelteSlot::spawn(options, cx) {
             Ok(slot) => slot,
             Err(error) => {
@@ -57,26 +66,28 @@ impl Host {
             slot.on_call("notify", move |args, cx| {
                 let text = args[0].as_str().unwrap_or("").to_string();
                 host.update(cx, |host, cx| {
-                    host.last_call = text.into();
+                    host.last_call = format!("{} slot: {text}", SLOTS[index]).into();
                     cx.notify();
                     json!({ "uptime": host.started.elapsed().as_secs() })
                 })
                 .map_err(|error| error.to_string())
             });
         });
-        self.slot = Some(slot);
+        self.slots[index] = Some(slot);
     }
 
     fn tick(&mut self, cx: &mut Context<Self>) {
-        if let Some(slot) = &self.slot {
-            slot.read(cx)
-                .emit("tick", json!({ "uptime": self.started.elapsed().as_secs() }));
+        let uptime = self.started.elapsed().as_secs();
+        for slot in self.slots.iter().flatten() {
+            slot.read(cx).emit("tick", json!({ "uptime": uptime }));
         }
     }
 
     fn push_props(&self, cx: &mut Context<Self>) {
-        if let Some(slot) = &self.slot {
-            slot.read(cx).set_props(self.props());
+        for (index, slot) in self.slots.iter().enumerate() {
+            if let Some(slot) = slot {
+                slot.read(cx).set_props(self.props(index));
+            }
         }
     }
 }
@@ -101,11 +112,13 @@ fn button(
 
 impl Render for Host {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let mounted = self.slot.is_some();
+        let mounted = self.slots.iter().any(Option::is_some);
         let running = self
-            .slot
-            .as_ref()
-            .is_some_and(|slot| slot.read(cx).is_running());
+            .slots
+            .iter()
+            .flatten()
+            .filter(|slot| slot.read(cx).is_running())
+            .count();
         let toolbar = div()
             .flex()
             .items_center()
@@ -116,11 +129,15 @@ impl Render for Host {
             .border_b_1()
             .border_color(rgb(0x313244))
             .text_color(rgb(0xcdd6f4))
-            .child(div().font_weight(gpui::FontWeight::BOLD).child("Rust host (gpui)"))
+            .child(
+                div()
+                    .font_weight(gpui::FontWeight::BOLD)
+                    .child("Rust host (gpui): this toolbar and the status line are native"),
+            )
             .child(div().flex_1())
             .child(button(
                 "ping",
-                "Ping the component",
+                "Ping the components",
                 cx.listener(|this, _, _, cx| {
                     this.pings += 1;
                     this.push_props(cx);
@@ -138,12 +155,13 @@ impl Render for Host {
             ))
             .child(button(
                 "mount",
-                if mounted { "Unmount" } else { "Mount" },
+                if mounted { "Unmount both" } else { "Mount both" },
                 cx.listener(|this, _, _, cx| {
-                    // Dropping the entity ends the sidecar; a new one starts fresh.
-                    if this.slot.take().is_none() {
-                        this.mount(cx);
+                    // Dropping the entities ends the sidecars; new ones start fresh.
+                    if this.slots.iter_mut().any(|slot| slot.take().is_some()) {
+                        return cx.notify();
                     }
+                    this.mount_all(cx);
                     cx.notify();
                 }),
             ));
@@ -156,25 +174,46 @@ impl Render for Host {
             .bg(rgb(0x1e1e2e))
             .text_sm()
             .text_color(rgb(0xa6adc8))
-            .child(format!(
-                "sidecar: {}",
-                match (mounted, running) {
-                    (false, _) => "not mounted",
-                    (true, true) => "running",
-                    (true, false) => "exited",
-                }
-            ))
+            .child(format!("sidecars running: {running} of {}", SLOTS.len()))
             .child(format!("last host.call('notify'): {}", self.last_call));
-        let body = div().flex_1().min_h_0();
-        let body = match &self.slot {
-            Some(slot) => body.child(slot.clone()),
-            None => body
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(rgb(0x6c7086))
-                .child("Nothing mounted. Press Mount."),
-        };
+        let mut body = div().flex().flex_1().min_h_0().gap_3().p_3();
+        for (index, slot) in self.slots.iter().enumerate() {
+            // The orange frame is the host's: everything inside it is the sidecar's.
+            let frame = div()
+                .flex_1()
+                .min_h_0()
+                .rounded_md()
+                .border_2()
+                .border_color(rgb(0xfab387))
+                .overflow_hidden();
+            let frame = match slot {
+                Some(slot) => frame.child(slot.clone()),
+                None => frame
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(rgb(0x6c7086))
+                    .child("nothing mounted"),
+            };
+            body = body.child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(rgb(0xfab387))
+                            .child(format!(
+                                "↓ Svelte: Widget.svelte in the \"{}\" slot, its own bun sidecar",
+                                SLOTS[index]
+                            )),
+                    )
+                    .child(frame),
+            );
+        }
         div()
             .flex()
             .flex_col()
@@ -192,7 +231,7 @@ fn main() {
         .with_quit_mode(gpui::QuitMode::LastWindowClosed)
         .run(|cx: &mut App| {
             gpuix_svelte_embed::init(cx);
-            let bounds = Bounds::centered(None, size(px(900.), px(600.)), cx);
+            let bounds = Bounds::centered(None, size(px(1100.), px(600.)), cx);
             let window = cx
                 .open_window(
                     WindowOptions {
@@ -210,7 +249,7 @@ fn main() {
             let host = window
                 .update(cx, |_, _, cx| cx.weak_entity())
                 .expect("the window is open");
-            // A host-side clock the component subscribes to with `host.on('tick')`.
+            // A host-side clock the components subscribe to with `host.on('tick')`.
             cx.spawn(async move |cx| loop {
                 cx.background_executor()
                     .timer(Duration::from_secs(1))
