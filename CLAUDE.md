@@ -194,8 +194,8 @@ shipped yet and native throws `GenericFailure`.
 CI (`.github/workflows/test.yml`): `npm test` on macOS and Windows × Node 24 and 26, `npm run
 bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS × Node 24 and 26, `compile` on
 all three OSes (build only, never launched), and a Linux job that can only run `typecheck`, `lint`,
-a `npm pack --dry-run` of the scaffolder and a check that the binding loads (see the
-`@gpuix/native` constraint). `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
+a `npm pack --dry-run` of the scaffolder, a check that the binding loads (see the
+`@gpuix/native` constraint) and `test:embed` / `bun:test:embed`, which need no renderer. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
