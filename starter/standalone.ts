@@ -6,5 +6,10 @@ import App from './App.svelte';
 render(App, {
 	title: 'gpuix-svelte starter',
 	width: 640,
-	height: 480
+	height: 480,
+	// What `npm run build` packages the executable as; the window itself ignores it.
+	app: {
+		identifier: 'com.example.gpuix-svelte-starter',
+		icon: './icon.png'
+	}
 });

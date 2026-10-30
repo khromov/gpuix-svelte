@@ -8,7 +8,7 @@ npm install          # gpuix-svelte brings its own Svelte build
 npm start            # opens the window; edit App.svelte and save to hot-reload
 npm test             # headless: mounts App.svelte, clicks through GPUI's real hit testing
 npm run typecheck    # tsc --noEmit, then svelte-check over App.svelte against GPUI's element types
-npm run build        # dist/app (dist/app.exe on Windows), one executable for this platform; needs Bun
+npm run build        # the app for this platform: a .app on macOS, an .exe on Windows, a binary on Linux; needs Bun
 ```
 
 Every script runs through the `gpuix-svelte` bin, which starts Node (or Bun, under
@@ -28,9 +28,12 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
 - `App.svelte` — the component. Styling is a `<style>` block of class rules; see
   [docs/styling.md](https://github.com/khromov/gpuix-svelte/blob/main/docs/styling.md) for what
   CSS reaches GPUI.
-- `standalone.ts` and `build.ts` — `npm run build` compiles `standalone.ts` into one executable
-  with Bun. It is built for the machine it runs on, so build on macOS, Windows and Linux in turn
-  (a CI matrix, say) to ship all three.
+- `standalone.ts`, `build.ts` and `icon.png` — `npm run build` compiles `standalone.ts` into the
+  platform's app with Bun: `dist/<name>.app` on macOS, `dist/<name>.exe` on Windows, `dist/<name>`
+  on Linux. The name, identifier, version and icon are the `app` options `standalone.ts` hands
+  `render()`; `icon.png` (from `icon.svg`) is the placeholder to replace. It is built for the
+  machine it runs on, so build on macOS, Windows and Linux in turn (a CI matrix, say) to ship all
+  three.
 - `test.ts` — a headless test through `gpuix-svelte/test`; plain script, exits 1 on failure.
   Runs on macOS and Windows, where the headless renderer is built.
 - `svelte.d.ts` — declares `*.svelte` modules for `tsc`.

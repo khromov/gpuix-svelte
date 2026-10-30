@@ -20,7 +20,7 @@ import renderer, {
 } from './renderer.ts';
 import { set_debug_overlay } from './window.ts';
 import { create_window_root, wants_titlebar } from './titlebar.ts';
-import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
+import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './types.ts';
 
 /**
  * ~125fps, above the 60 and 120 Hz most displays run at. `setImmediate` instead of a paced
@@ -84,6 +84,19 @@ function start_automation(native: GpuixRenderer) {
 	import(server).then(
 		(module: typeof import('./automation-server.ts')) => module.serve_automation(native, next_frame),
 		(error: unknown) => console.error('[gpuix-svelte] automation server failed to load:', error)
+	);
+}
+
+function describe_app(path: string, info: AppOptions & { title?: string }) {
+	// Computed like the automation server's, so only this branch pulls node:fs in; a minifier
+	// may still fold it, which is why `build()` removes the branch itself.
+	const writer = './app-info.ts';
+	import(writer).then(
+		(module: typeof import('./app-info.ts')) => module.report(path, info),
+		(error: unknown) => {
+			console.error('[gpuix-svelte] could not describe the app:', error);
+			globalThis.process?.exit?.(1);
+		}
 	);
 }
 
@@ -179,8 +192,19 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		keyboardFocusDim,
 		tabNavigation = true,
 		titlebar,
+		app,
 		...window_options
 	} = options;
+	if (window_options.title == null && app?.name) window_options.title = app.name;
+
+	// `gpuix-svelte/build` runs the entry this way to learn what to package it as, so no window;
+	// it then defines this expression as `undefined`, so the compiled app has no such mode.
+	const describe = typeof process === 'undefined' ? undefined : process.env.GPUIX_APP_INFO;
+	if (describe) {
+		describe_app(describe, { ...app, title: window_options.title });
+		return {};
+	}
+
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;

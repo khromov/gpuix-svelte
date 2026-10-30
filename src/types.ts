@@ -148,8 +148,29 @@ export type WindowNative = Partial<
 	>
 >;
 
+/**
+ * What `gpuix-svelte/build` packages the executable with: the `.app` bundle on macOS, the
+ * version info on Windows. At runtime only `name` is read, as the window title's fallback.
+ */
+export interface AppOptions {
+	/** The Dock, menu bar and bundle name; defaults to the window `title`. */
+	name?: string;
+	/** Reverse-DNS bundle identifier (`com.example.app`), which signing and macOS's per-app state key on. */
+	identifier?: string;
+	/** Defaults to the version of the nearest package.json above the entry. */
+	version?: string;
+	/** A square PNG, 1024 px for macOS; a relative path is read from the entry file's directory. */
+	icon?: string | URL;
+	copyright?: string;
+	/** Windows file properties only. */
+	publisher?: string;
+	description?: string;
+}
+
 export interface RenderOptions extends WindowOptions {
 	props?: Record<string, unknown>;
+	/** Read by `gpuix-svelte/build`, not by the window; see `AppOptions`. */
+	app?: AppOptions;
 	rootStyle?: GpuiStyle;
 	onEvent?: (event: EventPayload) => void;
 	/** `on_window_key` handlers kept across remounts. */
