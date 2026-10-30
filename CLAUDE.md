@@ -299,8 +299,12 @@ place that names the app. The window reads only `name`, as the `title` fallback.
 the rest by running the entry once through `bin/gpuix-svelte.js --bun` with
 `GPUIX_APP_INFO=<file>`: `render()` sees the variable before touching native, hands its `app`
 options plus the title to `src/app-info.ts` (a computed import, like the automation server, so
-`node:fs` stays out of the web bundle), which writes the JSON and exits. No window, no frame loop;
-an entry that never calls `render()` at load fails the build after 60 s. `resolve_app_info` then
+`node:fs` stays out of the web bundle), which writes the JSON and exits. No window, no frame loop,
+and no addon either: under that variable `plugin.ts` registers a virtual `@gpuix/native` whose
+`GpuixRenderer` throws if constructed, because a Linux CI runner without `libxcb` cannot load the
+real one (napi reports that as "Cannot find module …linux-x64-gnu.node") and the build must not
+need what only the finished app needs. An entry that never calls `render()` at load fails the
+build after 60 s. `resolve_app_info` then
 fills the defaults — `name` from the title, then the nearest package.json; `identifier`
 `local.<slug>`; `version` from package.json; a relative `icon` from the entry's directory — and
 nothing is parsed out of the entry's source.
