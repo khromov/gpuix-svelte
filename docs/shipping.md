@@ -7,9 +7,10 @@ command:
 npm run build
 ```
 
-On macOS that is `dist/My App.app`, an application bundle with its icon that opens from Finder
-or the Dock with no terminal window behind it. On Windows it is `dist/my-app.exe`, with the icon
-and version info in its file properties and no console. On Linux it is the executable `dist/my-app`.
+For a project created as `my-app`, on macOS that is `dist/my-app.app`, an application bundle
+with its icon that opens from Finder or the Dock with no terminal window behind it. On Windows it
+is `dist/my-app.exe`, with the icon and version info in its file properties and no console. On
+Linux it is the executable `dist/my-app`.
 Each is self-contained: the Bun runtime, Svelte and the GPUI addon are inside, so the machine it
 runs on needs nothing installed.
 
@@ -41,7 +42,7 @@ Everything under `app` is optional, and the window ignores it; it exists for the
 | Field         | Used for                                                              | Default                                      |
 | ------------- | --------------------------------------------------------------------- | -------------------------------------------- |
 | `name`        | The `.app` name, the Dock and menu bar, the Windows product name      | the window `title`, else `package.json`'s `name` |
-| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on | `local.<name>`; set a reverse-DNS one before you sign |
+| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on | `local.<slug>` (the name lowercased, with dashes); set a reverse-DNS one before you sign |
 | `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
 | `icon`        | The `.icns` on macOS, the `.ico` on Windows                           | none: the generic app icon                   |
 | `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
@@ -51,7 +52,8 @@ Everything under `app` is optional, and the window ignores it; it exists for the
 `icon.png` to replace. A relative path is read from `standalone.ts`'s directory. The build cuts
 every size the platform wants from it with tools the platform has: `sips` and `iconutil` on macOS,
 .NET's `System.Drawing` through PowerShell on Windows. Windows file properties take versions of
-the `1.2.3` or `1.2.3.4` form only, so a `1.0.0-beta.1` is left out there and kept on macOS.
+the `1.2.3` or `1.2.3.4` form only, so a `1.0.0-beta.1` is left out there; on macOS it goes into
+`CFBundleShortVersionString` as written and `CFBundleVersion` gets its numbers, `1.0.0`.
 
 If `name` is not set, the window title doubles as the app name. The reverse holds too: with a
 `name` and no `title`, the window takes the name.
@@ -66,9 +68,12 @@ import { build } from 'gpuix-svelte/build';
 await build({ entry: './standalone.ts' });
 ```
 
-It runs `standalone.ts` once with no window to read its `app` options (so the entry has to call
-`render()` when it loads, which the scaffold's does), bundles it with Bun's compiler, checks that
-the GPUI addon made it in, and then packages the executable for the platform it is running on.
+It runs `standalone.ts` once with no window to read its `app` options: the entry and everything
+it imports load as they would in the app, `render()` writes the options out and exits, and the
+build fails if the entry never calls `render()` (within 60 seconds, if it keeps running). Anything
+the entry starts at load that should not happen during a build, such as opening a database, can
+check `process.env.GPUIX_APP_INFO` and skip. Then it bundles the entry with Bun's compiler, checks
+that the GPUI addon made it in, and packages the executable for the platform it is running on.
 `outdir` moves the output (`dist` by default), and the returned object names the `output` to ship,
 the `binary` inside it, the resolved `app` metadata, and whether it was `signed` and `notarized`.
 
@@ -79,9 +84,10 @@ Some things to know:
   GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
 - **It is about 110 MB.** That is Bun's runtime plus Svelte plus the addon, which is 17 MB or more
   on every platform.
-- **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it,
-  start the executable from a shell: `dist/My\ App.app/Contents/MacOS/my-app` on macOS,
-  `dist\my-app.exe` on Windows, `dist/my-app` on Linux.
+- **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it
+  on macOS or Linux, start the executable from a shell: `dist/my-app.app/Contents/MacOS/my-app` or
+  `dist/my-app`. The Windows `.exe` is a GUI program, so a shell neither waits for it nor shows
+  its output; redirect it instead: `dist\my-app.exe > log.txt 2>&1`.
 - **Linux.** The executable loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11` from the system,
   which desktop installs have and a minimal container lacks. Nothing registers it with the desktop:
   a `.desktop` file and an icon under `~/.local/share` are yours to add, or a package's.
@@ -104,7 +110,7 @@ With `CODESIGN_IDENTITY` set to a Developer ID Application certificate in your k
 signs the `.app` with the hardened runtime and the entitlements Bun's JIT and the GPUI addon need.
 With `NOTARY_PROFILE` as well, it submits the app to Apple with `notarytool`, waits, staples the
 ticket and leaves `dist/my-app.zip` next to the `.app` as the file to distribute. Give the app a real
-`identifier` first; the default `local.<name>` is a placeholder.
+`identifier` first; the default `local.<slug>` is a placeholder.
 
 The one-time setup for the notary profile:
 

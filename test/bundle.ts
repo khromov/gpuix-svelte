@@ -6,7 +6,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -15,6 +15,11 @@ import { app_slug, ico, ICO_SIZES, info_plist, resolve_app_info, write_icns, wri
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'gpuix-svelte-bundle-'));
+// Inside the repo so `gpuix-svelte` resolves from it, and named to trip shell splitting
+// (a space) and PowerShell's typographic quote delimiters.
+const awkward = join(root, 'test', '.bundle-tmp', 'gpuix svelte ’x');
+rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
+mkdirSync(awkward, { recursive: true });
 
 check('a slug is lowercase ASCII words joined by dashes', app_slug('GPUIX + Svelte — Tic-tac-toe'), 'gpuix-svelte-tic-tac-toe');
 check('a name with nothing usable in it slugs to "app"', app_slug('—'), 'app');
@@ -55,6 +60,16 @@ check(
 	[true, true, true, true, true]
 );
 check('no icon, no CFBundleIconFile', info_plist({ ...info, icon: null }).includes('CFBundleIconFile'), false);
+check('an empty icon is no icon', resolve_app_info({ icon: '' }, entry).icon, null);
+const prerelease = info_plist({ ...info, version: '1.0.0-beta.1' });
+check(
+	'a prerelease stays on CFBundleShortVersionString; CFBundleVersion gets the numbers',
+	[
+		prerelease.includes('<key>CFBundleShortVersionString</key>\n\t<string>1.0.0-beta.1</string>'),
+		prerelease.includes('<key>CFBundleVersion</key>\n\t<string>1.0.0</string>')
+	],
+	[true, true]
+);
 
 const container = ico([
 	{ size: 16, bytes: new Uint8Array([1, 2, 3]) },
@@ -70,12 +85,13 @@ check(
 check('ico blobs follow in order', [...container.subarray(38)], [1, 2, 3, 4, 5]);
 
 // sips on macOS, System.Drawing on Windows; Linux has neither and never needs an icon.
-const png = join(root, 'examples/tic-tac-toe/icon.png');
+const png = join(awkward, 'ic on ’.png');
+copyFileSync(join(root, 'examples/tic-tac-toe/icon.png'), png);
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const scaler = process.platform === 'darwin' || process.platform === 'win32';
 if (scaler) {
-	const out = join(scratch, 'AppIcon.ico');
-	write_ico(png, out, scratch);
+	const out = join(awkward, 'App Icon.ico');
+	write_ico(png, out, awkward);
 	const bytes = readFileSync(out);
 	const entries = Array.from({ length: bytes.readUInt16LE(4) }, (_, i) => {
 		const at = 6 + 16 * i;
@@ -89,14 +105,23 @@ if (scaler) {
 	);
 }
 if (process.platform === 'darwin') {
-	const icns = join(scratch, 'AppIcon.icns');
-	write_icns(png, icns, scratch);
+	const icns = join(awkward, 'App Icon.icns');
+	write_icns(png, icns, awkward);
 	check('the .icns starts with its magic', readFileSync(icns).subarray(0, 4).toString('latin1'), 'icns');
 }
 
-// Through the bin, as build.ts does it, on whichever runtime runs this test.
-const report = join(scratch, 'app-info.json');
-const probe = spawnSync(process.execPath, [join(root, 'bin/gpuix-svelte.js'), join(root, 'test/app-info-entry.ts')], {
+// Through the bin on whichever runtime runs this test (build.ts spawns Bun with the bin's flags
+// itself); under Bun the plugin's stub stands in for the addon.
+const probe_entry = join(awkward, 'standalone.ts');
+writeFileSync(
+	probe_entry,
+	`import { render } from 'gpuix-svelte';
+import Counter from '../../../examples/counter/Counter.svelte';
+render(Counter, { width: 320, height: 240, app: { name: 'Probe', identifier: 'test.probe', icon: './icon.png' } });
+`
+);
+const report = join(awkward, 'app info.json');
+const probe = spawnSync(process.execPath, [join(root, 'bin/gpuix-svelte.js'), probe_entry], {
 	env: { ...process.env, GPUIX_APP_INFO: report },
 	encoding: 'utf8',
 	timeout: 60_000
@@ -108,5 +133,15 @@ check(
 	{ name: 'Probe', identifier: 'test.probe', icon: './icon.png', title: 'Probe' }
 );
 
+// The stub is a hand-kept list, so a native bump that adds an export src/ imports shows up here.
+if (process.versions.bun) {
+	const { NATIVE_STUB_EXPORTS } = await import('../src/plugin.ts');
+	const real = Object.keys(await import('@gpuix/native'))
+		.filter((name) => name !== 'default')
+		.sort();
+	check('the probe stub exports exactly what @gpuix/native does', [...NATIVE_STUB_EXPORTS].sort(), real);
+}
+
 rmSync(scratch, { recursive: true, force: true });
-finish('bundle', 16 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));
+rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
+finish('bundle', 18 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0) + (process.versions.bun ? 1 : 0));

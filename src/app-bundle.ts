@@ -46,7 +46,7 @@ export function resolve_app_info(reported: ReportedApp, entry: string): AppInfo 
 		slug,
 		identifier: reported.identifier || `local.${slug}`,
 		version: reported.version || pkg?.version || '0.0.0',
-		icon: reported.icon == null ? null : icon_path(reported.icon, entry),
+		icon: reported.icon ? icon_path(reported.icon, entry) : null,
 		copyright: reported.copyright,
 		publisher: reported.publisher,
 		description: reported.description
@@ -83,7 +83,8 @@ export function info_plist(info: AppInfo): string {
 		['CFBundleName', info.name],
 		['CFBundlePackageType', 'APPL'],
 		['CFBundleShortVersionString', info.version],
-		['CFBundleVersion', info.version],
+		// At most three integers here, so a prerelease suffix stays on the string above only.
+		['CFBundleVersion', /^\d+(\.\d+){0,2}/.exec(info.version)?.[0] ?? '0'],
 		['LSMinimumSystemVersion', MIN_MACOS],
 		['NSHighResolutionCapable', true]
 	];
@@ -130,22 +131,24 @@ export const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
 /** Scales a PNG with what the platform ships: sips on macOS, .NET's System.Drawing through PowerShell on Windows. */
 export function resize_png(png: string, size: number, out: string) {
 	if (process.platform === 'darwin') {
-		run('sips', ['-z', `${size}`, `${size}`, png, '--out', out]);
+		run('sips', ['-s', 'format', 'png', '-z', `${size}`, `${size}`, png, '--out', out]);
 	} else if (process.platform === 'win32') {
-		const quote = (text: string) => `'${text.replace(/'/g, "''")}'`;
+		// The paths travel in the environment: PowerShell treats the typographic quotes as
+		// delimiters too, so no quoting of a literal is safe.
 		const script = [
+			"$ErrorActionPreference = 'Stop'",
 			'Add-Type -AssemblyName System.Drawing',
-			`$src = [System.Drawing.Image]::FromFile(${quote(png)})`,
+			'$src = [System.Drawing.Image]::FromFile($env:GPUIX_ICON_SRC)',
 			`$bmp = New-Object System.Drawing.Bitmap ${size}, ${size}`,
 			'$g = [System.Drawing.Graphics]::FromImage($bmp)',
 			"$g.InterpolationMode = 'HighQualityBicubic'",
 			`$g.DrawImage($src, 0, 0, ${size}, ${size})`,
 			'$g.Dispose()',
-			`$bmp.Save(${quote(out)}, [System.Drawing.Imaging.ImageFormat]::Png)`,
+			'$bmp.Save($env:GPUIX_ICON_OUT, [System.Drawing.Imaging.ImageFormat]::Png)',
 			'$bmp.Dispose()',
 			'$src.Dispose()'
 		].join('; ');
-		run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
+		run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { GPUIX_ICON_SRC: png, GPUIX_ICON_OUT: out });
 	} else {
 		throw new Error(`no image scaler on ${process.platform}`);
 	}
@@ -225,8 +228,12 @@ export function notarize(bundle: string, profile: string, zip: string, log: (lin
 	run('ditto', ['-c', '-k', '--keepParent', bundle, zip]);
 }
 
-export function run(command: string, args: string[]): string {
-	const { status, stdout, stderr, error } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+export function run(command: string, args: string[], env?: Record<string, string>): string {
+	const { status, stdout, stderr, error } = spawnSync(command, args, {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'pipe'],
+		...(env && { env: { ...process.env, ...env } })
+	});
 	if (error) throw error;
 	if (status !== 0) throw new Error(`${command} ${args.join(' ')} failed:\n${stderr || stdout}`);
 	return stdout;

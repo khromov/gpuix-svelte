@@ -9,7 +9,6 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load_module, load_svelte, resolve_native_cjs, resolve_svelte } from './plugin.ts';
 import { info_plist, notarize, resolve_app_info, sign, write_icns, write_ico, type AppInfo, type ReportedApp } from './app-bundle.ts';
 
 export type { AppInfo } from './app-bundle.ts';
@@ -42,12 +41,16 @@ interface WindowsInfo {
 }
 
 const TAG = '[gpuix-svelte/build]';
+const PROBE_TIMEOUT = 60_000;
 const log = (line: string) => console.log(`${TAG} ${line}`);
 const rel = (path: string) => relative(process.cwd(), path) || '.';
 const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
 
 export async function build(options: BuildOptions): Promise<BuildResult> {
 	if (!process.versions.bun) throw new Error(`${TAG} needs Bun — run the build script with \`bun\``);
+	// Imported after the guard: plugin.ts imports `bun`, which Node cannot resolve.
+	const { load_module, load_svelte, resolve_native_cjs, resolve_svelte } = await import('./plugin.ts');
+
 	const entry = to_path(options.entry);
 	const outdir = to_path(options.outdir ?? 'dist');
 	const scratch = join(outdir, '.gpuix-svelte-build');
@@ -55,6 +58,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	mkdirSync(scratch, { recursive: true });
 
 	const app = resolve_app_info(describe(entry, scratch), entry);
+	if (app.icon && !existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
 	const binary = join(outdir, process.platform === 'win32' ? `${app.slug}.exe` : app.slug);
 	const bundle = join(outdir, `${app.name.replace(/[/\\:]/g, '-')}.app`);
 	rmSync(binary, { force: true });
@@ -62,8 +66,9 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 
 	let windows: WindowsInfo | undefined;
 	if (process.platform === 'win32') {
-		windows = { hideConsole: true, title: app.name, publisher: app.publisher, description: app.description, copyright: app.copyright };
-		if (/^\d+(\.\d+){0,3}$/.test(app.version)) windows.version = app.version;
+		windows = { hideConsole: true, title: app.name };
+		for (const key of ['publisher', 'description', 'copyright'] as const) if (app[key]) windows[key] = app[key];
+		if (windows_version(app.version)) windows.version = app.version;
 		else log(`version "${app.version}" is not the 1.2.3.4 form Windows file properties take; the .exe carries none`);
 		if (app.icon) {
 			windows.icon = join(scratch, 'AppIcon.ico');
@@ -93,7 +98,8 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		// Bun implies `development` unless NODE_ENV is production at build time, and
 		// esm-env lists it first, so both are needed for Svelte's production runtime.
 		conditions: ['custom-renderer', 'production'],
-		define: { 'process.env.NODE_ENV': '"production"' },
+		// The second define drops render()'s GPUIX_APP_INFO branch, and app-info.ts with it, from the app.
+		define: { 'process.env.NODE_ENV': '"production"', 'process.env.GPUIX_APP_INFO': 'undefined' },
 		minify: true,
 		plugins: [plugin],
 		throw: false,
@@ -161,22 +167,35 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 }
 
 /**
- * Runs the entry under GPUIX_APP_INFO through the package's own bin, so the `app` options
- * it hands `render()` come back as data instead of being parsed out of its source.
+ * Runs the entry under GPUIX_APP_INFO on this same Bun, with the loader the bin would pass, so
+ * the `app` options it hands `render()` come back as data instead of being parsed out of its
+ * source. Spawned directly, not through the bin: under Bun the bin goes through a shell on
+ * Windows, which splits paths with spaces.
  */
 function describe(entry: string, scratch: string): ReportedApp {
 	const file = join(scratch, 'app-info.json');
-	const bin = fileURLToPath(new URL('../bin/gpuix-svelte.js', import.meta.url));
-	const { error, status, signal } = spawnSync(process.execPath, [bin, '--bun', entry], {
-		env: { ...process.env, GPUIX_APP_INFO: file },
-		stdio: ['ignore', 'inherit', 'inherit'],
-		timeout: 60_000
-	});
+	const loader = fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'));
+	const { error, status, signal } = spawnSync(
+		process.execPath,
+		['--conditions', 'custom-renderer', '--conditions', 'development', '--preload', loader, entry],
+		{ env: { ...process.env, GPUIX_APP_INFO: file }, stdio: ['ignore', 'inherit', 'inherit'], timeout: PROBE_TIMEOUT }
+	);
+	if (error && (error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+		throw new Error(
+			`${TAG} ${rel(entry)} ran for ${PROBE_TIMEOUT / 1000} s without calling render(); the build runs it to read render()'s app options, so it has to call render() when it loads, and anything else it starts can check process.env.GPUIX_APP_INFO and skip`
+		);
+	}
 	if (error) throw error;
 	if (!existsSync(file)) {
-		throw new Error(`${TAG} ${rel(entry)} never called render() (exit ${signal ?? status}); the entry has to mount the app with \`render\` when it loads`);
+		throw new Error(`${TAG} ${rel(entry)} exited (${signal ?? status}) without calling render(); the entry has to mount the app with \`render\` when it loads`);
 	}
 	return JSON.parse(readFileSync(file, 'utf8'));
+}
+
+/** Windows file versions are up to four 16-bit integers. */
+function windows_version(version: string): boolean {
+	const parts = version.split('.');
+	return parts.length <= 4 && parts.every((part) => /^\d+$/.test(part) && Number(part) <= 65535);
 }
 
 function to_path(target: string | URL): string {

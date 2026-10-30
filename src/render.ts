@@ -88,7 +88,8 @@ function start_automation(native: GpuixRenderer) {
 }
 
 function describe_app(path: string, info: AppOptions & { title?: string }) {
-	// Computed for the same reason as the automation server: node:fs must stay out of the web bundle.
+	// Computed like the automation server's, so only this branch pulls node:fs in; a minifier
+	// may still fold it, which is why `build()` removes the branch itself.
 	const writer = './app-info.ts';
 	import(writer).then(
 		(module: typeof import('./app-info.ts')) => module.report(path, info),
@@ -196,8 +197,9 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	} = options;
 	if (window_options.title == null && app?.name) window_options.title = app.name;
 
-	// `gpuix-svelte/build` runs the entry this way to learn what to package it as, so no window.
-	const describe = env('GPUIX_APP_INFO');
+	// `gpuix-svelte/build` runs the entry this way to learn what to package it as, so no window;
+	// it then defines this expression as `undefined`, so the compiled app has no such mode.
+	const describe = typeof process === 'undefined' ? undefined : process.env.GPUIX_APP_INFO;
 	if (describe) {
 		describe_app(describe, { ...app, title: window_options.title });
 		return {};
