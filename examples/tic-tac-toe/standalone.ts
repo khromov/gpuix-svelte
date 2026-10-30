@@ -6,5 +6,11 @@ import TicTacToe from './TicTacToe.svelte';
 render(TicTacToe, {
 	title: 'GPUIX + Svelte — Tic-tac-toe',
 	width: 480,
-	height: 640
+	height: 640,
+	// What `npm run compile` (gpuix-svelte/build) packages the executable as; the window ignores it.
+	app: {
+		name: 'Tic-tac-toe',
+		identifier: 'dev.gpuix.svelte.tictactoe',
+		icon: './icon.png'
+	}
 });

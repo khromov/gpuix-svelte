@@ -55,10 +55,19 @@ run(pm, ['run', open ? 'start' : 'test'], consumer);
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.
 if (bun) {
 	run(pm, ['run', 'build'], consumer);
-	const binary = join(consumer, 'dist', process.platform === 'win32' ? 'app.exe' : 'app');
+	// The scaffolder named the app after its directory, so the build is dist/app.app (dist/app.exe, dist/app).
+	const binary =
+		process.platform === 'darwin'
+			? join(consumer, 'dist', 'app.app', 'Contents', 'MacOS', 'app')
+			: join(consumer, 'dist', process.platform === 'win32' ? 'app.exe' : 'app');
 	// Bun's own executable plus a GPUI addon of at least 17 MB; anything smaller lost the addon.
 	const bun_path = spawnSync('bun', ['-e', 'console.log(process.execPath)'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout.trim();
 	if (statSync(binary).size < statSync(bun_path).size + 12 * 1024 * 1024) throw new Error(`${binary} is missing the GPUI addon`);
+	if (process.platform === 'darwin') {
+		for (const file of ['Contents/Info.plist', 'Contents/Resources/AppIcon.icns']) {
+			if (!existsSync(join(consumer, 'dist', 'app.app', file))) throw new Error(`the .app has no ${file}`);
+		}
+	}
 }
 
 console.log(`\n[consume] ok — the consumer is at ${consumer}`);

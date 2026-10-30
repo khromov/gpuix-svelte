@@ -55,6 +55,7 @@ export type {
 	NativeSink,
 	Native,
 	RenderOptions,
+	AppOptions,
 	WindowKeyType,
 	PixelFormat,
 	AnyComponent

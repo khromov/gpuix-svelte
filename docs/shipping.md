@@ -1,98 +1,130 @@
 # Shipping an app
 
-An app made with `npm create gpuix-svelte` builds its standalone binary with `npm run build`. The
-macOS `.app` wrapper, signing and the browser build are not scaffolded yet: the repository does
-them for its own examples in [`scripts/compile.ts`](../scripts/compile.ts) and
-[`scripts/web.ts`](../scripts/web.ts), and each section below says what to copy from them. All of
-it needs [Bun](https://bun.com), whichever runtime you develop on.
-
-## Build a standalone binary
-
-Bun can compile an app into one self-contained executable that carries the Bun runtime, Svelte and
-the GPUI addon. In a scaffolded project:
+An app made with `npm create gpuix-svelte` turns into something you can hand to people with one
+command:
 
 ```bash
-npm run build          # → dist/app (dist\app.exe on Windows)
+npm run build
 ```
 
-A binary holds compiled code with no source files to watch, so its entry mounts the component
-with `render` and a static import. `render_hot` is for development, where it re-imports from disk.
-The scaffold's `standalone.ts` is exactly this:
+On macOS that is `dist/My App.app`, an application bundle with its icon that opens from Finder
+or the Dock with no terminal window behind it. On Windows it is `dist/my-app.exe`, with the icon
+and version info in its file properties and no console. On Linux it is the executable `dist/my-app`.
+Each is self-contained: the Bun runtime, Svelte and the GPUI addon are inside, so the machine it
+runs on needs nothing installed.
+
+The build needs [Bun](https://bun.com) 1.4 or later, whichever runtime you develop on, because Bun
+is the compiler. Everything else comes with the operating system.
+
+## What the app is called, and its icon
+
+The build reads the name, identifier, version and icon from the same place the window gets its
+title: the `render()` call in `standalone.ts`, under `app`:
 
 ```ts
 import { render } from 'gpuix-svelte';
 import App from './App.svelte';
 
-render(App, { title: 'My app', width: 480, height: 640 });
-```
-
-`Bun.build` takes its plugins as options, so the build script wires up `gpuix-svelte/plugin`
-itself. `load_svelte` and `load_module` compile components, `resolve_svelte` pins every `svelte`
-import to the build the package bundles, and `resolve_native_cjs` gets the GPUI addon embedded.
-This is the scaffold's `build.ts`, which `npm run build` runs:
-
-```ts
-/// <reference types="bun" />
-// `bun build.ts` (npm run build): compiles standalone.ts into one executable for the platform it runs on.
-
-import type { BunPlugin } from 'bun';
-import { load_module, load_svelte, resolve_native_cjs, resolve_svelte } from 'gpuix-svelte/plugin';
-
-const conditions = ['custom-renderer', 'production'];
-const outfile = process.platform === 'win32' ? 'dist/app.exe' : 'dist/app';
-
-// A `.svelte` import that misses the plugin silently becomes a file asset, so count what went through it.
-let components = 0;
-const plugin: BunPlugin = {
-	name: 'gpuix-svelte',
-	setup(build) {
-		build.onResolve({ filter: /^@gpuix\/native$/ }, resolve_native_cjs);
-		build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(conditions));
-		build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
-		build.onLoad({ filter: /\.svelte$/ }, (args) => {
-			components++;
-			return load_svelte(args);
-		});
-	}
-};
-
-const result = await Bun.build({
-	entrypoints: ['./standalone.ts'],
-	target: 'bun',
-	conditions,
-	define: { 'process.env.NODE_ENV': '"production"' },
-	minify: true,
-	plugins: [plugin],
-	throw: false,
-	compile: {
-		outfile,
-		autoloadBunfig: false,
-		autoloadDotenv: false,
-		...(process.platform === 'win32' && { windows: { hideConsole: true } })
+render(App, {
+	title: 'My App',
+	width: 640,
+	height: 480,
+	app: {
+		identifier: 'com.example.my-app',
+		icon: './icon.png'
 	}
 });
-
-if (!result.success || components === 0) {
-	for (const log of result.logs) console.error(log);
-	if (components === 0) console.error('no .svelte file went through the plugin');
-	process.exit(1);
-}
-console.log(`built ${outfile}`);
 ```
 
-The result is around 80 MB: the Bun runtime, the Svelte runtime and the GPUI addon, which is 17 MB
-or more on every platform. npm installs only the addon prebuilt for the host, so each platform
-builds its own binary. Run the same command on macOS (arm64), Linux (x64) or Windows (x64) to get
-that platform's binary. A Linux binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11` from
-the system, which desktop installs have and a minimal container lacks.
+Everything under `app` is optional, and the window ignores it; it exists for the build.
 
-The output is unsigned by default, and macOS blocks a downloaded unsigned copy until you allow it
-under System Settings → Privacy & Security. See [Signing](#signing).
+| Field         | Used for                                                              | Default                                      |
+| ------------- | --------------------------------------------------------------------- | -------------------------------------------- |
+| `name`        | The `.app` name, the Dock and menu bar, the Windows product name      | the window `title`, else `package.json`'s `name` |
+| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on | `local.<name>`; set a reverse-DNS one before you sign |
+| `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
+| `icon`        | The `.icns` on macOS, the `.ico` on Windows                           | none: the generic app icon                   |
+| `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
+| `publisher`, `description` | Windows file properties                                   | none                                         |
 
-> **In the repository**, `npm run compile` builds the tic-tac-toe example the same way, and
-> `npm run compile:app` additionally wraps it as `dist/Tic-tac-toe.app` with an icon.
-> [`scripts/compile.ts`](../scripts/compile.ts) is where to copy the `.app` wrapping from: it
-> writes the `Info.plist`, cuts the `.icns` from a PNG with `sips` and `iconutil`, and signs.
+`icon` is a square PNG, 1024 × 1024 for macOS's largest size; the scaffold ships a placeholder
+`icon.png` to replace. A relative path is read from `standalone.ts`'s directory. The build cuts
+every size the platform wants from it with tools the platform has: `sips` and `iconutil` on macOS,
+.NET's `System.Drawing` through PowerShell on Windows. Windows file properties take versions of
+the `1.2.3` or `1.2.3.4` form only, so a `1.0.0-beta.1` is left out there and kept on macOS.
+
+If `name` is not set, the window title doubles as the app name. The reverse holds too: with a
+`name` and no `title`, the window takes the name.
+
+## What `npm run build` does
+
+`build.ts` in the scaffold is one call:
+
+```ts
+import { build } from 'gpuix-svelte/build';
+
+await build({ entry: './standalone.ts' });
+```
+
+It runs `standalone.ts` once with no window to read its `app` options (so the entry has to call
+`render()` when it loads, which the scaffold's does), bundles it with Bun's compiler, checks that
+the GPUI addon made it in, and then packages the executable for the platform it is running on.
+`outdir` moves the output (`dist` by default), and the returned object names the `output` to ship,
+the `binary` inside it, the resolved `app` metadata, and whether it was `signed` and `notarized`.
+
+Some things to know:
+
+- **One platform per build.** npm installs only the GPUI addon for the machine you are on, so run
+  `npm run build` on macOS (Apple Silicon), Windows (x64) and Linux (x64) in turn, for instance in a
+  GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
+- **It is about 110 MB.** That is Bun's runtime plus Svelte plus the addon, which is 17 MB or more
+  on every platform.
+- **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it,
+  start the executable from a shell: `dist/My\ App.app/Contents/MacOS/my-app` on macOS,
+  `dist\my-app.exe` on Windows, `dist/my-app` on Linux.
+- **Linux.** The executable loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11` from the system,
+  which desktop installs have and a minimal container lacks. Nothing registers it with the desktop:
+  a `.desktop` file and an icon under `~/.local/share` are yours to add, or a package's.
+- **Unsigned by default.** macOS blocks a downloaded, unsigned app until the person allows it under
+  System Settings → Privacy & Security, and Windows SmartScreen warns about an unsigned `.exe`. For
+  anything you distribute, see the next section.
+
+## Signing and notarizing on macOS
+
+`build()` signs and notarizes when two environment variables are set. Put them in a `.env` next to
+`package.json` (and gitignore it); Bun loads it when it runs `build.ts`, so a plain `npm run build`
+signs from then on:
+
+```
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+NOTARY_PROFILE=notary
+```
+
+With `CODESIGN_IDENTITY` set to a Developer ID Application certificate in your keychain, the build
+signs the `.app` with the hardened runtime and the entitlements Bun's JIT and the GPUI addon need.
+With `NOTARY_PROFILE` as well, it submits the app to Apple with `notarytool`, waits, staples the
+ticket and leaves `dist/my-app.zip` next to the `.app` as the file to distribute. Give the app a real
+`identifier` first; the default `local.<name>` is a placeholder.
+
+The one-time setup for the notary profile:
+
+1. Create an app-specific password at https://account.apple.com → Sign-In and Security →
+   App-Specific Passwords.
+2. Store it under a profile name, with the team ID from your certificate:
+
+   ```bash
+   xcrun notarytool store-credentials notary --apple-id you@example.com --team-id TEAMID --password xxxx-xxxx-xxxx-xxxx
+   ```
+
+   A 403 "required agreement is missing or has expired" means the Account Holder has to accept the
+   current Program License Agreement at https://appstoreconnect.apple.com/agreements. It can take
+   a while to propagate after that.
+
+If Apple rejects a submission, the build prints the submission output and fails.
+`xcrun notarytool log <submission-id> --keychain-profile notary` shows the reason.
+
+Windows has no equivalent step here; sign the `.exe` afterwards with `signtool` if you have a
+certificate.
 
 ## Run it in a browser
 
@@ -125,36 +157,10 @@ same. Only the plumbing differs:
   `process.env.X` in your app code throws a `ReferenceError` there.
 - **It's a 19.9 MB download** uncompressed, so serve it with compression.
 
-## Signing
+## In the repository
 
-### macOS
-
-The scaffold's `build.ts` leaves the binary unsigned. The repository's
-[`scripts/compile.ts`](../scripts/compile.ts) has the signing step to copy: its `sign` function
-runs `codesign` with the hardened runtime and entitlements when `CODESIGN_IDENTITY` names a
-Developer ID Application certificate in your keychain, and its `notarize` function submits the
-`.app` with `notarytool`, staples it and leaves a zip ready to ship when `NOTARY_PROFILE` names a
-keychain profile. In a clone, that is `npm run compile` and `npm run compile:app`. The one-time
-setup is the same wherever the script lives:
-
-1. Create an app-specific password at https://account.apple.com → Sign-In and Security →
-   App-Specific Passwords.
-2. Store it under a profile name, with the team ID from your certificate:
-
-   ```bash
-   xcrun notarytool store-credentials notary --apple-id you@example.com --team-id TEAMID --password xxxx-xxxx-xxxx-xxxx
-   ```
-
-   A 403 "required agreement is missing or has expired" means the Account Holder has to accept the
-   current Program License Agreement at https://appstoreconnect.apple.com/agreements. It can take
-   a while to propagate after that.
-3. Put both variables in a `.env` next to `package.json` (gitignore it). Bun loads it when it
-   runs the script, so a plain build signs from then on:
-
-   ```
-   CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-   NOTARY_PROFILE=notary
-   ```
-
-If Apple rejects a submission, the script prints the submission output and exits.
-`xcrun notarytool log <submission-id> --keychain-profile notary` shows the reason.
+`npm run compile` builds the tic-tac-toe example the same way a scaffolded app is built:
+[`scripts/compile.ts`](../scripts/compile.ts) is the same `build()` call, and
+[`examples/tic-tac-toe/standalone.ts`](../examples/tic-tac-toe/standalone.ts) carries the `app`
+options. The implementation is [`src/build.ts`](../src/build.ts) (the Bun compile) and
+[`src/app-bundle.ts`](../src/app-bundle.ts) (the plist, icons, signing and notarization).
