@@ -1,0 +1,20 @@
+[package]
+name = "gpuix-svelte-rust-host"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "A GPUI app that owns its window and mounts a Svelte component into part of it"
+license = "MIT"
+
+[[bin]]
+name = "gpuix-svelte-rust-host"
+path = "src/main.rs"
+
+[dependencies]
+gpuix-svelte-embed = { path = "../../crates/gpuix-svelte-embed" }
+# The same gpui and platform crates gpuix-native builds against, or the element types would not unify.
+gpui = { path = "../../../gpuix/zed/crates/gpui", default-features = false }
+gpui_platform = { path = "../../../gpuix/zed/crates/gpui_platform", default-features = false }
+serde_json = "1"
+# `RUST_LOG=gpuix_svelte_embed=debug` shows every batch, call and host message.
+env_logger = "0.11"

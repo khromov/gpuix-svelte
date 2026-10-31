@@ -54,6 +54,10 @@ npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU bui
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
                            # to skip serving. BUN ONLY. See "Rendering to the web"
+npm run demo:embed         # cargo run of examples/rust-host: a Rust gpui app that owns the window
+                           # and mounts Widget.svelte twice, side by side, through
+                           # crates/gpuix-svelte-embed, one Bun sidecar each. Needs the gpuix fork
+                           # at ../gpuix on feat/embed; see "Embedding in a Rust app"
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram beside highlighted source and the same component
                            # running live, with a quiz. Prose is examples/tutorial/content/*.md, the
@@ -97,6 +101,9 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
                            # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
+npm run test:embed         # gpuix-svelte/embed against a host written in TS: batches answered over
+                           # the FIFO (a named pipe on Windows), props, host.call both ways, a
+                           # bounds query, a click by id, exit on EOF
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
@@ -187,8 +194,8 @@ shipped yet and native throws `GenericFailure`.
 CI (`.github/workflows/test.yml`): `npm test` on macOS and Windows × Node 24 and 26, `npm run
 bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS × Node 24 and 26, `compile` on
 all three OSes (build only, never launched), and a Linux job that can only run `typecheck`, `lint`,
-a `npm pack --dry-run` of the scaffolder and a check that the binding loads (see the
-`@gpuix/native` constraint). `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
+a `npm pack --dry-run` of the scaffolder, a check that the binding loads (see the
+`@gpuix/native` constraint) and `test:embed` / `bun:test:embed`, which need no renderer. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -288,6 +295,54 @@ in itself:
 reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path. The `.app`'s icon is
 `examples/tic-tac-toe/icon.png`, rasterized at 1024 px from the `icon.svg` beside it; `--app` cuts it
 into an `.icns` with `sips` + `iconutil`.
+
+### Embedding in a Rust app
+
+`docs/embedding.md` is the user-facing page; this is the shape and the constraints. Issue #48
+asked for the reverse of `render()`: a Rust GPUI app that already owns the `App` and windows
+mounts a Svelte component into a slot, pushes props and events in, and gets calls back. Bun has no
+embeddable library, so the slot is a **sidecar**: `crates/gpuix-svelte-embed`'s `SvelteSlot`
+spawns `bun` on an entry that calls `embed()` from `src/embed.ts` (`gpuix-svelte/embed`), and
+the two speak the renderer's own contract over pipes, one `<kind> <id> <json>` line per message.
+Batches (the `applyBatch` JSON, unchanged) go up stdout; `embed.ts` reads their answer, the
+destroyed ids the renderer purges by, with a blocking `readSync` on a FIFO (on Windows a named pipe) whose path the host
+passes as `GPUIX_EMBED_REPLY`, which keeps `NativeSink.applyBatch` synchronous without touching
+`renderer.ts`. Events, props, host events and call replies come down stdin. `embed.ts` never
+imports `@gpuix/native` (type imports only), so a slot's component needs no addon and a
+`Bun.build({ compile })` binary of it works as the sidecar command. `set_id_base` in
+`renderer.ts` is for it: the host hands each slot a 2^32 id range (`GPUIX_EMBED_ID_BASE`) because
+`automation::record_bounds` is one thread-local map per process keyed by element id.
+
+On the Rust side the slot is `RetainedTree` + `apply_batch_to_tree` + an `Entity<GpuixView>`,
+gpuix-native's own element builder, inside a `div().size_full()`; a reader thread applies each
+batch under the tree mutex and answers on the FIFO, then a foreground `cx.spawn` pump notifies
+the view, runs `on_call` handlers with the slot's `Context`, and answers `query` messages
+(`bounds` → `painted_bounds`, which reads the thread-local map and so must run on the UI
+thread). Dropping the entity closes stdin, which is the sidecar's cue to unmount and exit; a
+reaper thread kills it after 2 s. On Windows the reply channel is a one-instance outbound named
+pipe (`CreateNamedPipeW`), and the reader thread `ConnectNamedPipe`s it on the sidecar's first
+line, which comes only after the sidecar has opened its end, so a sidecar that dies early cannot
+hang it. Window key events, selection change and the scroll reads `Scroller` makes are not
+forwarded yet (`Wire` returns `null`).
+
+Three things about building it. `gpuix-native` is an rlib upstream already, but the crate needs
+four small changes that live on the fork's `feat/embed` branch (branched from upstream main, to
+be upstreamed, so keep them minimal): `pub struct GpuixView` + `pub fn new` with
+`window_title: Option<String>` (an embedded view must not rename the host's window),
+`serde::Serialize` on `EventPayload` and its siblings on every target, and `init(cx)` /
+`painted_bounds(id)` in `lib.rs`. Both crates take `gpuix-native` and gpui as **path**
+dependencies on `../gpuix` (the zed submodule is gpui's source; a git dependency would clone all
+of Zed) and `.cargo/config.toml` shares the fork's `target/`, so a build here needs that checkout
+on that branch. The napi bindings compile in with the rlib and reference `napi_*` symbols only
+Node provides; `examples/rust-host/build.rs` links the binary with them unresolved
+(`-undefined dynamic_lookup` on macOS, `--unresolved-symbols=ignore-all` on Linux, untested
+there), and a host app needs the same; on Windows napi-sys resolves them at runtime, so MSVC links
+without either. On this machine `xcode-select -p` is the Command Line
+Tools, which lack the `metal` shader compiler gpui_apple's build script runs, so cargo needs
+`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. `test:embed` covers the JS half with
+a host written in TS and needs none of this; the Rust half has no CI (the fork + submodule +
+gpui build is too heavy for the workflow) and is verified by `RUST_LOG=gpuix_svelte_embed=debug
+npm run demo:embed`, which logs each batch, call and host message.
 
 ### Rendering to the web
 
@@ -804,8 +859,11 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
 - The headless renderer (Metal) and every window crash under Claude Code's Bash sandbox ("Swift
   Fatal error: Array index out of range", hiservices XPC errors) — run `npm test`, `consume` and
   the demos with the sandbox disabled.
-- Sibling checkouts: `../gpuix` is the fork this repo was extracted from and lags upstream (native
-  0.7.0) — read upstream release tags instead (see "Regenerating the styling reference");
+- Sibling checkouts: `../gpuix` is the fork this repo was extracted from (khromov/gpuix, with the
+  `zed` submodule); its `upstream-main` tracks remorses/gpuix and its feature branches
+  (`feat/embed` for the embedding crate, `quickjs`, `feat/native-plugins`) are proposals on top of
+  it, so check which branch is out before reading, and read upstream release tags for what a
+  published `@gpuix/native` contains (see "Regenerating the styling reference");
   `../svelte` (khromov/svelte) is the local copy of the custom-renderer PR stack, on its
   `custom-condition` branch (check it out before reading; it is force-pushed about weekly);
   `../substrate-gpuix-svelte` (khromov/substrate-gpuix-svelte, private) is Substrate, the "second

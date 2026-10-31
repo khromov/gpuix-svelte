@@ -121,6 +121,12 @@ const is_portal = (n: ShadowNode) => 'portal' in n.attrs;
  * GPUI nodes may still exist, and reused ids would collide with them.
  */
 let next_id = 0;
+
+/** An embedded slot numbers from its own range: the host's paint-time bounds registry is keyed by id across every slot. */
+export function set_id_base(base: number) {
+	next_id = Math.max(next_id, base);
+}
+
 let dirty = false;
 let auto_commit = false;
 let commit_scheduled = false;
