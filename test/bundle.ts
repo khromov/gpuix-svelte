@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
 import { app_slug, DEFAULT_ICON, ico, ICO_SIZES, info_plist, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
+import { window_options_for } from '../src/render.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'gpuix-svelte-bundle-'));
@@ -169,6 +170,14 @@ check(
 );
 check('two render() calls fail', error_of(`${head}render(App, {});\nrender(App, {});`).startsWith('render() is called 2 times'), true);
 
+check(
+	'the window takes its title fallback and app id from app',
+	window_options_for({ width: 10 }, { name: 'Named', identifier: 'com.x.y' }),
+	{ width: 10, title: 'Named', appId: 'com.x.y' }
+);
+check('what the window is given directly wins', window_options_for({ title: 'T', appId: 'a.b' }, { name: 'Named', identifier: 'com.x.y' }), { title: 'T', appId: 'a.b' });
+check('no app adds nothing', window_options_for({ width: 10 }, undefined), { width: 10 });
+
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 26 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));
+finish('bundle', 29 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));

@@ -36,14 +36,15 @@ render(App, {
 });
 ```
 
-Everything under `app` is optional, and the window ignores it; it exists for the build.
+Everything under `app` is optional, and it exists for the build. The window takes only two things
+from it: `name` when there is no `title`, and `identifier` as its app id on Linux.
 
 | Field         | Used for                                                              | Default                                      |
 | ------------- | --------------------------------------------------------------------- | -------------------------------------------- |
 | `name`        | The `.app` name, the Dock and menu bar, the Windows product name      | the window `title`, else `package.json`'s `name` |
-| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on | `local.<slug>` (the name lowercased, with dashes); set a reverse-DNS one before you sign |
+| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on; the window's app id on Linux | `local.<slug>` (the name lowercased, with dashes) in the build, no app id on the window; set a reverse-DNS one before you sign |
 | `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
-| `icon`        | The `.icns` on macOS, the `.ico` on Windows                           | the gpuix-svelte icon                        |
+| `icon`        | The `.icns` on macOS, the `.ico` on Windows; not used on Linux, where the `.desktop` file names the icon | the gpuix-svelte icon |
 | `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
 | `publisher`, `description` | Windows file properties                                   | the app's name                               |
 
@@ -84,15 +85,17 @@ Some things to know:
   `npm run build` on macOS (Apple Silicon), Windows (x64 or arm64) and Linux (x64) in turn, for
   instance in a GitHub Actions matrix over `macos-latest`, `windows-latest` (`windows-11-arm` for
   arm64) and `ubuntu-latest`.
-- **It is about 110 MB, and about 130 MB on Windows.** That is Bun's runtime plus Svelte plus the
-  addon, which is 17 MB or more on every platform.
+- **It is about 110 MB, about 130 MB on Windows and about 155 MB on Linux.** That is Bun's runtime
+  plus Svelte plus the addon, which is 17 MB or more on every platform and 50 MB on Linux.
 - **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it
   on macOS or Linux, start the executable from a shell: `dist/my-app.app/Contents/MacOS/my-app` or
   `dist/my-app`. The Windows `.exe` is a GUI program, so a shell neither waits for it nor shows
   its output; redirect it instead: `dist\my-app.exe > log.txt 2>&1`.
 - **Linux.** The executable loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11` from the system,
   which desktop installs have and a minimal container lacks. Nothing registers it with the desktop:
-  a `.desktop` file and an icon under `~/.local/share` are yours to add, or a package's.
+  a `.desktop` file and an icon under `~/.local/share` are yours to add, or a package's. Name the
+  file after `identifier` (`com.example.my-app.desktop`), because the window reports that as its
+  Wayland app id and X11 `WM_CLASS`, which is how the desktop connects the two.
 - **Unsigned by default.** macOS blocks a downloaded, unsigned app until the person allows it under
   System Settings → Privacy & Security, and Windows SmartScreen warns about an unsigned `.exe`. For
   anything you distribute, see the next section.
