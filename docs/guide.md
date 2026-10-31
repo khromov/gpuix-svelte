@@ -15,7 +15,9 @@ included) as `{ x, y, width, height }` in window coordinates, and
 `getScrollOffset(node.nativeId)` the scroll position of a scroll container. On Windows and Linux
 each `getElementBounds` call makes GPUI draw a frame before it answers, so don't call it on a timer:
 `onlayout` and `onscrollchange` (see [below](#window-and-desktop-helpers)) tell you when something
-changed and cost nothing while nothing does.
+changed and cost nothing while nothing does. Under Wayland a window the compositor isn't drawing,
+such as a minimized one, has no next frame, so the call blocks for 2 seconds and then throws;
+[`read_native`](#while-a-file-picker-is-open) turns the throw into `null`, but not the wait.
 
 In a `<textarea>`, Enter inserts a newline unless the element has `onsubmit`. With `onsubmit`,
 Enter submits and Shift+Enter inserts the newline. In an `<input>`, Enter always submits.
@@ -161,8 +163,9 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
 - `set_window_title(title)`, `activate_window()`, `minimize_window()`, `zoom_window()` and
   `toggle_fullscreen()`.
 - `prompt_for_paths({ files, directories, multiple, prompt })` opens the system picker and
-  resolves to absolute paths, or to `null` on cancel and headlessly. In a browser it rejects. It
-  has no file-type filter. See [While a file picker is open](#while-a-file-picker-is-open).
+  resolves to absolute paths, or to `null` on cancel and headlessly. It rejects in a browser, and
+  on Linux when no XDG desktop portal is reachable. It has no file-type filter. See
+  [While a file picker is open](#while-a-file-picker-is-open).
 - `on_selection_change(handler)` hears every change to the window's text selection, a clear
   included. `e.value` is the selected text, and `undefined` after a clear. It returns its
   unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.
