@@ -176,9 +176,8 @@ renderer's own tests do it only where the batching itself is under test. The hea
 width follows `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px
 (`MAX_HEADLESS_HEIGHT`) — elements laid out below that can't be hit (`click` throws; shift the
 layout up inside an absolute wrapper to reach them) — and Windows ignores the request and opens a
-viewport sized from the display (1024×749 on CI, 1536×1095 on a dev machine, where `test:helpers`'
-`far` element at 900 px is on screen and its one check fails), so never assert against the size you
-asked for; read `native.getWindowSize()`
+viewport sized from the display (1024×749 on CI, 1536×1095 on a dev machine), so never assert
+against the size you asked for; read `native.getWindowSize()`
 (`test/portal.ts` does). Since native 0.11 the headless renderer emits `focus`/`blur` itself, so
 `focus()` leaves both to native; `unfocus()` still reports a blur (the test renderer has no `blur()`)
 and `deliver()` drops native's repeat of it when focus later moves on.
