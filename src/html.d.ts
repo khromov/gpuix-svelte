@@ -190,7 +190,6 @@ declare global {
 		interface IntrinsicElements extends SvelteTags {
 			div: GpuixAttributes;
 			text: GpuixAttributes;
-			canvas: GpuixAttributes;
 			img: ImgAttributes;
 			svg: SvgAttributes;
 			input: InputAttributes;

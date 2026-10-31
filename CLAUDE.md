@@ -720,11 +720,13 @@ are the ones that bite most often, and the renderer behaviour behind them.
   class rule as inline (see the styling playground). Shared reactive state goes in `.svelte.ts`
   modules.
 - Only GPUI tags exist (`div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
-  `markdown`, `virtual-list`, `anchored`, `canvas`, ...); anything else degrades to `div` with a
-  one-time warning. `<img src>` is a filesystem path, a `data:` URL or an http(s) URL GPUI fetches
-  in the background, so give it both a width and a height. `<markdown>` is rebuilt and laid out in
-  full on every frame, on screen or not, and the cost follows its block count, not its bytes (a
-  226-block page cost ~7 ms a frame headless, ~18 ms in Substrate's window), so a long document goes
+  `markdown`, `virtual-list`, `anchored`); anything else degrades to `div` with a one-time
+  warning. That includes `<canvas>`: native 0.11 registers no such element, so a window gave it no
+  layout box and painted neither it nor its children. `<img src>` is a filesystem path, a `data:`
+  URL or an http(s) URL GPUI fetches in the background, so give it both a width and a height.
+  `<markdown>` is rebuilt and laid out in full on every frame, on screen or not, and the cost
+  follows its block count, not its bytes (a 226-block page cost ~7 ms a frame headless, ~18 ms in
+  Substrate's window), so a long document goes
   one block per row under `<Scroller virtual>`, which brought it under 1 ms headless and the window
   to ~5 ms — Substrate's `Item.svelte` with `lib/blocks.ts` (one row per top-level token of
   `marked`'s lexer) is the example. `<svg source>` inherits **no** `color` natively, so the renderer

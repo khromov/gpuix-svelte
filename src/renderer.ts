@@ -22,13 +22,12 @@ import type {
 	WindowNative
 } from './types.ts';
 
-/** Anything not listed here degrades to `div`. */
+/** Anything not listed here degrades to `div`; that includes `canvas`, which native 0.11 lacks and would paint nothing for. */
 const GPUI_TAGS = new Set([
 	'div',
 	'text',
 	'img',
 	'svg',
-	'canvas',
 	'input',
 	'textarea',
 	'anchored',
@@ -66,7 +65,7 @@ const RENDERER_ATTRS = new Set(['hitbox', 'portal']);
 const FOCUS_ATTRS = new Set(['tabIndex', 'tabindex', 'autoFocus', 'autofocus']);
 
 /** Native types that take input of their own, so `hitbox="self"` leaves their hitbox alone. */
-const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored', 'canvas']);
+const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'code', 'diff', 'markdown', 'virtual-list', 'anchored']);
 
 /** Reports that need no pointer, so listening for one leaves a decorative element shielded. */
 const PASSIVE_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'highlight']);
