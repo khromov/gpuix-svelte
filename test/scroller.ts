@@ -1,6 +1,6 @@
 /**
- * The shipped Scroller draws its own thumb from GPUI's painted bounds and drags
- * it on an overlay, because GPUI paints no scrollbar and captures no pointer.
+ * The shipped Scroller draws its own thumb from the heights and offset GPUI reports and
+ * drags it on an overlay, because GPUI's own scrollbar takes no pointer.
  * This runs the wheel, the drag and `follow` through the real hit testing.
  */
 
@@ -23,9 +23,12 @@ import {
 
 const Tall = (await import('./Tall.svelte')).default;
 
+// The heights arrive as `layout` events after the first paint, and the thumb follows on its 50 ms throttle.
+const THUMB_MS = 80;
+
 let { native } = mount_headless(Tall, { width: 400, height: 300 });
-// The thumb is measured on a 250 ms timer, since bounds exist only after a paint.
-await wait(300);
+let component: Record<string, (arg: number) => void>;
+await wait(THUMB_MS);
 
 const column = () => find_test_id('list')!;
 const thumb = () => find_test_id('list-thumb')!;
@@ -34,7 +37,7 @@ const offset = () => native.getScrollOffset(column().id)?.[1] ?? 0;
 const { y: cy, height: ch } = bounds(column())!;
 check('the column clips to its viewport', Math.round(ch), 200);
 const t0 = bounds(thumb())!;
-check('the thumb is shorter than the viewport', t0.height > 0 && t0.height < ch, true);
+check('the thumb is the viewport’s share of the content', Math.round(t0.height), Math.round((200 / (30 * 40)) * 200));
 check('and starts at the top', Math.round(t0.y - cy), 0);
 check('with the package colour, nothing having set --scroller-thumb', thumb().style!.backgroundColor, '#585b70');
 
@@ -56,10 +59,55 @@ check('dragging scrolls further', offset() < before, true);
 mouse_up({ x: grip.x, y: grip.y + 40 });
 check('and the release takes the overlay away', find_test_id('list-overlay'), null);
 
+// Reading bounds makes GPUI draw a frame on Windows and Linux, so a plain column may never ask.
+({ native, component } = mount_headless(Tall, { width: 400, height: 300 }));
+await wait(THUMB_MS);
+{
+	const at = center(column());
+	const asked: string[] = [];
+	const read_bounds = native.getElementBounds.bind(native);
+	const read_offset = native.getScrollOffset.bind(native);
+	native.getElementBounds = (id) => (asked.push('getElementBounds'), read_bounds(id));
+	native.getScrollOffset = (id) => (asked.push('getScrollOffset'), read_offset(id));
+
+	await wait(600);
+	check('an idle column asks native for nothing', asked, []);
+	wheel(at, 0, -120);
+	await wait(THUMB_MS);
+	component.grow(10);
+	await wait(THUMB_MS);
+	component.resize(150);
+	await wait(THUMB_MS);
+	check('and neither does one being scrolled, growing or resized', asked, []);
+	native.getElementBounds = read_bounds;
+	native.getScrollOffset = read_offset;
+}
+
+// Those events are all that keeps the thumb right, so each cause has to move it on its own.
+({ native, component } = mount_headless(Tall, { width: 400, height: 300 }));
+await wait(THUMB_MS);
+{
+	const thumb_height = () => Math.round(bounds(thumb())!.height);
+	// All of these sizes stay above the thumb's 24 px minimum, which would otherwise hide a stale height.
+	check('the thumb starts sized for 30 rows', thumb_height(), Math.round((200 / 1200) * 200));
+	component.resize(300);
+	await wait(THUMB_MS);
+	check('the column being laid out taller grows it', thumb_height(), Math.round((300 / 1200) * 300));
+	component.grow(30);
+	await wait(THUMB_MS);
+	check('content growing with nothing else happening shrinks it', thumb_height(), Math.round((300 / 2400) * 300));
+
+	// `scrollTo` is no wheel, so only `scrollChange` can have told the thumb about it.
+	const top = bounds(thumb())!.y;
+	native.scrollTo(column().id, 0, -1000);
+	await wait(THUMB_MS);
+	check('a scroll no wheel caused moves it', Math.round(bounds(thumb())!.y - top), Math.round((1000 / 2100) * (300 - (300 / 2400) * 300)));
+}
+
 // Each thumb restyle is a full native frame, so a sustained scroll has to pay one per
 // throttle window rather than one per wheel event.
 ({ native } = mount_headless(Tall, { width: 400, height: 300 }));
-await wait(300);
+await wait(THUMB_MS);
 {
 	const at = center(column());
 	const thumb_id = thumb().id;
@@ -78,17 +126,23 @@ await wait(300);
 	check('a sustained scroll restyles the thumb on the throttle, not once per event', restyles > 0 && restyles <= 12, true);
 }
 
-({ native } = mount_headless(Tall, { props: { follow: true }, width: 400, height: 300 }));
-await wait(200);
-check('follow pins the bottom while content grows', Math.round(offset()), 200 - 30 * 40);
+({ native, component } = mount_headless(Tall, { props: { follow: true }, width: 400, height: 300 }));
+await wait(THUMB_MS);
+await wait(THUMB_MS);
+check('follow pins the bottom of what is there', Math.round(offset()), 200 - 30 * 40);
+component.grow(10);
+await wait(THUMB_MS);
+await wait(THUMB_MS);
+check('and keeps it pinned while content grows', Math.round(offset()), 200 - 40 * 40);
 
 ({ native } = mount_headless(Tall, { props: { scroll: false }, width: 400, height: 300 }));
-await wait(300);
+await wait(THUMB_MS);
 check('scroll={false} clips instead', column().style!.overflowY, 'hidden');
 check('and draws no thumb', Math.round(bounds(thumb())!.height), 0);
 
 // --- virtual: a native <virtual-list> builds only rows near the viewport -------
 ({ native } = mount_headless(Tall, { props: { virtual: true, rows: 200 }, width: 400, height: 300 }));
+// Nothing reports a list's rows, so its thumb is still measured on a 250 ms timer.
 await wait(300);
 check('a virtual list keeps every row in the tree', all_text().filter((t) => t.startsWith('row ')).length, 200);
 check('but paints only the rows near the viewport', painted().includes('row 0') && !painted().includes('row 150'), true);
@@ -120,4 +174,4 @@ check('dragging the thumb scrolls by row', native.getListScrollTop(column().id)!
 mouse_up({ x: v_grip.x, y: v_grip.y + 60 });
 check('and the rows it left are no longer painted', painted().includes('row 0'), false);
 
-finish('scroller', 21);
+finish('scroller', 28);
