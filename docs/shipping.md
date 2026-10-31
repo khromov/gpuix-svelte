@@ -99,8 +99,8 @@ Some things to know:
 ## Signing and notarizing on macOS
 
 `build()` signs and notarizes when two environment variables are set. Put them in a `.env` next to
-`package.json` (and gitignore it); Bun loads it when it runs `build.ts`, so a plain `npm run build`
-signs from then on:
+`package.json` (a new app's `.gitignore` already lists it); Bun loads it when it runs `build.ts`,
+so a plain `npm run build` signs from then on:
 
 ```
 CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
