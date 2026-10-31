@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { get_native, type GpuixEvent, type Native, type ShadowNode } from 'gpuix-svelte';
+	import { get_native, read_native, type GpuixEvent, type Native, type ShadowNode } from 'gpuix-svelte';
 
-	// GPUI's own thumb can't be dragged, so the column draws a thumb sized from its painted
-	// bounds and moved by its scroll offset, and drags it on a panel-sized overlay.
+	// GPUI's own thumb can't be dragged, so the column draws a thumb sized from the heights
+	// and offset native reports, and drags it on a panel-sized overlay.
 	let {
 		children,
 		gap = 8,
@@ -29,10 +29,14 @@
 	} = $props();
 
 	let column: ShadowNode | null = null;
-	let content: ShadowNode | null = null;
 	let thumb = $state({ top: 0, height: 0 });
 	let drag = $state<{ y: number; offset: number } | null>(null);
 	let last_total = 0;
+	// Told rather than asked: on Windows and Linux reading bounds makes GPUI draw a frame,
+	// so polling them keeps an idle window drawing.
+	let column_height = 0;
+	let content_height = 0;
+	let scroll_y = 0;
 	// A virtual list has no content to measure, so the thumb works in rows, scaled by
 	// the average painted row height. GPUI reports one row more or less in view from
 	// event to event, so the scale is a running mean of the reports, seeded with
@@ -54,23 +58,21 @@
 		if (!native || !column?.nativeId) return null;
 
 		if (virtual) {
-			const top = native.getListScrollTop(column.nativeId);
+			const id = column.nativeId;
+			const top = read_native((n) => n.getListScrollTop(id));
 			const count = rows();
 			if (!top || !top[2] || count === 0) return null;
 			const per = top[2] / ((PRIOR * (top[2] / estimate) + in_view) / (PRIOR + reports));
 			return { native, viewport: top[2], total: count * per, offset: -(top[0] * per + top[1]), per };
 		}
 
-		if (!content?.nativeId) return null;
-		const viewport = native.getElementBounds(column.nativeId)?.height;
-		const total = native.getElementBounds(content.nativeId)?.height;
-		if (!viewport || !total) return null;
-
-		return { native, viewport, total, offset: native.getScrollOffset(column.nativeId)?.[1] ?? 0, per: 0 };
+		if (!column_height || !content_height) return null;
+		return { native, viewport: column_height, total: content_height, offset: scroll_y, per: 0 };
 	}
 
 	function scroll_to(m: Metrics, offset: number) {
 		if (!virtual) {
+			scroll_y = offset;
 			m.native.scrollTo(column!.nativeId!, 0, offset);
 			return;
 		}
@@ -148,9 +150,24 @@
 		refresh();
 	}
 
-	// Content changes height without any event, so the thumb is re-measured on a timer too.
+	function on_column_layout(e: GpuixEvent) {
+		column_height = e.height ?? 0;
+		refresh();
+	}
+
+	function on_content_layout(e: GpuixEvent) {
+		content_height = e.height ?? 0;
+		refresh();
+	}
+
+	function on_scroll_change(e: GpuixEvent) {
+		scroll_y = e.scrollY ?? 0;
+		refresh();
+	}
+
+	// Native reports no change in a list's row count, and reading its anchor draws nothing.
 	$effect(() => {
-		if (!scroll && !follow && !virtual) return;
+		if (!virtual) return;
 		const timer = setInterval(update, follow ? 100 : 250);
 		return () => clearInterval(timer);
 	});
@@ -171,8 +188,8 @@
 			</virtual-list>
 		</div>
 	{:else}
-		<div {@attach (node: ShadowNode) => (column = node)} onscroll={refresh} class="column" class:fixed={!scroll} testId={testid}>
-			<div {@attach (node: ShadowNode) => (content = node)} class="content" class:fixed={!scroll} style="gap: {gap}px; padding: {pad}">
+		<div {@attach (node: ShadowNode) => (column = node)} onlayout={on_column_layout} onscrollchange={on_scroll_change} class="column" class:fixed={!scroll} testId={testid}>
+			<div onlayout={on_content_layout} class="content" class:fixed={!scroll} style="gap: {gap}px; padding: {pad}">
 				{@render children()}
 			</div>
 		</div>

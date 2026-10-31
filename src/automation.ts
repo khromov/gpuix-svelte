@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import type { TestGpuixRenderer } from '@gpuix/native';
 import { App, AutomationError, connectStdio, connectTest, type TestAutomationRenderer } from '@gpuix/native/automation';
 import { get_native } from './renderer.ts';
-import { MAX_HEADLESS_HEIGHT, drain, focus, press, settle, type, unfocus } from './test.ts';
+import { MAX_HEADLESS_HEIGHT, drain, focus, press, pump, settle, type, unfocus } from './test.ts';
 
 export { App, Locator, AutomationError, connectStdio, connectTest, PROTOCOL_VERSION } from '@gpuix/native/automation';
 export type {
@@ -109,14 +109,14 @@ function pointer(x: number, y: number, send: (native: TestGpuixRenderer) => void
 }
 
 function settled<T>(value: T): T {
-	settle();
+	pump();
 	return value;
 }
 
 /**
  * Upstream's `TestAutomationRenderer` over the headless renderer, with test.ts's discipline:
- * every input is simulate → drainEvents → dispatch → settle, and reads settle first, so a
- * timer's update reaches `waitFor` the way the window's frame loop would commit it.
+ * every input is simulate → drainEvents → dispatch → settle, and reads pump first, so a timer's
+ * update or a queued `layout` event reaches `waitFor` the way the window would deliver it.
  */
 export function headless_renderer(): TestAutomationRenderer {
 	return {

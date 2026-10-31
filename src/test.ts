@@ -170,10 +170,14 @@ export function settle() {
 	native().flush();
 }
 
-/** For updates that arrive on a timer or a promise rather than from an event. */
+/**
+ * For updates that arrive on a timer, a promise or an event native queued while painting. A window hands
+ * those events over right after the paint, so they land before the wait starts, not when it ends.
+ */
 export async function wait(ms = 30) {
+	pump();
 	await new Promise((resolve) => setTimeout(resolve, ms));
-	settle();
+	pump();
 }
 
 export const tree = (): TreeNode => JSON.parse(native().getTreeJson());
