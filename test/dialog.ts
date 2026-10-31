@@ -10,6 +10,10 @@ import { all_text, bounds, check, find_test_id, finish, mount_headless, wait, wh
 
 type Fake = Record<string, (...args: never[]) => unknown>;
 
+// Only Windows blocks, and this file fakes that thread, so it can run the Windows path on any OS.
+const pretend = (platform: string) => Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+pretend('win32');
+
 const WAITS_ON_UI_THREAD = [
 	'getWindowSize',
 	'getElementBounds',
@@ -301,6 +305,106 @@ for (const virtual of [false, true]) {
 	);
 }
 
+// --- released behind a commit, a bad upload must not take the rest of that commit's calls with it ---
+{
+	let a: ShadowNode | null = null;
+	let b: ShadowNode | null = null;
+	const { native } = mount_headless(Fixture, {
+		props: {
+			onimages: (x: ShadowNode, y: ShadowNode) => {
+				a = x;
+				b = y;
+			}
+		},
+		width: 400,
+		height: 300
+	});
+	await wait(THUMB_MS);
+	const { close } = block_ui_thread(native);
+	const prompt = prompt_for_paths();
+	set_image(a, new Uint8Array([1]));
+	set_image(b, new Uint8Array([2]));
+	const sent: unknown[] = [];
+	(native as unknown as Fake).setImage = ((id: number) => {
+		if (id === a!.nativeId) throw new Error('unrecognized image format');
+		sent.push(id);
+	}) as never;
+	const { default: renderer, commit } = await import('../src/renderer.ts');
+	renderer.setAttribute(a!, 'data-y', '1');
+
+	const logged: unknown[][] = [];
+	const console_error = console.error;
+	console.error = (...args: unknown[]) => logged.push(args);
+	close();
+	await prompt;
+	let thrown: string | null = null;
+	try {
+		commit();
+	} catch (error) {
+		thrown = (error as Error).message;
+	}
+	console.error = console_error;
+	check('the bad one does not throw out of the commit', thrown, null);
+	check('it is logged like any other', logged.length, 1);
+	check('and the other element still gets its image', sent, [b!.nativeId]);
+}
+
+// --- "newest per element" has to hold however the caller refers to the element ----------------------
+{
+	let a: ShadowNode | null = null;
+	const { native } = mount_headless(Fixture, {
+		props: {
+			onimages: (x: ShadowNode) => {
+				a = x;
+			}
+		},
+		width: 400,
+		height: 300
+	});
+	await wait(THUMB_MS);
+	const { counts, close } = block_ui_thread(native);
+	const id = a!.nativeId;
+	const prompt = prompt_for_paths();
+	for (const value of [1, 2, 3]) set_image_pixels({ nativeId: id }, 1, 1, new Uint8Array([value, 0, 0, 255]));
+	close();
+	await prompt;
+	await wait(10);
+	check('a fresh { nativeId } per call still lands only the newest', counts.uploads.map((u) => (u[4] as Uint8Array)[0]), [3]);
+}
+
+// --- macOS and Linux keep the UI thread running behind their picker, and the app stays usable -------
+{
+	pretend('darwin');
+	let a: ShadowNode | null = null;
+	const { native } = mount_headless(Fixture, {
+		props: {
+			onimages: (x: ShadowNode) => {
+				a = x;
+			}
+		},
+		width: 400,
+		height: 300
+	});
+	await wait(THUMB_MS);
+	const fake = native as unknown as Fake;
+	let answer: (paths: string[]) => void = () => {};
+	fake.promptForPaths = (() => new Promise((resolve) => (answer = resolve))) as never;
+	const uploads: unknown[] = [];
+	fake.setImagePixels = ((id: number) => uploads.push(id)) as never;
+
+	const prompt = prompt_for_paths();
+	check('elsewhere read_native still reads behind the picker', read_native((n) => n.getWindowSize()) !== null, true);
+	check('and elements_at still answers', elements_at(5, 5).length > 0, true);
+	set_image_pixels(a, 1, 1, new Uint8Array([7, 0, 0, 255]));
+	check('an upload goes straight to native', uploads, [a!.nativeId]);
+	fake.getWindowSize = (() => ({ width: 321, height: 123 })) as never;
+	for (let waited = 0; waited < 2000 && size_text() !== '321x123'; waited += 25) await wait(25);
+	check('window_size follows a resize behind the picker', size_text(), '321x123');
+	answer(['/picked']);
+	check('and the prompt resolves as usual', await prompt, ['/picked']);
+	pretend('win32');
+}
+
 // --- the last window closing with an upload in flight is no app error, from a timer least of all ----
 {
 	let a: ShadowNode | null = null;
@@ -347,4 +451,4 @@ for (const virtual of [false, true]) {
 	check('the thumb follows the wheel again', bounds(find_test_id('list-thumb')!)!.y > before, true);
 }
 
-finish('dialog', 39);
+finish('dialog', 48);

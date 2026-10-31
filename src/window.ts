@@ -28,10 +28,10 @@ type NodeRef = { nativeId?: number | null } | null | undefined;
 const win = () => get_native() as WindowNative | null;
 
 // Windows runs the picker inside a GPUI foreground task, so until it closes every call that waits
-// on the UI thread stalls JS for 2 s and throws.
+// on the UI thread stalls JS for 2 s and throws. Counted on Windows only, see `prompt_for_paths`.
 let open_dialogs = 0;
 let size_under_dialog: WindowSize | null = null;
-const held_uploads = new Map<NodeRef, (id: number) => void>();
+const held_uploads = new Map<number, [NodeRef, (id: number) => void]>();
 
 /** A call can also be in flight as the last window closes, which is no app error, least of all from a timer. */
 function answered<T>(call: () => T): T | null {
@@ -57,18 +57,21 @@ export function read_native<T>(read: (native: Native) => T): T | null {
 /** An upload waits on the UI thread too, and only the newest one per element can still matter once the dialog closes. */
 function upload(node: NodeRef, send: (id: number) => void) {
 	with_native_id(node, (id) => {
-		if (open_dialogs > 0) held_uploads.set(node, send);
+		if (open_dialogs > 0) held_uploads.set(id, [node, send]);
 		else answered(() => send(id));
 	});
 }
 
 function release_uploads() {
-	for (const [node, send] of held_uploads) {
-		try {
-			upload(node, send);
-		} catch (error) {
-			console.error('[gpuix-svelte] an image held back during a dialog failed to upload:', error);
-		}
+	for (const [node, send] of held_uploads.values()) {
+		upload(node, (id) => {
+			// Inside the deferred call, because behind a commit a throw would cost every other call queued there.
+			try {
+				send(id);
+			} catch (error) {
+				console.error('[gpuix-svelte] an image held back during a dialog failed to upload:', error);
+			}
+		});
 	}
 	held_uploads.clear();
 }
@@ -92,6 +95,8 @@ export const toggle_fullscreen = () => win()?.toggleFullscreen?.();
 export async function prompt_for_paths(options?: PathPromptOptions): Promise<string[] | null> {
 	const native = win();
 	if (!native?.promptForPaths) return null;
+	// macOS and Linux keep the UI thread running behind their picker and the app stays usable, so nothing may hold still.
+	if (globalThis.process?.platform !== 'win32') return native.promptForPaths(options);
 
 	// The dialog disables the window it belongs to, so the size read here holds until it closes.
 	if (open_dialogs === 0) size_under_dialog = read_native((n) => (n as WindowNative).getWindowSize?.() ?? null);

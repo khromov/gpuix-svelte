@@ -32,7 +32,7 @@ import { check, finish } from 'gpuix-svelte/test';
 	check('the loop keeps ticking after a commit throws', ticks > 1, true);
 }
 
-// --- the last window closing ends the process, whatever timers are pending -
+// --- tick() going false ends the process, whatever timers are pending ------
 {
 	check('the shipped binding asks for the frame loop that ends it', new GpuixRenderer(() => {}).requiresTick(), true);
 

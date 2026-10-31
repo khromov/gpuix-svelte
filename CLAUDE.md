@@ -196,15 +196,17 @@ On Windows `file_open_dialog` runs inside a GPUI foreground task, so while the p
 `getFocusedElementId`, the overlay reads, `setImage`/`setImagePixels`, `registerFont`) blocks JS
 for 2 s and throws `Timed out after 2 seconds…`, with no error code of its own, and a throw from a
 timer ends the process. `applyBatch`, `tick`, `scrollTo` and the focus commands don't wait, and
-upstream's `readWindowSize` swallows the timeout and reports 800×600. So `prompt_for_paths` counts
-open dialogs, and until the last one closes `read_native` answers null without calling native,
-`window_size` reads the size taken as the dialog opened, and `upload` keeps the newest image per
-node. A call in flight as the last window closes throws too (`The GPUI UI thread stopped during…`
+upstream's `readWindowSize` swallows the timeout and reports 800×600. So on Windows
+`prompt_for_paths` counts open dialogs, and until the last one closes `read_native` answers null
+without calling native, `window_size` reads the size taken as the dialog opened, and `upload` keeps
+the newest image per element. macOS (`beginWithCompletionHandler`, a modeless panel) and Linux (an
+awaited portal) keep the UI thread running and the app usable behind the picker, so there it only
+forwards the call. A call in flight as the last window closes throws too (`The GPUI UI thread stopped during…`
 or the timeout), and from a timer that turned a clean close into exit 1 about one time in two with a
 live image. So `read_native` and `upload` both go through `answered`, which swallows those two
-texts and nothing else (matching the text, so a reworded message fails open). `test/dialog.ts` fakes
-the blocked thread, so it runs on every OS, but only a real window on Windows exercises the real
-thing.
+texts and nothing else (matching the text, so a reworded message fails open). `test/dialog.ts` overrides
+`process.platform` and fakes the blocked thread, so macOS CI runs the Windows path too, but only a
+real window on Windows exercises the real thing.
 
 Also on Windows and Linux, `getElementBounds`, `getElementsAt` and `getAutomationTree` call
 `window.refresh()` and answer from `on_next_frame`, so each one draws a full frame; on macOS they
