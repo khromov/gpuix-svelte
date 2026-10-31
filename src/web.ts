@@ -27,6 +27,7 @@ export {
 	zoom_window,
 	toggle_fullscreen,
 	prompt_for_paths,
+	read_native,
 	blur,
 	focus_element,
 	focused_element,

@@ -7,7 +7,7 @@
 import type { PathPromptOptions } from '@gpuix/native';
 import { get_native, node_of, with_native_id } from './renderer.ts';
 import { set_titlebar_title } from './titlebar.ts';
-import type { PixelFormat, ShadowNode, WindowNative } from './types.ts';
+import type { Native, PixelFormat, ShadowNode, WindowNative } from './types.ts';
 import { createSubscriber } from 'svelte/reactivity';
 import {
 	observeWindowInsets,
@@ -27,6 +27,55 @@ type NodeRef = { nativeId?: number | null } | null | undefined;
 
 const win = () => get_native() as WindowNative | null;
 
+// Windows runs the picker inside a GPUI foreground task, so until it closes every call that waits
+// on the UI thread stalls JS for 2 s and throws. Counted on Windows only, see `prompt_for_paths`.
+let open_dialogs = 0;
+let size_under_dialog: WindowSize | null = null;
+const held_uploads = new Map<number, [NodeRef, (id: number) => void]>();
+
+/** A call can also be in flight as the last window closes, which is no app error, least of all from a timer. */
+function answered<T>(call: () => T): T | null {
+	try {
+		return call();
+	} catch (error) {
+		// Native gives these no error code of their own, so the text is all that sets them apart from a real failure.
+		if (/^Timed out after|GPUI UI thread/.test((error as Error).message)) return null;
+		throw error;
+	}
+}
+
+/**
+ * Runs a read that waits on GPUI's UI thread, for a timer or an effect that must not stall or throw:
+ * null when there is no native, a dialog is open or the thread can't answer.
+ */
+export function read_native<T>(read: (native: Native) => T): T | null {
+	const native = get_native();
+	if (!native || open_dialogs > 0) return null;
+	return answered(() => read(native));
+}
+
+/** An upload waits on the UI thread too, and only the newest one per element can still matter once the dialog closes. */
+function upload(node: NodeRef, send: (id: number) => void) {
+	with_native_id(node, (id) => {
+		if (open_dialogs > 0) held_uploads.set(id, [node, send]);
+		else answered(() => send(id));
+	});
+}
+
+function release_uploads() {
+	for (const [node, send] of held_uploads.values()) {
+		upload(node, (id) => {
+			// Inside the deferred call, because behind a commit a throw would cost every other call queued there.
+			try {
+				send(id);
+			} catch (error) {
+				console.error('[gpuix-svelte] an image held back during a dialog failed to upload:', error);
+			}
+		});
+	}
+	held_uploads.clear();
+}
+
 export function set_window_title(title: string) {
 	win()?.setWindowTitle?.(title);
 	set_titlebar_title(title);
@@ -43,8 +92,24 @@ export const zoom_window = () => win()?.zoomWindow?.();
 export const toggle_fullscreen = () => win()?.toggleFullscreen?.();
 
 /** The platform file picker: absolute paths, or null when the user cancels. Rejects in a browser. */
-export const prompt_for_paths = (options?: PathPromptOptions): Promise<string[] | null> =>
-	win()?.promptForPaths?.(options) ?? Promise.resolve(null);
+export async function prompt_for_paths(options?: PathPromptOptions): Promise<string[] | null> {
+	const native = win();
+	if (!native?.promptForPaths) return null;
+	// macOS and Linux keep the UI thread running behind their picker and the app stays usable, so nothing may hold still.
+	if (globalThis.process?.platform !== 'win32') return native.promptForPaths(options);
+
+	// The dialog disables the window it belongs to, so the size read here holds until it closes.
+	if (open_dialogs === 0) size_under_dialog = read_native((n) => (n as WindowNative).getWindowSize?.() ?? null);
+	open_dialogs++;
+	try {
+		return await native.promptForPaths(options);
+	} finally {
+		if (--open_dialogs === 0) {
+			size_under_dialog = null;
+			release_uploads();
+		}
+	}
+}
 
 /** Gives focus back from an `<input>` / `<textarea>` to the window. */
 export const blur = () => win()?.blur?.();
@@ -53,7 +118,7 @@ export function focus_element(node: NodeRef) {
 	with_native_id(node, (id) => win()?.focusElement?.(id));
 }
 
-export const focused_element = (): ShadowNode | null => node_of(win()?.getFocusedElementId?.());
+export const focused_element = (): ShadowNode | null => node_of(read_native((n) => (n as WindowNative).getFocusedElementId?.()));
 
 /** Moves focus to the next tab stop in the window, wrapping at the end; Tab itself moves nothing since native 0.7. */
 export const focus_next = () => win()?.focusNext?.();
@@ -79,12 +144,12 @@ export function scroll_into_view(node: NodeRef) {
  * Native forgets them when the element is destroyed or its `src` changes, so call it again then.
  */
 export function set_image(node: NodeRef, bytes: Uint8Array) {
-	with_native_id(node, (id) => win()?.setImage?.(id, bytes));
+	upload(node, (id) => win()?.setImage?.(id, bytes));
 }
 
 /** Packed straight-alpha pixels, scaled into the element's box like any image, so a 2× bitmap stays sharp on retina. */
 export function set_image_pixels(node: NodeRef, width: number, height: number, pixels: Uint8Array, format: PixelFormat = 'rgba') {
-	with_native_id(node, (id) => win()?.setImagePixels?.(id, width, height, pixels, format));
+	upload(node, (id) => win()?.setImagePixels?.(id, width, height, pixels, format));
 }
 
 /**
@@ -95,7 +160,7 @@ export const register_font = (bytes: Uint8Array) => win()?.registerFont?.(bytes)
 
 /** The elements painted under a window point, topmost first, like the DOM's `elementsFromPoint`. */
 export const elements_at = (x: number, y: number): ShadowNode[] =>
-	(win()?.getElementsAt?.(x, y) ?? []).map(node_of).filter((n) => n !== null);
+	(read_native((n) => (n as WindowNative).getElementsAt?.(x, y)) ?? []).map(node_of).filter((n) => n !== null);
 
 const OVERLAY_MODES = new Set<string>(['hidden', 'minimal', 'full']);
 const warned_overlays = new Set<string>();
@@ -115,17 +180,19 @@ export function set_debug_overlay(mode: DebugFrameOverlayMode): DebugFrameOverla
 /** Hidden → minimal → full → hidden. */
 export const cycle_debug_overlay = () => win()?.cycleDebugFrameOverlay?.() as DebugFrameOverlayMode | undefined;
 
-export const debug_overlay = () => win()?.getDebugFrameOverlay?.() as DebugFrameOverlayMode | undefined;
+export const debug_overlay = () => (read_native((n) => (n as WindowNative).getDebugFrameOverlay?.()) ?? undefined) as DebugFrameOverlayMode | undefined;
 
 /** Recorded whether or not the overlay is showing; the wasm build has none. */
-export const debug_overlay_stats = (): DebugFrameOverlayStats | undefined => win()?.getDebugFrameOverlayStats?.();
+export const debug_overlay_stats = (): DebugFrameOverlayStats | undefined =>
+	read_native((n) => (n as WindowNative).getDebugFrameOverlayStats?.()) ?? undefined;
 
 /** Clears the draw samples behind the percentiles; the frame count keeps going. */
 export const reset_debug_overlay_stats = () => win()?.resetDebugFrameOverlayStats?.();
 
 // Looked up on every read, so a poll that outlives a remount follows the new native.
 const geometry = {
-	getWindowSize: () => win()?.getWindowSize?.(),
+	// Upstream's read swallows the timeout and reports its 800×600 fallback, which would reflow the app under the dialog.
+	getWindowSize: () => size_under_dialog ?? win()?.getWindowSize?.(),
 	getWindowInsets: () => win()?.getWindowInsets?.()
 } as WindowSizeHost & WindowInsetsHost;
 

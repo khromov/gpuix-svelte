@@ -4,7 +4,7 @@
  * leave the tree rootless between two batches.
  */
 
-import { TestGpuixRenderer } from '@gpuix/native';
+import { GpuixRenderer, TestGpuixRenderer } from '@gpuix/native';
 import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
 import { focus_dim_on_render, handle_event, start_frame_loop } from '../src/render.ts';
 import { check, finish } from 'gpuix-svelte/test';
@@ -30,6 +30,26 @@ import { check, finish } from 'gpuix-svelte/test';
 	loop.stop();
 
 	check('the loop keeps ticking after a commit throws', ticks > 1, true);
+}
+
+// --- tick() going false ends the process, whatever timers are pending ------
+{
+	check('the shipped binding asks for the frame loop that ends it', new GpuixRenderer(() => {}).requiresTick(), true);
+
+	const exit = process.exit;
+	let exit_code: unknown = 'not called';
+	process.exit = ((code?: number) => {
+		exit_code = code;
+	}) as typeof process.exit;
+	const keep_alive = setInterval(() => {}, 1000);
+	let running = true;
+	const loop = start_frame_loop({ requiresTick: () => true, tick: () => running });
+	running = false;
+	await new Promise((resolve) => setTimeout(resolve, 60));
+	loop.stop();
+	clearInterval(keep_alive);
+	process.exit = exit;
+	check('tick() going false exits with 0 past a pending interval', exit_code, 0);
 }
 
 // --- a throwing handler must not escape the native callback ---------------
@@ -113,4 +133,4 @@ import { check, finish } from 'gpuix-svelte/test';
 
 set_auto_commit(false);
 
-finish('lifecycle', 12);
+finish('lifecycle', 14);

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { get_native, on_window_key, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
+	import { on_window_key, read_native, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
@@ -48,7 +48,8 @@
 
 	// The trigger's own click closes it, and closing here first would let that click reopen it.
 	function outside(e: GpuixEvent) {
-		const box = anchor?.nativeId == null ? null : get_native()?.getElementBounds(anchor.nativeId);
+		const id = anchor?.nativeId;
+		const box = id == null ? null : read_native((native) => native.getElementBounds(id));
 		const px = e.x ?? -1;
 		const py = e.y ?? -1;
 		if (box && px >= box.x && px <= box.x + box.width && py >= box.y && py <= box.y + box.height) return;

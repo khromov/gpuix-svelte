@@ -132,6 +132,21 @@ If Apple rejects a submission, the build prints the submission output and fails.
 Windows has no equivalent step here; sign the `.exe` afterwards with `signtool` if you have a
 certificate.
 
+## Remote Desktop hosts
+
+On a Windows Server 2019 session host with no GPU, a window's title bar has been reported not to
+respond to the mouse in a Remote Desktop session while the window renders through DirectComposition.
+The close button does work over Remote Desktop on Windows 11 with a GPU. Turning DirectComposition
+off has been reported to help on such a host, in a build that also carried a native title-bar patch,
+so it may not be enough by itself. Set it before the first `render()`:
+
+```js
+if (process.env.SESSIONNAME?.startsWith('RDP-')) process.env.GPUI_DISABLE_DIRECT_COMPOSITION = '1';
+```
+
+A window without DirectComposition can't be see-through, so `transparent` and `windowBackground`
+stop showing what is behind it.
+
 ## Run it in a browser
 
 The same components run on the web, because GPUI itself compiles to WebAssembly and paints a

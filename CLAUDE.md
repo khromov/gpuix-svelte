@@ -74,7 +74,10 @@ npm run test:css           # <style> class rules: specificity, inline wins, :hov
 npm run test:module        # a .svelte.ts runes module compiles and is one shared instance
 npm run test:vars          # var() in class rules and inline styles, set_css_vars restyles in one
                            # batch, an undefined var warns at commit rather than where it was read
-npm run test:scroller      # the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual
+npm run test:scroller      # the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual,
+                           # and that a plain column never asks native for bounds
+npm run test:dialog        # a file picker open on a faked-blocked UI thread: no native call gets
+                           # through, window_size holds, uploads wait, nothing throws from a timer
 npm run test:hitbox        # hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
@@ -171,13 +174,16 @@ with them — adding or removing a check means bumping that number.
 `focus`/`unfocus`, `painted`/`all_text`/`bounds`/`screenshot`, the `clock_*` and `advance_time`
 controls, `wait_for`). The input helpers run GPUI's real hit testing and input pipeline
 (`simulateClick` → `drainEvents()` → `dispatch()`) and end in `pump()`, which drains and settles
-until a paint queues nothing more. Prefer them over calling `dispatch()` directly, which injects an
+until a paint queues nothing more; `wait()` pumps on both sides of its sleep, because a window hands
+over what a paint queued (`layout`, say) right after that paint, and `Scroller`'s thumb depends on
+it. Prefer them over calling `dispatch()` directly, which injects an
 event at an element and *bypasses* hit testing, so it can pass while the real window fails — the
 renderer's own tests do it only where the batching itself is under test. The headless viewport
 width follows `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px
 (`MAX_HEADLESS_HEIGHT`) — elements laid out below that can't be hit (`click` throws; shift the
 layout up inside an absolute wrapper to reach them) — and Windows ignores the request and opens a
-1024×749 viewport, so never assert against the size you asked for; read `native.getWindowSize()`
+viewport sized from the display (1024×749 on CI, 1536×1095 on a dev machine), so never assert
+against the size you asked for; read `native.getWindowSize()`
 (`test/portal.ts` does). Since native 0.11 the headless renderer emits `focus`/`blur` itself, so
 `focus()` leaves both to native; `unfocus()` still reports a blur (the test renderer has no `blur()`)
 and `deliver()` drops native's repeat of it when focus later moves on.
@@ -189,6 +195,29 @@ no-ops wherever the renderer lacks the method, so app code never needs `get_nati
 guards. Its node-taking helpers go through `with_native_id`, which defers the call past the next
 commit while mutations are queued — from an `{@attach}` the element's `createElement` has not
 shipped yet and native throws `GenericFailure`.
+
+On Windows `file_open_dialog` runs inside a GPUI foreground task, so while the picker is open no
+`UiCommand` runs: every native call that waits on the UI thread (`getWindowSize`,
+`getElementBounds`, `getScrollOffset`, `getListScrollTop`, `getElementsAt`, `getAutomationTree`,
+`getFocusedElementId`, the overlay reads, `setImage`/`setImagePixels`, `registerFont`) blocks JS
+for 2 s and throws `Timed out after 2 seconds…`, with no error code of its own, and a throw from a
+timer ends the process. `applyBatch`, `tick`, `scrollTo` and the focus commands don't wait, and
+upstream's `readWindowSize` swallows the timeout and reports 800×600. So on Windows
+`prompt_for_paths` counts open dialogs, and until the last one closes `read_native` answers null
+without calling native, `window_size` reads the size taken as the dialog opened, and `upload` keeps
+the newest image per element. macOS (`beginWithCompletionHandler`, a modeless panel) and Linux (an
+awaited portal) keep the UI thread running and the app usable behind the picker, so there it only
+forwards the call. A call in flight as the last window closes throws too (`The GPUI UI thread stopped during…`
+or the timeout), and from a timer that turned a clean close into exit 1 about one time in two with a
+live image. So `read_native` and `upload` both go through `answered`, which swallows those two
+texts and nothing else (matching the text, so a reworded message fails open). `test/dialog.ts` overrides
+`process.platform` and fakes the blocked thread, so macOS CI runs the Windows path too, but only a
+real window on Windows exercises the real thing.
+
+Also on Windows and Linux, `getElementBounds`, `getElementsAt` and `getAutomationTree` call
+`window.refresh()` and answer from `on_next_frame`, so each one draws a full frame; on macOS they
+read directly. Reading any of them on a timer keeps an idle window drawing (`getListScrollTop` and
+`getScrollOffset` do not draw). `onlayout` / `onscrollchange` are the way to be told instead.
 
 CI (`.github/workflows/test.yml`): `npm test` on macOS and Windows × Node 24 and 26, `npm run
 bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS × Node 24 and 26, `compile` on
@@ -368,8 +397,7 @@ sizes the canvas; and it has no `captureScreenshot`, `activateWindow`, `minimize
 `cycleDebugFrameOverlay`, or `resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` — so
 frame-cost measurement is desktop-only (`set_debug_overlay` still shows the overlay). Like the napi
 window it has `getAutomationTree()` but no `getTreeJson()` (that is test-renderer only). Everything
-`Scroller` needs (`getElementBounds`, `getScrollOffset`, `getListScrollTop`, `scrollTo`,
-`scrollToItem`) is present.
+`Scroller` needs (`getListScrollTop`, `scrollTo`, `scrollToItem`) is present.
 
 There is no automated test: `gpuix-svelte/test` is built on `TestGpuixRenderer`, which is napi-only.
 Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe-swiftshader
@@ -621,13 +649,17 @@ Unknown events are dropped silently.
 
 - **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground and
   Substrate all use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
-  measures `getElementBounds`/`getScrollOffset` on a timer and drags on a panel-sized overlay; the
-  thumb restyle after a wheel event is throttled to one per 50 ms because each one is a full native
-  frame. A plain scroll container lays out and paints every child every frame, so `virtual` swaps in
-  GPUI's `<virtual-list>` (each direct child a row, which needs `width: 100%`; `follow` →
-  `followTail`). There the thumb works in rows: the viewport from `getListScrollTop`, the row height
-  a running mean of `visibleRange` reports seeded with `estimate`, drag via `scrollToItem`. Its
-  colours are `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
+  draws its own from what native reports (`layout` on the column and its content, `scrollChange`
+  on the column) and drags on a panel-sized overlay. It has no timer and makes no native read, since
+  on Windows and Linux reading bounds draws a frame (polling them kept an idle window at 8 frames/s
+  per `Scroller`); the thumb restyle is throttled to one per 50 ms because each one is a full native
+  frame. A plain scroll container lays out and paints every child
+  every frame, so `virtual` swaps in GPUI's `<virtual-list>` (each direct child a row, which needs
+  `width: 100%`; `follow` → `followTail`). There the thumb works in rows: the viewport from
+  `getListScrollTop`, the row height a running mean of `visibleRange` reports seeded with `estimate`,
+  drag via `scrollToItem`. Nothing reports a change in row count, so that read stays on a 250 ms
+  timer (100 ms with `follow`), which draws nothing but goes through `read_native`. Its colours are
+  `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
 - **`Portal`** is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
   renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
   teardown walk, anchors and `{#if}` blocks are untouched) and only the **native** node hangs off
@@ -800,7 +832,7 @@ are the ones that bite most often, and the renderer behaviour behind them.
   `{@attach (node) => ...}` (or `use:`); the node is the renderer's shadow node, and `node.nativeId`
   is what `get_native()`'s handle wants for `getScrollOffset()` / `getElementBounds()`
   (`{ x, y, width, height }`; a clipped child still reports its full size). The scroll offset moves
-  after the wheel event returns, so read it from `onscroll` a frame later, as `Scroller` does.
+  after the wheel event returns, so take it from `onscrollchange`, as `Scroller` does.
 - Examples import the package by name (`import { render_hot } from 'gpuix-svelte'`) via the
   self-reference in `exports`.
 

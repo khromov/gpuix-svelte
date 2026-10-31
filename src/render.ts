@@ -102,9 +102,9 @@ function describe_app(path: string, info: AppOptions & { title?: string }) {
 
 export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 'tick'>): { stop(): void } {
 	if (!native.requiresTick()) {
-		// Windows/Linux: GPUI owns a blocking UI thread, so there is no frame loop
-		// to poll `is_dirty()` and commits have to schedule themselves. The wasm
-		// build takes this path too — it drives its own frames off the canvas.
+		// Only the wasm build, which drives its own frames off the canvas: with no loop
+		// to poll `is_dirty()`, commits have to schedule themselves. Every desktop platform
+		// ticks, and `tick()` going false below is what ends the process with its last window.
 		set_auto_commit(true);
 		return {
 			stop() {
