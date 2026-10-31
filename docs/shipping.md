@@ -132,21 +132,6 @@ If Apple rejects a submission, the build prints the submission output and fails.
 
 On Windows, sign the `.exe` afterwards with `signtool` if you have a certificate.
 
-## Remote Desktop hosts
-
-On a Windows Server 2019 session host with no GPU, a window's title bar has been reported not to
-respond to the mouse in a Remote Desktop session while the window renders through DirectComposition.
-The close button does work over Remote Desktop on Windows 11 with a GPU. Turning DirectComposition
-off has been reported to help on such a host, in a build that also carried a native title-bar patch,
-so it may not be enough by itself. Set it before the first `render()`:
-
-```js
-if (process.env.SESSIONNAME?.startsWith('RDP-')) process.env.GPUI_DISABLE_DIRECT_COMPOSITION = '1';
-```
-
-A window without DirectComposition can't be see-through, so `transparent` and `windowBackground`
-stop showing what is behind it.
-
 ## Run it in a browser
 
 The same components run on the web, because GPUI itself compiles to WebAssembly and paints a
@@ -185,3 +170,15 @@ same. Only the plumbing differs:
 [`examples/tic-tac-toe/standalone.ts`](../examples/tic-tac-toe/standalone.ts) carries the `app`
 options. The implementation is [`src/build.ts`](../src/build.ts) (the Bun compile) and
 [`src/app-bundle.ts`](../src/app-bundle.ts) (the plist, icons, signing and notarization).
+
+## Addendum: Remote Desktop hosts
+
+On a Windows Server 2019 session host with no GPU, a window's title bar has been reported not to
+respond to the mouse over Remote Desktop, and turning DirectComposition off may not be enough by
+itself: the report of it helping came from a build that also carried a native title-bar patch.
+Set this before the first `render()`; without DirectComposition a window can't be see-through, so
+`transparent` and `windowBackground` stop showing what is behind it:
+
+```js
+if (process.env.SESSIONNAME?.startsWith('RDP-')) process.env.GPUI_DISABLE_DIRECT_COMPOSITION = '1';
+```
