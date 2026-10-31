@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share cards · gpuix-svelte</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M28.4 18.3 15.4 32l13 13.7' fill='none' stroke='%23fff' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34.9 18.3 50 32 34.9 45.7Z' fill='%23ff3e00' stroke='%23ff3e00' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preload" href="../assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:Geist;src:url(../assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(../assets/fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{
+--bg:#000;--s1:#0a0a0a;--s2:#111;--s3:#171717;
+--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.13);--line-3:rgba(255,255,255,.22);
+--text:#ededed;--text-2:#a1a1a1;--text-3:#8f8f8f;
+--accent:#ff3e00;
+--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+--c-k:#e09cbc;--c-t:#88b4e2;--c-n:#e6b07e;--c-ln:#5e5e5e;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+a{color:inherit}
+p,ul,h1,h2{margin:0;padding:0;font:inherit}
+ul{list-style:none}
+
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;padding:0 32px;background:var(--bg);border-bottom:1px solid var(--line)}
+.home{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.home svg{width:22px;height:22px}
+.home span{margin-left:4px;font-weight:400;color:var(--text-3)}
+.sizes{display:grid;grid-auto-flow:column;gap:2px;padding:3px;border:1px solid var(--line-2);border-radius:10px;background:var(--s1)}
+.sizes button{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;background:none;color:var(--text-2);font:500 13px/1 var(--sans);white-space:nowrap;cursor:pointer}
+.sizes button:hover{color:var(--text)}
+.sizes button[aria-pressed=true]{background:#1f1f1f;color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.sizes button:focus-visible{outline:2px solid var(--text);outline-offset:1px}
+.gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 28px;padding:32px}
+.gallery[data-size=feed]{grid-template-columns:repeat(auto-fill,min(500px,100%))}
+.gallery[data-size=full]{grid-template-columns:minmax(0,1fr)}
+.frame{margin:0;min-width:0}
+.frame figcaption{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;color:var(--text-3)}
+.frame figcaption a{flex:none;font-weight:600;letter-spacing:-.015em;color:var(--text);text-decoration:none}
+.frame figcaption a:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--accent)}
+.save{flex:none;align-self:center;margin-left:auto;appearance:none;height:30px;padding:0 12px;font:500 12.5px/1 var(--sans);color:var(--text);background:var(--s3);border:1px solid var(--line-2);border-radius:7px;white-space:nowrap;cursor:pointer}
+.save:hover{background:#1f1f1f;border-color:var(--line-3)}
+.save:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.save:disabled{color:var(--text-3);cursor:progress}
+.slot{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px var(--line-2)}
+[data-solo] .top,[data-solo] .frame figcaption,[data-solo] .frame:not(.on){display:none}
+[data-solo] .gallery{display:grid;place-items:center;min-height:100vh;padding:0;grid-template-columns:minmax(0,1fr)}
+[data-solo] .frame{width:min(100vw,calc(100vh * 16 / 9))}
+[data-solo] .slot{border-radius:0;box-shadow:none}
+@media (max-width:900px){
+.top{padding:0 16px}
+.home span,.sizes{display:none}
+.gallery,.gallery[data-size]{grid-template-columns:minmax(0,1fr);padding:16px}
+.frame figcaption{flex-wrap:wrap}
+}
+
+.card{position:absolute;top:0;left:0;width:1600px;height:900px;overflow:hidden;background:#000;color:var(--text);font:400 16px/1.2 var(--sans);letter-spacing:-.022em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;transform-origin:0 0}
+.card code{font-family:var(--mono);font-weight:500;font-size:.92em;letter-spacing:-.035em}
+.lockup{display:flex;align-items:center;gap:15px;font-size:34px;font-weight:600;letter-spacing:-.03em;white-space:nowrap}
+.lockup svg{flex:none;width:46px;height:46px}
+.ver{font-weight:600;letter-spacing:-.032em;line-height:.9;white-space:nowrap}
+
+.c-ledger{display:grid;grid-template-columns:600px 1fr}
+.c-ledger .side{display:flex;flex-direction:column;justify-content:space-between;padding:64px;border-right:1px solid var(--line-2);background:var(--s1)}
+.c-ledger .eyebrow{margin-bottom:22px;font:500 28px/1 var(--mono);letter-spacing:-.02em;color:var(--accent)}
+.c-ledger .ver{margin-left:-8px;font-size:190px}
+.c-ledger .lead{margin-top:34px;font-size:42px;font-weight:500;letter-spacing:-.032em;line-height:1.12;text-wrap:balance}
+.c-ledger .when{margin-top:22px;font:400 28px/1 var(--mono);letter-spacing:-.02em;color:var(--text-2)}
+.c-ledger .rows{display:grid;grid-auto-rows:1fr}
+.c-ledger li{display:grid;grid-template-columns:104px 1fr;align-items:center;padding:0 64px;border-bottom:1px solid var(--line);font-size:48px;font-weight:500;letter-spacing:-.03em;line-height:1.14;text-wrap:balance}
+.c-ledger li:last-child{border-bottom:0}
+.kind{font:500 28px/1 var(--mono);letter-spacing:-.02em}
+.kind.new,.kind.perf{color:var(--accent)}
+.kind.fix{color:var(--text-3)}
+
+.c-matrix{display:flex;flex-direction:column}
+.c-matrix header{display:flex;align-items:center;justify-content:space-between;height:104px;padding:0 64px;font-size:30px;color:var(--text-2)}
+.c-matrix header .lockup{color:var(--text)}
+.c-matrix svg.dots{display:block;width:1600px;height:auto}
+.dots .off rect{fill:rgba(255,255,255,.1)}
+.dots .near rect{fill:rgba(255,62,0,.34)}
+.dots .lit rect{fill:#ff5a24}
+.dots .lit{filter:drop-shadow(0 0 9px rgba(255,62,0,.8))}
+.c-matrix ul{flex:1;display:grid;grid-template-columns:1.5fr 1.1fr .8fr;grid-auto-rows:1fr;gap:0 44px;padding:18px 64px 36px}
+.c-matrix li{display:flex;align-items:center;gap:18px;border-top:1px solid var(--line-2);font-size:36px;font-weight:500;white-space:nowrap}
+.c-matrix li:first-child{grid-column:1/-1;font-size:42px}
+.c-matrix li::before{content:"";flex:none;width:12px;height:12px;border-radius:3px;background:var(--accent)}
+
+.c-diff{display:flex;flex-direction:column;background:#050505}
+.c-diff header{display:flex;align-items:center;gap:34px;flex:none;height:92px;padding:0 48px;border-bottom:1px solid var(--line-2);background:#000}
+.c-diff header .lockup{font-size:30px}
+.c-diff header .lockup svg{width:40px;height:40px}
+.c-diff .cmp{font:400 28px/1 var(--mono);letter-spacing:-.02em;color:var(--text-2)}
+.c-diff .stat{margin-left:auto;font:500 28px/1 var(--mono);letter-spacing:-.02em}
+.c-diff .stat ins{text-decoration:none;color:#73c784}
+.c-diff .stat del{margin-left:10px;text-decoration:none;color:#f0857e}
+.c-diff .body{flex:1;display:flex;flex-direction:column}
+.ln{flex:1;display:grid;grid-template-columns:96px 56px 1fr;align-items:center;font:400 33px/1 var(--mono);letter-spacing:-.035em;white-space:nowrap}
+.ln i{padding-right:28px;font-style:normal;text-align:right;color:rgba(255,255,255,.34)}
+.ln b{font-weight:500}
+.ln.add{background:rgba(63,185,80,.11)}
+.ln.add b{color:#73c784}
+.ln.del{background:rgba(248,81,73,.1)}
+.ln.del b{color:#f0857e}
+.ln code{font-size:1em;letter-spacing:inherit;color:#fff}
+.ln em{margin-right:12px;font-style:normal}
+.ln em.new{color:var(--c-k)}
+.ln em.perf{color:var(--c-n)}
+.ln em.fix{color:var(--c-t)}
+.ln.big{flex:none;height:216px;grid-template-columns:96px 56px 1fr auto;padding-right:48px;font-size:164px;font-weight:600;letter-spacing:-.05em}
+.ln.big i,.ln.big b,.ln.big time{font-size:33px;font-weight:400;letter-spacing:-.035em}
+.ln.big time{color:#73c784}
+.ln.del.big{height:124px;font-size:76px;font-weight:400;color:#f0857e}
+.ln.add.big{color:#fff}
+
+.c-shot{display:grid;grid-template-columns:620px 1fr}
+.c-shot .side{display:flex;flex-direction:column;padding:60px 56px 56px 64px}
+.c-shot .lockup{gap:20px;font-size:52px;letter-spacing:-.035em}
+.c-shot .lockup svg{width:70px;height:70px}
+.c-shot .eyebrow{margin-top:auto;font-size:44px;font-weight:500;letter-spacing:-.03em;color:var(--text-2)}
+.c-shot .ver{margin:14px 0 44px -6px;font-size:168px}
+.c-shot li{display:flex;align-items:flex-start;gap:18px;padding:17px 0;border-top:1px solid var(--line-2);font-size:33px;font-weight:500;line-height:1.18}
+.c-shot li svg{flex:none;width:30px;height:30px;margin-top:5px;color:var(--accent)}
+.c-shot .desk{position:relative;overflow:hidden;background:url(../assets/wall/wall-mac.webp) center/cover}
+.c-shot .finder{position:absolute;top:64px;left:48px;width:500px;overflow:hidden;border-radius:16px;background:#1e1e24;box-shadow:0 0 0 1px rgba(255,255,255,.18),0 30px 70px rgba(0,0,0,.5)}
+.c-shot .finder .chrome{background:#2a2a32}
+.c-shot .item{display:grid;justify-items:center;gap:6px;padding:26px 0 36px;font:500 28px/1 var(--mono);letter-spacing:-.035em}
+.c-shot .item img{display:block;width:190px;height:190px}
+.c-shot .win{position:absolute;top:132px;right:48px;width:436px;overflow:hidden;border-radius:16px;background:#11111b;box-shadow:0 0 0 1px rgba(255,255,255,.2),0 40px 90px rgba(0,0,0,.6)}
+.c-shot .win img{display:block;width:100%;height:auto;border-radius:0 0 16px 16px}
+.c-shot .dock{position:absolute;bottom:14px;left:50%;display:flex;align-items:center;gap:14px;padding:8px 16px;transform:translateX(-50%);border-radius:26px;background:rgba(50,50,56,.74);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+.c-shot .dock img{display:block;width:84px;height:84px}
+.c-shot .dock .finder-tile{position:relative;width:68px;height:68px;overflow:hidden;border-radius:15px;background:linear-gradient(#5fc0f9,#1d7fe0)}
+.c-shot .dock .finder-tile::after{content:"";position:absolute;top:0;bottom:0;left:50%;right:0;background:rgba(255,255,255,.72)}
+.c-shot .dock .running{position:relative}
+.c-shot .dock .running::after{content:"";position:absolute;left:50%;bottom:-6px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff}
+.chrome{position:relative;display:flex;align-items:center;gap:10px;height:50px;padding:0 20px;background:#1a1a24;border-bottom:1px solid rgba(255,255,255,.08);border-radius:16px 16px 0 0;font-size:19px;color:var(--text-2)}
+.chrome i{width:14px;height:14px;border-radius:50%;background:#ff5f57}
+.chrome i:nth-child(2){background:#febc2e}
+.chrome i:nth-child(3){background:#28c840}
+.chrome span{position:absolute;left:0;right:0;text-align:center;letter-spacing:-.01em}
+
+.c-dialog{display:grid;place-items:center;background:url(../assets/wall/wall-mac.webp) center/cover}
+.c-dialog::before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.c-dialog .win{position:relative;width:1290px;overflow:hidden;border-radius:26px;background:rgba(17,17,20,.93);box-shadow:0 0 0 1px rgba(255,255,255,.18),0 50px 120px rgba(0,0,0,.65)}
+.c-dialog .chrome{height:58px;background:rgba(255,255,255,.035);border-radius:26px 26px 0 0;font-size:24px}
+.c-dialog .inner{display:flex;flex-direction:column;align-items:center;padding:34px 56px 42px}
+.c-dialog .tile{display:grid;place-items:center;width:92px;height:92px;border-radius:22px;background:#000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.24)}
+.c-dialog .tile svg{width:64px;height:64px}
+.c-dialog h2{margin-top:20px;font-size:72px;font-weight:600;letter-spacing:-.045em;line-height:1.05}
+.c-dialog .sub{margin-top:8px;font-size:30px;color:var(--text-2)}
+.c-dialog ul{display:grid;gap:14px;margin:30px 0 28px}
+.c-dialog li{display:flex;align-items:center;gap:20px;font-size:32px;font-weight:500}
+.ico{flex:none;display:grid;place-items:center;width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);color:#ff6a3a}
+.ico svg{width:34px;height:34px}
+.field{display:flex;align-items:center;gap:16px;height:72px;padding:0 28px;border:1px solid var(--line-3);border-radius:14px;background:#000;font:400 31px/1 var(--mono);letter-spacing:-.03em;white-space:nowrap}
+.field i{color:var(--text-3);font-style:normal}
+.field s{display:block;width:3px;height:36px;margin-left:-12px;background:var(--accent)}
+
+.c-bento{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:16px;padding:36px}
+.t{position:relative;display:flex;flex-direction:column;min-width:0;padding:26px 28px;overflow:hidden;border:1px solid var(--line-2);border-radius:24px;background:var(--s1)}
+.t .viz{flex:1;display:grid;place-items:center;min-height:0}
+.t .cap{font-size:30px;font-weight:500;line-height:1.15;letter-spacing:-.025em}
+.t-ver{grid-column:span 2;grid-row:span 3;justify-content:space-between;padding:40px 44px;background:#ff3e00;border:0;color:#000}
+.t-ver .eyebrow{margin-bottom:10px;font-size:46px;font-weight:600;letter-spacing:-.035em}
+.t-ver .ver{margin-left:-10px;font-size:270px}
+.t-ver .when{margin-top:18px;font:500 30px/1 var(--mono);letter-spacing:-.03em}
+.t-wide{grid-column:span 2}
+.t-ver .when code{font-size:1em;font-weight:500;letter-spacing:inherit}
+.v-files{display:flex;gap:64px}
+.v-files div{display:grid;justify-items:center;gap:4px;font:500 26px/1 var(--mono);letter-spacing:-.035em;color:var(--text-2)}
+.v-files img{display:block;width:76px;height:76px}
+.v-chip{position:relative;display:grid;place-items:center;width:176px;height:76px;border:3px solid var(--accent);border-radius:14px;background:rgba(255,62,0,.1);font:500 34px/1 var(--mono);letter-spacing:-.04em}
+.v-chip::before,.v-chip::after{content:"";position:absolute;left:22px;width:125px;height:14px;background:repeating-linear-gradient(90deg,var(--accent) 0 5px,transparent 5px 24px)}
+.v-chip::before{top:-17px}
+.v-chip::after{bottom:-17px}
+.v-crash{display:flex;align-items:center;gap:22px;font:500 31px/1 var(--mono);letter-spacing:-.035em}
+.v-crash span{display:flex;align-items:center;gap:12px;height:72px;padding:0 24px;border-radius:14px}
+.v-crash .was{background:rgba(248,81,73,.12);color:#f0857e}
+.v-crash .now{background:rgba(63,185,80,.14);color:#73c784}
+.v-crash svg{width:30px;height:30px}
+.v-crash i{font-style:normal;color:var(--text-3)}
+.v-stat{display:grid;justify-items:center;gap:6px}
+.v-stat div{font-size:72px;font-weight:600;line-height:1;letter-spacing:-.04em}
+.v-stat span{color:var(--text-2)}
+.v-stat i{margin:0 .1em;font-style:normal;font-weight:300;color:var(--text-3)}
+.v-stat b{font-weight:600;color:var(--accent)}
+.v-stat small{font:500 26px/1 var(--mono);letter-spacing:-.03em;color:var(--text-3)}
+
+.c-poster{display:flex;flex-direction:column;padding:56px 64px 44px;background:#ff3e00;color:#000}
+.c-poster header{display:flex;align-items:center;justify-content:space-between;font-size:34px;font-weight:500}
+.c-poster .run{margin-top:44px;font-size:68px;font-weight:600;line-height:1.1;letter-spacing:-.042em;text-wrap:pretty}
+.c-poster .run code{font-size:.9em;font-weight:600;letter-spacing:-.065em}
+.c-poster .run span:not(:first-child){white-space:nowrap}
+.c-poster .run i{margin-left:.16em;font-style:normal;font-weight:400;color:rgba(0,0,0,.42)}
+.c-poster .big{display:flex;align-items:baseline;gap:44px;margin-top:auto}
+.c-poster .ver{margin-left:-20px;font-size:400px;letter-spacing:-.04em;line-height:.76}
+.c-poster .out{font-size:128px;font-weight:600;letter-spacing:-.055em;line-height:.76}
+
+.c-sheet{padding:40px;background:#f2f1ec;color:#0a0a0a;--rule:2px solid #0a0a0a}
+.c-sheet .grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:300px repeat(4,1fr) 92px;height:100%;border:var(--rule)}
+.c-sheet .hero{position:relative;display:flex;align-items:flex-end;padding:0 32px 22px;background:#ff3e00;border-right:var(--rule);border-bottom:var(--rule)}
+.c-sheet .hero .label{position:absolute;top:24px;left:32px}
+.c-sheet .hero .ver{margin-left:-8px;font-size:250px;letter-spacing:-.036em;line-height:.8}
+.c-sheet .label{font:500 26px/1 var(--mono);letter-spacing:-.02em}
+.c-sheet .meta{display:grid;grid-template-columns:1fr 1fr;border-bottom:var(--rule)}
+.c-sheet .meta div{display:flex;flex-direction:column;justify-content:space-between;padding:24px 28px;font-size:37px;font-weight:600;letter-spacing:-.03em;line-height:1.08}
+.c-sheet .meta div:nth-child(odd){border-right:var(--rule)}
+.c-sheet .meta div:nth-child(-n+2){border-bottom:var(--rule)}
+.c-sheet .meta .label{color:#55554f}
+.c-sheet .cell{grid-column:span 2;display:grid;grid-template-columns:72px 1fr;align-items:center;gap:0 8px;padding:0 28px;border-bottom:1px solid rgba(0,0,0,.28);font-size:40px;font-weight:500;letter-spacing:-.03em;line-height:1.1}
+.c-sheet .cell b{font:500 26px/1 var(--mono);letter-spacing:-.02em;color:#55554f}
+.c-sheet .cell em{font:500 26px/1 var(--mono);font-style:normal;letter-spacing:-.02em;color:#c22f00}
+.c-sheet .foot{grid-column:span 2;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-top:var(--rule);margin-top:-1px}
+.c-sheet .foot .cmd{font:500 31px/1 var(--mono);letter-spacing:-.035em}
+.c-sheet .foot .url{font:500 28px/1 var(--mono);letter-spacing:-.03em;color:#55554f}
+</style>
+</head>
+<body>
+<header class="top">
+<a class="home" href="../"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte<span>share cards</span></a>
+<div class="sizes" role="group" aria-label="Preview size">
+<button type="button" data-size="two" aria-pressed="true">Two up</button>
+<button type="button" data-size="feed" aria-pressed="false">Feed, 500 px</button>
+<button type="button" data-size="full" aria-pressed="false">Full width</button>
+</div>
+</header>
+<main class="gallery" id="gallery"></main>
+<script>
+const release = {
+	version: '0.4.0',
+	previous: '0.3.0',
+	date: '31 Oct 2026',
+	lead: '`npm run build` now makes a real app',
+	install: 'npm i gpuix-svelte@0.4.0',
+	url: 'gpuix-svelte.stanislav.garden',
+	facts: [
+		{ label: 'builds', value: '.app and .exe' },
+		{ label: 'windows picker stall', value: '2,000 → 17 ms' },
+		{ label: 'windows idle fps', value: '8 → 0' }
+	],
+	log: [
+		{ kind: 'new', icon: 'app', text: 'Built-in helper to build a signed .app on macOS and an .exe on Windows' },
+		{ kind: 'perf', icon: 'fast', text: 'Improved `<Scroller>` performance' },
+		{ kind: 'new', icon: 'arm', text: 'Windows arm64 support' },
+		{ kind: 'fix', icon: 'bug', text: '4 bug fixes' }
+	]
+};
+
+const APP_ICON = '../assets/shots/app-icon.png';
+const COMMIT_TYPES = { new: 'feat:', perf: 'perf:', fix: 'fix:' };
+const fmt = (s) => s.replaceAll('<', '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>');
+const mark = (body = '#fff', tip = '#ff3e00') => `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="${body}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="${tip}" stroke="${tip}" stroke-width="5" stroke-linejoin="round"/></svg>`;
+const lockup = (body, tip) => `<div class="lockup">${mark(body, tip)}gpuix-svelte</div>`;
+const chrome = (title) => `<div class="chrome"><i></i><i></i><i></i><span>${title}</span></div>`;
+
+const ICONS = {
+	app: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M10.5 8.5 7 12l3.5 3.5M14 8.5v7l3.5-3.5z"/>',
+	fast: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
+	arm: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
+	bug: '<rect x="8" y="8" width="8" height="12" rx="4"/><path d="M10 8.5 8.5 5M14 8.5 15.5 5M8 14H3.5M20.5 14H16M8.5 10.5 5 8M15.5 10.5 19 8M8.5 17.5 5 20M15.5 17.5 19 20"/>',
+	check: '<path d="M4.5 12.5 10 18 19.5 7"/>'
+};
+const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+const GLYPHS = {
+	0: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+	1: ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+	2: ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+	3: ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+	4: ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+	5: ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+	6: ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+	7: ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+	8: ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+	9: ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+	'.': ['0', '0', '0', '0', '0', '0', '1']
+};
+
+function dots(text, cols, rows, pitch) {
+	const glyphs = [...text].map((ch) => GLYPHS[ch]);
+	const width = glyphs.reduce((sum, g) => sum + g[0].length + 1, -1);
+	const top = Math.floor((rows - 7) / 2);
+	const lit = new Set();
+	let x = Math.floor((cols - width) / 2);
+	for (const g of glyphs) {
+		g.forEach((line, y) => [...line].forEach((on, i) => on === '1' && lit.add(`${x + i},${top + y}`)));
+		x += g[0].length + 1;
+	}
+	const sizes = { off: pitch * 0.3, near: pitch * 0.34, lit: pitch * 0.88 };
+	const groups = { off: '', near: '', lit: '' };
+	for (let y = 0; y < rows; y++) {
+		for (let x = 0; x < cols; x++) {
+			const near = [-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => lit.has(`${x + dx},${y + dy}`)));
+			const group = lit.has(`${x},${y}`) ? 'lit' : near ? 'near' : 'off';
+			const size = sizes[group];
+			groups[group] += `<rect x="${x * pitch + (pitch - size) / 2}" y="${y * pitch + (pitch - size) / 2}" width="${size}" height="${size}" rx="${size * 0.2}"/>`;
+		}
+	}
+	return `<svg class="dots" viewBox="0 0 ${cols * pitch} ${rows * pitch}" aria-hidden="true"><g class="off">${groups.off}</g><g class="near">${groups.near}</g><g class="lit">${groups.lit}</g></svg>`;
+}
+
+const layouts = [
+	{
+		id: 'ledger',
+		name: '1 Ledger',
+		note: 'Version panel beside a ruled log. Holds the most text.',
+		render: (r) => `
+			<div class="side">
+				${lockup()}
+				<div>
+					<p class="eyebrow">New release</p>
+					<div class="ver">${r.version}</div>
+					<p class="lead">${fmt(r.lead)}</p>
+					<p class="when">${r.date}</p>
+				</div>
+			</div>
+			<ul class="rows">${r.log.map((i) => `<li><span class="kind ${i.kind}">${i.kind}</span><span>${fmt(i.text)}</span></li>`).join('')}</ul>`
+	},
+	{
+		id: 'matrix',
+		name: '2 Matrix',
+		note: 'The version lit on a pixel grid, the log below.',
+		render: (r) => `
+			<header>${lockup()}<span>New release · ${r.date}</span></header>
+			${dots(r.version, 33, 9, 48)}
+			<ul>${r.log.map((i) => `<li><span>${fmt(i.text)}</span></li>`).join('')}</ul>`
+	},
+	{
+		id: 'diff',
+		name: '3 Diff',
+		note: 'The whole card is a compare view; each change is a line.',
+		render: (r) => `
+			<header>${lockup()}<span class="cmp">v${r.previous}...v${r.version}</span><span class="stat"><ins>+${r.log.length + 1}</ins><del>−1</del></span></header>
+			<div class="body">
+				<div class="ln del big"><i>1</i><b>−</b><span>${r.previous}</span></div>
+				<div class="ln add big"><i>1</i><b>+</b><span>${r.version}</span><time>${r.date}</time></div>
+				${r.log.map((i, n) => `<div class="ln add"><i>${n + 2}</i><b>+</b><span><em class="${i.kind}">${COMMIT_TYPES[i.kind]}</em>${fmt(i.text)}</span></div>`).join('')}
+			</div>`
+	},
+	{
+		id: 'shot',
+		name: '4 Showcase',
+		note: 'Short list beside the built app, in dist/ and running.',
+		render: (r) => `
+			<div class="side">
+				${lockup()}
+				<p class="eyebrow">What’s new in</p>
+				<div class="ver">${r.version}</div>
+				<ul>${r.log.map((i) => `<li>${icon('check')}<span>${fmt(i.text)}</span></li>`).join('')}</ul>
+			</div>
+			<div class="desk">
+				<div class="finder">${chrome('dist')}<div class="item"><img src="${APP_ICON}" alt="">Tic-tac-toe.app</div></div>
+				<div class="win">${chrome('GPUIX + Svelte — Tic-tac-toe')}<img src="../assets/shots/tictactoe.png" alt=""></div>
+				<div class="dock"><div class="finder-tile"></div><div class="running"><img src="${APP_ICON}" alt=""></div></div>
+			</div>`
+	},
+	{
+		id: 'dialog',
+		name: '5 Dialog',
+		note: 'A native “What’s new” window on a wallpaper.',
+		render: (r) => `
+			<div class="win">
+				${chrome('gpuix-svelte')}
+				<div class="inner">
+					<div class="tile">${mark()}</div>
+					<h2>What’s new in ${r.version}</h2>
+					<p class="sub">${fmt(r.lead)}</p>
+					<ul>${r.log.map((i) => `<li><span class="ico">${icon(i.icon)}</span><span>${fmt(i.text)}</span></li>`).join('')}</ul>
+					<div class="field"><i>$</i><span>${r.install}</span><s></s></div>
+				</div>
+			</div>`
+	},
+	{
+		id: 'bento',
+		name: '6 Bento',
+		note: 'Each feature gets a tile that draws it.',
+		render: (r) => `
+			<div class="t t-ver">
+				<div class="lockup">${mark('#000', '#000')}gpuix-svelte</div>
+				<div>
+					<p class="eyebrow">New release</p>
+					<div class="ver">${r.version}</div>
+					<p class="when">${r.date} · <code>${r.install}</code></p>
+				</div>
+			</div>
+			<div class="t t-wide">
+				<div class="viz"><div class="v-files"><div><img src="${APP_ICON}" alt="">Tic-tac-toe.app</div><div><img src="${APP_ICON}" alt="">tic-tac-toe.exe</div></div></div>
+				<p class="cap">${fmt(r.log[0].text)}</p>
+			</div>
+			<div class="t">
+				<div class="viz"><div class="v-stat"><div><span>8</span><i>→</i><b>0</b></div><small>idle fps, Windows</small></div></div>
+				<p class="cap">${fmt(r.log[1].text)}</p>
+			</div>
+			<div class="t">
+				<div class="viz"><div class="v-chip">arm64</div></div>
+				<p class="cap">${fmt(r.log[2].text)}</p>
+			</div>
+			<div class="t t-wide">
+				<div class="viz"><div class="v-crash"><span class="was">exit 1 after 2.0 s</span><i>→</i><span class="now">${icon('check')}survives</span></div></div>
+				<p class="cap">${fmt(r.log[3].text)}</p>
+			</div>`
+	},
+	{
+		id: 'poster',
+		name: '7 Poster',
+		note: 'Full accent flood, the log as one run of big type.',
+		render: (r) => `
+			<header><div class="lockup">${mark('#000', '#000')}gpuix-svelte</div><span>${r.date}</span></header>
+			<p class="run">${r.log.map((i, n, all) => `<span>${fmt(i.text)}${n < all.length - 1 ? '<i>/</i>' : ''}</span>`).join(' ')}</p>
+			<div class="big"><div class="ver">${r.version}</div><div class="out">is out</div></div>`
+	},
+	{
+		id: 'sheet',
+		name: '8 Datasheet',
+		note: 'Light ruled spec sheet, with the facts around the version.',
+		render: (r) => `
+			<div class="grid">
+				<div class="hero"><p class="label">release</p><div class="ver">${r.version}</div></div>
+				<div class="meta">
+					${[{ label: 'released', value: r.date }, ...r.facts].map((f) => `<div><p class="label">${f.label}</p><span>${fmt(f.value)}</span></div>`).join('')}
+				</div>
+				${r.log.map((i, n) => `<div class="cell">${i.kind === 'fix' ? '<em>fix</em>' : `<b>${String(n + 1).padStart(2, '0')}</b>`}<span>${fmt(i.text)}</span></div>`).join('')}
+				<div class="foot">${lockup('#0a0a0a')}<span class="cmd">${r.install}</span><span class="url">${r.url}</span></div>
+			</div>`
+	}
+];
+
+const gallery = document.getElementById('gallery');
+gallery.innerHTML = layouts.map((l) => `
+	<figure class="frame" id="${l.id}">
+		<figcaption><a href="#${l.id}">${l.name}</a><span>${l.note}</span><button class="save" type="button" aria-label="Download ${l.name} as PNG">Download PNG</button></figcaption>
+		<div class="slot"><article class="card c-${l.id}">${l.render(release)}</article></div>
+	</figure>`).join('');
+
+// Cards are laid out at 1600x900 and only scaled, so every preview size shows the same composition.
+const fit = new ResizeObserver((entries) => {
+	for (const { target, contentRect } of entries) target.firstElementChild.style.transform = `scale(${contentRect.width / 1600})`;
+});
+for (const slot of gallery.querySelectorAll('.slot')) fit.observe(slot);
+
+function route() {
+	const id = location.hash.slice(1);
+	document.documentElement.toggleAttribute('data-solo', layouts.some((l) => l.id === id));
+	for (const frame of gallery.children) frame.classList.toggle('on', frame.id === id);
+}
+addEventListener('hashchange', route);
+route();
+addEventListener('keydown', (e) => {
+	if (e.key !== 'Escape' || !location.hash) return;
+	history.pushState(null, '', location.pathname);
+	route();
+});
+
+const EXPORT_SCALE = 2;
+const ASSET_TYPES = { woff2: 'font/woff2', webp: 'image/webp', png: 'image/png' };
+const assets = new Map();
+
+// An SVG drawn as an image can't load anything, so fonts and images travel inside it as data URLs.
+function data_url(url) {
+	if (assets.has(url)) return assets.get(url);
+	const pending = fetch(url).then(async (response) => {
+		if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+		const blob = await response.blob();
+		return new Promise((done, fail) => {
+			const reader = new FileReader();
+			reader.onload = () => done(reader.result);
+			reader.onerror = () => fail(reader.error);
+			reader.readAsDataURL(blob.slice(0, blob.size, ASSET_TYPES[url.split('.').pop()] ?? blob.type));
+		});
+	});
+	pending.catch(() => assets.delete(url));
+	assets.set(url, pending);
+	return pending;
+}
+
+async function card_css() {
+	const css = document.querySelector('style').textContent.replaceAll('font-display:swap', 'font-display:block');
+	const urls = [...new Set([...css.matchAll(/url\(([^)"']+)\)/g)].map((m) => m[1]))];
+	const inlined = await Promise.all(urls.map(data_url));
+	return urls.reduce((text, url, i) => text.replaceAll(url, inlined[i]), css);
+}
+
+async function card_png(card) {
+	const clone = card.cloneNode(true);
+	// WebKit ignores a viewBox on foreignObject and misdraws box-shadows under a scaled drawImage, so the markup itself is 2x.
+	clone.setAttribute('style', `zoom:${EXPORT_SCALE}`);
+	await Promise.all([...clone.querySelectorAll('img')].map(async (img) => {
+		img.src = await data_url(img.getAttribute('src'));
+	}));
+	const style = document.createElement('style');
+	style.textContent = await card_css();
+	const root = document.createElement('div');
+	root.append(style, clone);
+	const [width, height] = [1600 * EXPORT_SCALE, 900 * EXPORT_SCALE];
+	const image = new Image();
+	image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="${width}" height="${height}">${new XMLSerializer().serializeToString(root)}</foreignObject></svg>`)}`;
+	await image.decode();
+	const canvas = Object.assign(document.createElement('canvas'), { width, height });
+	const context = canvas.getContext('2d');
+	// WebKit paints an SVG image's nested images only once they have decoded, some time after the first draw.
+	for (const wait of [0, 250, 250]) {
+		await new Promise((done) => setTimeout(done, wait));
+		context.drawImage(image, 0, 0);
+	}
+	return new Promise((done, fail) => canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('the canvas produced no PNG'))), 'image/png'));
+}
+
+gallery.addEventListener('click', async (e) => {
+	const button = e.target.closest('.save');
+	if (!button) return;
+	const frame = button.closest('.frame');
+	button.disabled = true;
+	button.textContent = 'Rendering…';
+	try {
+		const url = URL.createObjectURL(await card_png(frame.querySelector('.card')));
+		Object.assign(document.createElement('a'), { href: url, download: `gpuix-svelte-${release.version}-${frame.id}.png` }).click();
+		setTimeout(() => URL.revokeObjectURL(url), 10_000);
+		button.textContent = 'Download PNG';
+	} catch (error) {
+		console.error(error);
+		button.textContent = 'Failed, see console';
+	}
+	button.disabled = false;
+});
+
+for (const button of document.querySelectorAll('.sizes button')) {
+	button.addEventListener('click', () => {
+		gallery.dataset.size = button.dataset.size;
+		for (const other of document.querySelectorAll('.sizes button')) other.setAttribute('aria-pressed', String(other === button));
+	});
+}
+</script>
+</body>
+</html>
