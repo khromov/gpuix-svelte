@@ -856,6 +856,17 @@ make the title the commit, and release-please ignores anything else. With the de
 `GITHUB_TOKEN` the release PR does not trigger `test.yml`; a `RELEASE_PLEASE_TOKEN` PAT secret
 fixes that.
 
+`homepage/share/index.html` (`/share/`, `noindex`) draws a release's 16:9 share cards: eight layouts
+at 1600×900 from one `release` object at the top of its script. A new release means editing that
+object and redrawing what is specific to it, Bento's tiles and Showcase's desktop. Fill it from
+`git log` as well as the release PR, since release-please leaves `ci:` and `docs:` commits out of
+its notes; the log's bug-fix count is that PR's Bug Fixes section. **Download PNG** is `card_png()`: the card and the page's stylesheet go into an SVG
+`foreignObject`, every font and image inlined as a data URL, and that is drawn on a 3200×1800 canvas.
+WebKit shapes two things there. The markup is 2× through CSS `zoom`, because it ignores a `viewBox`
+on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either of which still
+exports a wrong PNG without an error. And the image is drawn three times 250 ms apart, because nested
+images appear only from the second draw. It also skips `filter`, so Matrix has no glow in Safari.
+
 `starter/` is the template `create-gpuix-svelte` copies (its `prepack` syncs it into the package's
 gitignored `template/`; run from the repo, `index.js` reads `starter/` directly) and so the app
 `npm run consume` installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays

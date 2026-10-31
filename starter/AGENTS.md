@@ -27,7 +27,7 @@ every mount and hot reload.
 **Building standalone executables requires Bun** (>= 1.4), even in a project that uses npm and Node.
 
 `npm run build` runs `build.ts`, one `build()` call from `gpuix-svelte/build`, which compiles
-`standalone.ts` with Bun into a self-contained executable (about 110 MB, 130 MB on Windows: the Bun
+`standalone.ts` with Bun into a self-contained executable (110 to 155 MB by platform: the Bun
 runtime, Svelte and the GPUI addon) and packages it for the platform: `dist/<name>.app` with its
 icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info on Windows,
 `dist/<slug>` on Linux, where `<slug>` is the name lowercased with dashes (`My App` → `my-app`).

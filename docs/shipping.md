@@ -84,8 +84,9 @@ Some things to know:
   `npm run build` on macOS (Apple Silicon), Windows (x64 or arm64) and Linux (x64) in turn, for
   instance in a GitHub Actions matrix over `macos-latest`, `windows-latest` (`windows-11-arm` for
   arm64) and `ubuntu-latest`.
-- **It is about 110 MB, and about 130 MB on Windows.** That is Bun's runtime plus Svelte plus the
-  addon, which is 17 MB or more on every platform.
+- **It is 110 to 155 MB:** about 110 MB on macOS, 115 MB on Windows arm64, 130 MB on Windows x64
+  and 155 MB on Linux. That is Bun's runtime plus Svelte plus the addon, which is 17 MB or more on
+  every platform.
 - **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it
   on macOS or Linux, start the executable from a shell: `dist/my-app.app/Contents/MacOS/my-app` or
   `dist/my-app`. The Windows `.exe` is a GUI program, so a shell neither waits for it nor shows
