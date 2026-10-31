@@ -212,9 +212,10 @@ exception from a timer ends the process. The helpers here account for it while a
 - `set_image` and `set_image_pixels` wait until it closes, then upload the newest image per element.
 - `Scroller` and `Popover` need nothing from you.
 
-A read made through `get_native()` directly gets no such protection. If it can run on a timer or in
-an effect, wrap it in `read_native`, which returns `null` while a picker is open or if the UI
-thread can't answer, and lets any other error through:
+A read made through `get_native()` directly gets no such protection, and the same throw can hit a
+call that is in flight as the last window closes. If a read can run on a timer or in an effect, wrap
+it in `read_native`, which returns `null` while a picker is open or if the UI thread can't answer,
+and lets any other error through:
 
 ```js
 const top = read_native((native) => native.getListScrollTop(node.nativeId));

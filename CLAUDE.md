@@ -199,9 +199,12 @@ timer ends the process. `applyBatch`, `tick`, `scrollTo` and the focus commands 
 upstream's `readWindowSize` swallows the timeout and reports 800×600. So `prompt_for_paths` counts
 open dialogs, and until the last one closes `read_native` answers null without calling native,
 `window_size` reads the size taken as the dialog opened, and `upload` keeps the newest image per
-node. `read_native` also answers null for a timeout outside a dialog it knows of (matching the
-text, so a reworded message fails open). `test/dialog.ts` fakes the blocked thread, so it runs on
-every OS, but only a real window on Windows exercises the real thing.
+node. A call in flight as the last window closes throws too (`The GPUI UI thread stopped during…`
+or the timeout), and from a timer that turned a clean close into exit 1 about one time in two with a
+live image. So `read_native` and `upload` both go through `answered`, which swallows those two
+texts and nothing else (matching the text, so a reworded message fails open). `test/dialog.ts` fakes
+the blocked thread, so it runs on every OS, but only a real window on Windows exercises the real
+thing.
 
 Also on Windows and Linux, `getElementBounds`, `getElementsAt` and `getAutomationTree` call
 `window.refresh()` and answer from `on_next_frame`, so each one draws a full frame; on macOS they

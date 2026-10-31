@@ -301,6 +301,36 @@ for (const virtual of [false, true]) {
 	);
 }
 
+// --- the last window closing with an upload in flight is no app error, from a timer least of all ----
+{
+	let a: ShadowNode | null = null;
+	const { native } = mount_headless(Fixture, {
+		props: {
+			onimages: (x: ShadowNode) => {
+				a = x;
+			}
+		},
+		width: 400,
+		height: 300
+	});
+	await wait(THUMB_MS);
+	const fake = native as unknown as Fake;
+	const upload_failing_with = (text: string) => {
+		fake.setImagePixels = (() => {
+			throw new Error(text);
+		}) as never;
+		try {
+			set_image_pixels(a, 1, 1, new Uint8Array([6, 0, 0, 255]));
+			return null;
+		} catch (error) {
+			return (error as Error).message;
+		}
+	};
+	check('an upload that loses the UI thread does not throw', upload_failing_with('The GPUI UI thread stopped during the image pixel upload'), null);
+	check('nor one that times out with no dialog open', upload_failing_with('Timed out after 2 seconds waiting for the image pixel upload'), null);
+	check('but a real upload failure still does', upload_failing_with('setImage is only valid on <img>, got <div>'), 'setImage is only valid on <img>, got <div>');
+}
+
 // --- the UI still works once the dialog is gone ------------------------------------------------------
 {
 	const { native } = mount_headless(Fixture, { width: 400, height: 300 });
@@ -317,4 +347,4 @@ for (const virtual of [false, true]) {
 	check('the thumb follows the wheel again', bounds(find_test_id('list-thumb')!)!.y > before, true);
 }
 
-finish('dialog', 36);
+finish('dialog', 39);

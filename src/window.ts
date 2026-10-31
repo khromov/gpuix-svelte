@@ -33,15 +33,10 @@ let open_dialogs = 0;
 let size_under_dialog: WindowSize | null = null;
 const held_uploads = new Map<NodeRef, (id: number) => void>();
 
-/**
- * Runs a read that waits on GPUI's UI thread, for a timer or an effect that must not stall or throw:
- * null when there is no native, a dialog is open or the thread can't answer.
- */
-export function read_native<T>(read: (native: Native) => T): T | null {
-	const native = get_native();
-	if (!native || open_dialogs > 0) return null;
+/** A call can also be in flight as the last window closes, which is no app error, least of all from a timer. */
+function answered<T>(call: () => T): T | null {
 	try {
-		return read(native);
+		return call();
 	} catch (error) {
 		// Native gives these no error code of their own, so the text is all that sets them apart from a real failure.
 		if (/^Timed out after|GPUI UI thread/.test((error as Error).message)) return null;
@@ -49,11 +44,21 @@ export function read_native<T>(read: (native: Native) => T): T | null {
 	}
 }
 
+/**
+ * Runs a read that waits on GPUI's UI thread, for a timer or an effect that must not stall or throw:
+ * null when there is no native, a dialog is open or the thread can't answer.
+ */
+export function read_native<T>(read: (native: Native) => T): T | null {
+	const native = get_native();
+	if (!native || open_dialogs > 0) return null;
+	return answered(() => read(native));
+}
+
 /** An upload waits on the UI thread too, and only the newest one per element can still matter once the dialog closes. */
 function upload(node: NodeRef, send: (id: number) => void) {
 	with_native_id(node, (id) => {
 		if (open_dialogs > 0) held_uploads.set(node, send);
-		else send(id);
+		else answered(() => send(id));
 	});
 }
 
