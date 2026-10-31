@@ -341,11 +341,17 @@ directory.
 Per platform: on macOS the executable moves into `dist/<Name>.app/Contents/MacOS/<slug>` with an
 `Info.plist` (`info_plist`) and, given an icon, `AppIcon.icns` cut by `sips` + `iconutil`; signing
 and notarization (`sign`, `notarize`) run on the bundle when the env vars are set, and the bare
-binary is not kept. On Windows the icon becomes a PNG-compressed `.ico` (`write_ico`: 16/32/48/256,
+binary is not kept. On Windows the icon becomes a PNG-compressed `.ico` (`write_ico`: 256/48/32/16,
 scaled with .NET's `System.Drawing` through PowerShell) and goes into Bun's `compile.windows`
-with `hideConsole: true`, the name as `title` and the version when it has the `1.2.3.4` shape Bun
-accepts. Linux gets the bare executable. `test:bundle` covers the Node half (and the real `.ico`
-and `.icns` where the platform has a scaler); CI's `compile` job exercises each OS's packaging
+with `hideConsole: true` and the name as `title`. The largest image comes first because Bun writes
+the `.ico` as group `#0` beside bun.exe's own `IDI_MYICON`, which the shell picks and which points
+at the first image (at 16 px first, Explorer shows it smeared; Explorer also caches icons by path,
+so check a build under a new file name). GPUI's window class loads icon resource 1, which neither
+group is, so the title bar stays generic while the taskbar shows the exe's icon. Whatever
+`compile.windows` leaves unset keeps bun.exe's value (`Bun`, `Oven`, its licensing URL, its version),
+so `description` and `publisher` fall back to the name, `copyright` to a single space, and the
+version is its numeric prefix (`0.0.0.0` if none fits). Linux gets the bare executable.
+`test:bundle` covers the Node half (and the real `.ico` and `.icns` where the platform has a scaler); CI's `compile` job exercises each OS's packaging
 build-only. The icons are `examples/tic-tac-toe/icon.png` and `starter/icon.png`, each rasterized
 at 1024 px from the `icon.svg` beside it (the starter's is the homepage's macOS tile; Chrome over
 CDP keeps both the bold text and the transparent corners, where `sips` drops the weight and

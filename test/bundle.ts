@@ -83,6 +83,7 @@ check(
 	[3, 38, 2, 41]
 );
 check('ico blobs follow in order', [...container.subarray(38)], [1, 2, 3, 4, 5]);
+check("the .ico leads with its largest image, the one Bun's leftover icon group shows", ICO_SIZES[0], Math.max(...ICO_SIZES));
 
 // sips on macOS, System.Drawing on Windows; Linux has neither and never needs an icon.
 const png = join(awkward, 'ic on ’.png');
@@ -170,4 +171,4 @@ check('two render() calls fail', error_of(`${head}render(App, {});\nrender(App, 
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 25 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));
+finish('bundle', 26 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));

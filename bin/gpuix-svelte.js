@@ -39,7 +39,7 @@ const loader = bun
 const runtime = bun ? (process.versions.bun ? process.execPath : 'bun') : process.execPath;
 const shell = runtime === 'bun' && process.platform === 'win32';
 // cmd.exe receives one string, so each argument is quoted by hand or a path with a space splits.
-const quote = (/** @type {string} */ arg) => (shell ? `"${arg.replace(/"/g, '\\"')}"` : arg);
+const quote = (/** @type {string} */ arg) => (shell ? `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"` : arg);
 
 const child = spawn(runtime, [...flags.filter((flag) => flag !== '--bun'), ...conditions, ...loader, entry, ...rest].map(quote), {
 	stdio: 'inherit',

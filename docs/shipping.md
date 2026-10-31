@@ -45,13 +45,13 @@ Everything under `app` is optional, and the window ignores it; it exists for the
 | `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
 | `icon`        | The `.icns` on macOS, the `.ico` on Windows                           | none: the generic app icon                   |
 | `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
-| `publisher`, `description` | Windows file properties                                   | none                                         |
+| `publisher`, `description` | Windows file properties                                   | the app's name                               |
 
 `icon` is a square PNG, 1024 × 1024 for macOS's largest size; the scaffold ships a placeholder
 `icon.png` to replace. A relative path is read from `standalone.ts`'s directory. The build cuts
 every size the platform wants from it with tools the platform has: `sips` and `iconutil` on macOS,
-.NET's `System.Drawing` through PowerShell on Windows. Windows file properties take versions of
-the `1.2.3` or `1.2.3.4` form only, so a `1.0.0-beta.1` is left out there; on macOS it goes into
+.NET's `System.Drawing` through PowerShell on Windows. Windows file properties take numbers only,
+so a `1.0.0-beta.1` is written there as `1.0.0`; on macOS it goes into
 `CFBundleShortVersionString` as written and `CFBundleVersion` gets its numbers, `1.0.0`.
 
 If `name` is not set, the window title doubles as the app name. The reverse holds too: with a
@@ -83,8 +83,8 @@ Some things to know:
 - **One platform per build.** npm installs only the GPUI addon for the machine you are on, so run
   `npm run build` on macOS (Apple Silicon), Windows (x64) and Linux (x64) in turn, for instance in a
   GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
-- **It is about 110 MB.** That is Bun's runtime plus Svelte plus the addon, which is 17 MB or more
-  on every platform.
+- **It is about 110 MB, and about 130 MB on Windows.** That is Bun's runtime plus Svelte plus the
+  addon, which is 17 MB or more on every platform.
 - **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it
   on macOS or Linux, start the executable from a shell: `dist/my-app.app/Contents/MacOS/my-app` or
   `dist/my-app`. The Windows `.exe` is a GUI program, so a shell neither waits for it nor shows

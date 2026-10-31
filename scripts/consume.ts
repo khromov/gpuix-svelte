@@ -18,7 +18,9 @@ const consumer = join(dir, 'app');
 
 function run(command: string, args: string[], cwd: string) {
 	console.log(`\n[consume] ${command} ${args.join(' ')}`);
-	const { status } = spawnSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
+	// npm and bun can be .cmd shims on Windows; process.execPath is a real path, often with a space.
+	const shell = process.platform === 'win32' && command !== process.execPath;
+	const { status } = spawnSync(command, args, { cwd, stdio: 'inherit', shell });
 	if (status !== 0) {
 		console.error(`[consume] failed (${status}); the consumer is left at ${consumer}`);
 		process.exit(status ?? 1);

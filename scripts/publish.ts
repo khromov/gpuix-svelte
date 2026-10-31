@@ -35,7 +35,7 @@ const installed = JSON.parse(readFileSync(join(root, 'node_modules/svelte/packag
 if (!installed.exports?.['./renderer']) throw new Error('node_modules/svelte is not the custom-renderer build — run bun install');
 
 function run(cmd: string, args: string[]) {
-	const { status } = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+	const { status } = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' && cmd !== process.execPath });
 	return status ?? 1;
 }
 

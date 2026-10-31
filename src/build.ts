@@ -59,15 +59,21 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	if (app.icon && !existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
 	const binary = join(outdir, process.platform === 'win32' ? `${app.slug}.exe` : app.slug);
 	const bundle = join(outdir, `${app.name.replace(/[/\\:]/g, '-')}.app`);
-	rmSync(binary, { force: true });
+	try {
+		rmSync(binary, { force: true });
+	} catch (error) {
+		// Windows locks a running .exe, and Bun reports that as EFAULT rather than EBUSY.
+		throw new Error(`${TAG} cannot replace ${rel(binary)}; if the app is still running, close it first (${(error as Error).message})`, { cause: error });
+	}
 	rmSync(bundle, { recursive: true, force: true });
 
 	let windows: WindowsInfo | undefined;
 	if (process.platform === 'win32') {
-		windows = { hideConsole: true, title: app.name };
-		for (const key of ['publisher', 'description', 'copyright'] as const) if (app[key]) windows[key] = app[key];
-		if (windows_version(app.version)) windows.version = app.version;
-		else log(`version "${app.version}" is not the 1.2.3.4 form Windows file properties take; the .exe carries none`);
+		// Anything left unset keeps bun.exe's own value: description "Bun", publisher "Oven", Bun's version.
+		windows = { hideConsole: true, title: app.name, description: app.description || app.name, publisher: app.publisher || app.name, copyright: app.copyright || ' ' };
+		const numeric = /^\d+(\.\d+){0,3}/.exec(app.version)?.[0];
+		windows.version = numeric && windows_version(numeric) ? numeric : '0.0.0.0';
+		if (windows.version !== app.version) log(`version "${app.version}" goes into the .exe as ${windows.version}; Windows file properties take numbers only`);
 		if (app.icon) {
 			windows.icon = join(scratch, 'AppIcon.ico');
 			write_ico(app.icon, windows.icon, scratch);

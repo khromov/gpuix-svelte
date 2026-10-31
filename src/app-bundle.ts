@@ -241,7 +241,8 @@ export function write_icns(png: string, out: string, scratch: string) {
 	rmSync(iconset, { recursive: true, force: true });
 }
 
-export const ICO_SIZES = [16, 32, 48, 256];
+// Largest first: Bun keeps its own icon group, which the shell picks and which points at the first image.
+export const ICO_SIZES = [256, 48, 32, 16];
 
 export function write_ico(png: string, out: string, scratch: string) {
 	mkdirSync(scratch, { recursive: true });
