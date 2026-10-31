@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/khromov/gpuix-svelte/compare/v0.3.0...v0.4.0) (2026-10-31)
+
+
+### Features
+
+* build a real app per platform, with its metadata in render() ([#53](https://github.com/khromov/gpuix-svelte/issues/53)) ([9e1626e](https://github.com/khromov/gpuix-svelte/commit/9e1626e76a9050fd76b4d5f089bd1560ea8c4221))
+
+
+### Bug Fixes
+
+* gitignore .env in scaffolded apps ([0dffa53](https://github.com/khromov/gpuix-svelte/commit/0dffa537fe30d2c171533e6fda573cd60479ae17))
+* render &lt;canvas&gt; as a div, since native 0.11 has no canvas element ([8ccd5ae](https://github.com/khromov/gpuix-svelte/commit/8ccd5ae8473985f49093bf7e004961f65264e72f))
+* survive a native file picker on Windows and stop Scroller's idle redraws ([#55](https://github.com/khromov/gpuix-svelte/issues/55)) ([3dba6d6](https://github.com/khromov/gpuix-svelte/commit/3dba6d6f241bacbfdd8f89ca2c271da12a165661))
+* update AGENTS.md ([ff75998](https://github.com/khromov/gpuix-svelte/commit/ff759982d04ecff7a393fee1acb95baa8dd63ae8))
+
 ## [0.3.0](https://github.com/khromov/gpuix-svelte/compare/v0.2.0...v0.3.0) (2026-10-26)
 
 
