@@ -326,19 +326,17 @@ reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
 place that names the app. The window reads only `name`, as the `title` fallback. `build()` reads
-the rest from the entry's source without running it: `Bun.Transpiler` strips the types and
+the rest from the entry's source: `Bun.Transpiler` strips the types and
 `read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for
 the one top-level `render()` imported from `gpuix-svelte` (renamed or not, as a statement or a
 `const` initializer) and takes `title` and `app` from its second argument. Values are string
 literals, plain templates, one hop through a top-level `const` (so `{ app }` shorthand works) and
 `new URL('x', import.meta.url)`, which comes back as `'x'` because `icon_path` resolves that against
 the entry's directory anyway. Anything else under `app`, a spread or a computed key throws, naming
-the value; a computed `title` is dropped instead, since it only costs the name its fallback. Running
-the entry was the first design and was dropped: it loaded the whole import graph and the app's own
-start-up, needed a stubbed `@gpuix/native` because a Linux runner without `libxcb` cannot load the
-addon, and a `render()` branch that the compiled app had to have defined away. `resolve_app_info`
-fills the defaults — `name` from the title, then the nearest package.json; `identifier`
-`local.<slug>`; `version` from package.json; a relative `icon` from the entry's directory.
+the value; a computed `title` is dropped instead, since it only costs the name its fallback.
+`resolve_app_info` fills the defaults — `name` from the title, then the nearest package.json;
+`identifier` `local.<slug>`; `version` from package.json; a relative `icon` from the entry's
+directory.
 
 Per platform: on macOS the executable moves into `dist/<Name>.app/Contents/MacOS/<slug>` with an
 `Info.plist` (`info_plist`) and, given an icon, `AppIcon.icns` cut by `sips` + `iconutil`; signing

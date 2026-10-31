@@ -8,9 +8,8 @@ npm run build
 ```
 
 For a project created as `my-app`, on macOS that is `dist/my-app.app`, an application bundle
-with its icon that opens from Finder or the Dock with no terminal window behind it. On Windows it
-is `dist/my-app.exe`, with the icon and version info in its file properties and no console. On
-Linux it is the executable `dist/my-app`.
+with its icon that opens from Finder or the Dock. On Windows it is `dist/my-app.exe`, with the
+icon and version info in its file properties. On Linux it is the executable `dist/my-app`.
 Each is self-contained: the Bun runtime, Svelte and the GPUI addon are inside, so the machine it
 runs on needs nothing installed.
 
@@ -68,8 +67,8 @@ import { build } from 'gpuix-svelte/build';
 await build({ entry: './standalone.ts' });
 ```
 
-It reads the `app` options and the `title` from `standalone.ts`'s source without running it, so
-they have to be written out: each value a string, either in place or in a top-level `const`
+It reads the `app` options and the `title` from `standalone.ts`'s source, so they have to be
+written out: each value a string, either in place or in a top-level `const`
 (`icon` can also be `new URL('./icon.png', import.meta.url)`). A value under `app` that is only
 known at runtime, such as `version: pkg.version`, fails the build with an error naming it; leave it
 out and the default covers it. A `title` worked out at runtime is skipped, so the name then comes from
@@ -131,8 +130,7 @@ The one-time setup for the notary profile:
 If Apple rejects a submission, the build prints the submission output and fails.
 `xcrun notarytool log <submission-id> --keychain-profile notary` shows the reason.
 
-Windows has no equivalent step here; sign the `.exe` afterwards with `signtool` if you have a
-certificate.
+On Windows, sign the `.exe` afterwards with `signtool` if you have a certificate.
 
 ## Remote Desktop hosts
 
@@ -153,8 +151,8 @@ stop showing what is behind it.
 
 The same components run on the web, because GPUI itself compiles to WebAssembly and paints a
 WebGPU canvas (WebGL2 where WebGPU is missing). You get the desktop app, pixel for pixel, inside a
-`<canvas>`. The scaffold has no web script yet; the whole integration is the repository's
-[`scripts/web.ts`](../scripts/web.ts), which bundles the tic-tac-toe example and serves it:
+`<canvas>`. The whole integration is the repository's [`scripts/web.ts`](../scripts/web.ts),
+which bundles the tic-tac-toe example and serves it:
 
 ```bash
 npm run demo:web                  # in a clone of the repository → http://localhost:4173

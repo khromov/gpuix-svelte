@@ -33,8 +33,8 @@ console-less `dist/<name>.exe` with version info on Windows, `dist/<name>` on Li
 
 - The name, identifier, version, icon and copyright are the `app` options `standalone.ts` hands
   `render()` (`name` defaults to the window `title`, `version` to package.json's). The build reads
-  them from the source without running it, so write each as a string, in place or in a top-level
-  `const`; a value computed at runtime fails the build. `icon.png` is a 1024 px square PNG; replace it.
+  them from the source, so write each as a string, in place or in a top-level `const`; a value
+  computed at runtime fails the build. `icon.png` is a 1024 px square PNG; replace it.
 - The output is for the platform it was built on: macOS arm64, Windows x64 or Linux x64, the
   three GPUI ships prebuilt. To release for all three, run `npm run build` on each, for example in a
   GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.

@@ -125,10 +125,10 @@ them:
 </div>
 ```
 
-GPUI has no resize event, so they ask the window every 100 ms, but only while something reactive
-is reading them. A read anywhere else (a click handler, module code) always gets a current value.
-Keep any `$derived` over them inside a component: one in a `.svelte.ts` module that is first read
-outside an effect keeps polling for the life of the process.
+They ask the window every 100 ms, but only while something reactive is reading them. A read
+anywhere else (a click handler, module code) always gets a current value. Keep any `$derived`
+over them inside a component: one in a `.svelte.ts` module that is first read outside an effect
+keeps polling for the life of the process.
 
 `window_insets` carries `safeArea`, `ime` and `effective` (each `{ top, right, bottom, left }`)
 plus `keyboardTop`, `keyboardVisible` and `visibleHeight`. The names are camelCase, like every
@@ -168,8 +168,8 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
   unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.
 - `scroll_into_view(node)` scrolls the nearest scroll container or `<virtual-list>` until `node`
   shows.
-- `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`
-  without going through a data URL. `set_image_pixels(node, width, height, pixels, format)` takes
+- `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`.
+  `set_image_pixels(node, width, height, pixels, format)` takes
   packed straight-alpha pixels and scales them into the element's box, so upload at 2× for a sharp
   image on retina screens. `format` is `'rgba'` (the default) or `'bgra'`, GPUI's own order, which
   skips a per-pixel swizzle and is what ffmpeg's `-pix_fmt bgra` and most raw canvas buffers
@@ -231,10 +231,10 @@ GPUI can show an overlay in the top-right corner with the current, 1%-worst, 10%
 draw times in ms, plus a frame count; `minimal` shows only the last draw. These are draw times, so
 compare them with the frame budget: 8.3 ms per frame is 120 Hz.
 
-Turn it on with `render(App, { debugFrameOverlay: 'full' })`, or for any app without touching code
-with `GPUIX_FPS=1` (or `=minimal`), which takes precedence over the option. At runtime,
-`set_debug_overlay(mode)`, `cycle_debug_overlay()` (hidden → minimal → full, handy for a key
-binding) and `debug_overlay()` control it. `debug_overlay_stats()` and
+Turn it on with `render(App, { debugFrameOverlay: 'full' })`, or for any app with `GPUIX_FPS=1`
+(or `=minimal`), which takes precedence over the option. At runtime, `set_debug_overlay(mode)`,
+`cycle_debug_overlay()` (hidden → minimal → full, handy for a key binding) and `debug_overlay()`
+control it. `debug_overlay_stats()` and
 `reset_debug_overlay_stats()` read and clear the same numbers for a script or a headless bench, and
 they keep recording while the overlay is hidden. A hot reload keeps whatever mode is showing.
 

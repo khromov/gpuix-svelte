@@ -29,12 +29,9 @@ export type EntryApp = AppOptions & { title?: string };
 
 export const MIN_MACOS = '13.0';
 
-const UNREADABLE = "the build reads the app options from the entry's source without running it, so they have to be written out there (or in a top-level const)";
+const UNREADABLE = "the build reads the app options from the entry's source, so they have to be written out there (or in a top-level const)";
 
-/**
- * `title` and `app` from the entry's one top-level `render()` call. `source` is JavaScript, its
- * types already stripped; running the entry instead would load the addon and the app's start-up.
- */
+/** `title` and `app` from the entry's one top-level `render()` call; `source` is JavaScript, its types already stripped. */
 export function read_app_options(source: string): EntryApp {
 	const program = Parser.parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
 	const renders = new Set<string>();
