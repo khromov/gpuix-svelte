@@ -27,6 +27,34 @@ function run(command: string, args: string[], cwd: string) {
 	}
 }
 
+// RT_ICON 1 is what Explorer shows, because Bun leaves bun.exe's own icon group pointing at it.
+function first_icon_width(exe: Buffer): number {
+	const pe = exe.readUInt32LE(0x3c);
+	const sections = pe + 24 + exe.readUInt16LE(pe + 20);
+	const rsrc = Array.from({ length: exe.readUInt16LE(pe + 6) }, (_, i) => sections + 40 * i).find((at) => exe.toString('latin1', at, at + 5) === '.rsrc');
+	if (rsrc === undefined) throw new Error('the .exe has no resource section');
+	const rva = exe.readUInt32LE(rsrc + 12);
+	const root = exe.readUInt32LE(rsrc + 20);
+	const child = (directory: number, id: number) => {
+		const named = exe.readUInt16LE(directory + 12);
+		for (let i = named; i < named + exe.readUInt16LE(directory + 14); i++) {
+			const entry = directory + 16 + 8 * i;
+			if (exe.readUInt32LE(entry) === id) return root + (exe.readUInt32LE(entry + 4) & 0x7fffffff);
+		}
+		throw new Error(`the .exe has no resource ${id}`);
+	};
+	const languages = child(child(root, 3), 1);
+	const data = root + exe.readUInt32LE(languages + 20);
+	return exe.readUInt32BE(exe.readUInt32LE(data) - rva + root + 16);
+}
+
+function file_properties(exe: string): string {
+	const script = '(Get-Item -LiteralPath $env:GPUIX_EXE).VersionInfo | Select-Object ProductName, FileDescription, CompanyName, LegalCopyright, FileVersion | ConvertTo-Json -Compress';
+	const { status, stdout, stderr } = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', env: { ...process.env, GPUIX_EXE: exe } });
+	if (status !== 0) throw new Error(`could not read ${exe}'s file properties:\n${stderr}`);
+	return stdout.trim();
+}
+
 run(process.execPath, [join(root, 'scripts/publish.ts'), 'pack', dir], root);
 const tarball = readdirSync(dir).find((f) => f.endsWith('.tgz'));
 if (!tarball) throw new Error(`npm pack left no tarball in ${dir}`);
@@ -70,6 +98,13 @@ if (bun) {
 		if (!existsSync(join(consumer, 'dist', 'app.app', 'Contents', 'Resources', 'AppIcon.icns'))) throw new Error('the .app has no AppIcon.icns');
 		// The directory and the package are both `app`, so only the identifier proves the build read standalone.ts.
 		if (!readFileSync(plist, 'utf8').includes('<string>com.example.app</string>')) throw new Error('the .app did not take its identifier from standalone.ts');
+	}
+	if (process.platform === 'win32') {
+		const width = first_icon_width(readFileSync(binary));
+		if (width !== 256) throw new Error(`Explorer would show the .exe's icon from a ${width} px image, not its 256 px one`);
+		const properties = file_properties(binary);
+		const expected = JSON.stringify({ ProductName: 'app', FileDescription: 'app', CompanyName: 'app', LegalCopyright: ' ', FileVersion: '0.0.0.0' });
+		if (properties !== expected) throw new Error(`the .exe's file properties are ${properties}, expected ${expected}`);
 	}
 }
 

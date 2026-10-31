@@ -141,7 +141,9 @@ npm run consume            # the consumer path: pack, scaffold an app under $TMP
                            # through the installed bin; fails if a non-declaration `.ts` ships or
                            # tsx lands in the consumer. bun:consume installs and runs with Bun and
                            # also builds the starter's binary (size-checked, so a binary without
-                           # the addon fails); consume:open / bun:consume:open open the window
+                           # the addon fails; on macOS it checks the plist and icns, on Windows the
+                           # icon Explorer shows and the file properties); consume:open /
+                           # bun:consume:open open the window
 npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a scaffolded app's
                            # build.ts makes: dist/Tic-tac-toe.app with its icon on macOS,
                            # dist/tic-tac-toe.exe (no console, version info) on Windows,
@@ -220,7 +222,7 @@ read directly. Reading any of them on a timer keeps an idle window drawing (`get
 `getScrollOffset` do not draw). `onlayout` / `onscrollchange` are the way to be told instead.
 
 CI (`.github/workflows/test.yml`): `npm test` on macOS and Windows × Node 24 and 26, `npm run
-bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS × Node 24 and 26, `compile` on
+bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS and Windows × Node 24 and 26, `compile` on
 all three OSes (build only, never launched), and a Linux job that can only run `typecheck`, `lint`,
 a `npm pack --dry-run` of the scaffolder and a check that the binding loads (see the
 `@gpuix/native` constraint). `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
