@@ -15,7 +15,7 @@ Fetch https://gpuix-svelte.stanislav.garden/llms.txt, then the pages it links fo
 npm start            # opens the window; saving a .svelte file hot-reloads it
 npm test             # headless test (test.ts) through GPUI's real hit testing; macOS and Windows
 npm run typecheck    # tsc, then svelte-check against GPUI's element types
-npm run build        # dist/app (dist/app.exe on Windows): the app as one executable; needs Bun
+npm run build        # the app for this platform (dist/<name>.app, .exe or binary); needs Bun
 ```
 
 With Bun: `bun run start`, `bun run test`. After a change, run `npm run typecheck` and `npm test`.
@@ -26,17 +26,24 @@ every mount and hot reload.
 
 **Building standalone executables requires Bun** (>= 1.4), even in a project that uses npm and Node.
 
-`npm run build` runs `build.ts`, which compiles `standalone.ts` with Bun into a single executable
-(about 95 MB) that carries the Bun runtime, Svelte and the GPUI addon.
+`npm run build` runs `build.ts`, one `build()` call from `gpuix-svelte/build`, which compiles
+`standalone.ts` with Bun into a self-contained executable (110 to 130 MB: the Bun runtime, Svelte and
+the GPUI addon) and packages it for the platform: `dist/<name>.app` with its icon on macOS, a
+console-less `dist/<name>.exe` with version info on Windows, `dist/<name>` on Linux.
 
-- The executable is for the platform it was built on: macOS arm64, Windows x64 or Linux x64, the
+- The name, identifier, version, icon and copyright are the `app` options `standalone.ts` hands
+  `render()` (`name` defaults to the window `title`, `version` to package.json's). The build reads
+  them from the source, so write each as a string, in place or in a top-level `const`; a value
+  computed at runtime fails the build. The icon is the gpuix-svelte one until `icon` names a
+  1024 px square PNG, read relative to `standalone.ts`.
+- The output is for the platform it was built on: macOS arm64, Windows x64 or Linux x64, the
   three GPUI ships prebuilt. To release for all three, run `npm run build` on each, for example in a
   GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
 - `standalone.ts` mounts `App.svelte` with `render` and a static import, since a binary has no
   source files to hot-reload. Keep its window options in step with `app.ts`.
-- macOS keeps a downloaded, unsigned executable from opening until it is allowed under System
-  Settings → Privacy & Security. Signing, notarizing and wrapping it as a `.app` are covered on the
-  Shipping page of the docs.
+- macOS keeps a downloaded, unsigned app from opening until it is allowed under System Settings →
+  Privacy & Security. With `CODESIGN_IDENTITY` and `NOTARY_PROFILE` set (a `.env` beside
+  package.json), the build signs and notarizes the `.app`; the Shipping page of the docs has the setup.
 
 ## Writing components
 
@@ -86,5 +93,5 @@ every `svelte` import to it. Keep `svelte` itself out of `package.json`.
 - `app.ts` — the entry: `render_hot` opens the window and remounts `App.svelte` on save.
 - `App.svelte` — the root component.
 - `test.ts` — the headless test (`gpuix-svelte/test`); a plain script that exits 1 on failure.
-- `standalone.ts`, `build.ts` — the entry and the Bun build script behind `npm run build`.
+- `standalone.ts`, `build.ts` — the entry and the build script behind `npm run build`.
 - `tsconfig.json`, `svelte.d.ts`, `svelte.config.js` — TypeScript and svelte-check setup.

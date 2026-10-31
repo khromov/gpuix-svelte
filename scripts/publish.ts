@@ -35,7 +35,7 @@ const installed = JSON.parse(readFileSync(join(root, 'node_modules/svelte/packag
 if (!installed.exports?.['./renderer']) throw new Error('node_modules/svelte is not the custom-renderer build — run bun install');
 
 function run(cmd: string, args: string[]) {
-	const { status } = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+	const { status } = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' && cmd !== process.execPath });
 	return status ?? 1;
 }
 
@@ -64,7 +64,7 @@ function published_manifest() {
 	const out = structuredClone(json);
 	out.dependencies.svelte = PUBLISHED_SPEC;
 	out.main = lib_for(out.main);
-	out.files = ['lib', 'src/components', 'bin'];
+	out.files = ['lib', 'src/components', 'bin', 'assets/icon.png'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
 		if (typeof value === 'string' && value.endsWith('.ts')) {
 			out.exports[key] = lib_for(value);

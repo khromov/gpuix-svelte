@@ -26,8 +26,9 @@ A counter opens in its own window. Edit `App.svelte`, save, and the window hot-r
 You need **Node.js 24 or later** or **Bun 1.4 or later**, on macOS (Apple Silicon), Windows (x64)
 or Linux (x64). The GPUI binary comes prebuilt from npm, so `npm install` is all the setup there
 is. On Bun, run `bun create gpuix-svelte my-app`, then `cd my-app`, `bun install` and
-`bun run start`. Building a standalone executable (`npm run build`) needs [Bun](https://bun.com)
-whichever runtime you develop on.
+`bun run start`. Building the app for distribution (`npm run build`: a `.app` on macOS, an `.exe`
+on Windows, a binary on Linux) needs [Bun](https://bun.com) whichever runtime you develop on; see
+[Shipping](docs/shipping.md).
 
 On Linux the binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11`. Desktop installs ship
 them, but a minimal container does not (`apt install libxcb1 libxkbcommon0 libxkbcommon-x11-0`).

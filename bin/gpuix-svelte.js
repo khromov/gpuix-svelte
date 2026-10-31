@@ -34,15 +34,17 @@ const loader = bun
 	? ['--preload', fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'))]
 	: ['--import', import.meta.resolve('gpuix-svelte/register')];
 
-const child = spawn(
-	bun ? 'bun' : process.execPath,
-	[...flags.filter((flag) => flag !== '--bun'), ...conditions, ...loader, entry, ...rest],
-	{
-		stdio: 'inherit',
-		// Bun is a shim on PATH rather than a resolvable executable on Windows.
-		shell: bun && process.platform === 'win32'
-	}
-);
+// Launched by Bun, this process is the runtime; from Node, `bun` is whatever PATH has, which
+// on Windows is a shim only a shell can run.
+const runtime = bun ? (process.versions.bun ? process.execPath : 'bun') : process.execPath;
+const shell = runtime === 'bun' && process.platform === 'win32';
+// cmd.exe receives one string, so each argument is quoted by hand or a path with a space splits.
+const quote = (/** @type {string} */ arg) => (shell ? `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"` : arg);
+
+const child = spawn(runtime, [...flags.filter((flag) => flag !== '--bun'), ...conditions, ...loader, entry, ...rest].map(quote), {
+	stdio: 'inherit',
+	shell
+});
 
 const stop = () => child.kill();
 process.on('SIGINT', stop);

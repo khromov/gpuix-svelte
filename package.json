@@ -16,6 +16,7 @@
 		},
 		"./renderer": "./src/renderer.ts",
 		"./plugin": "./src/plugin.ts",
+		"./build": "./src/build.ts",
 		"./register": "./src/register.ts",
 		"./test": "./src/test.ts",
 		"./automation": "./src/automation.ts",
@@ -27,7 +28,8 @@
 	},
 	"files": [
 		"src",
-		"bin"
+		"bin",
+		"assets/icon.png"
 	],
 	"engines": {
 		"node": ">=24.0.0",
@@ -61,7 +63,8 @@
 		"demo:native-0.11": "node bin/gpuix-svelte.js examples/native-0.11/main.ts",
 		"demo:web": "bun scripts/web.ts",
 		"tutorial": "node bin/gpuix-svelte.js examples/tutorial/main.ts",
-		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:dialog && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:tab && npm run test:titlebar && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window && npm run test:helpers && npm run test:search && npm run test:tooltip && npm run test:automation",
+		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:dialog && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:tab && npm run test:titlebar && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window && npm run test:helpers && npm run test:search && npm run test:tooltip && npm run test:automation && npm run test:bundle",
+		"test:bundle": "node bin/gpuix-svelte.js test/bundle.ts",
 		"test:vars": "node bin/gpuix-svelte.js test/vars.ts",
 		"test:scroller": "node bin/gpuix-svelte.js test/scroller.ts",
 		"test:dialog": "node bin/gpuix-svelte.js test/dialog.ts",
@@ -100,7 +103,6 @@
 		"consume": "node scripts/consume.ts",
 		"consume:open": "node scripts/consume.ts --open",
 		"compile": "bun scripts/compile.ts",
-		"compile:app": "bun scripts/compile.ts --app",
 		"bun:typecheck": "npm run typecheck",
 		"bun:consume": "node scripts/consume.ts --bun",
 		"bun:consume:open": "node scripts/consume.ts --bun --open",
@@ -114,7 +116,8 @@
 		"bun:demo:desktop": "node bin/gpuix-svelte.js --bun examples/desktop-apis/main.ts",
 		"bun:demo:native-0.11": "node bin/gpuix-svelte.js --bun examples/native-0.11/main.ts",
 		"bun:tutorial": "node bin/gpuix-svelte.js --bun examples/tutorial/main.ts",
-		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:dialog && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:tab && npm run bun:test:titlebar && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window && npm run bun:test:helpers && npm run bun:test:search && npm run bun:test:tooltip && npm run bun:test:automation",
+		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:dialog && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:tab && npm run bun:test:titlebar && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window && npm run bun:test:helpers && npm run bun:test:search && npm run bun:test:tooltip && npm run bun:test:automation && npm run bun:test:bundle",
+		"bun:test:bundle": "node bin/gpuix-svelte.js --bun test/bundle.ts",
 		"bun:test:vars": "node bin/gpuix-svelte.js --bun test/vars.ts",
 		"bun:test:scroller": "node bin/gpuix-svelte.js --bun test/scroller.ts",
 		"bun:test:dialog": "node bin/gpuix-svelte.js --bun test/dialog.ts",

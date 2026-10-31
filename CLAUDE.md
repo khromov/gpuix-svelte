@@ -100,6 +100,10 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
                            # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
+npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
+                           # source (both real entries, what is accepted and what fails), app
+                           # metadata defaults, the Info.plist, the .ico container, and real
+                           # .ico/.icns where the platform has a scaler, under a path with a space and a ’
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
@@ -137,10 +141,14 @@ npm run consume            # the consumer path: pack, scaffold an app under $TMP
                            # through the installed bin; fails if a non-declaration `.ts` ships or
                            # tsx lands in the consumer. bun:consume installs and runs with Bun and
                            # also builds the starter's binary (size-checked, so a binary without
-                           # the addon fails); consume:open / bun:consume:open open the window
-npm run compile            # tic-tac-toe → dist/tictactoe (.exe on Windows) via Bun.build({ compile });
-                           # it refuses to run under Node
-npm run compile:app        # same, plus a dist/Tic-tac-toe.app wrapper with its icon (macOS only)
+                           # the addon fails; on macOS it checks the plist and icns, on Windows the
+                           # icon Explorer shows and the file properties); consume:open /
+                           # bun:consume:open open the window
+npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a scaffolded app's
+                           # build.ts makes: dist/Tic-tac-toe.app with its icon on macOS,
+                           # dist/tic-tac-toe.exe (no console, version info) on Windows,
+                           # dist/tic-tac-toe on Linux; signs/notarizes with CODESIGN_IDENTITY /
+                           # NOTARY_PROFILE. Refuses to run under Node
 ```
 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
@@ -150,7 +158,7 @@ carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun inst
 but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks its runtime
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
-both into `test` / `bun:test`. `compile`, `compile:app` and `demo:web` are Bun-only, `bun:typecheck`
+both into `test` / `bun:test`. `compile` and `demo:web` are Bun-only, `bun:typecheck`
 is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
 (`lint`, `check:svelte`, `docs`, `vendor`, `parity`, `pack`, `publish:npm`) has none. Repo-local
 scripts that need no loader run on plain `node`, which strips their types itself.
@@ -214,7 +222,7 @@ read directly. Reading any of them on a timer keeps an idle window drawing (`get
 `getScrollOffset` do not draw). `onlayout` / `onscrollchange` are the way to be told instead.
 
 CI (`.github/workflows/test.yml`): `npm test` on macOS and Windows × Node 24 and 26, `npm run
-bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS × Node 24 and 26, `compile` on
+bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS and Windows × Node 24 and 26, `compile` on
 all three OSes (build only, never launched), and a Linux job that can only run `typecheck`, `lint`,
 a `npm pack --dry-run` of the scaffolder and a check that the binding loads (see the
 `@gpuix/native` constraint). `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
@@ -295,28 +303,62 @@ AGENTS.md keeps the baselines.
 ### Standalone binary
 
 User-facing steps, including signing and notarization (`CODESIGN_IDENTITY`, `NOTARY_PROFILE`), are
-in `docs/shipping.md`. `scripts/compile.ts` is `Bun.build({ compile })` over
-`examples/tic-tac-toe/standalone.ts`, a static-`render()` entry — `render_hot` re-imports from disk
-and can't live in a binary, so `main.ts` stays the dev entry. `Bun.build` never sees the
-`Bun.plugin` registration from `bunfig.toml`, so the script wires `src/plugin.ts`'s exported hooks
-in itself:
+in `docs/shipping.md`. The implementation is `gpuix-svelte/build` (`src/build.ts`, Bun-only, plus
+the runtime-agnostic `src/app-bundle.ts`), which both `scripts/compile.ts` and a scaffolded app's
+`build.ts` call as `build({ entry })`. It is `Bun.build({ compile })` over a static-`render()`
+entry — `render_hot` re-imports from disk and can't live in a binary, so `main.ts` stays the dev
+entry — followed by the platform's packaging. `Bun.build` never sees the `Bun.plugin` registration
+from `bunfig.toml`, so it wires `src/plugin.ts`'s exported hooks in itself:
 
-- `load_svelte` / `load_module` compile components, and the script counts the components that
-  went through them, because without the plugin a `.svelte` import silently becomes a file asset
-  while the build still succeeds.
+- `load_svelte` / `load_module` compile components, and it counts the components that went
+  through them, because without the plugin a `.svelte` import silently becomes a file asset while
+  the build still succeeds.
 - `resolve_svelte(conditions)` pins `svelte` to the bundled copy under the build's own conditions
   (`custom-renderer` + `production` here, `custom-renderer` + `browser` in `scripts/web.ts`).
   `production` only takes effect together with the `process.env.NODE_ENV` define, because Bun
   implies `development` otherwise and esm-env lists it first.
 - `resolve_native_cjs` points `@gpuix/native` at its `index.cjs`: the ESM loader finds the `.node`
   through `createRequire(import.meta.url)`, which `Bun.build` cannot trace, and without the CJS
-  entry the binary ships without the addon and dies at launch — the script's size floor catches
-  that. Bun embeds only the host's prebuild, so a binary is built on the OS it targets.
+  entry the binary ships without the addon and dies at launch — the size floor catches that. Bun
+  embeds only the host's prebuild, so a binary is built on the OS it targets.
 
 `autoloadBunfig` and `autoloadDotenv` are off, so a `bunfig.toml` or `.env` beside the binary can't
-reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path. The `.app`'s icon is
-`examples/tic-tac-toe/icon.png`, rasterized at 1024 px from the `icon.svg` beside it; `--app` cuts it
-into an `.icns` with `sips` + `iconutil`.
+reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
+
+**App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
+`identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
+place that names the app. The window reads only `name`, as the `title` fallback. `build()` reads
+the rest from the entry's source: `Bun.Transpiler` strips the types and
+`read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for
+the one top-level `render()` imported from `gpuix-svelte` (renamed or not, as a statement or a
+`const` initializer) and takes `title` and `app` from its second argument. Values are string
+literals, plain templates, one hop through a top-level `const` (so `{ app }` shorthand works) and
+`new URL('x', import.meta.url)`, which comes back as `'x'` because `icon_path` resolves that against
+the entry's directory anyway. Anything else under `app`, a spread or a computed key throws, naming
+the value; a computed `title` is dropped instead, since it only costs the name its fallback.
+`resolve_app_info` fills the defaults — `name` from the title, then the nearest package.json;
+`identifier` `local.<slug>`; `version` from package.json; a relative `icon` from the entry's
+directory.
+
+Per platform: on macOS the executable moves into `dist/<Name>.app/Contents/MacOS/<slug>` with an
+`Info.plist` (`info_plist`) and, given an icon, `AppIcon.icns` cut by `sips` + `iconutil`; signing
+and notarization (`sign`, `notarize`) run on the bundle when the env vars are set, and the bare
+binary is not kept. On Windows the icon becomes a PNG-compressed `.ico` (`write_ico`: 256/48/32/16,
+scaled with .NET's `System.Drawing` through PowerShell) and goes into Bun's `compile.windows`
+with `hideConsole: true` and the name as `title`. The largest image comes first because Bun writes
+the `.ico` as group `#0` beside bun.exe's own `IDI_MYICON`, which the shell picks and which points
+at the first image (at 16 px first, Explorer shows it smeared; Explorer also caches icons by path,
+so check a build under a new file name). GPUI's window class loads icon resource 1, which neither
+group is, so the title bar stays generic while the taskbar shows the exe's icon. Whatever
+`compile.windows` leaves unset keeps bun.exe's value (`Bun`, `Oven`, its licensing URL, its version),
+so `description` and `publisher` fall back to the name, `copyright` to a single space, and the
+version is its numeric prefix (`0.0.0.0` if none fits). Linux gets the bare executable.
+`test:bundle` covers the Node half (and the real `.ico` and `.icns` where the platform has a scaler); CI's `compile` job exercises each OS's packaging
+build-only. An app that sets no `icon` gets `DEFAULT_ICON`, `assets/icon.png` (in `files` and
+publish.ts's list, so it ships), and the examples and the starter all take that path. It is the
+homepage's macOS tile, rasterized at 1024 px from the `icon.svg` beside it (Chrome over CDP keeps
+both the bold text and the transparent corners, where `sips` drops the weight and `qlmanage` paints
+a white background).
 
 ### Rendering to the web
 
@@ -465,7 +507,9 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot
   register.ts  Node loader (module.registerHooks)   ─ the default
-  plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, scripts/compile.ts, scripts/web.ts
+  plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
+  build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
+  app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool  ─ Node-testable half of build.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
   automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts
@@ -823,7 +867,7 @@ a locked version moves within its range with `bun update <pkg>`), run scripts wi
 `npm run <script>`; packing and publishing stay on npm (`npm pack` bundles the vendored svelte and
 its dependencies, and `npm publish` does the OIDC trusted publishing). Keep the source
 runtime-agnostic — `node:*` builtins only, no `Bun.*` calls and no `bun` imports outside
-`src/plugin.ts`, `scripts/compile.ts` and `scripts/web.ts` (Bun is the bundler there). Import types
+`src/plugin.ts`, `src/build.ts` and `scripts/web.ts` (Bun is the bundler there). Import types
 with `import type`, and components import the renderer's types (`ShadowNode` for `{@attach}`,
 `GpuixEvent` for handlers) from `'gpuix-svelte'`; `.svelte` files use `<script lang="ts">` — the
 compiler strips the types itself, and svelte-check (part of `typecheck`) checks them.

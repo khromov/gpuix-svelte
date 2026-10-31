@@ -46,6 +46,14 @@ const json = JSON.parse(readFileSync(manifest, 'utf8'));
 json.name = basename(target).toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
 json.dependencies['gpuix-svelte'] = `^${own.version}`;
 writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
+// The window title and the app's identifier take the project's name, so `build` makes <name>.app;
+// a bundle identifier allows only letters, digits, `-` and `.`.
+const identifier = json.name.replace(/[^a-z0-9.-]+/g, '-');
+for (const file of ['app.ts', 'standalone.ts']) {
+	const path = join(target, file);
+	const source = readFileSync(path, 'utf8');
+	writeFileSync(path, source.replaceAll('gpuix-svelte starter', json.name).replaceAll('gpuix-svelte-starter', identifier));
+}
 // npm strips .gitignore from published tarballs, so the scaffolder writes it.
 writeFileSync(join(target, '.gitignore'), 'node_modules\ndist\n.DS_Store\n');
 
@@ -62,5 +70,5 @@ Created ${cd}. Next:
   ${pm} install
   ${script('start').padEnd(width)}# opens the window; edit App.svelte to hot-reload
   ${script('test').padEnd(width)}# headless test (macOS and Windows)
-  ${script('build').padEnd(width)}# standalone executable in dist/ (requires Bun)
+  ${script('build').padEnd(width)}# the app for this platform in dist/ (requires Bun)
 `);

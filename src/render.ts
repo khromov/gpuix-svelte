@@ -179,8 +179,10 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		keyboardFocusDim,
 		tabNavigation = true,
 		titlebar,
+		app,
 		...window_options
 	} = options;
+	if (window_options.title == null && app?.name) window_options.title = app.name;
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
