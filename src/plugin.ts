@@ -96,30 +96,9 @@ function invalidate_svelte() {
 
 (globalThis as Record<symbol, unknown>)[Symbol.for('gpuix-svelte.invalidate')] = invalidate_svelte;
 
-/**
- * `gpuix-svelte/build` runs the entry under GPUIX_APP_INFO only up to its `render()` call, which
- * returns before touching native, so the addon is replaced: a Linux CI runner without libxcb
- * cannot load it at all, and the build should not need what only the finished app needs.
- */
-function stub_native(build: PluginBuilder) {
-	build.module('@gpuix/native', () => ({ contents: NATIVE_STUB_EXPORTS.map(stub_export).join('\n'), loader: 'js' }));
-}
-
-/** Every value export of `@gpuix/native`'s index.js: a name missing here is a link error in the probe (test:bundle compares). */
-export const NATIVE_STUB_EXPORTS = ['AvailableUpdate', 'GpuixRenderer', 'TestGpuixRenderer', 'checkUpdate', 'hasTestGpuixRenderer', 'isTerminal', '__napiBindingTarget'];
-
-function stub_export(name: string): string {
-	const refuse = `throw new Error('[gpuix-svelte] ${name} is not available while GPUIX_APP_INFO describes the app');`;
-	if (name === '__napiBindingTarget') return `export const ${name} = 'native';`;
-	if (name === 'hasTestGpuixRenderer' || name === 'isTerminal') return `export const ${name} = () => false;`;
-	if (/^[A-Z]/.test(name)) return `export class ${name} { constructor() { ${refuse} } }`;
-	return `export function ${name}() { ${refuse} }`;
-}
-
 plugin({
 	name: 'gpuix-svelte',
 	setup(build) {
-		if (process.env.GPUIX_APP_INFO) stub_native(build);
 		pin_svelte(build);
 		build.onLoad({ filter: /\.svelte\.[jt]s(\?.*)?$/ }, load_module);
 		build.onLoad({ filter: /\.svelte(\?.*)?$/ }, load_svelte);

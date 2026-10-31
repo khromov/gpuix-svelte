@@ -1,9 +1,10 @@
 /**
  * The packaging around a compiled executable — the macOS `.app`'s plist, icns, signature and
- * notarization, the Windows `.ico` — and the app metadata both are filled from. Nothing here
- * needs Bun, so the tests run it on Node; `build.ts` is the Bun half.
+ * notarization, the Windows `.ico` — and the app metadata both are filled from, as the entry's
+ * source declares it. Nothing here needs Bun, so the tests run it on Node; `build.ts` is the Bun half.
  */
 
+import { Parser, type CallExpression, type Expression, type Literal, type Node, type SpreadElement } from 'acorn';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -23,10 +24,87 @@ export interface AppInfo {
 	description?: string;
 }
 
-/** What the entry wrote under GPUIX_APP_INFO: its `app` options plus the window title. */
-export type ReportedApp = AppOptions & { title?: string };
+/** The `app` options and window title written in the entry's `render()` call. */
+export type EntryApp = AppOptions & { title?: string };
 
 export const MIN_MACOS = '13.0';
+
+const UNREADABLE = "the build reads the app options from the entry's source without running it, so they have to be written out there (or in a top-level const)";
+
+/**
+ * `title` and `app` from the entry's one top-level `render()` call. `source` is JavaScript, its
+ * types already stripped; running the entry instead would load the addon and the app's start-up.
+ */
+export function read_app_options(source: string): EntryApp {
+	const program = Parser.parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
+	const renders = new Set<string>();
+	const consts = new Map<string, Expression>();
+	const top: Array<Expression | null | undefined> = [];
+	for (const statement of program.body) {
+		if (statement.type === 'ImportDeclaration' && statement.source.value === 'gpuix-svelte') {
+			for (const specifier of statement.specifiers) {
+				if (specifier.type !== 'ImportSpecifier') continue;
+				const imported = specifier.imported.type === 'Identifier' ? specifier.imported.name : specifier.imported.value;
+				if (imported === 'render') renders.add(specifier.local.name);
+			}
+		} else if (statement.type === 'ExpressionStatement') {
+			top.push(statement.expression);
+		} else if (statement.type === 'VariableDeclaration') {
+			for (const { id, init } of statement.declarations) {
+				top.push(init);
+				if (statement.kind === 'const' && id.type === 'Identifier' && init) consts.set(id.name, init);
+			}
+		}
+	}
+	const calls = top.filter(
+		(node): node is CallExpression => node?.type === 'CallExpression' && node.callee.type === 'Identifier' && renders.has(node.callee.name)
+	);
+	if (calls.length === 0) throw new Error("no top-level render() from 'gpuix-svelte', which is where the build reads the app options (a render_hot entry can't be compiled)");
+	if (calls.length > 1) throw new Error(`render() is called ${calls.length} times at the top level; the build reads the app options from one call`);
+
+	const text = (node: Node) => source.slice(node.start, node.end);
+	const follow = (node: Expression | SpreadElement) => (node.type === 'Identifier' && consts.get(node.name)) || node;
+
+	function string(node: Expression | undefined): string | undefined {
+		const value = node && follow(node);
+		if (value?.type === 'Literal' && typeof value.value === 'string') return value.value;
+		if (value?.type === 'TemplateLiteral' && value.expressions.length === 0) return value.quasis[0].value.cooked ?? undefined;
+		// `new URL('./icon.png', import.meta.url)` names the same file as './icon.png' does from the entry.
+		if (value?.type === 'NewExpression' && value.callee.type === 'Identifier' && value.callee.name === 'URL') {
+			const [href, base] = value.arguments;
+			if (href && href.type !== 'SpreadElement' && (!base || text(base) === 'import.meta.url')) return string(href);
+		}
+		return undefined;
+	}
+
+	function object(node: Expression | SpreadElement, path: string): Map<string, Expression> {
+		const value = follow(node);
+		if (value.type !== 'ObjectExpression') throw new Error(`${path} is \`${text(node)}\`; ${UNREADABLE}`);
+		const fields = new Map<string, Expression>();
+		for (const property of value.properties) {
+			if (property.type === 'SpreadElement' || property.computed) throw new Error(`${path} has \`${text(property)}\`; ${UNREADABLE}`);
+			const key = property.key.type === 'Identifier' ? property.key.name : String((property.key as Literal).value);
+			fields.set(key, property.value as Expression);
+		}
+		return fields;
+	}
+
+	const options = calls[0].arguments[1];
+	if (!options) return {};
+	const fields = object(options, "render()'s second argument");
+	const app: Record<string, string> = {};
+	const declared = fields.get('app');
+	if (declared) {
+		for (const [key, node] of object(declared, 'app')) {
+			const value = string(node);
+			if (value === undefined) throw new Error(`app.${key} is \`${text(node)}\`; ${UNREADABLE}`);
+			app[key] = value;
+		}
+	}
+	// A title worked out at runtime only costs the name its fallback, and package.json covers that.
+	const title = string(fields.get('title'));
+	return title === undefined ? app : { ...app, title };
+}
 
 export function app_slug(name: string): string {
 	return (
@@ -37,23 +115,22 @@ export function app_slug(name: string): string {
 	);
 }
 
-export function resolve_app_info(reported: ReportedApp, entry: string): AppInfo {
+export function resolve_app_info(declared: EntryApp, entry: string): AppInfo {
 	const pkg = nearest_package(dirname(entry));
-	const name = reported.name || reported.title || pkg?.name || 'app';
+	const name = declared.name || declared.title || pkg?.name || 'app';
 	const slug = app_slug(name);
 	return {
 		name,
 		slug,
-		identifier: reported.identifier || `local.${slug}`,
-		version: reported.version || pkg?.version || '0.0.0',
-		icon: reported.icon ? icon_path(reported.icon, entry) : null,
-		copyright: reported.copyright,
-		publisher: reported.publisher,
-		description: reported.description
+		identifier: declared.identifier || `local.${slug}`,
+		version: declared.version || pkg?.version || '0.0.0',
+		icon: declared.icon ? icon_path(declared.icon, entry) : null,
+		copyright: declared.copyright,
+		publisher: declared.publisher,
+		description: declared.description
 	};
 }
 
-// A URL that went through JSON is its href, so both spellings arrive as strings.
 function icon_path(icon: string | URL, entry: string): string {
 	const text = String(icon);
 	return text.startsWith('file:') ? fileURLToPath(text) : resolve(dirname(entry), text);

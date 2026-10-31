@@ -5,11 +5,10 @@
  */
 
 import type { BunPlugin } from 'bun';
-import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { info_plist, notarize, resolve_app_info, sign, write_icns, write_ico, type AppInfo, type ReportedApp } from './app-bundle.ts';
+import { info_plist, notarize, read_app_options, resolve_app_info, sign, write_icns, write_ico, type AppInfo, type EntryApp } from './app-bundle.ts';
 
 export type { AppInfo } from './app-bundle.ts';
 
@@ -41,7 +40,6 @@ interface WindowsInfo {
 }
 
 const TAG = '[gpuix-svelte/build]';
-const PROBE_TIMEOUT = 60_000;
 const log = (line: string) => console.log(`${TAG} ${line}`);
 const rel = (path: string) => relative(process.cwd(), path) || '.';
 const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
@@ -57,7 +55,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	rmSync(scratch, { recursive: true, force: true });
 	mkdirSync(scratch, { recursive: true });
 
-	const app = resolve_app_info(describe(entry, scratch), entry);
+	const app = resolve_app_info(entry_app(entry), entry);
 	if (app.icon && !existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
 	const binary = join(outdir, process.platform === 'win32' ? `${app.slug}.exe` : app.slug);
 	const bundle = join(outdir, `${app.name.replace(/[/\\:]/g, '-')}.app`);
@@ -98,8 +96,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		// Bun implies `development` unless NODE_ENV is production at build time, and
 		// esm-env lists it first, so both are needed for Svelte's production runtime.
 		conditions: ['custom-renderer', 'production'],
-		// The second define drops render()'s GPUIX_APP_INFO branch, and app-info.ts with it, from the app.
-		define: { 'process.env.NODE_ENV': '"production"', 'process.env.GPUIX_APP_INFO': 'undefined' },
+		define: { 'process.env.NODE_ENV': '"production"' },
 		minify: true,
 		plugins: [plugin],
 		throw: false,
@@ -166,30 +163,13 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	return { output, binary: executable, app, signed, notarized };
 }
 
-/**
- * Runs the entry under GPUIX_APP_INFO on this same Bun, with the loader the bin would pass, so
- * the `app` options it hands `render()` come back as data instead of being parsed out of its
- * source. Spawned directly, not through the bin: under Bun the bin goes through a shell on
- * Windows, which splits paths with spaces.
- */
-function describe(entry: string, scratch: string): ReportedApp {
-	const file = join(scratch, 'app-info.json');
-	const loader = fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'));
-	const { error, status, signal } = spawnSync(
-		process.execPath,
-		['--conditions', 'custom-renderer', '--conditions', 'development', '--preload', loader, entry],
-		{ env: { ...process.env, GPUIX_APP_INFO: file }, stdio: ['ignore', 'inherit', 'inherit'], timeout: PROBE_TIMEOUT }
-	);
-	if (error && (error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
-		throw new Error(
-			`${TAG} ${rel(entry)} ran for ${PROBE_TIMEOUT / 1000} s without calling render(); the build runs it to read render()'s app options, so it has to call render() when it loads, and anything else it starts can check process.env.GPUIX_APP_INFO and skip`
-		);
+function entry_app(entry: string): EntryApp {
+	const source = new Bun.Transpiler({ loader: 'ts' }).transformSync(readFileSync(entry, 'utf8'));
+	try {
+		return read_app_options(source);
+	} catch (error) {
+		throw new Error(`${TAG} ${rel(entry)}: ${(error as Error).message}`, { cause: error });
 	}
-	if (error) throw error;
-	if (!existsSync(file)) {
-		throw new Error(`${TAG} ${rel(entry)} exited (${signal ?? status}) without calling render(); the entry has to mount the app with \`render\` when it loads`);
-	}
-	return JSON.parse(readFileSync(file, 'utf8'));
 }
 
 /** Windows file versions are up to four 16-bit integers. */

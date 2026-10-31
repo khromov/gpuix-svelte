@@ -68,12 +68,14 @@ import { build } from 'gpuix-svelte/build';
 await build({ entry: './standalone.ts' });
 ```
 
-It runs `standalone.ts` once with no window to read its `app` options: the entry and everything
-it imports load as they would in the app, `render()` writes the options out and exits, and the
-build fails if the entry never calls `render()` (within 60 seconds, if it keeps running). Anything
-the entry starts at load that should not happen during a build, such as opening a database, can
-check `process.env.GPUIX_APP_INFO` and skip. Then it bundles the entry with Bun's compiler, checks
-that the GPUI addon made it in, and packages the executable for the platform it is running on.
+It reads the `app` options and the `title` from `standalone.ts`'s source without running it, so
+they have to be written out: each value a string, either in place or in a top-level `const`
+(`icon` can also be `new URL('./icon.png', import.meta.url)`). A value under `app` that is only
+known at runtime, such as `version: pkg.version`, fails the build with an error naming it; leave it
+out and the default covers it. A `title` worked out at runtime is skipped, so the name then comes from
+`package.json`. The entry needs exactly one `render()` call at its top level. Then the build bundles
+the entry with Bun's compiler, checks that the GPUI addon made it in, and packages the executable
+for the platform it is running on.
 `outdir` moves the output (`dist` by default), and the returned object names the `output` to ship,
 the `binary` inside it, the resolved `app` metadata, and whether it was `signed` and `notarized`.
 

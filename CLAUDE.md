@@ -100,10 +100,10 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
                            # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
-npm run test:bundle        # gpuix-svelte/build's Node half: GPUIX_APP_INFO through the bin from a
-                           # directory with a space and a ’, app metadata defaults, the Info.plist,
-                           # the .ico container, real .ico/.icns where the platform has a scaler,
-                           # and (Bun) the native stub's exports against the real module's
+npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
+                           # source (both real entries, what is accepted and what fails), app
+                           # metadata defaults, the Info.plist, the .ico container, and real
+                           # .ico/.icns where the platform has a scaler, under a path with a space and a ’
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots, close()s; NOT part of `npm test`
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
@@ -325,26 +325,20 @@ reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
 
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
-place that names the app. The window reads only `name`, as the `title` fallback. `build()` learns
-the rest by running the entry once on the same Bun with the bin's flags (`--conditions` and
-`--preload gpuix-svelte/plugin`; not through the bin itself, which under Bun shells out on Windows
-and would split a path with a space) and `GPUIX_APP_INFO=<file>`: `render()` sees the variable
-before touching native, hands its `app` options plus the title to `src/app-info.ts` (a computed
-import, like the automation server's), which writes the JSON and exits. No window, no frame loop,
-and no addon either: under that variable `plugin.ts` registers a virtual `@gpuix/native`
-(`NATIVE_STUB_EXPORTS`, which `test:bundle` compares with the real module's exports under Bun)
-whose `GpuixRenderer` throws if constructed, because a Linux CI runner without `libxcb` cannot
-load the real one (napi reports that as "Cannot find module …linux-x64-gnu.node") and the build
-must not need what only the finished app needs. The entry's whole import graph runs, so
-`docs/shipping.md` tells apps to check the variable before load-time side effects; an entry that
-exits without calling `render()` fails the build at once, one that keeps running after 60 s. The
-compiled app has no such mode: `build()` defines `process.env.GPUIX_APP_INFO` as `undefined`
-(which is why `render()` reads it as that exact expression, not through `env()`), so the branch and
-`app-info.ts` drop out — minification would otherwise fold the computed specifier into a static
-import and ship the writer; `consume` checks the binary for the string. `resolve_app_info` fills
-the defaults — `name` from the title, then the nearest package.json; `identifier` `local.<slug>`;
-`version` from package.json; a relative `icon` from the entry's directory — and nothing is parsed
-out of the entry's source.
+place that names the app. The window reads only `name`, as the `title` fallback. `build()` reads
+the rest from the entry's source without running it: `Bun.Transpiler` strips the types and
+`read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for
+the one top-level `render()` imported from `gpuix-svelte` (renamed or not, as a statement or a
+`const` initializer) and takes `title` and `app` from its second argument. Values are string
+literals, plain templates, one hop through a top-level `const` (so `{ app }` shorthand works) and
+`new URL('x', import.meta.url)`, which comes back as `'x'` because `icon_path` resolves that against
+the entry's directory anyway. Anything else under `app`, a spread or a computed key throws, naming
+the value; a computed `title` is dropped instead, since it only costs the name its fallback. Running
+the entry was the first design and was dropped: it loaded the whole import graph and the app's own
+start-up, needed a stubbed `@gpuix/native` because a Linux runner without `libxcb` cannot load the
+addon, and a `render()` branch that the compiled app had to have defined away. `resolve_app_info`
+fills the defaults — `name` from the title, then the nearest package.json; `identifier`
+`local.<slug>`; `version` from package.json; a relative `icon` from the entry's directory.
 
 Per platform: on macOS the executable moves into `dist/<Name>.app/Contents/MacOS/<slug>` with an
 `Info.plist` (`info_plist`) and, given an icon, `AppIcon.icns` cut by `sips` + `iconutil`; signing
@@ -417,10 +411,10 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   declarations beside it, plus a copy of `src/html.d.ts`), rewrites the declarations' `./x.ts`
   specifiers to `./x.js`, and for the length of `npm pack`/`npm publish` points `main` and every
   `src/*.ts` export at `lib/*.js` (TypeScript finds each `.d.ts` beside its `.js`, so there are no
-  `types` conditions) and ships `lib`, `src/components` and `bin` only. tsc wraps the three computed
+  `types` conditions) and ships `lib`, `src/components` and `bin` only. tsc wraps the two computed
   `import()`s in an inlined `__rewriteRelativeImportExtension` helper: `render_hot`'s, where it is
   inert because the specifier is always a `file://` URL, and `render.ts`'s
-  `'./automation-server.ts'` and `'./app-info.ts'`, which it rewrites to `.js`. The starter's tsconfig carries
+  `'./automation-server.ts'`, which it rewrites to `.js`. The starter's tsconfig carries
   `erasableSyntaxOnly`, `verbatimModuleSyntax` and `allowImportingTsExtensions`, so an app's `tsc`
   rejects what Node's stripping cannot run. `bin/gpuix-svelte.js` is plain JS (checked via
   `checkJs`) because it is what starts the runtime (`svelte.config.js` is editor-only and outside
@@ -489,8 +483,7 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   mutation queue would replace the batching here rather than simplify it. **Moving the range:** read the new tag's `CHANGELOG.md`,
   the `index.d.ts` diff and the Rust (`renderer.rs`, `custom_elements/*.rs`, `style.rs`) at that
   tag; get `npm test` and `npm run bun:test` passing on the new version before anything uses the
-  new surface (`bun:test:bundle` fails if `plugin.ts`'s `NATIVE_STUB_EXPORTS` no longer matches the
-  module's exports); and in the same change go through `npm run parity`'s output and redo
+  new surface; and in the same change go through `npm run parity`'s output and redo
   `docs/styling.md`'s lists if `style.rs` moved (see "Regenerating the styling reference").
   0.11's terminal mode is untested here: native `init()` honours `GPUIX_TERMINAL=1` on its own, and
   `render()` logs to the stdout that mode draws on.
@@ -509,8 +502,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
-  app-bundle.ts  app metadata defaults, Info.plist, .icns/.ico, codesign, notarytool  ─ Node-testable half of build.ts
-  app-info.ts  GPUIX_APP_INFO writer  ─ imported lazily by render.ts, so build.ts can read `app` from the entry
+  app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool  ─ Node-testable half of build.ts
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
   automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts

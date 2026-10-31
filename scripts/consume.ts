@@ -63,12 +63,10 @@ if (bun) {
 	// Bun's own executable plus a GPUI addon of at least 17 MB; anything smaller lost the addon.
 	const bun_path = spawnSync('bun', ['-e', 'console.log(process.execPath)'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout.trim();
 	if (statSync(binary).size < statSync(bun_path).size + 12 * 1024 * 1024) throw new Error(`${binary} is missing the GPUI addon`);
-	// build() defines the probe's variable away, so a shipped app must not know it.
-	if (readFileSync(binary).includes('GPUIX_APP_INFO')) throw new Error(`${binary} still carries the GPUIX_APP_INFO probe`);
 	if (process.platform === 'darwin') {
 		const plist = join(consumer, 'dist', 'app.app', 'Contents', 'Info.plist');
 		if (!existsSync(join(consumer, 'dist', 'app.app', 'Contents', 'Resources', 'AppIcon.icns'))) throw new Error('the .app has no AppIcon.icns');
-		// The directory and the package are both `app`, so only the identifier proves the probe read standalone.ts.
+		// The directory and the package are both `app`, so only the identifier proves the build read standalone.ts.
 		if (!readFileSync(plist, 'utf8').includes('<string>com.example.app</string>')) throw new Error('the .app did not take its identifier from standalone.ts');
 	}
 }

@@ -1,17 +1,17 @@
 /**
- * `gpuix-svelte/build`'s runtime-agnostic half: what `render()` reports under GPUIX_APP_INFO,
- * and what app-bundle.ts makes of it — metadata defaults, the Info.plist, the .ico container
+ * `gpuix-svelte/build`'s runtime-agnostic half: the app options read from an entry's source,
+ * and what app-bundle.ts makes of them — metadata defaults, the Info.plist, the .ico container
  * and, where the platform has a scaler, real icon files. The Bun.build call itself is
  * `npm run compile`'s job.
  */
 
-import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import module from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
-import { app_slug, ico, ICO_SIZES, info_plist, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
+import { app_slug, ico, ICO_SIZES, info_plist, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'gpuix-svelte-bundle-'));
@@ -37,7 +37,7 @@ check(
 );
 check('with no title either, the name is package.json\'s', resolve_app_info({}, entry).name, 'my-app');
 check('a relative icon is read from the entry\'s directory', resolve_app_info({ icon: './icon.png' }, entry).icon, join(project, 'icon.png'));
-check('a file URL icon (as JSON left it) is a path again', resolve_app_info({ icon: pathToFileURL(join(project, 'x.png')).href }, entry).icon, join(project, 'x.png'));
+check('a file: URL icon is a path again',resolve_app_info({ icon: pathToFileURL(join(project, 'x.png')).href }, entry).icon, join(project, 'x.png'));
 const explicit = resolve_app_info({ name: 'Named', identifier: 'com.example.named', version: '9.9', title: 'Titled', copyright: '© me' }, entry);
 check(
 	'explicit values win',
@@ -110,38 +110,64 @@ if (process.platform === 'darwin') {
 	check('the .icns starts with its magic', readFileSync(icns).subarray(0, 4).toString('latin1'), 'icns');
 }
 
-// Through the bin on whichever runtime runs this test (build.ts spawns Bun with the bin's flags
-// itself); under Bun the plugin's stub stands in for the addon.
-const probe_entry = join(awkward, 'standalone.ts');
-writeFileSync(
-	probe_entry,
-	`import { render } from 'gpuix-svelte';
-import Counter from '../../../examples/counter/Counter.svelte';
-render(Counter, { width: 320, height: 240, app: { name: 'Probe', identifier: 'test.probe', icon: './icon.png' } });
-`
-);
-const report = join(awkward, 'app info.json');
-const probe = spawnSync(process.execPath, [join(root, 'bin/gpuix-svelte.js'), probe_entry], {
-	env: { ...process.env, GPUIX_APP_INFO: report },
-	encoding: 'utf8',
-	timeout: 60_000
-});
-check('GPUIX_APP_INFO: the entry exits 0 and opens no window', [probe.status, probe.stdout.includes('created native window')], [0, false]);
-check(
-	'GPUIX_APP_INFO: render() reports the app options and the title it fell back to',
-	JSON.parse(readFileSync(report, 'utf8')),
-	{ name: 'Probe', identifier: 'test.probe', icon: './icon.png', title: 'Probe' }
-);
+// Bun strips types the way build.ts does; Bun's node:module has no stripTypeScriptTypes.
+const as_js = (ts: string) => (process.versions.bun ? new Bun.Transpiler({ loader: 'ts' }).transformSync(ts) : module.stripTypeScriptTypes(ts));
+const read = (ts: string) => read_app_options(as_js(ts));
+const error_of = (ts: string) => {
+	try {
+		read(ts);
+		return 'no error';
+	} catch (error) {
+		return (error as Error).message;
+	}
+};
+const head = "import { render } from 'gpuix-svelte';\nimport App from './App.svelte';\n";
 
-// The stub is a hand-kept list, so a native bump that adds an export src/ imports shows up here.
-if (process.versions.bun) {
-	const { NATIVE_STUB_EXPORTS } = await import('../src/plugin.ts');
-	const real = Object.keys(await import('@gpuix/native'))
-		.filter((name) => name !== 'default')
-		.sort();
-	check('the probe stub exports exactly what @gpuix/native does', [...NATIVE_STUB_EXPORTS].sort(), real);
-}
+check(
+	'the tic-tac-toe and starter entries read as written',
+	[read(readFileSync(join(root, 'examples/tic-tac-toe/standalone.ts'), 'utf8')), read(readFileSync(join(root, 'starter/standalone.ts'), 'utf8'))],
+	[
+		{ name: 'Tic-tac-toe', identifier: 'dev.gpuix.svelte.tictactoe', icon: './icon.png', title: 'GPUIX + Svelte — Tic-tac-toe' },
+		{ identifier: 'com.example.gpuix-svelte-starter', icon: './icon.png', title: 'gpuix-svelte starter' }
+	]
+);
+const typed = `import { render as mount, type RenderOptions } from 'gpuix-svelte';
+import App from './App.svelte';
+const NAME: string = 'Typed';
+const app = {
+	name: NAME,
+	identifier: \`com.example.typed\`,
+	icon: new URL('./icon.png', import.meta.url),
+	copyright: '© 2026'
+} satisfies RenderOptions['app'];
+start_logging();
+const handle = mount(App, { width: 640 as number, app } as RenderOptions);
+`;
+check(
+	'a renamed import, top-level consts, a shorthand app, a plain template and a URL icon all read',
+	read(typed),
+	{ name: 'Typed', identifier: 'com.example.typed', icon: './icon.png', copyright: '© 2026' }
+);
+check('new URL(…, import.meta.url) is the icon beside the entry', resolve_app_info(read(typed), entry).icon, join(project, 'icon.png'));
+check(
+	'a title worked out at runtime is left out, not fatal',
+	read(`${head}render(App, { title: \`v\${pkg.version}\`, app: { identifier: 'x.y' } });`),
+	{ identifier: 'x.y' }
+);
+check('no options, nothing declared', read(`${head}render(App);`), {});
+check(
+	'an app value worked out at runtime fails and names itself',
+	error_of(`${head}render(App, { app: { identifier: 'x.y', version: pkg.version } });`).startsWith('app.version is `pkg.version`;'),
+	true
+);
+check('a spread in app fails', error_of(`${head}render(App, { app: { ...shared, name: 'x' } });`).startsWith('app has `...shared`;'), true);
+check(
+	'a render_hot entry has no render() to read',
+	error_of("import { render_hot } from 'gpuix-svelte';\nrender_hot(new URL('./App.svelte', import.meta.url));").startsWith('no top-level render()'),
+	true
+);
+check('two render() calls fail', error_of(`${head}render(App, {});\nrender(App, {});`).startsWith('render() is called 2 times'), true);
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 18 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0) + (process.versions.bun ? 1 : 0));
+finish('bundle', 25 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));
