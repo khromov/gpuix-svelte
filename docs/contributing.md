@@ -58,11 +58,14 @@ A demo that starts cleanly prints
 [gpuix-svelte] mount complete
 ```
 
-and `GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter` writes a PNG after every mount and remount.
-Use a single demo for that, since several would all write to the same file.
+and `GPUIX_SCREENSHOT=/tmp/x.png npm run demo:counter` writes a PNG after every mount and remount
+on macOS and Windows (the Linux addon has no screenshot support, so it logs that instead). Use a
+single demo for that, since several would all write to the same file.
 
-The demos run on all three platforms. The tests run on macOS and Windows, where gpuix builds
-`TestGpuixRenderer`. On Linux, CI typechecks, lints and checks that the binding loads.
+The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
+`TestGpuixRenderer`. On Linux, `test:bundle`, `test:compile`, `test:automation-live`, `consume` and
+`bun:consume` all run, and CI runs them along with `typecheck` and `lint`; it gets its real windows
+from Xvfb and Mesa's software Vulkan (`xvfb-run -a npm run test:automation-live`).
 
 `npm run test:coverage` mounts Svelte's own custom-renderer samples when `SVELTE_SAMPLES_DIR`
 points at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`. Without it, the

@@ -1,7 +1,7 @@
 // Scaffolds an app with create-gpuix-svelte and installs the packed tarball into it the way
 // a consumer would — a tarball, not a symlink, so the bundled svelte, the emitted declarations
 // and the bin's own resolution are what gets tested — then typechecks and runs its headless
-// test (or opens the window).
+// test where there is one (or opens the window).
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -81,7 +81,8 @@ const typescript = (readdirSync(installed, { recursive: true }) as string[]).fil
 );
 if (typescript.length) throw new Error(`the package ships TypeScript Node cannot run: ${typescript.join(', ')}`);
 run(pm, ['run', 'typecheck'], consumer);
-run(pm, ['run', open ? 'start' : 'test'], consumer);
+// The Linux addon has no TestGpuixRenderer, so the starter's test can only throw there.
+if (open || process.platform !== 'linux') run(pm, ['run', open ? 'start' : 'test'], consumer);
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.
 if (bun) {
 	run(pm, ['run', 'build'], consumer);

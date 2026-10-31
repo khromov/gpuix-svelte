@@ -20,7 +20,8 @@ npm run build        # the app for this platform, in dist/; needs Bun
 
 With Bun: `bun run start`, `bun run test`. After a change, run `npm run typecheck` and `npm test`.
 To see what the window draws, run `GPUIX_SCREENSHOT=/tmp/app.png npm start`: it writes a PNG after
-every mount and hot reload.
+every mount and hot reload. That and `npm test` need macOS or Windows; on Linux, drive a real window
+with `launch()` from `gpuix-svelte/automation` instead.
 
 ## Building
 
@@ -39,7 +40,8 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   string, in place or in a plain top-level `const`; an `app` value computed at runtime fails the
   build, and a computed `title` is skipped. The icon is the gpuix-svelte one until `icon` names a
   square PNG (1024 px for macOS; nothing checks either, and a non-square one is stretched), read
-  relative to `standalone.ts`.
+  relative to `standalone.ts`. On Linux the build uses no icon, and the window reports `identifier`
+  as its app id, so a `.desktop` file for it is named `<identifier>.desktop`.
 - The output is for the platform it was built on: macOS arm64, Windows x64 or arm64, or Linux x64,
   the platforms GPUI ships prebuilt (there is no Intel Mac build). To release for all three
   systems, run `npm run build` on each with Bun installed, for example in a GitHub Actions matrix

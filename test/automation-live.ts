@@ -15,10 +15,14 @@ for (let i = 0; i < 3; i++) await app.getByTestId('plus').click();
 const branch = await app.getByText('3 clicks').waitFor();
 check('three clicks on + reach the {#if} branch', branch.text?.includes('the {#if} branch is live'), true);
 
-const shot = join(tmpdir(), `gpuix-svelte-live-${process.pid}.png`);
-await app.screenshot({ path: shot });
-check('screenshot() writes a PNG of the window', existsSync(shot) && statSync(shot).size > 0, true);
-rmSync(shot, { force: true });
+// gpuix builds the Linux addon without image readback, so native throws there.
+const screenshots = process.platform !== 'linux';
+if (screenshots) {
+	const shot = join(tmpdir(), `gpuix-svelte-live-${process.pid}.png`);
+	await app.screenshot({ path: shot });
+	check('screenshot() writes a PNG of the window', existsSync(shot) && statSync(shot).size > 0, true);
+	rmSync(shot, { force: true });
+}
 
 await app.getByText('Reset').click();
 check('a read right after a click sees its effect', await app.getByText('clicks').count(), 0);
@@ -27,4 +31,4 @@ const started = Date.now();
 await app.close();
 check('close() ends the app cleanly within two seconds', [app.process.exitCode, Date.now() - started < 2000], [0, true]);
 
-finish('automation-live', 4);
+finish('automation-live', screenshots ? 4 : 3);

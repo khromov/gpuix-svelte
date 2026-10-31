@@ -4,7 +4,7 @@
  * driving `tick()`. It imports no `node:*` module, so it bundles for the browser as-is.
  */
 
-import { GpuixRenderer, type EventPayload } from '@gpuix/native';
+import { GpuixRenderer, type EventPayload, type WindowOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode } from '@gpuix/native/host';
 import { mount, unmount, flushSync } from 'svelte';
 import renderer, {
@@ -20,7 +20,7 @@ import renderer, {
 } from './renderer.ts';
 import { set_debug_overlay } from './window.ts';
 import { create_window_root, wants_titlebar } from './titlebar.ts';
-import type { AnyComponent, RenderOptions, ShadowNode } from './types.ts';
+import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './types.ts';
 
 /**
  * ~125fps, above the 60 and 120 Hz most displays run at. `setImmediate` instead of a paced
@@ -157,6 +157,14 @@ export function focus_dim_on_render(option: boolean | undefined, applied: boolea
 	return created || enabled !== applied ? enabled : null;
 }
 
+/** The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by. */
+export function window_options_for(options: WindowOptions, app: AppOptions | undefined): WindowOptions {
+	const merged = { ...options };
+	if (merged.title == null && app?.name) merged.title = app.name;
+	if (merged.appId == null && app?.identifier) merged.appId = app.identifier;
+	return merged;
+}
+
 /** Native 0.11 cannot close a window, so the title bar's close button ends the app the way closing its only window would. */
 function close(slot: Host) {
 	try {
@@ -180,9 +188,9 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		tabNavigation = true,
 		titlebar,
 		app,
-		...window_options
+		...own_window_options
 	} = options;
-	if (window_options.title == null && app?.name) window_options.title = app.name;
+	const window_options = window_options_for(own_window_options, app);
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;

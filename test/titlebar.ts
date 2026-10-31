@@ -53,6 +53,11 @@ check(
 );
 padded.unmount();
 
+const TitledTall = (await import('./TitledTall.svelte')).default;
+const tall = mount_headless(TitledTall, { titlebar: 'Tall' });
+check('content taller than the window leaves the bar its height', bounds(bar())?.height, 34);
+tall.unmount();
+
 const plain = mount_headless(Titled);
 check('without the option there is no bar', all_text().includes('Renamed') || buttons().length > 0, false);
 plain.unmount();
@@ -71,4 +76,4 @@ check(
 );
 check('false and true overrule it', [wants_titlebar(false, gnome, 'linux'), wants_titlebar(true, desktop({}), 'win32')], [false, true]);
 
-finish('titlebar', 12);
+finish('titlebar', 13);

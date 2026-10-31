@@ -7,7 +7,7 @@ render(TicTacToe, {
 	title: 'GPUIX + Svelte — Tic-tac-toe',
 	width: 480,
 	height: 640,
-	// What `npm run compile` (gpuix-svelte/build) packages the executable as; the window ignores it.
+	// What `npm run compile` (gpuix-svelte/build) packages the executable as; the window takes only its Linux app id from it.
 	app: {
 		name: 'Tic-tac-toe',
 		identifier: 'dev.gpuix.svelte.tictactoe'

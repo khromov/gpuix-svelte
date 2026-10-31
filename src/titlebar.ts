@@ -11,7 +11,7 @@ const COLUMN: GpuiStyle = { display: 'flex', flexDirection: 'column', width: '10
 const CONTENT: GpuiStyle = { display: 'flex', flexGrow: 1, minHeight: 0, width: '100%', position: 'relative' };
 const CONTENT_CLASS = 'gpuix-titlebar-content';
 const BAR =
-	'display: flex; flex-direction: row; align-items: center; gap: 2px; height: 34px; padding-left: 14px; padding-right: 4px; ' +
+	'display: flex; flex-direction: row; align-items: center; gap: 2px; flex-shrink: 0; height: 34px; padding-left: 14px; padding-right: 4px; ' +
 	'background-color: var(--titlebar-bg, #181825); color: var(--titlebar-fg, #cdd6f4); user-select: none';
 const TITLE = 'flex-grow: 1; min-width: 0; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden';
 const BUTTON = 'display: flex; align-items: center; justify-content: center; width: 34px; height: 26px; border-radius: 6px; cursor: pointer';

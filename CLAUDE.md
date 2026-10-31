@@ -102,10 +102,12 @@ npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), 
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
                            # source (both real entries, what is accepted and what fails), app
-                           # metadata defaults, the Info.plist, the .ico container, and real
-                           # .ico/.icns where the platform has a scaler, under a path with a space and a ’
+                           # metadata defaults, what the window takes from them, the Info.plist,
+                           # the .ico container, and real .ico/.icns where the platform has a
+                           # scaler, under a path with a space and a ’
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
-                           # for "3 clicks", screenshots, close()s; NOT part of `npm test`
+                           # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
+                           # `npm test`, but CI's linux job runs it under Xvfb
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
 npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP server's
                            # svelte-autofixer (scripts/svelte-mcp.ts, the .mcp.json endpoint):
@@ -138,6 +140,7 @@ npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published
 npm run consume            # the consumer path: pack, scaffold an app under $TMPDIR with
                            # packages/create-gpuix-svelte, install the tarball into it, run the
                            # starter's `typecheck` (tsc + svelte-check) and its headless test
+                           # (skipped on Linux, which has no headless renderer)
                            # through the installed bin; fails if a non-declaration `.ts` ships or
                            # tsx lands in the consumer. bun:consume installs and runs with Bun and
                            # also builds the starter's binary (size-checked, so a binary without
@@ -219,14 +222,19 @@ real window on Windows exercises the real thing.
 Also on Windows and Linux, `getElementBounds`, `getElementsAt` and `getAutomationTree` call
 `window.refresh()` and answer from `on_next_frame`, so each one draws a full frame; on macOS they
 read directly. Reading any of them on a timer keeps an idle window drawing (`getListScrollTop` and
-`getScrollOffset` do not draw). `onlayout` / `onscrollchange` are the way to be told instead.
+`getScrollOffset` do not draw). `onlayout` / `onscrollchange` are the way to be told instead. Under
+Wayland a minimized window gets no frame callback, so those three block JS for 2 s and throw
+`Timed out…` every time (`read_native` swallows the throw, not the stall), while `getWindowSize`,
+`getWindowInsets`, `getFocusedElementId`, `getScrollOffset` and `getListScrollTop` still answer at
+once.
 
 CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows arm64
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
-on those three × Node 24 and 26, `compile` on those three and Linux (build only, never launched),
-and a Linux job that can only run `typecheck`, `lint`,
-a `npm pack --dry-run` of the scaffolder and a check that the binding loads (see the
-`@gpuix/native` constraint). `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
+on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
+launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
+a check that the binding loads (see the `@gpuix/native` constraint), the two suites that need no
+headless renderer (`test:bundle`, `test:compile`) and `test:automation-live` under `xvfb-run`, all
+on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -251,6 +259,15 @@ GPUIX_FPS=1 npm run demo:hn                         # GPUI's draw-time overlay t
 
 Then open the PNG with the Read tool. Headless code calls `screenshot(path)` from
 `gpuix-svelte/test` (`TestGpuixRenderer.captureScreenshot`, the real GPU pipeline, no window).
+
+The Linux addon's `captureScreenshot` throws (`needs a test-support build on macOS or Windows`), so
+on Linux take pixels from X11: `Xvfb :99 -screen 0 1280x800x24` with `DISPLAY=:99` and
+`WAYLAND_DISPLAY` unset runs a window on Mesa's software Vulkan, and `xwd -root` reads it (24 bits per
+pixel, not 32). Behaviour goes through `launch()`, which needs no pixels. For the Wayland path,
+`dbus-run-session -- gnome-shell --headless --wayland --no-x11 --virtual-monitor 1280x800
+--wayland-display gpuix-wl` is a private GNOME that leaves the desktop alone (give it a short
+`XDG_RUNTIME_DIR` under `/run/user`, or the socket path overflows, and point clients at it with the
+same variable), and `WAYLAND_DEBUG=1` shows what a window told the compositor.
 
 From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
 applies once per window; the option is re-applied only when a later `render()` changes it, since
@@ -328,8 +345,10 @@ reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
 
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
-place that names the app. The window reads only `name`, as the `title` fallback. `build()` reads
-the rest from the entry's source: `Bun.Transpiler` strips the types and
+place that names the app. The window reads `name` as the `title` fallback and `identifier` as
+`appId`, which GPUI hands to Wayland and X11 (`WM_CLASS`) and a desktop matches a `.desktop` file by;
+an explicit `title` or `appId` wins (`window_options_for` in `render.ts`). `build()` reads everything
+from the entry's source: `Bun.Transpiler` strips the types and
 `read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for
 the one top-level `render()` imported from `gpuix-svelte` (renamed or not, as a statement or a
 `const` initializer) and takes `title` and `app` from its second argument. Values are string
@@ -483,8 +502,8 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   win32-x64 / win32-arm64 only; since 0.11 the Linux one links
   `libxcb`, `libxkbcommon` and `libxkbcommon-x11`, which CI's linux job installs. On Linux
   `TestGpuixRenderer` is a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix
-  builds it with `--no-default-features` until wgpu grows image readback — so CI there can only
-  check that the binding loads. Its `/host`, `/runtime` and
+  builds it with `--no-default-features` until wgpu grows image readback — so CI there runs only
+  the suites that don't mount headlessly, plus a real window under Xvfb. Its `/host`, `/runtime` and
   `/testing` entry points are the framework-neutral layer `@gpuix/react` and `@gpuix/solid` share;
   this renderer takes `/host`'s window observers, text search and types, and `/automation`, but
   keeps its own `render.ts` / `renderer.ts` / `test.ts`, because that layer's event map and

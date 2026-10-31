@@ -7,7 +7,7 @@ render(App, {
 	title: 'gpuix-svelte starter',
 	width: 640,
 	height: 480,
-	// What `npm run build` packages the executable as; the window itself ignores it.
+	// What `npm run build` packages the executable as; the window takes only its Linux app id from it.
 	app: {
 		identifier: 'com.example.gpuix-svelte-starter'
 	}

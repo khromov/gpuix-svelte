@@ -104,6 +104,8 @@ every call:
   `waitFor({ timeoutMs })` act on the single match, and `count()` counts the matches.
 - `app.mouse`, `app.clock` and `app.screenshot()` cover the rest, and `app.process` is the app's
   child process. If the app is still running two seconds after `close()`, it gets killed.
+- All of this works on Linux, where `mount_headless` does not, except `app.screenshot()`: the
+  Linux addon has no screenshot support, so it throws there.
 
 `launch()` runs the entry through the `gpuix-svelte` bin with `GPUIX_AUTOMATION=1`. That variable
 is the one switch for the automation server; `0` or an empty value leaves it off. Under it,
