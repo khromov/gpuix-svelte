@@ -221,9 +221,10 @@ Also on Windows and Linux, `getElementBounds`, `getElementsAt` and `getAutomatio
 read directly. Reading any of them on a timer keeps an idle window drawing (`getListScrollTop` and
 `getScrollOffset` do not draw). `onlayout` / `onscrollchange` are the way to be told instead.
 
-CI (`.github/workflows/test.yml`): `npm test` on macOS and Windows × Node 24 and 26, `npm run
-bun:test` on macOS and Windows, `consume` + `bun:consume` on macOS and Windows × Node 24 and 26, `compile` on
-all three OSes (build only, never launched), and a Linux job that can only run `typecheck`, `lint`,
+CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows arm64
+(`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
+on those three × Node 24 and 26, `compile` on those three and Linux (build only, never launched),
+and a Linux job that can only run `typecheck`, `lint`,
 a `npm pack --dry-run` of the scaffolder and a check that the binding loads (see the
 `@gpuix/native` constraint). `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
 
@@ -479,7 +480,7 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   tree are destroyed at commit and re-materialize if shown again), `setCustomProp` not
   `setCustomPropValue`, and `commitMutations?.()` only where it exists. The package is ESM with an
   `index.cjs` under the `require` condition. Prebuilds exist for darwin-arm64 / linux-x64 /
-  win32-x64 / win32-arm64 only (CI covers no arm64 Windows); since 0.11 the Linux one links
+  win32-x64 / win32-arm64 only; since 0.11 the Linux one links
   `libxcb`, `libxkbcommon` and `libxkbcommon-x11`, which CI's linux job installs. On Linux
   `TestGpuixRenderer` is a constructor that throws (`hasTestGpuixRenderer()` says so) — gpuix
   builds it with `--no-default-features` until wgpu grows image readback — so CI there can only

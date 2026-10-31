@@ -81,8 +81,9 @@ the `binary` inside it, the resolved `app` metadata, and whether it was `signed`
 Some things to know:
 
 - **One platform per build.** npm installs only the GPUI addon for the machine you are on, so run
-  `npm run build` on macOS (Apple Silicon), Windows (x64) and Linux (x64) in turn, for instance in a
-  GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
+  `npm run build` on macOS (Apple Silicon), Windows (x64 or arm64) and Linux (x64) in turn, for
+  instance in a GitHub Actions matrix over `macos-latest`, `windows-latest` (`windows-11-arm` for
+  arm64) and `ubuntu-latest`.
 - **It is about 110 MB, and about 130 MB on Windows.** That is Bun's runtime plus Svelte plus the
   addon, which is 17 MB or more on every platform.
 - **Logs.** A double-clicked app has no terminal, so `console.log` output goes nowhere. To see it

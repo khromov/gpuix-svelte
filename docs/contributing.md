@@ -6,10 +6,10 @@ and the constraints any change has to respect, are written down in [CLAUDE.md](.
 ## Setup
 
 You need Node 24 or later (26.1 for `demo:glass-ffi`, and `.nvmrc` pins 26) or Bun 1.4 or later,
-on macOS (arm64), Windows (x64) or Linux (x64). Dependencies install with [Bun](https://bun.com),
-and its `bun.lock` is the lockfile, so `bun install` is the whole setup. `@gpuix/native` comes
-prebuilt from npm, and Svelte comes from `vendor/svelte-<version>-<sha>.tgz`, a build of the
-unreleased custom-renderer PR. Scripts run through `npm run` on either runtime.
+on macOS (arm64), Windows (x64 or arm64) or Linux (x64). Dependencies install with
+[Bun](https://bun.com), and its `bun.lock` is the lockfile, so `bun install` is the whole setup.
+`@gpuix/native` comes prebuilt from npm, and Svelte comes from
+`vendor/svelte-<version>-<sha>.tgz`, a build of the unreleased custom-renderer PR. Scripts run through `npm run` on either runtime.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
