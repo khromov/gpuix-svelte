@@ -19,13 +19,13 @@ work for class rules, which are translated the same way.
 
 - Inline `style` and `style:` directives. Box shorthands (`padding: 8px 16px`, `margin`,
   `border-width`, `border-radius`, `gap`, `inset`) expand to GPUI's longhands.
-- `<style>` rules made of classes, at most one tag, and `:hover` or `:active`: `.btn`,
-  `.btn.primary`, `.a, .b`, `div`, `div.card`. They're scoped per component, like Svelte's DOM
-  output. The rule with more classes wins; with equal classes, a rule with a tag beats one
+- `<style>` rules made of classes, at most one tag, and `:hover`, `:active` or `:focus-visible`:
+  `.btn`, `.btn.primary`, `.a, .b`, `div`, `div.card`. They're scoped per component, like Svelte's
+  DOM output. The rule with more classes wins; with equal classes, a rule with a tag beats one
   without; after that, the later rule wins. Inline `style` always wins. `class:` directives and
   dynamic class strings restyle live.
-- `hover="..."` and `active="..."` attributes, for hover and press styles set directly on the
-  element.
+- `hover="..."`, `active="..."` and `focus-visible="..."` attributes, for hover, press and
+  keyboard-focus styles set directly on the element.
 - `var(--token)` and `var(--token, fallback)` in class rules and inline styles, on any property.
   Values come from `set_css_vars({ token: '#fff' })`, and a theme switch is one call (see
   [Theming with CSS variables](#theming-with-css-variables)).
@@ -39,8 +39,9 @@ work for class rules, which are translated the same way.
 - Units other than `px` and `rem` (`em`, `vh`, `vw`), and `%` or `auto` anywhere except `width`,
   `height`, `min-*` and `max-*`. These are dropped with a warning, so `margin: 0 auto` can't center
   anything.
-- Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1`), `border: 1px solid #fff` (use
-  `border-width` and `border-color`), `background: linear-gradient(...)` and `box-shadow`.
+- Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1` with `flex-basis: 0`, which is
+  what `flex: 1` means), `border: 1px solid #fff` (use `border-width` and `border-color`),
+  `background` with anything but a single colour, such as `linear-gradient(...)`, and `box-shadow`.
 - Unitless `line-height`: `line-height: 1.5` means 1.5 px, so give it a unit.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
 - Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
@@ -72,7 +73,8 @@ keywords are recognised.
 - Position: `position: relative | absolute`; `top`, `right`, `bottom`, `left`; `inset`.
 - Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` is treated
   as `scroll`, and the two behave the same.
-- Paint: `background-color`, `color`, `border-color` in any CSS colour syntax; `opacity`;
+- Paint: `background-color` (or `background` with a single colour), `color`, `border-color` in
+  any CSS colour syntax; `opacity`;
   `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value
   shorthands; `border-style: solid | dashed`; `outline-width`, `outline-color`,
   `outline-offset`.
