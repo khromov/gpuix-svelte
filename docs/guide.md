@@ -12,7 +12,10 @@ There is no `bind:` here, so inputs report through events, and the event carries
 To get hold of an element, use `{@attach (node) => …}` (or `use:`). To measure it,
 `get_native().getElementBounds(node.nativeId)` returns its border box (padding and border
 included) as `{ x, y, width, height }` in window coordinates, and
-`getScrollOffset(node.nativeId)` the scroll position of a scroll container.
+`getScrollOffset(node.nativeId)` the scroll position of a scroll container. On Windows and Linux
+each `getElementBounds` call makes GPUI draw a frame before it answers, so don't call it on a timer:
+`onlayout` and `onscrollchange` (see [below](#window-and-desktop-helpers)) tell you when something
+changed and cost nothing while nothing does.
 
 In a `<textarea>`, Enter inserts a newline unless the element has `onsubmit`. With `onsubmit`,
 Enter submits and Shift+Enter inserts the newline. In an `<input>`, Enter always submits.
@@ -159,7 +162,7 @@ drops into a scaffolded project as-is (in a clone, it is `npm run demo:desktop`)
   `toggle_fullscreen()`.
 - `prompt_for_paths({ files, directories, multiple, prompt })` opens the system picker and
   resolves to absolute paths, or to `null` on cancel and headlessly. In a browser it rejects. It
-  has no file-type filter.
+  has no file-type filter. See [While a file picker is open](#while-a-file-picker-is-open).
 - `on_selection_change(handler)` hears every change to the window's text selection, a clear
   included. `e.value` is the selected text, and `undefined` after a clear. It returns its
   unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.
@@ -195,6 +198,31 @@ the `aria-label`, `aria-description`, `aria-id`, `aria-expanded`, `aria-selected
 `aria-valuetext` and `aria-level` attributes reach VoiceOver and other accessibility clients
 through GPUI. A `<text>` is a label by default, and any other element needs a `role` to show up
 in the accessibility tree.
+
+### While a file picker is open
+
+On Windows the picker runs on GPUI's UI thread, so until it closes, a native call that waits for
+that thread stalls JavaScript for 2 seconds and then throws. Your timers keep running, and an
+exception from a timer ends the process. The helpers here account for it while a
+`prompt_for_paths()` is open:
+
+- `focused_element()` returns `null`, `elements_at()` nothing and `debug_overlay()` /
+  `debug_overlay_stats()` `undefined`, without asking native.
+- `window_size` and `window_insets` hold the values from when the picker opened.
+- `set_image` and `set_image_pixels` wait until it closes, then upload the newest image per element.
+- `Scroller` and `Popover` need nothing from you.
+
+A read made through `get_native()` directly gets no such protection, and the same throw can hit a
+call that is in flight as the last window closes. If a read can run on a timer or in an effect, wrap
+it in `read_native`, which returns `null` while a picker is open or if the UI thread can't answer,
+and lets any other error through:
+
+```js
+const top = read_native((native) => native.getListScrollTop(node.nativeId));
+if (top) place_marker(top);
+```
+
+`register_font` isn't covered, so it can throw a timeout during a picker.
 
 ### The draw-time overlay
 

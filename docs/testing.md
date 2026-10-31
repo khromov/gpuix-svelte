@@ -27,7 +27,8 @@ first paint. It also takes `rootStyle`, `keyboardFocusDim` and `tabNavigation`, 
 so `press('tab')` moves focus unless you pass `tabNavigation: false`. It draws no title bar unless
 you pass `titlebar: 'Title'`, and that bar's close button unmounts the component rather than
 exiting. `settle()` flushes Svelte's effects and lets GPUI paint again. For timers and promises,
-`await wait(ms)` waits and then settles.
+`await wait(ms)` lets the time pass, delivering what native reported (`onlayout`, for one) on both
+sides of it, as a window would.
 
 To find elements, `find_text`, `find_test_id` and `element_of` look them up by text or `testid`,
 and `tree()` returns the whole element tree. `painted()`, `all_text()`, `bounds()`

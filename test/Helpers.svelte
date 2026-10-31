@@ -47,7 +47,7 @@
 		{/each}
 	</div>
 	<text>{status}</text>
-	<div testid="far" style="position: absolute; top: 900px; left: 0; width: 20px; height: 20px"></div>
+	<div testid="far" style="position: absolute; top: 5000px; left: 0; width: 20px; height: 20px"></div>
 	<div style="position: absolute; top: 400px; left: 300px; display: flex; gap: 4px">
 		{#each focusables as name (name)}
 			<div testid={`focus-${name}`} tabindex="0" style="width: 10px; height: 10px" onfocus={() => focus_count[name][0]++} onblur={() => focus_count[name][1]++}></div>
