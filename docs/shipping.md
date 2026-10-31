@@ -43,12 +43,12 @@ Everything under `app` is optional, and the window ignores it; it exists for the
 | `name`        | The `.app` name, the Dock and menu bar, the Windows product name      | the window `title`, else `package.json`'s `name` |
 | `identifier`  | The bundle identifier, which signing and macOS's per-app state key on | `local.<slug>` (the name lowercased, with dashes); set a reverse-DNS one before you sign |
 | `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
-| `icon`        | The `.icns` on macOS, the `.ico` on Windows                           | none: the generic app icon                   |
+| `icon`        | The `.icns` on macOS, the `.ico` on Windows                           | the gpuix-svelte icon                        |
 | `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
 | `publisher`, `description` | Windows file properties                                   | the app's name                               |
 
-`icon` is a square PNG, 1024 × 1024 for macOS's largest size; the scaffold ships a placeholder
-`icon.png` to replace. A relative path is read from `standalone.ts`'s directory. The build cuts
+`icon` is a square PNG, 1024 × 1024 for macOS's largest size; until you set one, the app wears the
+gpuix-svelte icon. A relative path is read from `standalone.ts`'s directory. The build cuts
 every size the platform wants from it with tools the platform has: `sips` and `iconutil` on macOS,
 .NET's `System.Drawing` through PowerShell on Windows. Windows file properties take numbers only,
 so a `1.0.0-beta.1` is written there as `1.0.0`; on macOS it goes into

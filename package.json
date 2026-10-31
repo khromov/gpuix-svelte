@@ -28,7 +28,8 @@
 	},
 	"files": [
 		"src",
-		"bin"
+		"bin",
+		"assets/icon.png"
 	],
 	"engines": {
 		"node": ">=24.0.0",

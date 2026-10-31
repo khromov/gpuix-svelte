@@ -159,7 +159,7 @@ export interface AppOptions {
 	identifier?: string;
 	/** Defaults to the version of the nearest package.json above the entry. */
 	version?: string;
-	/** A square PNG, 1024 px for macOS; a relative path is read from the entry file's directory. */
+	/** A square PNG, 1024 px for macOS; a relative path is read from the entry file's directory. Defaults to the gpuix-svelte icon. */
 	icon?: string | URL;
 	copyright?: string;
 	/** Windows file properties only. */

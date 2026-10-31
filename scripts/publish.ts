@@ -64,7 +64,7 @@ function published_manifest() {
 	const out = structuredClone(json);
 	out.dependencies.svelte = PUBLISHED_SPEC;
 	out.main = lib_for(out.main);
-	out.files = ['lib', 'src/components', 'bin'];
+	out.files = ['lib', 'src/components', 'bin', 'assets/icon.png'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
 		if (typeof value === 'string' && value.endsWith('.ts')) {
 			out.exports[key] = lib_for(value);

@@ -8,7 +8,7 @@ import type { BunPlugin } from 'bun';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { info_plist, notarize, read_app_options, resolve_app_info, sign, write_icns, write_ico, type AppInfo, type EntryApp } from './app-bundle.ts';
+import { DEFAULT_ICON, info_plist, notarize, read_app_options, resolve_app_info, sign, write_icns, write_ico, type AppInfo, type EntryApp } from './app-bundle.ts';
 
 export type { AppInfo } from './app-bundle.ts';
 
@@ -56,7 +56,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	mkdirSync(scratch, { recursive: true });
 
 	const app = resolve_app_info(entry_app(entry), entry);
-	if (app.icon && !existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
+	if (!existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
 	const binary = join(outdir, process.platform === 'win32' ? `${app.slug}.exe` : app.slug);
 	const bundle = join(outdir, `${app.name.replace(/[/\\:]/g, '-')}.app`);
 	try {
@@ -74,10 +74,8 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		const numeric = /^\d+(\.\d+){0,3}/.exec(app.version)?.[0];
 		windows.version = numeric && windows_version(numeric) ? numeric : '0.0.0.0';
 		if (windows.version !== app.version) log(`version "${app.version}" goes into the .exe as ${windows.version}; Windows file properties take numbers only`);
-		if (app.icon) {
-			windows.icon = join(scratch, 'AppIcon.ico');
-			write_ico(app.icon, windows.icon, scratch);
-		}
+		windows.icon = join(scratch, 'AppIcon.ico');
+		write_ico(app.icon, windows.icon, scratch);
 	}
 
 	// `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
@@ -138,10 +136,10 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		renameSync(binary, executable);
 		chmodSync(executable, 0o755);
 		writeFileSync(join(bundle, 'Contents', 'Info.plist'), info_plist(app));
-		if (app.icon) write_icns(app.icon, join(resources, 'AppIcon.icns'), scratch);
+		write_icns(app.icon, join(resources, 'AppIcon.icns'), scratch);
 		output = bundle;
 	}
-	log(`${rel(output)} (${mb(size)} MB) — ${app.name} ${app.version}, ${app.identifier}${app.icon ? '' : ', no icon'}`);
+	log(`${rel(output)} (${mb(size)} MB) — ${app.name} ${app.version}, ${app.identifier}${app.icon === DEFAULT_ICON ? ', default icon' : ''}`);
 
 	const identity = process.env.CODESIGN_IDENTITY;
 	const notary = process.env.NOTARY_PROFILE;

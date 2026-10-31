@@ -5,13 +5,13 @@
  * `npm run compile`'s job.
  */
 
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import module from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
-import { app_slug, ico, ICO_SIZES, info_plist, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
+import { app_slug, DEFAULT_ICON, ico, ICO_SIZES, info_plist, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'gpuix-svelte-bundle-'));
@@ -31,10 +31,11 @@ const entry = join(project, 'standalone.ts');
 
 const from_title = resolve_app_info({ title: 'My App' }, entry);
 check(
-	'the name falls back to the title, the version to package.json, the identifier to local.<slug>',
+	'the name falls back to the title, the version to package.json, the identifier to local.<slug>, the icon to the default',
 	[from_title.name, from_title.slug, from_title.identifier, from_title.version, from_title.icon],
-	['My App', 'my-app', 'local.my-app', '1.2.3', null]
+	['My App', 'my-app', 'local.my-app', '1.2.3', DEFAULT_ICON]
 );
+check('the default icon is the shipped assets/icon.png', [DEFAULT_ICON, existsSync(DEFAULT_ICON)], [join(root, 'assets', 'icon.png'), true]);
 check('with no title either, the name is package.json\'s', resolve_app_info({}, entry).name, 'my-app');
 check('a relative icon is read from the entry\'s directory', resolve_app_info({ icon: './icon.png' }, entry).icon, join(project, 'icon.png'));
 check('a file: URL icon is a path again',resolve_app_info({ icon: pathToFileURL(join(project, 'x.png')).href }, entry).icon, join(project, 'x.png'));
@@ -59,8 +60,7 @@ check(
 	],
 	[true, true, true, true, true]
 );
-check('no icon, no CFBundleIconFile', info_plist({ ...info, icon: null }).includes('CFBundleIconFile'), false);
-check('an empty icon is no icon', resolve_app_info({ icon: '' }, entry).icon, null);
+check('an empty icon is the default one', resolve_app_info({ icon: '' }, entry).icon, DEFAULT_ICON);
 const prerelease = info_plist({ ...info, version: '1.0.0-beta.1' });
 check(
 	'a prerelease stays on CFBundleShortVersionString; CFBundleVersion gets the numbers',
@@ -87,7 +87,7 @@ check("the .ico leads with its largest image, the one Bun's leftover icon group 
 
 // sips on macOS, System.Drawing on Windows; Linux has neither and never needs an icon.
 const png = join(awkward, 'ic on ’.png');
-copyFileSync(join(root, 'examples/tic-tac-toe/icon.png'), png);
+copyFileSync(DEFAULT_ICON, png);
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const scaler = process.platform === 'darwin' || process.platform === 'win32';
 if (scaler) {
@@ -128,8 +128,8 @@ check(
 	'the tic-tac-toe and starter entries read as written',
 	[read(readFileSync(join(root, 'examples/tic-tac-toe/standalone.ts'), 'utf8')), read(readFileSync(join(root, 'starter/standalone.ts'), 'utf8'))],
 	[
-		{ name: 'Tic-tac-toe', identifier: 'dev.gpuix.svelte.tictactoe', icon: './icon.png', title: 'GPUIX + Svelte — Tic-tac-toe' },
-		{ identifier: 'com.example.gpuix-svelte-starter', icon: './icon.png', title: 'gpuix-svelte starter' }
+		{ name: 'Tic-tac-toe', identifier: 'dev.gpuix.svelte.tictactoe', title: 'GPUIX + Svelte — Tic-tac-toe' },
+		{ identifier: 'com.example.gpuix-svelte-starter', title: 'gpuix-svelte starter' }
 	]
 );
 const typed = `import { render as mount, type RenderOptions } from 'gpuix-svelte';

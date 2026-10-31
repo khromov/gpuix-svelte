@@ -34,7 +34,8 @@ console-less `dist/<name>.exe` with version info on Windows, `dist/<name>` on Li
 - The name, identifier, version, icon and copyright are the `app` options `standalone.ts` hands
   `render()` (`name` defaults to the window `title`, `version` to package.json's). The build reads
   them from the source, so write each as a string, in place or in a top-level `const`; a value
-  computed at runtime fails the build. `icon.png` is a 1024 px square PNG; replace it.
+  computed at runtime fails the build. The icon is the gpuix-svelte one until `icon` names a
+  1024 px square PNG, read relative to `standalone.ts`.
 - The output is for the platform it was built on: macOS arm64, Windows x64 or Linux x64, the
   three GPUI ships prebuilt. To release for all three, run `npm run build` on each, for example in a
   GitHub Actions matrix over `macos-latest`, `windows-latest` and `ubuntu-latest`.
@@ -92,6 +93,5 @@ every `svelte` import to it. Keep `svelte` itself out of `package.json`.
 - `app.ts` — the entry: `render_hot` opens the window and remounts `App.svelte` on save.
 - `App.svelte` — the root component.
 - `test.ts` — the headless test (`gpuix-svelte/test`); a plain script that exits 1 on failure.
-- `standalone.ts`, `build.ts`, `icon.png` (`icon.svg` is its source) — the entry, the build script
-  and the app icon behind `npm run build`.
+- `standalone.ts`, `build.ts` — the entry and the build script behind `npm run build`.
 - `tsconfig.json`, `svelte.d.ts`, `svelte.config.js` — TypeScript and svelte-check setup.

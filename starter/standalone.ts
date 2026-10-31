@@ -9,7 +9,6 @@ render(App, {
 	height: 480,
 	// What `npm run build` packages the executable as; the window itself ignores it.
 	app: {
-		identifier: 'com.example.gpuix-svelte-starter',
-		icon: './icon.png'
+		identifier: 'com.example.gpuix-svelte-starter'
 	}
 });

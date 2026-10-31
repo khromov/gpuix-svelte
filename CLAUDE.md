@@ -354,10 +354,11 @@ group is, so the title bar stays generic while the taskbar shows the exe's icon.
 so `description` and `publisher` fall back to the name, `copyright` to a single space, and the
 version is its numeric prefix (`0.0.0.0` if none fits). Linux gets the bare executable.
 `test:bundle` covers the Node half (and the real `.ico` and `.icns` where the platform has a scaler); CI's `compile` job exercises each OS's packaging
-build-only. The icons are `examples/tic-tac-toe/icon.png` and `starter/icon.png`, each rasterized
-at 1024 px from the `icon.svg` beside it (the starter's is the homepage's macOS tile; Chrome over
-CDP keeps both the bold text and the transparent corners, where `sips` drops the weight and
-`qlmanage` paints a white background).
+build-only. An app that sets no `icon` gets `DEFAULT_ICON`, `assets/icon.png` (in `files` and
+publish.ts's list, so it ships), and the examples and the starter all take that path. It is the
+homepage's macOS tile, rasterized at 1024 px from the `icon.svg` beside it (Chrome over CDP keeps
+both the bold text and the transparent corners, where `sips` drops the weight and `qlmanage` paints
+a white background).
 
 ### Rendering to the web
 

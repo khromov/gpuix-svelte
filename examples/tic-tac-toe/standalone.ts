@@ -10,7 +10,6 @@ render(TicTacToe, {
 	// What `npm run compile` (gpuix-svelte/build) packages the executable as; the window ignores it.
 	app: {
 		name: 'Tic-tac-toe',
-		identifier: 'dev.gpuix.svelte.tictactoe',
-		icon: './icon.png'
+		identifier: 'dev.gpuix.svelte.tictactoe'
 	}
 });

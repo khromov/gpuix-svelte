@@ -17,8 +17,8 @@ export interface AppInfo {
 	slug: string;
 	identifier: string;
 	version: string;
-	/** Absolute path, or null when the entry gave none. */
-	icon: string | null;
+	/** Absolute path; `DEFAULT_ICON` when the entry gives none. */
+	icon: string;
 	copyright?: string;
 	publisher?: string;
 	description?: string;
@@ -28,6 +28,9 @@ export interface AppInfo {
 export type EntryApp = AppOptions & { title?: string };
 
 export const MIN_MACOS = '13.0';
+
+// One level up from both src/ and the published lib/.
+export const DEFAULT_ICON = fileURLToPath(new URL('../assets/icon.png', import.meta.url));
 
 const UNREADABLE = "the build reads the app options from the entry's source, so they have to be written out there (or in a top-level const)";
 
@@ -121,7 +124,7 @@ export function resolve_app_info(declared: EntryApp, entry: string): AppInfo {
 		slug,
 		identifier: declared.identifier || `local.${slug}`,
 		version: declared.version || pkg?.version || '0.0.0',
-		icon: declared.icon ? icon_path(declared.icon, entry) : null,
+		icon: declared.icon ? icon_path(declared.icon, entry) : DEFAULT_ICON,
 		copyright: declared.copyright,
 		publisher: declared.publisher,
 		description: declared.description
@@ -159,10 +162,10 @@ export function info_plist(info: AppInfo): string {
 		['CFBundleShortVersionString', info.version],
 		// At most three integers here, so a prerelease suffix stays on the string above only.
 		['CFBundleVersion', /^\d+(\.\d+){0,2}/.exec(info.version)?.[0] ?? '0'],
+		['CFBundleIconFile', 'AppIcon'],
 		['LSMinimumSystemVersion', MIN_MACOS],
 		['NSHighResolutionCapable', true]
 	];
-	if (info.icon) entries.push(['CFBundleIconFile', 'AppIcon']);
 	if (info.copyright) entries.push(['NSHumanReadableCopyright', info.copyright]);
 	const body = entries
 		.map(([key, value]) => `\t<key>${key}</key>\n\t${typeof value === 'boolean' ? `<${value}/>` : `<string>${escape_xml(value)}</string>`}`)
