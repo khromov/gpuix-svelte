@@ -210,6 +210,8 @@ try {
 	if (process.platform !== 'win32') {
 		const executable = process.platform === 'darwin' ? join(target, 'Contents', 'MacOS', 'fake') : target;
 		check('the executable bit survived the archive', (statSync(executable).mode & 0o111) !== 0, true);
+		finish_update(target);
+		check('finish_update has nothing to do off Windows', read_version(target), '2.0.0');
 	} else {
 		check('Windows keeps the old .exe beside the new one until the next launch', existsSync(`${target}.old`), true);
 		finish_update(target);
@@ -258,7 +260,7 @@ check('verify rejects a tampered copy', cli('verify', '--public-key', keygen.std
 check('a missing flag is a usage error', cli('manifest', '--out', 'x.json').status, 2);
 
 rmSync(scratch, { recursive: true, force: true });
-finish('update', 49);
+finish('update', 50);
 
 function code(fn: () => unknown): string | null {
 	try {
