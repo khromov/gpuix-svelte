@@ -395,35 +395,66 @@ Electron- or CLI-shaped. The design:
 - **The build embeds what the app knows about itself.** `build()` defines
   `process.env.GPUIX_APP_INFO` as the JSON of `EmbeddedAppInfo` (`name`, `slug`, `identifier`,
   `version`, `update`), and `app_info()` reads that exact expression (not through a helper, or
-  Bun's `define` would miss it). `read_app_options` accepts `app.update` as the one nested object
-  under `app`, with string values; a `manifest` is required. In a dev run the variable is unset, so
-  `check_for_update()` resolves to null unless `GPUIX_UPDATE_MANIFEST` is set, and the env var can
-  be set by hand to fake a built app (docs: "Trying it out").
-- **Installability is decided before anything is downloaded** (`resolve_target`): no app info or an
-  executable whose basename is not the slug (`bun`/`node` running the source) is `development`;
-  on macOS a path under `AppTranslocation` is `translocated` and the target is the `.app` three
-  levels up; a parent directory without `W_OK` is `read-only`. Tests pass `target` to point the swap
-  at a copy, which still goes through the writability check.
+  Bun's `define` would miss it); it also defines `process.env.GPUIX_UPDATE_MANIFEST` to `""`, so
+  the dev-run override can't redirect a shipped app. `read_app_options` accepts `app.update` as
+  the one nested object under `app`, with exactly `manifest` (an `https:` URL, or `http:` to
+  loopback) and an optional `publicKey` (`is_public_key`: 32 raw bytes, base64) — anything else
+  fails the build, because a wrong value ships in an executable that can never update itself to a
+  fixed one; `build()` likewise refuses a non-semver version when `update` is set. In a dev run
+  the variable is unset, so `check_for_update()` resolves to null unless `GPUIX_UPDATE_MANIFEST`
+  is set, and `GPUIX_APP_INFO` can be set by hand to fake a built app (docs: "Trying it out").
+- **Installability is decided before anything is downloaded** (`resolve_target`): not compiled
+  (`is_compiled`: `Bun.main` under `/$bunfs/` or `~BUN`, never a name heuristic) is
+  `development`; on macOS a path under `AppTranslocation` is `translocated` and the target is the
+  `.app` three levels up; a directory where a probe `mkdtemp` fails is `read-only` (a real write,
+  since Windows ACLs ignore `accessSync`). Tests pass `target` to point the swap at a copy, which
+  still goes through the writability probe. Both URLs must be `https:` (`check_url`; loopback
+  `http:` allowed).
 - **Payload formats follow the platform's tools** so there is no archive library: `write_archive`
   uses `ditto -c -k --keepParent` on macOS (the notarized zip is the same call, so with
   `archive: true` notarization writes straight to the versioned name), bsdtar `tar -a -cf x.zip` on
-  Windows, `tar -czf` on Linux; `extract` uses `ditto -x -k`, `tar -xf` (Windows' bsdtar reads zip)
-  and `tar -xf`. `Bun.Archive` was ruled out: it reads tar/tar.gz only (a ditto zip is a
-  `ReadError`), and the module must also run on Node for the tests.
+  Windows, `tar -czf` on Linux; `extract` tells the download apart by magic bytes (`kind_of`: zip,
+  gzip/ustar, or a PE/ELF/Mach-O executable, never by the URL) and uses `ditto -x -k`, `tar -xf`
+  (Windows' bsdtar reads zip) and `tar -xf`. Tools run by full path (`/usr/bin/ditto`,
+  `/usr/bin/codesign`, `/usr/bin/plutil`, `%SystemRoot%\System32\tar.exe`) so Git's GNU tar on
+  PATH can't stand in. `Bun.Archive` was ruled out: it reads tar/tar.gz only (a ditto zip is a
+  `ReadError`), and the module must also run on Node for the tests. The download lands under a
+  fixed name (`update.bin`) in its own `mkdtemp` directory: nothing from the URL becomes a path.
+- **What was extracted has to be the app** (`locate`): the entry named like the target, else the
+  only candidate, one folder deep at most; then a real `.app` with an `Info.plist`, or a file with
+  the platform's executable magic. On macOS `check_bundle` reads the plist with `plutil -extract`
+  and requires `CFBundleIdentifier` == the embedded identifier (when known), the version == the
+  manifest's, and the `CFBundleExecutable` to exist, so a hijacked manifest can't hand the app
+  another app or an old build relabelled.
 - **The swap** renames the old `.app` into the staging directory beside it and the new one into
   place on macOS (after `check_codesign`: a running app with a `TeamIdentifier` only accepts an app
-  that passes `codesign --verify --deep --strict` with the same team; unsigned apps skip it);
-  renames the running `.exe` to `.exe.old` and the new one in on Windows (a running exe can be
-  renamed, not deleted or overwritten; `finish_update()`, which `check_for_update` calls, deletes
-  the `.old` next launch); renames over the executable on Linux. The staging directory lives
-  beside the target so the renames never cross a filesystem. `relaunch_app` spawns a detached
-  `sh -c 'while kill -0 $pid …; open -n/exec "$0"'` on macOS/Linux so the new instance starts after
-  this one exits, and the exe directly on Windows, then `process.exit(0)`.
-- **Trust.** sha256 (and `size`) are always checked while streaming the download. An ed25519
-  signature over `canonical_manifest()` (keys sorted, no whitespace, `signature` excluded) is
-  required when the app carries `update.publicKey` (raw 32 bytes, base64; the PEM private key is a
-  CI secret, `GPUIX_UPDATE_KEY`). The signature covers version, notes and every asset, so a signed
-  manifest can't be repointed.
+  that passes `codesign --verify --deep --strict -R='anchor apple generic and certificate
+  leaf[subject.OU] = "<team>"'` — the anchored requirement matters, an ad-hoc signature can carry
+  any TeamIdentifier; unsigned apps skip it. Not yet confirmed against a real Developer ID build,
+  since no identity was available when it was written); renames the running `.exe` to `.exe.old`
+  and the new one in on Windows (a running exe can be renamed, not deleted or overwritten;
+  `finish_update()`, which `check_for_update` calls, deletes exactly `<exe>.old` /
+  `<exe>.<pid>.old` next launch); renames over the executable on Linux. The staging directory is
+  a `mkdtemp` beside the target so the renames never cross a filesystem and two instances can't
+  clash; if the rename-in fails the old one is renamed back, and if that fails too staging is kept
+  and the error says where the old bundle is. Post-swap cleanup is best-effort. `relaunch_app`
+  waits for this pid before starting the new one everywhere: `sh -c 'while kill -0 …; open -n/exec
+  "$0"'` on macOS/Linux, a detached `powershell Wait-Process; Start-Process` on Windows, then
+  `process.exit(0)`. `Update.installed` makes a second `install()` throw; a download in flight is
+  memoised, and `signal` aborts it.
+- **Trust.** sha256 (and `size`) are checked while streaming, and the download stops as soon as
+  it passes the manifest's `size`. An ed25519 signature over `canonical_manifest()` (keys sorted,
+  no whitespace, `signature` excluded) is required when the app carries `update.publicKey` (the
+  PEM private key is a CI secret, `GPUIX_UPDATE_KEY`; the `GPUIX_UPDATE_PUBLIC_KEY` repository
+  variable makes the manifest job verify its own output). The signature covers version, notes and
+  every asset, so a signed manifest can't be repointed; it does not expire, so a hijacked host can
+  replay an old signed manifest (documented, not solved). Windows and Linux have no
+  signature check on the executable beyond that; `build()`'s `beforeArchive` hook is where
+  `signtool` goes.
+- **Browser bundles** get `src/update-web.ts` through the `browser` condition on `./update`
+  (`check_for_update` resolves to null): the real module's `node:crypto` key functions have no
+  browser shim and broke `demo:web`, which CI's linux job now builds with `--build-only`.
+  `scripts/publish.ts` rewrites every conditional export, not just `.`.
 - **Release side.** `build({ archive: true })` writes `<slug>-<version>-<platform>.zip|.tar.gz`
   plus `update-<platform>.json` (`UpdateFragment`); `bin/gpuix-svelte-update.js` (`keygen`,
   `manifest`, `verify`, plain JS over `gpuix-svelte/update`) merges fragments into the manifest.

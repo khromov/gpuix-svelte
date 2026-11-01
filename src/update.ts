@@ -4,15 +4,15 @@
  * `check_for_update()` reads it, and the `Update` it returns downloads, verifies and swaps the
  * running app for the new one. The build bakes the manifest URL, the public key and the version
  * into the executable as `GPUIX_APP_INFO`, which is also how a dev run can pretend to be one.
- * Everything here is node:* and the platform's own tools (ditto, tar, codesign), so it runs on
- * Node and Bun alike and the tests cover the swap on a copy.
+ * Everything here is node:* and the platform's own tools (ditto, tar, codesign, plutil), so it
+ * runs on Node and Bun alike and the tests cover the swap on a copy.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign as sign_bytes, verify as verify_bytes } from 'node:crypto';
-import { accessSync, chmodSync, closeSync, constants, copyFileSync, mkdirSync, mkdtempSync, openSync, readdirSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, existsSync, mkdtempSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
 
 export type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
@@ -50,15 +50,15 @@ export class UpdateError extends Error {
 }
 
 /**
- * Why `install()` would refuse: a dev run (`npm start`, or the version is not a built app's),
- * nothing in the manifest for this platform, a macOS app Gatekeeper is running from a read-only
- * translocated copy (it was opened straight from the download instead of being moved to
- * Applications), an install directory this user can't write, or a platform without a swap.
+ * Why `install()` would refuse: a dev run (`npm start`, a test, or an executable the build did
+ * not make), nothing in the manifest for this platform, a macOS app Gatekeeper is running from a
+ * read-only translocated copy (it was opened straight from the download instead of being moved
+ * to Applications), an install directory this user can't write, or a platform without a swap.
  */
 export type NotInstallable = 'development' | 'no-asset' | 'translocated' | 'read-only' | 'unsupported';
 
 export interface CheckOptions {
-	/** Overrides the app's `update.manifest`; `GPUIX_UPDATE_MANIFEST` in the environment outranks both. */
+	/** Overrides the app's `update.manifest`. In a dev run `GPUIX_UPDATE_MANIFEST` in the environment outranks both; a built app ignores the variable. */
 	manifest?: string;
 	/** Overrides the app's `update.publicKey`. */
 	publicKey?: string;
@@ -72,11 +72,13 @@ export interface CheckOptions {
 }
 
 export interface DownloadOptions {
-	/** `total` is null when neither the response nor the manifest says how big the file is. */
+	/** `total` is the manifest's `size`, else the response's `content-length`, else null. */
 	onProgress?: (received: number, total: number | null) => void;
+	/** Aborting it fails the download with code `download` and removes what was written. */
+	signal?: AbortSignal;
 }
 
-export interface InstallOptions {
+export interface InstallOptions extends DownloadOptions {
 	/** Start the new version and exit this process once the swap is done; `false` keeps running on the old code until the next launch. Default true. */
 	relaunch?: boolean;
 }
@@ -92,7 +94,9 @@ export interface Update {
 	readonly asset: UpdateAsset | null;
 	readonly installable: boolean;
 	readonly reason?: NotInstallable;
-	/** Fetches the archive into a temp directory and checks its size and sha256; resolves to its path. `install()` calls it when it has not run. */
+	/** True once `install()` has swapped the app; a second `install()` throws. */
+	readonly installed: boolean;
+	/** Fetches the archive into a temp directory and checks its size and sha256; resolves to its path. A download in flight is shared, and `install()` calls it when it has not run. */
 	download(options?: DownloadOptions): Promise<string>;
 	/** Extracts, verifies (on macOS a signed app only takes an app signed by the same team) and swaps the archive's contents in for the running app. */
 	install(options?: InstallOptions): Promise<void>;
@@ -113,10 +117,12 @@ export function app_info(): EmbeddedAppInfo | null {
 
 export async function check_for_update(options: CheckOptions = {}): Promise<Update | null> {
 	const app = app_info();
-	const { target, reason } = resolve_target(app, options.target);
+	const { target, reason } = resolve_target(options.target);
 	if (target) finish_update(target);
+	// The build defines this one away, so only a dev run can be pointed elsewhere.
 	const url = process.env.GPUIX_UPDATE_MANIFEST || options.manifest || app?.update?.manifest;
 	if (!url) return null;
+	check_url(url, 'manifest');
 	const current = options.version ?? app?.version;
 	if (!current) throw new UpdateError('version', 'the running version is unknown: this is not a built app, and `version` was not given');
 	const platform = options.platform ?? `${process.platform}-${process.arch}`;
@@ -141,7 +147,8 @@ export async function check_for_update(options: CheckOptions = {}): Promise<Upda
 	if (compare_versions(manifest.version, current) <= 0) return null;
 
 	const asset = manifest.platforms[platform] ?? null;
-	return new AppUpdate(manifest, current, platform, asset, target, reason ?? (asset ? undefined : 'no-asset'), fetch_);
+	if (asset) check_url(asset.url, 'manifest');
+	return new AppUpdate(manifest, current, platform, asset, target, reason ?? (asset ? undefined : 'no-asset'), app, fetch_);
 }
 
 /**
@@ -151,7 +158,7 @@ export async function check_for_update(options: CheckOptions = {}): Promise<Upda
  */
 export function finish_update(target?: string) {
 	if (process.platform !== 'win32') return;
-	const exe = target ?? resolve_target(app_info()).target;
+	const exe = target ?? resolve_target().target;
 	if (!exe) return;
 	const dir = dirname(exe);
 	let entries: string[];
@@ -160,8 +167,9 @@ export function finish_update(target?: string) {
 	} catch {
 		return;
 	}
+	const leftover = new RegExp(`^${escape_regexp(basename(exe))}(\\.\\d+)?\\.old$`, 'i');
 	for (const name of entries) {
-		if (!name.startsWith(basename(exe)) || !name.endsWith('.old')) continue;
+		if (!leftover.test(name)) continue;
 		try {
 			rmSync(join(dir, name), { force: true });
 		} catch {
@@ -180,11 +188,23 @@ class AppUpdate implements Update {
 	readonly asset: UpdateAsset | null;
 	readonly installable: boolean;
 	readonly reason?: NotInstallable;
+	installed = false;
 	private target: string | null;
+	private app: EmbeddedAppInfo | null;
 	private fetch_: typeof fetch;
-	private archive: string | null = null;
+	private downloading: Promise<string> | null = null;
+	private download_dir: string | null = null;
 
-	constructor(manifest: UpdateManifest, current: string, platform: string, asset: UpdateAsset | null, target: string | null, reason: NotInstallable | undefined, fetch_: typeof fetch) {
+	constructor(
+		manifest: UpdateManifest,
+		current: string,
+		platform: string,
+		asset: UpdateAsset | null,
+		target: string | null,
+		reason: NotInstallable | undefined,
+		app: EmbeddedAppInfo | null,
+		fetch_: typeof fetch
+	) {
 		this.version = manifest.version;
 		this.current = current;
 		this.notes = manifest.notes ?? '';
@@ -195,41 +215,55 @@ class AppUpdate implements Update {
 		this.target = target;
 		this.reason = reason;
 		this.installable = reason === undefined && target !== null && asset !== null;
+		this.app = app;
 		this.fetch_ = fetch_;
 	}
 
-	async download({ onProgress }: DownloadOptions = {}): Promise<string> {
-		if (this.archive) return this.archive;
-		if (!this.asset) throw new UpdateError('not-installable', `the manifest has nothing for ${this.platform}`);
-		const { url, sha256, size } = this.asset;
+	download(options: DownloadOptions = {}): Promise<string> {
+		if (!this.asset) return Promise.reject(new UpdateError('not-installable', `the manifest has nothing for ${this.platform}`));
+		this.downloading ??= this.fetch_archive(this.asset, options).catch((error) => {
+			this.downloading = null;
+			throw error;
+		});
+		return this.downloading;
+	}
+
+	private async fetch_archive({ url, sha256, size }: UpdateAsset, { onProgress, signal }: DownloadOptions): Promise<string> {
 		let response: Response;
 		try {
-			response = await this.fetch_(url);
+			response = await this.fetch_(url, { signal });
 		} catch (error) {
 			throw new UpdateError('download', `${url}: ${(error as Error).message}`, { cause: error });
 		}
 		if (!response.ok || !response.body) throw new UpdateError('download', `${url}: ${response.status} ${response.statusText}`);
-		const total = Number(response.headers.get('content-length')) || size || null;
+		const total = size ?? (Number(response.headers.get('content-length')) || null);
+		// A fixed name under a directory of its own: nothing from the URL becomes a path.
 		const dir = mkdtempSync(join(tmpdir(), 'gpuix-svelte-update-'));
-		const file = join(dir, file_name(url));
+		const file = join(dir, 'update.bin');
 		const hash = createHash('sha256');
+		const reader = response.body.getReader();
 		let received = 0;
-		const fd = openSync(file, 'w');
+		let fd: number | null = null;
 		try {
-			const reader = response.body.getReader();
+			fd = openSync(file, 'w');
 			for (;;) {
 				const { done, value } = await reader.read();
 				if (done) break;
+				received += value.byteLength;
+				// Refuse past the promised size while streaming, so a hijacked host can't fill the disk.
+				if (size !== undefined && received > size) throw new UpdateError('hash', `${url} is longer than the ${size} bytes the manifest says`);
 				hash.update(value);
 				writeSync(fd, value);
-				received += value.byteLength;
 				onProgress?.(received, total);
 			}
-		} catch (error) {
-			rmSync(dir, { recursive: true, force: true });
-			throw new UpdateError('download', `${url}: ${(error as Error).message}`, { cause: error });
-		} finally {
 			closeSync(fd);
+			fd = null;
+		} catch (error) {
+			reader.cancel().catch(() => {});
+			if (fd !== null) closeSync(fd);
+			rmSync(dir, { recursive: true, force: true });
+			if (error instanceof UpdateError) throw error;
+			throw new UpdateError('download', `${url}: ${(error as Error).message}`, { cause: error });
 		}
 		const digest = hash.digest('hex');
 		if ((size !== undefined && received !== size) || digest !== sha256.toLowerCase()) {
@@ -237,34 +271,53 @@ class AppUpdate implements Update {
 			if (size !== undefined && received !== size) throw new UpdateError('hash', `${url} is ${received} bytes, the manifest says ${size}`);
 			throw new UpdateError('hash', `${url}'s sha256 is ${digest}, the manifest says ${sha256}`);
 		}
-		this.archive = file;
+		this.download_dir = dir;
 		return file;
 	}
 
-	async install({ relaunch = true }: InstallOptions = {}): Promise<void> {
+	async install({ relaunch = true, ...download }: InstallOptions = {}): Promise<void> {
 		if (!this.installable || !this.target) throw new UpdateError('not-installable', not_installable_text(this.reason));
-		const archive = await this.download();
+		if (this.installed) throw new UpdateError('install', `${this.version} is already installed; restart the app`);
+		const archive = await this.download(download);
 		const target = this.target;
-		// Beside the target, so the final rename never crosses a filesystem; making it also proves the directory is writable.
-		const staging = join(dirname(target), `.${basename(target)}.update`);
-		rmSync(staging, { recursive: true, force: true });
+		let staging: string;
 		try {
-			mkdirSync(staging);
+			// Beside the target, so the final rename never crosses a filesystem; making it also proves the directory is writable.
+			staging = mkdtempSync(join(dirname(target), '.update-'));
 		} catch (error) {
 			throw new UpdateError('install', `cannot write next to ${target}: ${(error as Error).message}`, { cause: error });
 		}
+		let keep_staging = false;
 		try {
 			extract(archive, staging);
-			const fresh = locate(staging, target, archive);
-			if (process.platform === 'darwin') check_codesign(target, fresh);
-			swap(target, fresh, staging);
+			const fresh = locate(staging, target);
+			if (process.platform === 'darwin') {
+				check_bundle(fresh, this.app, this.version);
+				check_codesign(target, fresh);
+			}
+			keep_staging = swap(target, fresh, staging) === 'previous-kept';
+			this.installed = true;
 		} finally {
-			rmSync(staging, { recursive: true, force: true });
-			rmSync(dirname(archive), { recursive: true, force: true });
-			this.archive = null;
+			// The swap is done (or rolled back); a leftover file must not turn that into a failure.
+			if (!keep_staging) rm_quietly(staging);
+			if (this.download_dir) rm_quietly(this.download_dir);
+			this.download_dir = null;
+			this.downloading = null;
 		}
 		if (relaunch) relaunch_app(target);
 	}
+}
+
+function rm_quietly(path: string) {
+	try {
+		rmSync(path, { recursive: true, force: true });
+	} catch {
+		// Best effort; a locked file here is not worth failing an installed update over.
+	}
+}
+
+function escape_regexp(text: string): string {
+	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function not_installable_text(reason: NotInstallable | undefined): string {
@@ -282,14 +335,18 @@ function not_installable_text(reason: NotInstallable | undefined): string {
 	}
 }
 
-function resolve_target(app: EmbeddedAppInfo | null, override?: string): { target: string | null; reason?: NotInstallable } {
+/** A Bun executable with the app compiled in serves its entry from a virtual filesystem; `bun app.ts` and Node serve it from disk. */
+function is_compiled(): boolean {
+	const main = (globalThis as { Bun?: { main?: string } }).Bun?.main ?? '';
+	return main.startsWith('/$bunfs/') || /[\\/]~BUN[\\/]/.test(main);
+}
+
+function resolve_target(override?: string): { target: string | null; reason?: NotInstallable } {
 	let target = override ? resolve(override) : null;
 	if (!target) {
-		if (!app) return { target: null, reason: 'development' };
+		if (!is_compiled()) return { target: null, reason: 'development' };
 		if (!['darwin', 'win32', 'linux'].includes(process.platform)) return { target: null, reason: 'unsupported' };
 		const exe = realpathSync(process.execPath);
-		// Under `bun app.ts` or Node the executable is the runtime, which is not what to replace.
-		if (basename(exe).replace(/\.exe$/i, '') !== app.slug) return { target: null, reason: 'development' };
 		target = exe;
 		if (process.platform === 'darwin') {
 			if (exe.includes('/AppTranslocation/')) return { target: null, reason: 'translocated' };
@@ -298,81 +355,167 @@ function resolve_target(app: EmbeddedAppInfo | null, override?: string): { targe
 			target = bundle;
 		}
 	}
-	// The swap renames within the directory, so that is what has to be writable.
+	// The swap renames within the directory, so that is what has to be writable; a real
+	// write is the only probe Windows ACLs answer.
 	try {
-		accessSync(dirname(target), constants.W_OK);
+		rmSync(mkdtempSync(join(dirname(target), '.update-probe-')), { recursive: true, force: true });
 	} catch {
 		return { target: null, reason: 'read-only' };
 	}
 	return { target };
 }
 
-function file_name(url: string): string {
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/** HTTPS, or plain HTTP to this machine for trying things out. */
+function check_url(url: string, code: UpdateErrorCode) {
+	let parsed: URL;
 	try {
-		return decodeURIComponent(basename(new URL(url).pathname)) || 'update';
+		parsed = new URL(url);
 	} catch {
-		return 'update';
+		throw new UpdateError(code, `${url} is not a URL`);
+	}
+	if (parsed.protocol === 'https:') return;
+	if (parsed.protocol === 'http:' && LOOPBACK.has(parsed.hostname)) return;
+	throw new UpdateError(code, `${url} is not https`);
+}
+
+// Full paths for the system tools, so nothing earlier on PATH (Git's GNU tar, say) stands in for them.
+const TAR = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+const DITTO = '/usr/bin/ditto';
+const CODESIGN = '/usr/bin/codesign';
+const PLUTIL = '/usr/bin/plutil';
+
+function run_tool(code: UpdateErrorCode, command: string, args: string[]): string {
+	const { status, stdout, stderr, error } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+	if (error) throw new UpdateError(code, `${command} failed to start: ${error.message}`, { cause: error });
+	if (status !== 0) throw new UpdateError(code, `${command} ${args.join(' ')} failed:\n${stderr}`);
+	return stdout;
+}
+
+function head(path: string, length: number): Buffer {
+	const buffer = Buffer.alloc(length);
+	const fd = openSync(path, 'r');
+	try {
+		return buffer.subarray(0, readSync(fd, buffer, 0, length, 0));
+	} finally {
+		closeSync(fd);
 	}
 }
 
-function run_tool(command: string, args: string[]) {
-	const { status, stderr, error } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
-	if (error) throw new UpdateError('extract', `${command} failed to start: ${error.message}`, { cause: error });
-	if (status !== 0) throw new UpdateError('extract', `${command} ${args.join(' ')} failed:\n${stderr}`);
+type Kind = 'zip' | 'tar' | 'executable' | 'unknown';
+
+/** What a file is, from its first bytes rather than its name. */
+function kind_of(path: string): Kind {
+	const bytes = head(path, 262);
+	if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) return 'zip';
+	if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) return 'tar';
+	if (bytes.length >= 262 && bytes.toString('latin1', 257, 262) === 'ustar') return 'tar';
+	if (is_executable(bytes)) return 'executable';
+	return 'unknown';
 }
 
-/** ditto keeps an `.app` intact, bsdtar is Windows' built-in zip reader, and tar reads a gzipped tar on every platform. */
+function is_executable(bytes: Buffer): boolean {
+	if (bytes.length < 4) return false;
+	const magic = bytes.readUInt32BE(0);
+	if (process.platform === 'win32') return bytes[0] === 0x4d && bytes[1] === 0x5a;
+	if (process.platform === 'linux') return magic === 0x7f454c46;
+	return [0xcafebabe, 0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic);
+}
+
+/** ditto keeps an `.app` intact, Windows' own bsdtar reads zip, and tar reads a gzipped tar on every platform. */
 function extract(archive: string, into: string) {
-	const lower = archive.toLowerCase();
-	if (lower.endsWith('.zip')) {
-		if (process.platform === 'darwin') run_tool('ditto', ['-x', '-k', archive, into]);
-		else if (process.platform === 'win32') run_tool('tar', ['-xf', archive, '-C', into]);
-		else run_tool('unzip', ['-q', archive, '-d', into]);
-	} else if (lower.endsWith('.tar.gz') || lower.endsWith('.tgz') || lower.endsWith('.tar')) {
-		run_tool('tar', ['-xf', archive, '-C', into]);
-	} else {
-		copyFileSync(archive, join(into, basename(archive)));
+	switch (kind_of(archive)) {
+		case 'zip':
+			if (process.platform === 'darwin') run_tool('extract', DITTO, ['-x', '-k', archive, into]);
+			else if (process.platform === 'win32') run_tool('extract', TAR, ['-xf', archive, '-C', into]);
+			else run_tool('extract', 'unzip', ['-q', archive, '-d', into]);
+			break;
+		case 'tar':
+			run_tool('extract', TAR, ['-xf', archive, '-C', into]);
+			break;
+		case 'executable':
+			copyFileSync(archive, join(into, basename(archive)));
+			break;
+		default:
+			throw new UpdateError('extract', 'the download is neither an archive nor an executable');
 	}
 }
 
-/** The new `.app`, `.exe` or executable in what was extracted, looking one directory down for archives that wrap their contents in a folder. */
-function locate(into: string, target: string, archive: string): string {
-	const wanted =
+/**
+ * The new `.app`, `.exe` or executable in what was extracted: the one named like the target
+ * first, then the only candidate, looking one directory down for archives that wrap their
+ * contents in a folder. Whatever is found has to look like one before it is swapped in.
+ */
+function locate(into: string, target: string): string {
+	const name = basename(target);
+	const same = (a: string, b: string) => (process.platform === 'linux' ? a === b : a.toLowerCase() === b.toLowerCase());
+	const candidate =
 		process.platform === 'darwin'
-			? (name: string, dir: boolean) => dir && name.endsWith('.app')
+			? (entry: string, dir: boolean) => dir && entry.endsWith('.app')
 			: process.platform === 'win32'
-				? (name: string, dir: boolean) => !dir && name.toLowerCase().endsWith('.exe')
-				: (name: string, dir: boolean) => !dir && (name === basename(target) || extname(name) === '');
+				? (entry: string, dir: boolean) => !dir && entry.toLowerCase().endsWith('.exe')
+				: (entry: string, dir: boolean) => !dir;
 	const search = (dir: string, depth: number): string | null => {
 		const entries = readdirSync(dir, { withFileTypes: true }).filter((entry) => !entry.name.startsWith('.') && entry.name !== '__MACOSX');
-		const hit = entries.find((entry) => wanted(entry.name, entry.isDirectory()));
-		if (hit) return join(dir, hit.name);
+		const exact = entries.find((entry) => same(entry.name, name) && candidate(entry.name, entry.isDirectory()));
+		if (exact) return join(dir, exact.name);
+		const candidates = entries.filter((entry) => candidate(entry.name, entry.isDirectory()));
+		if (candidates.length === 1 && (process.platform !== 'linux' || candidates[0].isFile())) return join(dir, candidates[0].name);
 		if (depth > 0 && entries.length === 1 && entries[0].isDirectory()) return search(join(dir, entries[0].name), depth - 1);
 		return null;
 	};
 	const found = search(into, 1);
-	if (!found) throw new UpdateError('extract', `${basename(archive)} holds no ${process.platform === 'darwin' ? '.app' : process.platform === 'win32' ? '.exe' : 'executable'}`);
+	const what = process.platform === 'darwin' ? '.app' : process.platform === 'win32' ? '.exe' : 'executable';
+	if (!found) throw new UpdateError('extract', `the download holds no ${what} named ${name}`);
+	if (process.platform === 'darwin') {
+		if (!existsSync(join(found, 'Contents', 'Info.plist'))) throw new UpdateError('extract', `${basename(found)} has no Info.plist`);
+	} else if (!is_executable(head(found, 4))) {
+		throw new UpdateError('extract', `${basename(found)} is not a ${process.platform === 'win32' ? 'Windows' : 'Linux'} executable`);
+	}
 	return found;
 }
 
+function plist_value(plist: string, key: string): string | null {
+	const { status, stdout } = spawnSync(PLUTIL, ['-extract', key, 'raw', '-o', '-', plist], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+	return status === 0 ? stdout.trim() : null;
+}
+
+/** A manifest can only hand the app a newer build of itself: the bundle's identifier is the app's, its version the manifest's, and its executable exists. */
+function check_bundle(fresh: string, app: EmbeddedAppInfo | null, version: string) {
+	const plist = join(fresh, 'Contents', 'Info.plist');
+	const identifier = plist_value(plist, 'CFBundleIdentifier');
+	if (app && identifier !== app.identifier) throw new UpdateError('extract', `${basename(fresh)} is ${identifier ?? 'no bundle'}, this app is ${app.identifier}`);
+	const bundle_version = plist_value(plist, 'CFBundleShortVersionString');
+	if (bundle_version !== null && compare_versions(bundle_version, version) !== 0) {
+		throw new UpdateError('extract', `${basename(fresh)} is version ${bundle_version}, the manifest says ${version}`);
+	}
+	const executable = plist_value(plist, 'CFBundleExecutable');
+	if (!executable || !existsSync(join(fresh, 'Contents', 'MacOS', executable))) throw new UpdateError('extract', `${basename(fresh)} has no executable`);
+}
+
 function team_id(path: string): string | null {
-	const { status, stderr } = spawnSync('codesign', ['-dv', '--verbose=2', path], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
+	const { status, stderr } = spawnSync(CODESIGN, ['-dv', '--verbose=2', path], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
 	if (status !== 0) return null;
 	const match = /^TeamIdentifier=(.+)$/m.exec(stderr);
 	return match && match[1].trim() !== 'not set' ? match[1].trim() : null;
 }
 
-/** A signed app only takes an update signed by the same team, so a hijacked manifest can't hand it someone else's app; an unsigned one has nothing to hold the new one to. */
+/**
+ * A signed app only takes an update signed by the same team, so a hijacked manifest can't hand
+ * it someone else's app. The requirement anchors the chain at Apple: an ad-hoc signature can
+ * carry any TeamIdentifier, so the field alone proves nothing. An unsigned app has nothing to
+ * hold the new one to.
+ */
 function check_codesign(current: string, fresh: string) {
 	const team = team_id(current);
 	if (!team) return;
-	const verify = spawnSync('codesign', ['--verify', '--deep', '--strict', fresh], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
-	if (verify.status !== 0) throw new UpdateError('codesign', `the downloaded app's signature does not verify: ${verify.stderr.trim()}`);
-	const fresh_team = team_id(fresh);
-	if (fresh_team !== team) throw new UpdateError('codesign', `the downloaded app is signed by ${fresh_team ?? 'no team'}, this one by ${team}`);
+	const requirement = `anchor apple generic and certificate leaf[subject.OU] = "${team}"`;
+	const verify = spawnSync(CODESIGN, ['--verify', '--deep', '--strict', `-R=${requirement}`, fresh], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
+	if (verify.status !== 0) throw new UpdateError('codesign', `the downloaded app is not signed by team ${team}: ${verify.stderr.trim()}`);
 }
 
-function swap(target: string, fresh: string, staging: string) {
+function swap(target: string, fresh: string, staging: string): 'swapped' | 'previous-kept' {
 	if (process.platform === 'linux') {
 		// Renaming over the running executable is atomic, and the process keeps the old inode mapped.
 		chmodSync(fresh, 0o755);
@@ -381,9 +524,9 @@ function swap(target: string, fresh: string, staging: string) {
 		} catch (error) {
 			throw new UpdateError('install', `cannot replace ${target}: ${(error as Error).message}`, { cause: error });
 		}
-		return;
+		return 'swapped';
 	}
-	let previous = join(staging, `previous${extname(target)}`);
+	let previous = join(staging, `previous-${basename(target)}`);
 	if (process.platform === 'win32') {
 		// A running .exe can't be deleted or overwritten, only renamed; finish_update() deletes it next launch.
 		previous = `${target}.old`;
@@ -401,23 +544,31 @@ function swap(target: string, fresh: string, staging: string) {
 	try {
 		renameSync(fresh, target);
 	} catch (error) {
-		renameSync(previous, target);
+		try {
+			renameSync(previous, target);
+		} catch (rollback) {
+			throw new UpdateError('install', `cannot move the new version into ${target} (${(error as Error).message}), and the old one is stuck at ${previous}: ${(rollback as Error).message}`, { cause: error });
+		}
 		throw new UpdateError('install', `cannot move the new version into ${target}: ${(error as Error).message}`, { cause: error });
 	}
+	return 'swapped';
 }
 
 function relaunch_app(target: string): never {
+	// Only once this process is gone, or the two instances overlap (and the Dock bounces twice).
 	if (process.platform === 'win32') {
-		spawn(target, [], { detached: true, stdio: 'ignore' }).unref();
+		const script = `Wait-Process -Id ${process.pid} -ErrorAction SilentlyContinue; Start-Process -FilePath '${target.replace(/'/g, "''")}'`;
+		spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 	} else {
-		// Only once this process is gone, or the two instances overlap (and the Dock bounces twice).
-		const launch = process.platform === 'darwin' ? 'open -n "$0"' : 'exec "$0"';
+		const launch = process.platform === 'darwin' ? '/usr/bin/open -n "$0"' : 'exec "$0"';
 		spawn('/bin/sh', ['-c', `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.2; done; ${launch}`, target], { detached: true, stdio: 'ignore' }).unref();
 	}
 	process.exit(0);
 }
 
 // --- The manifest: what `gpuix-svelte-update manifest` writes and the app checks -------------
+
+const SHA256 = /^[0-9a-fA-F]{64}$/;
 
 function validate_manifest(manifest: unknown, url: string): asserts manifest is UpdateManifest {
 	const m = manifest as Partial<UpdateManifest> | null;
@@ -427,7 +578,8 @@ function validate_manifest(manifest: unknown, url: string): asserts manifest is 
 	if (!m.platforms || typeof m.platforms !== 'object') throw bad('no platforms');
 	for (const [platform, asset] of Object.entries(m.platforms)) {
 		if (!asset || typeof asset.url !== 'string' || typeof asset.sha256 !== 'string') throw bad(`platforms.${platform} needs url and sha256`);
-		if (!/^[0-9a-fA-F]{64}$/.test(asset.sha256)) throw bad(`platforms.${platform}.sha256 is not a hex sha256`);
+		if (!SHA256.test(asset.sha256)) throw bad(`platforms.${platform}.sha256 is not a hex sha256`);
+		if (asset.size !== undefined && (!Number.isInteger(asset.size) || asset.size < 0)) throw bad(`platforms.${platform}.size is not a byte count`);
 	}
 	if (m.signature !== undefined && typeof m.signature !== 'string') throw bad('signature is not a string');
 }
@@ -456,8 +608,15 @@ export function compare_versions(a: string, b: string): -1 | 0 | 1 {
 	return 0;
 }
 
+/** Whether `compare_versions` can read it: `major[.minor[.patch]][-prerelease][+build]`. */
+export function is_version(version: string): boolean {
+	return VERSION.test(version.trim());
+}
+
+const VERSION = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+
 function parse_version(version: string): { numbers: number[]; pre: string[] } {
-	const match = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(version.trim());
+	const match = VERSION.exec(version.trim());
 	if (!match) throw new UpdateError('version', `"${version}" is not a version`);
 	return { numbers: [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)], pre: match[4] ? match[4].split('.') : [] };
 }
@@ -485,6 +644,11 @@ function sort_keys(value: unknown): unknown {
 
 // The DER wrapper around a raw 32-byte ed25519 public key; the app carries only the raw key, base64.
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+/** Whether `key` is what `generate_keys()` prints: 32 raw ed25519 bytes, base64. */
+export function is_public_key(key: string): boolean {
+	return /^[A-Za-z0-9+/]{43}=$/.test(key) && Buffer.from(key, 'base64').length === 32;
+}
 
 /** A fresh ed25519 pair: `publicKey` goes into `app.update.publicKey`, `privateKey` (PEM) stays a secret. */
 export function generate_keys(): { publicKey: string; privateKey: string } {
@@ -526,6 +690,7 @@ export interface ManifestOptions {
 /** One manifest from every platform's fragment; they have to agree on the version. */
 export function build_manifest({ fragments, base_url, notes, published_at, url, private_key }: ManifestOptions): UpdateManifest {
 	if (fragments.length === 0) throw new UpdateError('manifest', 'no fragments');
+	for (const fragment of fragments) validate_fragment(fragment);
 	const versions = [...new Set(fragments.map((fragment) => fragment.version))];
 	if (versions.length > 1) throw new UpdateError('manifest', `the fragments disagree on the version: ${versions.join(', ')}`);
 	const base = base_url.endsWith('/') ? base_url : `${base_url}/`;
@@ -542,4 +707,15 @@ export function build_manifest({ fragments, base_url, notes, published_at, url, 
 		platforms
 	};
 	return private_key ? sign_manifest(manifest, private_key) : manifest;
+}
+
+function validate_fragment(fragment: unknown) {
+	const f = fragment as Partial<UpdateFragment> | null;
+	const bad = (what: string) => new UpdateError('manifest', `a fragment ${what}`);
+	if (!f || typeof f !== 'object') throw bad('is not an object');
+	if (typeof f.platform !== 'string' || !/^[a-z0-9]+-[a-z0-9]+$/.test(f.platform)) throw bad('has no platform');
+	if (typeof f.version !== 'string' || !is_version(f.version)) throw bad(`(${f.platform}) has no version`);
+	if (typeof f.file !== 'string' || !f.file || /[/\\]/.test(f.file)) throw bad(`(${f.platform}) has no file name`);
+	if (typeof f.sha256 !== 'string' || !SHA256.test(f.sha256)) throw bad(`(${f.platform}) has no hex sha256`);
+	if (!Number.isInteger(f.size) || (f.size as number) < 0) throw bad(`(${f.platform}) has no size`);
 }

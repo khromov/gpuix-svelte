@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppOptions, AppUpdateOptions } from './types.ts';
+import { is_public_key } from './update.ts';
 
 export interface AppInfo {
 	name: string;
@@ -113,11 +114,17 @@ export function read_app_options(source: string): EntryApp {
 			if (key === 'update') {
 				const update: Record<string, string> = {};
 				for (const [field, inner] of object(node, 'app.update')) {
+					if (field !== 'manifest' && field !== 'publicKey') throw new Error(`app.update.${field} is not an option (manifest and publicKey are)`);
 					const value = string(inner);
-					if (value === undefined) throw new Error(`app.update.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
+					if (value === undefined || inner.type === 'NewExpression') throw new Error(`app.update.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
 					update[field] = value;
 				}
+				// A wrong value here ships in an executable that can never update itself to a fixed one.
 				if (!update.manifest) throw new Error('app.update has no manifest URL');
+				if (!is_manifest_url(update.manifest)) throw new Error(`app.update.manifest is ${update.manifest}; it has to be an https URL (http only to this machine)`);
+				if (update.publicKey !== undefined && !is_public_key(update.publicKey)) {
+					throw new Error('app.update.publicKey is not the base64 key gpuix-svelte-update keygen printed');
+				}
 				app[key] = update;
 				continue;
 			}
@@ -129,6 +136,15 @@ export function read_app_options(source: string): EntryApp {
 	// A title worked out at runtime only costs the name its fallback, and package.json covers that.
 	const title = string(fields.get('title'));
 	return (title === undefined ? app : { ...app, title }) as EntryApp;
+}
+
+function is_manifest_url(url: string): boolean {
+	try {
+		const { protocol, hostname } = new URL(url);
+		return protocol === 'https:' || (protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(hostname));
+	} catch {
+		return false;
+	}
 }
 
 export function app_slug(name: string): string {
@@ -174,8 +190,9 @@ export function archive_name(info: Pick<AppInfo, 'slug' | 'version'>, platform =
  */
 export function write_archive(output: string, out: string, platform = process.platform) {
 	rmSync(out, { force: true });
-	if (platform === 'darwin') run('ditto', ['-c', '-k', '--keepParent', output, out]);
-	else if (platform === 'win32') run('tar', ['-a', '-cf', out, '-C', dirname(output), basename(output)]);
+	if (platform === 'darwin') run('/usr/bin/ditto', ['-c', '-k', '--keepParent', output, out]);
+	// Windows' own bsdtar by its full path: Git's GNU tar, if it is first on PATH, can't write zip.
+	else if (platform === 'win32') run(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-a', '-cf', out, '-C', dirname(output), basename(output)]);
 	else run('tar', ['-czf', out, '-C', dirname(output), basename(output)]);
 }
 
@@ -374,13 +391,17 @@ export function notarize(bundle: string, auth: NotaryAuth, zip: string, log: (li
 	run('ditto', ['-c', '-k', '--keepParent', bundle, zip]);
 }
 
-export function run(command: string, args: string[], env?: Record<string, string>): string {
+export function run(command: string, args: string[], env?: Record<string, string>, cwd?: string): string {
 	const { status, stdout, stderr, error } = spawnSync(command, args, {
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],
-		...(env && { env: { ...process.env, ...env } })
+		windowsHide: true,
+		...(env && { env: { ...process.env, ...env } }),
+		...(cwd && { cwd })
 	});
 	if (error) throw error;
-	if (status !== 0) throw new Error(`${command} ${args.join(' ')} failed:\n${stderr || stdout}`);
+	// notarytool's --password must not end up in a log through the error.
+	const shown = args.map((arg, i) => (args[i - 1] === '--password' ? '***' : arg));
+	if (status !== 0) throw new Error(`${command} ${shown.join(' ')} failed:\n${stderr || stdout}`);
 	return stdout;
 }

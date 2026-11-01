@@ -27,6 +27,8 @@ import {
 	type EntryApp
 } from './app-bundle.ts';
 
+import { is_version } from './update.ts';
+
 export type { AppInfo, UpdateFragment } from './app-bundle.ts';
 
 export interface BuildOptions {
@@ -39,6 +41,8 @@ export interface BuildOptions {
 	 * and `update-<platform>.json` beside it, the fragment `gpuix-svelte-update manifest` merges.
 	 */
 	archive?: boolean;
+	/** Runs on the packaged output before the archive is made: where a Windows `.exe` gets `signtool`, say. */
+	beforeArchive?: (result: Omit<BuildResult, 'archive' | 'fragment'>) => void | Promise<void>;
 }
 
 export interface BuildResult {
@@ -82,6 +86,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 
 	const app = resolve_app_info(entry_app(entry), entry);
 	if (!existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
+	if (app.update && !is_version(app.version)) throw new Error(`${TAG} version "${app.version}" is not semver, which an app that updates itself compares by`);
 	const binary = join(outdir, process.platform === 'win32' ? `${app.slug}.exe` : app.slug);
 	const bundle = join(outdir, `${app.name.replace(/[/\\:]/g, '-')}.app`);
 	try {
@@ -128,7 +133,12 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		// Bun implies `development` unless NODE_ENV is production at build time, and
 		// esm-env lists it first, so both are needed for Svelte's production runtime.
 		conditions: ['custom-renderer', 'production'],
-		define: { 'process.env.NODE_ENV': '"production"', 'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)) },
+		define: {
+			'process.env.NODE_ENV': '"production"',
+			'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)),
+			// The dev-run override must not redirect a shipped app.
+			'process.env.GPUIX_UPDATE_MANIFEST': '""'
+		},
 		minify: true,
 		plugins: [plugin],
 		throw: false,
@@ -194,6 +204,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 
 	let fragment: string | undefined;
 	if (archive) {
+		await options.beforeArchive?.({ output, binary: executable, app, signed, notarized });
 		// Notarization already wrote the stapled zip there.
 		if (!notarized) write_archive(output, archive);
 		fragment = join(outdir, `update-${update_platform()}.json`);

@@ -22,8 +22,9 @@ work for class rules, which are translated the same way.
 - `<style>` rules made of classes, at most one tag, and `:hover`, `:active` or `:focus-visible`:
   `.btn`, `.btn.primary`, `.a, .b`, `div`, `div.card`. They're scoped per component, like Svelte's
   DOM output. The rule with more classes wins; with equal classes, a rule with a tag beats one
-  without; after that, the later rule wins. Inline `style` always wins. `class:` directives and
-  dynamic class strings restyle live.
+  without; after that, the later rule wins. Inline `style` beats every plain class rule, but a
+  class `:hover`, `:active` or `:focus-visible` rule still applies on top of it while the element
+  is in that state. `class:` directives and dynamic class strings restyle live.
 - `hover="..."`, `active="..."` and `focus-visible="..."` attributes, for hover, press and
   keyboard-focus styles set directly on the element.
 - `var(--token)` and `var(--token, fallback)` in class rules and inline styles, on any property.
@@ -32,7 +33,8 @@ work for class rules, which are translated the same way.
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
 - `display: flex | grid` and the flexbox properties, `position: absolute`,
   `overflow: hidden | scroll | auto`, `opacity`, `cursor`, `white-space`, `text-overflow`,
-  `font-*`, `text-align`, `text-decoration` and `visibility: hidden`.
+  `font-size`, `font-family`, `font-weight`, `text-align`, `text-decoration` and
+  `visibility: hidden`.
 
 **What doesn't work**
 
@@ -41,16 +43,19 @@ work for class rules, which are translated the same way.
   anything.
 - Shorthands GPUI has no field for: `flex: 1` (use `flex-grow: 1` with `flex-basis: 0`, which is
   what `flex: 1` means), `border: 1px solid #fff` (use `border-width` and `border-color`),
-  `background` with anything but a single colour, such as `linear-gradient(...)`, and `box-shadow`.
+  `font: 12px Menlo`, `background` with anything but a single colour, and `box-shadow`. A
+  `background: linear-gradient(...)` paints nothing but still blocks clicks to what is behind it.
 - Unitless `line-height`: `line-height: 1.5` means 1.5 px, so give it a unit.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
 - Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
-  `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, `@media` and nesting. The
-  compiler refuses them with a warning.
-- `transform`, `transition`, `z-index` and `letter-spacing` are ignored without a warning.
+  `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, `@media` and
+  nesting. The compiler refuses them with a warning.
+- `transform`, `transition`, `z-index`, `letter-spacing` and `font-style` are ignored, mostly
+  without a warning.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
   `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select` and
-  `selection-color`.
+  `selection-color`. An `<svg>` gets its parent's `color` from the renderer, but not the parent's
+  `:hover` colour.
 - Assume the rest of CSS is missing too.
 
 <details>
@@ -74,19 +79,20 @@ keywords are recognised.
 - Overflow: `overflow`, `overflow-x`, `overflow-y` as `hidden | scroll | auto`. `auto` is treated
   as `scroll`, and the two behave the same.
 - Paint: `background-color` (or `background` with a single colour), `color`, `border-color` in
-  any CSS colour syntax; `opacity`;
-  `border-width` and its four sides; `border-radius` and its four corners, with 1 to 4 value
-  shorthands; `border-style: solid | dashed`; `outline-width`, `outline-color`,
-  `outline-offset`.
-- Text: `font-size`, `font-family`, `font-weight` (`100`–`900`, `normal`, `bold`);
-  `text-align: left | center | right | start`; `line-height` in px or rem;
-  `white-space: nowrap | normal`; `text-overflow: ellipsis`;
+  any CSS colour syntax; `opacity`; `border-width` and its four sides; `border-radius` and its four
+  corners, with 1 to 4 value shorthands; `border-style: solid | dashed`; `outline-width`,
+  `outline-color`, `outline-offset`.
+- Text: `font-size`; `font-family`, passed through as written, so give one family name;
+  `font-weight` (`100`–`900`, `normal`, `bold`); `text-align: left | center | right | start`;
+  `line-height` in px or rem; `white-space: nowrap | normal`; `text-overflow: ellipsis`;
   `text-decoration: underline | line-through | none`.
 - Visibility: `visibility: hidden` paints nothing, keeps the layout box and leaves the tab order.
-- Interaction: `cursor` with the CSS keyword set (`pointer`, `text`, `grab`, `grabbing`, `move`,
-  `crosshair`, `not-allowed`, the `*-resize` family, `copy`, `alias`, `context-menu`, `default`);
-  `pointer-events: none | auto`; `user-select: none`; `:hover`, `:active` and `:focus-visible`
-  rules in `<style>`, the last applying after keyboard focus only, like CSS.
+- Interaction: `cursor` as `default`, `auto`, `pointer`, `text`, `vertical-text`, `grab`,
+  `grabbing`, `move`, `all-scroll`, `crosshair`, `not-allowed`, `no-drop`, the `*-resize` family,
+  `copy`, `alias` and `context-menu` (`move` and `all-scroll` show the closed hand; `help`,
+  `wait`, `progress`, `cell`, `zoom-in` and `zoom-out` are ignored); `pointer-events: none | auto`;
+  `user-select: none | text | auto`; `:hover`, `:active` and `:focus-visible` rules in `<style>`,
+  the last applying after keyboard focus only, like CSS.
 
 </details>
 
@@ -101,12 +107,14 @@ These are accepted, but they mean something different from what CSS would.
 - `grid-template-columns: 3` and `grid-template-rows: 2` take a number: the count of equal
   tracks. `grid-column-min` and `grid-row-min` (`min-content | max-content`) are GPUI's own
   properties for each track's minimum.
-- `justify-content: between | around` are aliases for `space-between` and `space-around`.
+- `justify-content` and `align-content` take `between`, `around` and `evenly` as aliases for
+  `space-between`, `space-around` and `space-evenly`.
 - `position: fixed` lays out exactly like `absolute`.
 - `text-overflow: ellipsis-start` truncates from the left.
 - `line-clamp: N` works unprefixed, with no `display: -webkit-box` needed.
 - `font-weight` also takes `thin`, `extralight`, `light`, `medium`, `semibold`, `extrabold`,
-  `black` and any number from 1 to 1000.
+  `black` (the hyphenated spellings too) and any number from 1 to 1000. A name GPUI doesn't know,
+  such as `bolder`, falls back to 400.
 - `hover="..."` and `active="..."` are attributes that take the same CSS text as `style` and apply
   while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
   `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
@@ -123,24 +131,25 @@ These are accepted, but they mean something different from what CSS would.
   over to the page at its ends, as `overscroll-behavior: contain` would do). Behind it, hover and
   clicks stop too.
 - `keyboard-focus-dim: false` keeps an element at full opacity when the window has the dim on
-  (`render(App, { keyboardFocusDim: true })`, see the guide's focus section).
+  (`render(App, { keyboardFocusDim: true })`, see
+  [the guide's focus section](guide.md#keyboard-shortcuts-and-focus)).
 - `selection-color` sets the colour of the text-selection highlight, the job CSS gives to
   `::selection`.
 - Mouse events never bubble, and an element that paints a background or is `position: absolute`
   blocks clicks to whatever is behind it. Put `hitbox="self"` on the clickable element, and clicks
   on its badges, icons and images pass straight through to it. Descendants that take input keep
   their own hitbox: a child with its own handler (other than `onlayout`, `onscrollchange`,
-  `onmotioncomplete` and `onhighlight`, which take no pointer), focusable elements (`tabindex` or `autofocus`),
-  scroll containers, and the input-taking elements (`input`, `textarea`, `code`, `diff`,
-  `markdown`, `virtual-list`, `anchored`). A `pointer-events` you set yourself still wins.
+  `onmotioncomplete` and `onhighlight`, which take no pointer), focusable elements (`tabindex` or
+  `autofocus`), scroll containers, and the input-taking elements (`input`, `textarea`, `code`,
+  `diff`, `markdown`, `virtual-list`, `anchored`). A `pointer-events` you set yourself still wins.
 - `onclick` is the primary button alone, as in the DOM. A right or middle click is `onauxclick`,
   where `e.isRightClick` tells the two apart and `e.x` / `e.y` are window coordinates, so a menu
   rendered through `<Portal>` can be placed right at them. macOS's ctrl+click arrives as an
   ordinary `onclick` with `e.modifiers.ctrl` set, so a handler that wants the platform's secondary
   click checks for it. `hitbox="self"` shields aux clicks like any other.
 - Animation goes through the `motion={{ initial, animate, transition }}` prop, which animates
-  `left`, `top`, `width`, `height`, `opacity` and `borderRadius` natively, with durations in
-  seconds.
+  `left`, `top`, `right`, `bottom`, `width`, `height`, `opacity` and `borderRadius` natively, with
+  durations in seconds.
 
 </details>
 
@@ -160,7 +169,9 @@ control. A palette is one object, and a theme switch is one call:
   $effect(() => set_css_vars(dark ? DARK : LIGHT));
 </script>
 
-<div class="card">…</div>
+<div class="card">
+  <text class="badge">new</text>
+</div>
 
 <style>
   .card { background-color: var(--surface); color: var(--ink); border-color: var(--border); }
@@ -177,9 +188,6 @@ inline `style=` too. Keys work with or without the `--`, and setting one to `nul
 declaration is dropped and a warning names the variable once. Setting the palette from an
 `$effect` like the one above is fine: the check runs after your effects have, so a variable the
 effect defines is never reported.
-
-Substrate, a second-brain app built on this renderer, themes itself exactly this way: one palette
-object per mode, handed over from its root component in an `$effect`.
 
 ## Seeing it for yourself
 

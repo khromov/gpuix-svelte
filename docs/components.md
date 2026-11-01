@@ -14,9 +14,9 @@ plain `.svelte` files and compile like your own components:
 
 ## Scroller
 
-GPUI's own scrollbar (`scrollbar-color`, see the styling reference) can't be dragged, so `Scroller`
-is a scroll column that draws its own thumb in a gutter, follows the wheel and lets you drag the
-thumb.
+GPUI's own scrollbar (`scrollbar-color`, see [Styling](styling.md)) can't be dragged, so
+`Scroller` is a scroll column that draws its own thumb in a gutter, follows the wheel and lets you
+drag the thumb.
 
 Props:
 
@@ -25,7 +25,8 @@ Props:
 - `scroll={false}` clips the content and draws no thumb.
 - `follow` keeps the bottom in view while content grows, as in a streaming reply.
 - `virtual` and `estimate` make it a [virtual list](#virtual-lists).
-- `testid`. The thumb gets `<testid>-thumb` and the drag overlay `<testid>-overlay`.
+- `testid` goes on the scroll column. The thumb gets `<testid>-thumb` and the drag overlay
+  `<testid>-overlay`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
 fallbacks.
@@ -34,15 +35,17 @@ fallbacks.
 
 A plain scroll column lays out and paints every child on every frame, on screen or off, so a long
 list slows down in proportion to its length. With `virtual`, `Scroller` renders GPUI's native
-`<virtual-list>`, and GPUI lays out and paints only the rows near the viewport.
+`<virtual-list>`, and GPUI lays out and paints only the rows near the viewport. Svelte still
+creates every row; only the layout and paint are skipped.
 
 - Every direct child is one row. Wrap each item in a `div` with `width: 100%`, since rows size to
   their content, and space rows with padding inside them: `gap` applies only to the plain column.
 - `estimate` (default `80`) is the height hint for rows GPUI hasn't measured yet.
 - `follow` becomes the list's own tail-following.
-
-In Substrate, a second-brain app built on this renderer, a timeline of 50 cards went from ~24 ms to
-~1.4 ms per frame.
+- `pad` pads the box around the list, so it does not scroll with the rows. No gutter is reserved,
+  so the thumb paints over the rows' right edge. `scroll={false}` is ignored.
+- Nothing reports a change in row count, so the thumb re-reads the list's position every 250 ms
+  (100 ms with `follow`).
 
 ## Portal
 
@@ -56,13 +59,15 @@ clickable:
 {#if confirming}
   <Portal>
     <div class="scrim" onclick={() => (confirming = false)}>
-      <div class="dialog" onclick={() => {}}>…</div>
+      <div class="dialog">…</div>
     </div>
   </Portal>
 {/if}
 ```
 
-A later portal paints over an earlier one.
+A portal mounted later paints over one mounted earlier, so a portal that re-shows through `{#if}`
+moves to the top. `Tooltip` and `Popover` paint above every portal, because `<anchored>` draws in
+a deferred layer.
 
 ## Tooltip
 
@@ -78,7 +83,7 @@ Props:
 - `open` forces the tip shown or hidden. `null`, the default, leaves it to hover.
 - `style`: inline CSS for one tip, which wins over the tip's own rules
   (`style="padding: 8px 12px; border-radius: 0; background-color: #1e66f5"`).
-- `testid`. The tip gets `<testid>-tip`.
+- `testid` goes on the wrapper around the trigger. The tip gets `<testid>-tip`.
 
 Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you set for the whole
 app with `set_css_vars`.
@@ -106,10 +111,12 @@ Props:
 - `open`, `onclose`, and `content` (the panel's snippet).
 - `side` (default `bottom`), `align` (default `start`) and `gap` (default `4`).
 - `position`: `{ x, y }` in window coordinates to hang the panel from in place of the trigger. An
-  `onauxclick`'s `e.x` / `e.y` puts a context menu at the cursor.
+  `onauxclick`'s `e.x` / `e.y` puts a context menu at the cursor. A press inside the trigger's box
+  never counts as outside, so a large trigger that only has `onauxclick` needs an `onclick` that
+  closes the menu.
 - `style`: inline CSS for the panel, as with `Tooltip`. Use it for padding, radius, border or
   surface.
-- `testid`. The panel gets `<testid>-panel`.
+- `testid` goes on the wrapper around the trigger. The panel gets `<testid>-panel`.
 
 Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--popover-ink)`.
 
@@ -129,9 +136,9 @@ the parent gives them, and hang their layer off that box.
 
 For anything else that should sit beside a trigger, GPUI's native `<anchored>` element positions
 its child relative to the element it's rendered in. It hangs off its parent's box, zero-sized and
-out of flow, and its layer sizes to its content, which rules it out for a scrim. Its own `style`
-styles the layer. It hears only `click`, `mouseenter`, `mouseleave` and `filedrop`, so
-`onmousedownoutside` goes on a child.
+out of flow. Its layer sizes to its content, unless `fill="window"` makes it cover the window, which
+is how to build a scrim. Its own `style` styles the layer. It hears only `click`, `mouseenter`,
+`mouseleave` and `filedrop`, so `onmousedownoutside` goes on a child.
 
 Two GPUI quirks, as of `@gpuix/native` 0.11:
 
@@ -141,7 +148,8 @@ Two GPUI quirks, as of `@gpuix/native` 0.11:
   components hang their layer from a zero-sized box that flex places on the trigger's edge, with
   the `anchor` corner named explicitly.
 
-Its props:
+Its props. Pass numbers and booleans as expressions (`gap={6}`, `deferred={false}`): a quoted
+string reaches native as a string and reads as `0` or `true`.
 
 | prop | values | default |
 |---|---|---|

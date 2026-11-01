@@ -9,7 +9,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 jobs:
   release:
@@ -41,6 +40,10 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    # Only this job mints the OIDC token npm's trusted publishing takes.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,8 +97,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      # nullglob drops the extension this platform did not make.
-      - run: shopt -s nullglob; gh release upload "$TAG" dist/*.zip dist/*.tar.gz
+      # nullglob drops the extension this platform did not make; --clobber lets a re-run replace its upload.
+      - run: shopt -s nullglob; gh release upload --clobber "$TAG" dist/*.zip dist/*.tar.gz
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -105,8 +108,12 @@ jobs:
           name: update-${{ matrix.os }}
           path: dist/update-*.json
 
+  # Runs even when a platform failed to build, so the others still get their update; the
+  # manifest then lists only what was uploaded. Until it runs, the new release's manifest is a
+  # 404 and apps keep their version.
   manifest:
     needs: [release, binaries]
+    if: ${{ !cancelled() && needs.release.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,10 +135,12 @@ jobs:
           node bin/gpuix-svelte-update.js manifest --out update.json \
             --base-url "https://github.com/$REPO/releases/download/$TAG/" \
             --notes notes.md --url "https://github.com/$REPO/releases/tag/$TAG" \
+            ${PUBLIC_KEY:+--public-key "$PUBLIC_KEY"} \
             fragments/*.json
-          gh release upload "$TAG" update.json
+          gh release upload --clobber "$TAG" update.json
         env:
           GH_TOKEN: ${{ github.token }}
           GPUIX_UPDATE_KEY: ${{ secrets.GPUIX_UPDATE_KEY }}
+          PUBLIC_KEY: ${{ vars.GPUIX_UPDATE_PUBLIC_KEY }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release.outputs.tag_name }}

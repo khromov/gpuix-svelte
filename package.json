@@ -18,7 +18,10 @@
 		"./renderer": "./src/renderer.ts",
 		"./plugin": "./src/plugin.ts",
 		"./build": "./src/build.ts",
-		"./update": "./src/update.ts",
+		"./update": {
+			"browser": "./src/update-web.ts",
+			"default": "./src/update.ts"
+		},
 		"./register": "./src/register.ts",
 		"./test": "./src/test.ts",
 		"./automation": "./src/automation.ts",
