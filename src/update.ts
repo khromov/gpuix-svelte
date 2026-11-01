@@ -335,10 +335,16 @@ function not_installable_text(reason: NotInstallable | undefined): string {
 	}
 }
 
-/** A Bun executable with the app compiled in serves its entry from a virtual filesystem; `bun app.ts` and Node serve it from disk. */
+/**
+ * A Bun executable with the app compiled in serves its entry from a virtual filesystem
+ * (`/$bunfs/`, `B:\~BUN\` on Windows); `bun app.ts` and Node serve it from disk. The executable's
+ * name is the second signal, in case that prefix is ever spelled differently.
+ */
 function is_compiled(): boolean {
-	const main = (globalThis as { Bun?: { main?: string } }).Bun?.main ?? '';
-	return main.startsWith('/$bunfs/') || /[\\/]~BUN[\\/]/.test(main);
+	const bun = (globalThis as { Bun?: { main?: string } }).Bun;
+	if (!bun) return false;
+	const main = bun.main ?? '';
+	return main.startsWith('/$bunfs/') || /[\\/]~BUN[\\/]/.test(main) || basename(process.execPath).replace(/\.exe$/i, '').toLowerCase() !== 'bun';
 }
 
 function resolve_target(override?: string): { target: string | null; reason?: NotInstallable } {
