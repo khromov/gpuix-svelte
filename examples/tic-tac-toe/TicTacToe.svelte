@@ -1,5 +1,27 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { check_for_update, type Update } from 'gpuix-svelte/update';
+
 	type Mark = 'X' | 'O';
+
+	// The built app (npm run compile) checks the manifest each gpuix-svelte release uploads; under
+	// npm run demo:tictactoe there is no manifest and this stays null.
+	let update = $state<Update | null>(null);
+	let progress = $state<number | null>(null);
+	let updateError = $state('');
+
+	onMount(() => {
+		check_for_update().then((found) => (update = found), (e) => console.warn('update check failed:', e));
+	});
+
+	async function install() {
+		try {
+			await update!.download({ onProgress: (received, total) => (progress = total ? received / total : null) });
+			await update!.install();
+		} catch (e) {
+			updateError = (e as Error).message;
+		}
+	}
 
 	let board = $state<(Mark | null)[]>(Array(9).fill(null));
 	let xIsNext = $state(true);
@@ -49,6 +71,26 @@
 	       gap: 20px; width: 100%; height: 100%; background-color: #11111b; padding: 24px"
 >
 	<div style="color: #cdd6f4; font-size: 24px; font-weight: bold">Tic-tac-toe</div>
+
+	{#if update}
+		<div style="display: flex; flex-direction: row; align-items: center; gap: 12px; color: #cdd6f4; font-size: 14px">
+			<div>Version {update.version} is available</div>
+			{#if updateError}
+				<div style="color: #f38ba8">{updateError}</div>
+			{:else if update.installable}
+				<div
+					style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 8px;
+					       background-color: #a6e3a1; color: #1e1e2e; font-weight: bold; cursor: pointer"
+					hover="background-color: #94e2d5"
+					onclick={install}
+				>
+					{progress === null ? 'Install and restart' : `${Math.round(progress * 100)}%`}
+				</div>
+			{:else if update.url}
+				<div style="color: #a6adc8">Get it at {update.url}</div>
+			{/if}
+		</div>
+	{/if}
 
 	<div
 		style="font-size: 16px"

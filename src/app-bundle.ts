@@ -6,10 +6,11 @@
 
 import { Parser, type CallExpression, type Expression, type Literal, type Node, type SpreadElement } from 'acorn';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppOptions } from './types.ts';
+import type { AppOptions, AppUpdateOptions } from './types.ts';
 
 export interface AppInfo {
 	name: string;
@@ -22,6 +23,19 @@ export interface AppInfo {
 	copyright?: string;
 	publisher?: string;
 	description?: string;
+	update?: AppUpdateOptions;
+}
+
+/** What the executable knows about itself at runtime: `AppInfo` without the build-only icon, as `GPUIX_APP_INFO`. */
+export type EmbeddedAppInfo = Omit<AppInfo, 'icon'>;
+
+/** One platform's build, as `build({ archive: true })` writes it beside the archive for `gpuix-svelte-update manifest`. */
+export interface UpdateFragment {
+	platform: string;
+	version: string;
+	file: string;
+	sha256: string;
+	size: number;
 }
 
 /** The `app` options and window title written in the entry's `render()` call. */
@@ -92,10 +106,21 @@ export function read_app_options(source: string): EntryApp {
 	const options = calls[0].arguments[1];
 	if (!options) return {};
 	const fields = object(options, "render()'s second argument");
-	const app: Record<string, string> = {};
+	const app: Record<string, string | Record<string, string>> = {};
 	const declared = fields.get('app');
 	if (declared) {
 		for (const [key, node] of object(declared, 'app')) {
+			if (key === 'update') {
+				const update: Record<string, string> = {};
+				for (const [field, inner] of object(node, 'app.update')) {
+					const value = string(inner);
+					if (value === undefined) throw new Error(`app.update.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
+					update[field] = value;
+				}
+				if (!update.manifest) throw new Error('app.update has no manifest URL');
+				app[key] = update;
+				continue;
+			}
 			const value = string(node);
 			if (value === undefined) throw new Error(`app.${key} is \`${text(node)}\`; ${UNREADABLE}`);
 			app[key] = value;
@@ -103,7 +128,7 @@ export function read_app_options(source: string): EntryApp {
 	}
 	// A title worked out at runtime only costs the name its fallback, and package.json covers that.
 	const title = string(fields.get('title'));
-	return title === undefined ? app : { ...app, title };
+	return (title === undefined ? app : { ...app, title }) as EntryApp;
 }
 
 export function app_slug(name: string): string {
@@ -127,8 +152,39 @@ export function resolve_app_info(declared: EntryApp, entry: string): AppInfo {
 		icon: declared.icon ? icon_path(declared.icon, entry) : DEFAULT_ICON,
 		copyright: declared.copyright,
 		publisher: declared.publisher,
-		description: declared.description
+		description: declared.description,
+		update: declared.update
 	};
+}
+
+/** `update-<platform>.json`'s platform key, the same string `gpuix-svelte/update` looks its asset up by. */
+export function update_platform(platform = process.platform, arch = process.arch): string {
+	return `${platform}-${arch}`;
+}
+
+/** `<slug>-<version>-<platform>.zip` on macOS and Windows, `.tar.gz` on Linux. */
+export function archive_name(info: Pick<AppInfo, 'slug' | 'version'>, platform = update_platform()): string {
+	return `${info.slug}-${info.version}-${platform}${platform.startsWith('linux') ? '.tar.gz' : '.zip'}`;
+}
+
+/**
+ * The archive that ships and that `gpuix-svelte/update` installs: the `.app` zipped by `ditto`
+ * (resource forks and the stapled ticket survive it), the `.exe` zipped by bsdtar, the Linux
+ * executable in a `.tar.gz`, each with the file at the archive's top level.
+ */
+export function write_archive(output: string, out: string, platform = process.platform) {
+	rmSync(out, { force: true });
+	if (platform === 'darwin') run('ditto', ['-c', '-k', '--keepParent', output, out]);
+	else if (platform === 'win32') run('tar', ['-a', '-cf', out, '-C', dirname(output), basename(output)]);
+	else run('tar', ['-czf', out, '-C', dirname(output), basename(output)]);
+}
+
+export function sha256_file(path: string): string {
+	return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+export function update_fragment(info: Pick<AppInfo, 'version'>, archive: string, platform = update_platform()): UpdateFragment {
+	return { platform, version: info.version, file: basename(archive), sha256: sha256_file(archive), size: statSync(archive).size };
 }
 
 function icon_path(icon: string | URL, entry: string): string {
@@ -290,14 +346,26 @@ export function sign(target: string, identity: string, scratch: string) {
 	run('codesign', ['--verify', '--strict', target]);
 }
 
+/** A keychain profile on a developer's machine; an Apple ID with an app-specific password on CI, where no keychain profile exists. */
+export type NotaryAuth = { profile: string } | { apple_id: string; password: string; team_id: string };
+
+/** `NOTARY_PROFILE`, else `APPLE_ID` + `APPLE_PASSWORD` + `APPLE_TEAM_ID`; null when neither is complete. */
+export function notary_auth(env: Record<string, string | undefined> = process.env): NotaryAuth | null {
+	if (env.NOTARY_PROFILE) return { profile: env.NOTARY_PROFILE };
+	if (env.APPLE_ID && env.APPLE_PASSWORD && env.APPLE_TEAM_ID) return { apple_id: env.APPLE_ID, password: env.APPLE_PASSWORD, team_id: env.APPLE_TEAM_ID };
+	return null;
+}
+
 /**
  * Stapling only works on a bundle, and the ticket has to be stapled before the zip that ships is
  * made, so the submission zip is rebuilt afterwards; `zip` is the one to ship.
  */
-export function notarize(bundle: string, profile: string, zip: string, log: (line: string) => void) {
+export function notarize(bundle: string, auth: NotaryAuth, zip: string, log: (line: string) => void) {
 	run('ditto', ['-c', '-k', '--keepParent', bundle, zip]);
 	log('notarizing (Apple usually takes a few minutes)');
-	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', profile, '--wait']);
+	const credentials =
+		'profile' in auth ? ['--keychain-profile', auth.profile] : ['--apple-id', auth.apple_id, '--password', auth.password, '--team-id', auth.team_id];
+	const output = run('xcrun', ['notarytool', 'submit', zip, ...credentials, '--wait']);
 	if (!/status: Accepted/.test(output)) {
 		throw new Error(`notarization was not accepted; see \`xcrun notarytool log\` for the submission below\n${output}`);
 	}

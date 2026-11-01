@@ -34,6 +34,13 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
   the icon is the gpuix-svelte one until `icon` names your own PNG. It is built for the machine it
   runs on, so build on macOS, Windows and Linux in turn (a CI matrix, say) to ship all
   three.
+  `bun build.ts --archive` also writes the archive to distribute and the fragment an update
+  manifest is made from.
+- `.github/workflows/release.yml`, `release-please-config.json` — on GitHub, release-please keeps
+  a release PR open from your conventional commits; merging it builds the app on every platform,
+  uploads the archives and an `update.json` the app checks for updates through
+  `check_for_update()` from `gpuix-svelte/update` (`App.svelte` shows the banner). See
+  [docs/updating.md](https://github.com/khromov/gpuix-svelte/blob/main/docs/updating.md).
 - `test.ts` — a headless test through `gpuix-svelte/test`; plain script, exits 1 on failure.
   Runs on macOS and Windows, where the headless renderer is built.
 - `svelte.d.ts` — declares `*.svelte` modules for `tsc`.

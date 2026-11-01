@@ -10,6 +10,8 @@ render(TicTacToe, {
 	// What `npm run compile` (gpuix-svelte/build) packages the executable as; the window takes only its Linux app id from it.
 	app: {
 		name: 'Tic-tac-toe',
-		identifier: 'dev.gpuix.svelte.tictactoe'
+		identifier: 'dev.gpuix.svelte.tictactoe',
+		// Every gpuix-svelte release uploads this app for each platform and this manifest with it.
+		update: { manifest: 'https://github.com/khromov/gpuix-svelte/releases/latest/download/update.json' }
 	}
 });

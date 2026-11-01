@@ -8,15 +8,37 @@ import type { BunPlugin } from 'bun';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_ICON, info_plist, notarize, read_app_options, resolve_app_info, sign, write_icns, write_ico, type AppInfo, type EntryApp } from './app-bundle.ts';
+import {
+	archive_name,
+	DEFAULT_ICON,
+	info_plist,
+	notarize,
+	notary_auth,
+	read_app_options,
+	resolve_app_info,
+	sign,
+	update_fragment,
+	update_platform,
+	write_archive,
+	write_icns,
+	write_ico,
+	type AppInfo,
+	type EmbeddedAppInfo,
+	type EntryApp
+} from './app-bundle.ts';
 
-export type { AppInfo } from './app-bundle.ts';
+export type { AppInfo, UpdateFragment } from './app-bundle.ts';
 
 export interface BuildOptions {
 	/** The entry that mounts the app with `render()` — `standalone.ts` in a scaffolded app. */
 	entry: string | URL;
 	/** Where the output goes; `dist` in the working directory by default. */
 	outdir?: string | URL;
+	/**
+	 * Also write the archive to distribute, `<slug>-<version>-<platform>.zip` (`.tar.gz` on Linux),
+	 * and `update-<platform>.json` beside it, the fragment `gpuix-svelte-update manifest` merges.
+	 */
+	archive?: boolean;
 }
 
 export interface BuildResult {
@@ -27,6 +49,9 @@ export interface BuildResult {
 	app: AppInfo;
 	signed: boolean;
 	notarized: boolean;
+	/** With `archive: true`: the archive and its update fragment. */
+	archive?: string;
+	fragment?: string;
 }
 
 interface WindowsInfo {
@@ -94,13 +119,16 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		}
 	};
 
+	// What gpuix-svelte/update knows about the executable it is running in.
+	const embedded: EmbeddedAppInfo = { name: app.name, slug: app.slug, identifier: app.identifier, version: app.version, ...(app.update && { update: app.update }) };
+
 	const result = await Bun.build({
 		entrypoints: [entry],
 		target: 'bun',
 		// Bun implies `development` unless NODE_ENV is production at build time, and
 		// esm-env lists it first, so both are needed for Svelte's production runtime.
 		conditions: ['custom-renderer', 'production'],
-		define: { 'process.env.NODE_ENV': '"production"' },
+		define: { 'process.env.NODE_ENV': '"production"', 'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)) },
 		minify: true,
 		plugins: [plugin],
 		throw: false,
@@ -142,11 +170,12 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	log(`${rel(output)} (${mb(size)} MB) — ${app.name} ${app.version}, ${app.identifier}${app.icon === DEFAULT_ICON ? ', default icon' : ''}`);
 
 	const identity = process.env.CODESIGN_IDENTITY;
-	const notary = process.env.NOTARY_PROFILE;
+	const notary = notary_auth();
+	const archive = options.archive ? join(outdir, archive_name(app)) : undefined;
 	let signed = false;
 	let notarized = false;
 	if (process.platform !== 'darwin') {
-		if (identity || notary) log('CODESIGN_IDENTITY and NOTARY_PROFILE apply to the macOS build only');
+		if (identity || notary) log('CODESIGN_IDENTITY and the notarization variables apply to the macOS build only');
 	} else if (!identity) {
 		log('CODESIGN_IDENTITY not set; leaving the .app unsigned');
 	} else {
@@ -154,17 +183,26 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		signed = true;
 		log(`signed as ${identity}`);
 		if (!notary) {
-			log('NOTARY_PROFILE not set; skipping notarization');
+			log('neither NOTARY_PROFILE nor APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID set; skipping notarization');
 		} else {
-			const zip = join(outdir, `${app.slug}.zip`);
+			const zip = archive ?? join(outdir, `${app.slug}.zip`);
 			notarize(output, notary, zip, log);
 			notarized = true;
 			log(`notarized and stapled; ${rel(zip)} is the one to ship`);
 		}
 	}
 
+	let fragment: string | undefined;
+	if (archive) {
+		// Notarization already wrote the stapled zip there.
+		if (!notarized) write_archive(output, archive);
+		fragment = join(outdir, `update-${update_platform()}.json`);
+		writeFileSync(fragment, JSON.stringify(update_fragment(app, archive), null, '\t') + '\n');
+		log(`${rel(archive)} (${mb(statSync(archive).size)} MB) and ${rel(fragment)}, for gpuix-svelte-update manifest`);
+	}
+
 	rmSync(scratch, { recursive: true, force: true });
-	return { output, binary: executable, app, signed, notarized };
+	return { output, binary: executable, app, signed, notarized, archive, fragment };
 }
 
 function entry_app(entry: string): EntryApp {

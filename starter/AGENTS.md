@@ -52,6 +52,14 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   Privacy & Security. With `CODESIGN_IDENTITY` set (a `.env` beside package.json), the build signs
   the `.app`, and with `NOTARY_PROFILE` as well it notarizes it and leaves `dist/<slug>.zip` to
   ship; the Shipping page of the docs has the setup.
+- A built app updates itself: `update: { manifest }` in the `app` options names a JSON manifest
+  (`https://github.com/<owner>/<repo>/releases/latest/download/update.json` on GitHub),
+  `check_for_update()` from `gpuix-svelte/update` reads it and the `Update` it returns downloads,
+  hash-checks and swaps the app (`App.svelte` has the banner), and `bun build.ts --archive` writes
+  the archive plus the fragment `gpuix-svelte-update manifest` merges. `.github/workflows/release.yml`
+  does the whole release on GitHub: release-please cuts the version, every platform builds and
+  uploads, and `update.json` is written last. Under `npm start` the check resolves to null. The
+  Updating page of the docs has the manifest format, the signing key and the per-platform details.
 
 ## Writing components
 
@@ -118,5 +126,8 @@ every `svelte` import to it. Keep `svelte` itself out of `package.json`.
 - `test.ts` — the headless test (`gpuix-svelte/test`); a plain script that exits 1 on failure, and
   also when the count given to `finish()` is not how many `check()`s ran, so keep it in step.
 - `standalone.ts`, `build.ts` — the entry and the build script behind `npm run build`.
+- `.github/workflows/release.yml`, `release-please-config.json`, `.release-please-manifest.json` —
+  releases on GitHub: version, binaries for every platform and the update manifest. PR titles and
+  commits on main must be conventional commits for release-please to see them.
 - `tsconfig.json`, `svelte.d.ts`, `svelte.config.js` — TypeScript and svelte-check setup.
 - `bunfig.toml` — preloads the `.svelte` loader for ad-hoc `bun file.ts` runs.

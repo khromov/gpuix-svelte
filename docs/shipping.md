@@ -78,6 +78,10 @@ the entry with Bun's compiler, checks that the GPUI addon made it in, and packag
 for the platform it is running on.
 `outdir` moves the output (`dist` by default), and the returned object names the `output` to ship,
 the `binary` inside it, the resolved `app` metadata, and whether it was `signed` and `notarized`.
+`archive: true` (`bun build.ts --archive` in a scaffolded app) also writes the archive to
+distribute, `<slug>-<version>-<platform>.zip` (`.tar.gz` on Linux), and the fragment an update
+manifest is made from; [Updating](updating.md) is the rest of that story, including a GitHub
+workflow that builds and uploads every platform on each release.
 
 Some things to know:
 
@@ -134,6 +138,11 @@ The one-time setup for the notary profile:
 
 If Apple rejects a submission, the build prints the submission output and fails.
 `xcrun notarytool log <submission-id> --keychain-profile notary` shows the reason.
+
+On a CI runner there is no keychain profile; set `APPLE_ID`, `APPLE_PASSWORD` (the app-specific
+password) and `APPLE_TEAM_ID` instead of `NOTARY_PROFILE`, and import the certificate into a
+keychain first. The starter's release workflow does both from secrets; see
+[Updating](updating.md#on-github).
 
 On Windows, sign the `.exe` afterwards with `signtool` if you have a certificate.
 

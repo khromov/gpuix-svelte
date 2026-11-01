@@ -105,6 +105,11 @@ npm run test:bundle        # gpuix-svelte/build's Node half: the app options rea
                            # metadata defaults, what the window takes from them, the Info.plist,
                            # the .ico container, and real .ico/.icns where the platform has a
                            # scaler, under a path with a space and a ’
+npm run test:update        # gpuix-svelte/update: version order, manifest signing and merging,
+                           # app.update read from an entry, and the whole path on this platform
+                           # against a local http server — write_archive packs a fake app, the
+                           # updater downloads, hash-checks, extracts and swaps it in for a copy
+                           # (relaunch is the one step not run); then the gpuix-svelte-update CLI
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -232,8 +237,8 @@ CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows 
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
 launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
-a check that the binding loads (see the `@gpuix/native` constraint), the two suites that need no
-headless renderer (`test:bundle`, `test:compile`) and `test:automation-live` under `xvfb-run`, all
+a check that the binding loads (see the `@gpuix/native` constraint), the three suites that need no
+headless renderer (`test:bundle`, `test:compile`, `test:update`) and `test:automation-live` under `xvfb-run`, all
 on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
@@ -379,6 +384,55 @@ publish.ts's list, so it ships), and the examples and the starter all take that 
 homepage's macOS tile, rasterized at 1024 px from the `icon.svg` beside it (Chrome over CDP keeps
 both the bold text and the transparent corners, where `sips` drops the weight and `qlmanage` paints
 a white background).
+
+### Updates
+
+`docs/updating.md` is the user-facing page. `gpuix-svelte/update` (`src/update.ts`) is in-house
+and dependency-free, after a survey found nothing on npm that fits a Bun-compiled app: Velopack
+needs the .NET `vpk` toolchain, a second napi addon and its own installer formats, and the rest are
+Electron- or CLI-shaped. The design:
+
+- **The build embeds what the app knows about itself.** `build()` defines
+  `process.env.GPUIX_APP_INFO` as the JSON of `EmbeddedAppInfo` (`name`, `slug`, `identifier`,
+  `version`, `update`), and `app_info()` reads that exact expression (not through a helper, or
+  Bun's `define` would miss it). `read_app_options` accepts `app.update` as the one nested object
+  under `app`, with string values; a `manifest` is required. In a dev run the variable is unset, so
+  `check_for_update()` resolves to null unless `GPUIX_UPDATE_MANIFEST` is set, and the env var can
+  be set by hand to fake a built app (docs: "Trying it out").
+- **Installability is decided before anything is downloaded** (`resolve_target`): no app info or an
+  executable whose basename is not the slug (`bun`/`node` running the source) is `development`;
+  on macOS a path under `AppTranslocation` is `translocated` and the target is the `.app` three
+  levels up; a parent directory without `W_OK` is `read-only`. Tests pass `target` to point the swap
+  at a copy, which still goes through the writability check.
+- **Payload formats follow the platform's tools** so there is no archive library: `write_archive`
+  uses `ditto -c -k --keepParent` on macOS (the notarized zip is the same call, so with
+  `archive: true` notarization writes straight to the versioned name), bsdtar `tar -a -cf x.zip` on
+  Windows, `tar -czf` on Linux; `extract` uses `ditto -x -k`, `tar -xf` (Windows' bsdtar reads zip)
+  and `tar -xf`. `Bun.Archive` was ruled out: it reads tar/tar.gz only (a ditto zip is a
+  `ReadError`), and the module must also run on Node for the tests.
+- **The swap** renames the old `.app` into the staging directory beside it and the new one into
+  place on macOS (after `check_codesign`: a running app with a `TeamIdentifier` only accepts an app
+  that passes `codesign --verify --deep --strict` with the same team; unsigned apps skip it);
+  renames the running `.exe` to `.exe.old` and the new one in on Windows (a running exe can be
+  renamed, not deleted or overwritten; `finish_update()`, which `check_for_update` calls, deletes
+  the `.old` next launch); renames over the executable on Linux. The staging directory lives
+  beside the target so the renames never cross a filesystem. `relaunch_app` spawns a detached
+  `sh -c 'while kill -0 $pid …; open -n/exec "$0"'` on macOS/Linux so the new instance starts after
+  this one exits, and the exe directly on Windows, then `process.exit(0)`.
+- **Trust.** sha256 (and `size`) are always checked while streaming the download. An ed25519
+  signature over `canonical_manifest()` (keys sorted, no whitespace, `signature` excluded) is
+  required when the app carries `update.publicKey` (raw 32 bytes, base64; the PEM private key is a
+  CI secret, `GPUIX_UPDATE_KEY`). The signature covers version, notes and every asset, so a signed
+  manifest can't be repointed.
+- **Release side.** `build({ archive: true })` writes `<slug>-<version>-<platform>.zip|.tar.gz`
+  plus `update-<platform>.json` (`UpdateFragment`); `bin/gpuix-svelte-update.js` (`keygen`,
+  `manifest`, `verify`, plain JS over `gpuix-svelte/update`) merges fragments into the manifest.
+  `notarize()` takes `NotaryAuth`: `NOTARY_PROFILE`, or `APPLE_ID` + `APPLE_PASSWORD` +
+  `APPLE_TEAM_ID` for CI. `starter/.github/workflows/release.yml` is the GitHub golden path
+  (release-please → four-OS build matrix uploading archives → one manifest job), and this repo's
+  `release.yml` runs the same `binaries` + `manifest` jobs on tic-tac-toe, whose `standalone.ts`
+  points at this repo's `releases/latest/download/update.json`, so every gpuix-svelte release
+  exercises the path and the built example updates itself.
 
 ### Rendering to the web
 
@@ -529,7 +583,8 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
-  app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool  ─ Node-testable half of build.ts
+  app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool, the update archive + fragment  ─ Node-testable half of build.ts
+  update.ts    check_for_update(), the swap per platform, manifest signing/merging  ─ `gpuix-svelte/update`; bin/gpuix-svelte-update.js is its CLI
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
   automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts

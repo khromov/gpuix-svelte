@@ -129,7 +129,12 @@ check(
 	'the tic-tac-toe and starter entries read as written',
 	[read(readFileSync(join(root, 'examples/tic-tac-toe/standalone.ts'), 'utf8')), read(readFileSync(join(root, 'starter/standalone.ts'), 'utf8'))],
 	[
-		{ name: 'Tic-tac-toe', identifier: 'dev.gpuix.svelte.tictactoe', title: 'GPUIX + Svelte — Tic-tac-toe' },
+		{
+			name: 'Tic-tac-toe',
+			identifier: 'dev.gpuix.svelte.tictactoe',
+			update: { manifest: 'https://github.com/khromov/gpuix-svelte/releases/latest/download/update.json' },
+			title: 'GPUIX + Svelte — Tic-tac-toe'
+		},
 		{ identifier: 'com.example.gpuix-svelte-starter', title: 'gpuix-svelte starter' }
 	]
 );

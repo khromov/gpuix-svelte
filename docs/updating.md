@@ -1,0 +1,266 @@
+# Updating an app
+
+A built app can update itself. You publish a small JSON manifest and one archive per platform on
+any HTTPS host; the app reads the manifest, and when it names a newer version than the one
+running, downloads the archive, checks its hash (and the manifest's signature, if you sign),
+swaps itself for the new version and restarts. GitHub Releases is the path with the least to set
+up: the starter's workflow builds every platform and uploads both when release-please cuts a
+release.
+
+The pieces are `gpuix-svelte/update` in the app, `archive: true` in the build, and the
+`gpuix-svelte-update` command that writes the manifest.
+
+## Setting it up
+
+**1. Tell the app where its manifest is**, in the `app` options of `standalone.ts`:
+
+```ts
+render(App, {
+	title: 'My App',
+	app: {
+		identifier: 'com.example.my-app',
+		update: {
+			manifest: 'https://github.com/you/my-app/releases/latest/download/update.json'
+		}
+	}
+});
+```
+
+The build bakes it into the executable with the version, so the running app knows both. Under
+`npm start` nothing is baked and `check_for_update()` resolves to null without touching the network
+(see [Trying it out](#trying-it-out) for how to fake it).
+
+**2. Check and install from the app.** `check_for_update()` resolves to null when the app is
+current and otherwise to an `Update`:
+
+```svelte
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { check_for_update, type Update } from 'gpuix-svelte/update';
+
+	let update = $state<Update | null>(null);
+	let progress = $state<number | null>(null);
+	let error = $state('');
+
+	onMount(() => {
+		check_for_update().then((found) => (update = found), (e) => console.warn('update check failed:', e));
+	});
+
+	async function install() {
+		try {
+			await update!.download({ onProgress: (received, total) => (progress = total ? received / total : null) });
+			await update!.install(); // swaps the app and restarts it; { relaunch: false } swaps and keeps running
+		} catch (e) {
+			error = (e as Error).message;
+		}
+	}
+</script>
+
+{#if update}
+	<div class="banner">
+		<div>Version {update.version} is available</div>
+		{#if error}
+			<div class="error">{error}</div>
+		{:else if update.installable}
+			<div class="btn" onclick={install}>{progress === null ? 'Install and restart' : `${Math.round(progress * 100)}%`}</div>
+		{:else if update.url}
+			<div>Get it at {update.url}</div>
+		{/if}
+	</div>
+{/if}
+```
+
+`update.notes` carries the release notes (markdown; `<markdown>` renders it), `update.installable`
+says whether `install()` can do its job here, and `update.reason` says why not when it can't (the
+table under [What install does](#what-install-does)). `install()` downloads first if `download()`
+has not run.
+
+**3. Build with the archive.** `build({ entry, archive: true })`, or `bun build.ts --archive` in a
+scaffolded app, writes two files beside the app in `dist/`:
+
+- `<slug>-<version>-<platform>.zip` on macOS and Windows, `.tar.gz` on Linux: the archive to
+  upload. The platform is `darwin-arm64`, `win32-x64`, `win32-arm64` or `linux-x64`. On macOS, with
+  notarization on, it is the stapled zip the build already makes.
+- `update-<platform>.json`, a fragment with the archive's name, sha256 and size for the next step.
+
+Run it on each platform you ship, as with any build.
+
+**4. Write the manifest and upload everything.** Given the fragments from every platform:
+
+```bash
+npx gpuix-svelte-update manifest --out update.json \
+    --base-url https://github.com/you/my-app/releases/download/v1.2.0/ \
+    --notes CHANGELOG-1.2.0.md \
+    --url https://github.com/you/my-app/releases \
+    update-darwin-arm64.json update-win32-x64.json update-win32-arm64.json update-linux-x64.json
+```
+
+`--base-url` is where the archives go; each asset's URL is that plus its file name. `--notes` is a
+markdown file for `notes`, `--url` a page for people whose copy can't update in place. Upload the
+archives there, and `update.json` to the URL the app has. The app fetches the manifest every time
+it checks, so the file at that URL is all there is to update: nothing is cached, there is no
+server-side logic, and a CDN, an S3 bucket or a plain web server all do.
+
+## On GitHub
+
+The starter carries `.github/workflows/release.yml`, which does steps 3 and 4 for you. It is
+[release-please](https://github.com/googleapis/release-please-action) on every push to `main`: it
+keeps a release PR open from the conventional commits (`feat:`, `fix:`, …) since the last release,
+bumps `package.json`'s version and the changelog, and merging that PR tags a release. Then a build
+matrix (macOS, Windows x64, Windows arm64, Linux) runs `bun build.ts --archive` on each, uploads
+the archive to the release, and one last job merges the fragments into `update.json` with the
+release notes and uploads that too.
+
+The manifest URL the app wants is then
+
+```
+https://github.com/<owner>/<repo>/releases/latest/download/update.json
+```
+
+which GitHub redirects to the newest release's copy. Nothing in the app talks to GitHub's API, so
+there are no rate limits or tokens involved; a private repository would need both, so publish
+releases from a public one.
+
+Secrets, all optional:
+
+| Secret                       | What it does                                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GPUIX_UPDATE_KEY`           | The private key from `gpuix-svelte-update keygen` (the PEM file's text); set, every manifest is signed         |
+| `CODESIGN_IDENTITY`          | `Developer ID Application: Your Name (TEAMID)`: signs the macOS app, as on your machine                          |
+| `MACOS_CERTIFICATE`          | That certificate with its private key as a base64 `.p12` (`base64 -i cert.p12 \| pbcopy`), imported into a keychain for the build |
+| `MACOS_CERTIFICATE_PASSWORD` | The `.p12`'s password                                                                                          |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarize with an Apple ID and an [app-specific password](shipping.md#signing-and-notarizing-on-macos); a runner has no keychain profile |
+
+Without the macOS secrets the app is unsigned, which is fine for an update (the app downloads the
+archive itself, so Gatekeeper's quarantine never applies) but not for first installs. With a
+signed app, an update must be signed by the same team; see below.
+
+The workflow needs nothing else: `GITHUB_TOKEN` uploads the assets. Make the first release by
+merging the PR release-please opens; the app built from it is the first one that can update.
+
+## Signing the manifest
+
+The sha256 in the manifest proves the archive is the one the manifest describes, which covers a
+corrupted or swapped download. Whoever can edit the manifest can edit the hash too, though, so on
+its own the check trusts the host as far as HTTPS does. To trust only yourself, sign:
+
+```bash
+npx gpuix-svelte-update keygen            # writes update-key.pem, prints the public key
+```
+
+Put the public key in the app and keep the PEM out of git (the scaffold's `.gitignore` lists it):
+
+```ts
+update: {
+	manifest: 'https://github.com/you/my-app/releases/latest/download/update.json',
+	publicKey: 'c2VlIHRoZSBrZXlnZW4gb3V0cHV0IGZvciBhIHJlYWwgb25l'
+}
+```
+
+From then on the app refuses a manifest that is unsigned or signed with another key. The
+`manifest` command signs when given `--key update-key.pem` or the PEM in `GPUIX_UPDATE_KEY`, which
+is what the workflow reads; `gpuix-svelte-update verify --public-key <key> update.json` checks a
+file. The signature (ed25519) covers the whole manifest, version, notes and every asset's URL and
+hash, so a signed manifest can't be edited to point at an older or different archive. Losing the
+private key means apps in the field can never accept another update, so keep a copy somewhere safe;
+if it leaks, ship a release with a new public key, signed with the old key, and retire it.
+
+## What `install()` does
+
+On every platform the archive is downloaded to a temporary directory while its sha256 is computed,
+and refused if the hash or size differs from the manifest. It is then extracted next to the app,
+so the final move never crosses a file system, and swapped in:
+
+- **macOS.** `ditto` extracts the `.app`. If the running app is signed with a Team ID, the new one
+  must be signed by the same team and pass `codesign --verify --deep --strict`, so a hijacked
+  manifest can't replace your app with someone else's. The old bundle is renamed aside, the new one
+  moved into place, the old one deleted. To relaunch, a shell waits for this process to exit and
+  then runs `open -n` on the new one.
+- **Windows.** `tar.exe` (every Windows 10 and later has it) extracts the `.exe`. A running
+  executable can't be deleted or overwritten, but it can be renamed: the old one becomes
+  `<name>.exe.old`, the new one takes its place and is started, and the `.old` file is deleted by
+  `check_for_update()` (or `finish_update()`) on the next launch.
+- **Linux.** `tar` extracts the executable, which is renamed over the old one (atomic; the running
+  process keeps its old inode) and started with `exec` once this one has exited.
+
+With `relaunch: false`, `install()` returns after the swap and the app keeps running on the old
+code; the next launch is the new version.
+
+`installable` is false, and `install()` throws, when:
+
+| `reason`        | Meaning                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `development`   | Not a built app: `npm start`, a test, or an executable the build did not make                        |
+| `no-asset`      | The manifest has no entry for this platform                                                          |
+| `translocated`  | macOS is running the app from a read-only copy because it was opened from the download without being moved to Applications |
+| `read-only`     | The directory the app is in can't be written by this user (`/usr/local/bin` on Linux, say)         |
+| `unsupported`   | A platform without a swap                                                                            |
+
+In the last three cases show `update.url`, if the manifest has one, and let the person download
+the new version by hand.
+
+Errors are `UpdateError`s with a `code`: `manifest` (unreachable, not JSON, malformed),
+`signature`, `download`, `hash`, `extract`, `codesign`, `install` and `not-installable`.
+
+## The manifest
+
+```json
+{
+	"version": "1.2.0",
+	"notes": "## What's new\n\n- …",
+	"published_at": "2026-11-01T12:00:00Z",
+	"url": "https://github.com/you/my-app/releases",
+	"platforms": {
+		"darwin-arm64": { "url": "https://…/my-app-1.2.0-darwin-arm64.zip", "sha256": "…", "size": 115331072 },
+		"win32-x64": { "url": "https://…/my-app-1.2.0-win32-x64.zip", "sha256": "…", "size": 136314880 },
+		"win32-arm64": { "url": "https://…/my-app-1.2.0-win32-arm64.zip", "sha256": "…", "size": 120586240 },
+		"linux-x64": { "url": "https://…/my-app-1.2.0-linux-x64.tar.gz", "sha256": "…", "size": 162529280 }
+	},
+	"signature": "base64 ed25519 over the rest, keys sorted, no whitespace"
+}
+```
+
+`version` and `platforms` (each with `url` and `sha256`) are required; the rest is optional.
+Versions compare as semver (`1.2.0-beta.1 < 1.2.0 < 1.10.0`), and only a strictly newer version is
+offered. The archive at `url` holds the `.app`, the `.exe` or the executable at its top level (or
+inside one folder); a `.zip` is extracted on macOS and Windows, a `.tar.gz` anywhere, and a file
+with neither extension is taken as the bare executable. You can write the file by hand or with
+your own tooling as long as it has this shape; `gpuix-svelte-update manifest` is one way.
+
+## Trying it out
+
+A dev run can pretend to be a built app. `GPUIX_UPDATE_MANIFEST` overrides the manifest URL, and
+`GPUIX_APP_INFO` is what the build would have embedded:
+
+```bash
+GPUIX_APP_INFO='{"name":"My App","slug":"my-app","identifier":"com.example.my-app","version":"0.0.1"}' \
+GPUIX_UPDATE_MANIFEST=http://127.0.0.1:8000/update.json npm start
+```
+
+with `update.json` and the archives served from a directory (`python3 -m http.server`, say). The
+check and the download run for real; `install()` refuses with `development`, since the running
+executable is Node or Bun. To exercise the swap, run the built app from `dist/` the same way, or
+in a test hand `check_for_update()` a `target`, the path of a copy of the app to replace: the
+repository's `test/update.ts` does that against a local server.
+
+## API
+
+From `gpuix-svelte/update`:
+
+- `check_for_update(options?)` → `Promise<Update | null>`. Options: `manifest`, `publicKey`,
+  `version` (the running one), `platform`, `target`, `fetch`; each defaults to what the build
+  embedded, and `GPUIX_UPDATE_MANIFEST` in the environment outranks `manifest`.
+- `Update`: `version`, `current`, `notes`, `published_at`, `url`, `platform`, `asset`
+  (`{ url, sha256, size }` or null), `installable`, `reason`; `download({ onProgress })` resolves
+  to the archive's path; `install({ relaunch })`.
+- `finish_update()` deletes the `.old` executable a Windows update leaves; `check_for_update()`
+  calls it, so an app that never checks at startup calls this instead.
+- `app_info()`: what the build embedded (`name`, `slug`, `identifier`, `version`, `update`), or
+  null in a dev run. Handy for an About screen.
+- `compare_versions(a, b)`, `canonical_manifest`, `sign_manifest`, `verify_manifest`,
+  `generate_keys`, `build_manifest`: what the CLI is made of, for your own release tooling.
+- `UpdateError` with `code`, and the `UpdateManifest`, `UpdateAsset`, `UpdateFragment` and
+  `NotInstallable` types.
+
+From `gpuix-svelte/build`: `build({ entry, archive: true })` returns `archive` and `fragment`
+paths alongside `output`.

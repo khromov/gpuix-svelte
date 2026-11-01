@@ -55,7 +55,7 @@ for (const file of ['app.ts', 'standalone.ts']) {
 	writeFileSync(path, source.replaceAll('gpuix-svelte starter', json.name).replaceAll('gpuix-svelte-starter', identifier));
 }
 // npm strips .gitignore from published tarballs, so the scaffolder writes it.
-writeFileSync(join(target, '.gitignore'), 'node_modules\ndist\n.env\n.DS_Store\n');
+writeFileSync(join(target, '.gitignore'), 'node_modules\ndist\n.env\n.DS_Store\nupdate-key.pem\n');
 
 const agent = process.env.npm_config_user_agent?.split('/')[0] ?? 'npm';
 const pm = ['bun', 'pnpm', 'yarn'].includes(agent) ? agent : 'npm';
