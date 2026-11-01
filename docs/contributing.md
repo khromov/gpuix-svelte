@@ -54,10 +54,6 @@ Every test script, and every demo apart from the Bun-only `demo:web`, has a Bun 
 twins run the same entry points on Bun, which takes the `.svelte` loader as a `--preload`. CI runs
 both runtimes.
 
-Strata (formerly Substrate), a "second brain" app that used to live in `examples/second-brain`,
-moved to its own private repository on 2026-10-12. It consumes the published package like any
-other app.
-
 A demo that starts cleanly prints
 
 ```

@@ -162,7 +162,9 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
 `npm run bun:demo:counter`, ...) running the same entry through Bun (`node bin/gpuix-svelte.js
 --bun ...`), which takes the loader as a `--preload` rather than an `--import`; `bunfig.toml`
-carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun install` either way,
+carries the same preload, but an ad-hoc `bun file.ts` still lacks the two `--conditions` flags and
+resolves `svelte` to its server build (`custom_renderer_unavailable_on_server`), so go through the
+bin. Deps come from `bun install` either way,
 but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks its runtime
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
@@ -189,8 +191,10 @@ over what a paint queued (`layout`, say) right after that paint, and `Scroller`'
 it. Prefer them over calling `dispatch()` directly, which injects an
 event at an element and *bypasses* hit testing, so it can pass while the real window fails — the
 renderer's own tests do it only where the batching itself is under test. The headless viewport
-width follows `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px
-(`MAX_HEADLESS_HEIGHT`) — elements laid out below that can't be hit (`click` throws; shift the
+width follows `mount_headless`'s `width`/`height` on macOS, but its height caps at about 540
+logical px (`MAX_HEADLESS_HEIGHT` says 538, but it is only used in error text; a macOS 27 machine
+measured 542, so the real cap follows the display) — elements laid out below that can't be hit
+(`click` throws; shift the
 layout up inside an absolute wrapper to reach them) — and Windows ignores the request and opens a
 viewport sized from the display (1024×749 on CI, 1536×1095 on a dev machine), so never assert
 against the size you asked for; read `native.getWindowSize()`
@@ -316,10 +320,9 @@ as `set_debug_overlay(mode)`, `cycle_debug_overlay()`, `debug_overlay()`,
 count, recorded even while the overlay is hidden). A headless bench of one component is those calls
 and `wheel()` from `gpuix-svelte/test` around `mount_headless` (from outside the repo it needs a
 `node_modules` of symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}`
-package.json). Substrate's `scripts/frame-cost.ts` (`bun run frames` in
-`../substrate-gpuix-svelte`) is the worked example over a real window: it boots the app against a
-`VACUUM INTO` copy of its data and prints idle and while-scrolling draw times per route; its
-AGENTS.md keeps the baselines.
+package.json). Over a real window, the same calls around `render()` plus a wheel through
+`gpuix-svelte/automation` give idle and while-scrolling draw times per screen; keep the baselines
+next to the app so a regression shows.
 
 ## Shipping
 
@@ -661,7 +664,8 @@ shorthand.
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both
 must be installed before the entry module resolves — Node via `--import gpuix-svelte/register`,
-Bun via `--preload gpuix-svelte/plugin` (or `bunfig.toml`'s `preload`), both supplied by
+Bun via `--preload gpuix-svelte/plugin` (or `bunfig.toml`'s `preload`, which alone is not enough:
+the `--conditions` flags are what pick the custom-renderer build), both supplied by
 `bin/gpuix-svelte.js`. Tests rely on that registration rather than importing a loader themselves.
 Both also compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
 `svelte/compiler`, no renderer option) — which does **not** strip types, so the loaders do it
@@ -752,8 +756,8 @@ Unknown events are dropped silently.
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
 `docs/components.md` documents their props and the native `<anchored>`.
 
-- **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground and
-  Substrate all use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
+- **`Scroller`** is the scroll column with a drawn thumb (the tutorial and the styling playground
+  use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
   draws its own from what native reports (`layout` on the column and its content, `scrollChange`
   on the column) and drags on a panel-sized overlay. It has no timer and makes no native read, since
   on Windows and Linux reading bounds draws a frame (polling them kept an idle window at 8 frames/s
@@ -815,8 +819,8 @@ mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` 
 are the ones that bite most often, and the renderer behaviour behind them.
 
 - Style with `<style>` blocks for shape and colour, colours as `var(--token)` with the palette
-  handed to `set_css_vars({ token: '#fff' })` once from the root (Substrate does it in an `$effect`
-  over its `LIGHT`/`DARK` objects — a theme switch is one call), and `style:` / inline `style="..."`
+  handed to `set_css_vars({ token: '#fff' })` once from the root (an `$effect` over `LIGHT`/`DARK`
+  palette objects makes a theme switch one call), and `style:` / inline `style="..."`
   only for measured values. Class rules accept `.btn`, `.btn.primary`, `.a, .b`, one tag, and
   `:hover` / `:active` / `:focus-visible`; specificity is class count then source order, inline
   `style` always wins. Box shorthands work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths
@@ -832,10 +836,9 @@ are the ones that bite most often, and the renderer behaviour behind them.
   URL or an http(s) URL GPUI fetches in the background, so give it both a width and a height.
   `<markdown>` is rebuilt and laid out in full on every frame, on screen or not, and the cost
   follows its block count, not its bytes (a 226-block page cost ~7 ms a frame headless, ~18 ms in
-  Substrate's window), so a long document goes
-  one block per row under `<Scroller virtual>`, which brought it under 1 ms headless and the window
-  to ~5 ms — Substrate's `Item.svelte` with `lib/blocks.ts` (one row per top-level token of
-  `marked`'s lexer) is the example. `<svg source>` inherits **no** `color` natively, so the renderer
+  a real window), so a long document goes one block per row under `<Scroller virtual>`, one row
+  per top-level token of `marked`'s lexer, which brought it under 1 ms headless and the window to
+  ~5 ms. `<svg source>` inherits **no** `color` natively, so the renderer
   copies the nearest ancestor's (from its class rules or inline style) onto any `<svg>` without one
   and re-copies it whenever that ancestor restyles; a parent's `:hover` colour does not reach it,
   since hover is native.
@@ -886,8 +889,8 @@ are the ones that bite most often, and the renderer behaviour behind them.
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` reports the border box since native 0.11). GPUI routes
   macOS's ctrl+click to `click`, not `auxClick`, so a surface that wants the platform's secondary
-  click needs both handlers; Substrate's `is_secondary(e)` in `lib/ui.svelte.ts` is that check
-  written once.
+  click needs both handlers; write the check (`e.isRightClick || e.modifiers.ctrl`) once in a
+  helper and share it.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child
@@ -1002,12 +1005,9 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
 - Sibling checkouts: `../gpuix` is the fork this repo was extracted from and lags upstream (native
   0.7.0) — read upstream release tags instead (see "Regenerating the styling reference");
   `../svelte` (khromov/svelte) is the local copy of the custom-renderer PR stack, on its
-  `custom-condition` branch (check it out before reading; it is force-pushed about weekly);
-  `../substrate-gpuix-svelte` (khromov/substrate-gpuix-svelte, private) is Substrate, the "second
-  brain" app that consumes the published package. Wherever this file says "Substrate's `x`", the
-  path is relative to that checkout. Its `bun run test` is the largest consumer suite there is; to
-  run it against this checkout, swap its `node_modules/gpuix-svelte` for a symlink to
-  `../../gpuix-svelte`, and `bun install` there restores the published copy.
+  `custom-condition` branch (check it out before reading; it is force-pushed about weekly). To run
+  a consumer app's test suite against this checkout, swap its `node_modules/gpuix-svelte` for a
+  symlink to this repo; `bun install` there restores the published copy.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
