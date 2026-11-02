@@ -191,9 +191,11 @@ misspelled option, or a version that is not semver.
 On every platform the archive is downloaded to a temporary directory while its sha256 is computed;
 the download stops as soon as it passes the size the manifest promised, and is refused if the hash
 or size differs. The archive is told apart by its bytes, not its name (a zip, or a bare
-executable), and the zip is opened by gpuix-svelte's own reader, the same code on every platform:
-it keeps unix modes and symlinks, refuses any entry that would land outside the directory, and
-skips the `__MACOSX` and `._` sidecars Finder and `ditto` add. Extraction goes into a directory
+executable), and the zip is opened by [adm-zip](https://www.npmjs.com/package/adm-zip) (no
+dependencies, `node:zlib` underneath), the same on every platform: unix modes are kept, every entry
+is checked to land inside the directory before anything is written, and the `__MACOSX` and `._`
+sidecars Finder and `ditto` add are skipped. Symlinks are not supported in an update archive (an
+app gpuix-svelte builds has none); one would come out as a file. Extraction goes into a directory
 next to the app, so the final move never crosses a file system, and what was extracted has to be
 an app of this platform: the entry named like the running one, or the only candidate, and a real
 `.app` with an `Info.plist`, a Windows PE or a Linux ELF executable. Then it is swapped in:

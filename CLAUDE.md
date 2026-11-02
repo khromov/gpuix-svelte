@@ -415,16 +415,21 @@ Electron- or CLI-shaped. The design:
   since Windows ACLs ignore `accessSync`). Tests pass `target` to point the swap at a copy, which
   still goes through the writability probe. Both URLs must be `https:` (`check_url`; loopback
   `http:` allowed).
-- **The payload is a zip on every platform, read and written by `src/zip.ts`**: a central-directory
-  parser over `node:zlib`'s `inflateRawSync`/`deflateRawSync`/`crc32` (both runtimes have them),
-  no dependency and no OS tool. It keeps unix modes (the executable bit) and symlinks, reads what
-  `ditto`, bsdtar, Finder and `zip` write (zip64 fields read, not written; `._`/`__MACOSX`
-  sidecars skipped), and `extract_zip` refuses absolute names, drive letters, backslashes, `..`
-  and symlinks that point outside. `write_archive` is `write_zip` with `--keepParent` semantics;
-  the one remaining `ditto` call is `notarize()`'s submission zip on a macOS build machine, which
-  with `archive: true` is also the shipped file, so the reader is tested on a ditto zip. `extract`
-  tells the download apart by magic bytes (`kind_of`: zip or a PE/ELF/Mach-O executable, never by
-  the URL). `Bun.Archive` was ruled out: it reads tar/tar.gz only, and the module must also run on
+- **The payload is a zip on every platform, read and written through adm-zip** (`src/zip.ts` is
+  the thin layer): the third runtime dependency, chosen as a decision over a hand-written reader
+  because it is zero-dependency, widely used (~30M weekly downloads) and does its inflate/deflate
+  through `node:zlib`. Verified empirically before adopting it: modes round-trip (`addLocalFolder`
+  records `stat.mode`, `extractEntryTo(…, keepOriginalPermission)` chmods with it), CRCs are
+  checked on read, and a `../` entry is neutralised (kept inside the target), not followed. What
+  the layer adds, because adm-zip does not: every entry name is validated before extraction
+  (absolute, drive letter, backslash, `..`, `.` → `ZipError`), `._` and `__MACOSX` sidecars are
+  skipped (adm-zip would write them as files, which breaks a signed bundle's seal), and a symlink
+  entry is known to come out as a file holding its target (a bundle `build()` makes has none;
+  documented as unsupported). `write_archive` is `write_zip` with `--keepParent` semantics; the one
+  remaining `ditto` call is `notarize()`'s submission zip on a macOS build machine, which with
+  `archive: true` is also the shipped file, so the reader is tested on a ditto zip. `extract` tells
+  the download apart by magic bytes (`kind_of`: zip or a PE/ELF/Mach-O executable, never by the
+  URL). `Bun.Archive` was ruled out: it reads tar/tar.gz only, and the module must also run on
   Node for the tests. The download lands under a fixed name (`update.bin`) in its own `mkdtemp`
   directory: nothing from the URL becomes a path.
 - **What was extracted has to be the app** (`locate`): the entry named like the target, else the
@@ -717,8 +722,8 @@ keeps no `node:*` import, so it bundles for the browser as-is; `render_hot` live
 for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
 `compile.ts` propagates that query to child `.svelte` specifiers — static, side-effect and dynamic
 `import()` alike — or a reload would re-instantiate the root against stale children. It finds them
-by parsing the emitted JS with `acorn` (Svelte's own parser, and the one dependency besides
-`@gpuix/native` and the bundled svelte) and splicing the query in at each specifier's offset, so a
+by parsing the emitted JS with `acorn` (Svelte's own parser; the other runtime dependencies are
+`@gpuix/native`, the bundled svelte and `adm-zip` for update archives) and splicing the query in at each specifier's offset, so a
 `.svelte` string inside ordinary code or a comment is left alone and the rest of the output stays
 byte-identical. Only relative, absolute and `file:` specifiers are busted: Node refuses a bare one
 with a query, and a package component is not what is being edited. The query does nothing on Bun
