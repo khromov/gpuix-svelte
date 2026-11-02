@@ -111,3 +111,6 @@ jobs:
           node bin/gpuix-svelte.js update manifest --out dist/update.json --base-url https://example.com/ --key dist/update-key.pem --public-key "$key" dist/update-*.json
           node bin/gpuix-svelte.js update verify --public-key "$key" dist/update.json
         shell: bash
+        env:
+          # Git Bash would rewrite a key starting with `/` into a Windows path.
+          MSYS_NO_PATHCONV: 1

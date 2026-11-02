@@ -18,6 +18,7 @@ export type {
 	UpdateFragment,
 	UpdateManifest
 } from './update.ts';
+export type { PreviousInstance } from './previous-instance.ts';
 
 export class UpdateError extends Error {
 	code: string;
@@ -38,3 +39,11 @@ export async function check_for_update(_options: CheckOptions = {}): Promise<Upd
 }
 
 export function finish_update() {}
+
+export function wait_for_previous_instance(): false {
+	return false;
+}
+
+export function updated_from(): null {
+	return null;
+}

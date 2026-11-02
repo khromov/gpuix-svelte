@@ -393,7 +393,7 @@ a white background).
 ### Updates
 
 `docs/updating.md` is the user-facing page. `gpuix-svelte/update` (`src/update.ts`) is in-house
-and dependency-free, after a survey found nothing on npm that fits a Bun-compiled app: Velopack
+(adm-zip is its one dependency), after a survey found nothing on npm that fits a Bun-compiled app: Velopack
 needs the .NET `vpk` toolchain, a second napi addon and its own installer formats, and the rest are
 Electron- or CLI-shaped. The design:
 
@@ -435,36 +435,48 @@ Electron- or CLI-shaped. The design:
 - **What was extracted has to be the app** (`locate`): the entry named like the target, else the
   only candidate, one folder deep at most; then a real `.app` with an `Info.plist`, or a file with
   the platform's executable magic. On macOS `check_bundle` reads the XML plist itself
-  (`plist_strings`: a depth-aware scan of the top-level dict's `<key>`/`<string>` pairs, entities
-  decoded; a binary plist reads as nothing and fails the check) and requires `CFBundleIdentifier`
-  == the embedded identifier (when known), the version == the manifest's, and the
-  `CFBundleExecutable` to exist, so a hijacked manifest can't hand the app another app or an old
-  build relabelled.
-- **The swap** renames the old `.app` into the staging directory beside it and the new one into
-  place on macOS (no code-signature check: it was dropped as a decision, the manifest signature is
-  the trust, and macOS checks the new bundle's signature itself at launch; the updater calls no
-  OS tool at all); renames the running `.exe` to `.exe.old`
-  and the new one in on Windows (a running exe can be renamed, not deleted or overwritten;
-  `finish_update()`, which `check_for_update` calls, deletes exactly `<exe>.old` /
-  `<exe>.<pid>.old` next launch); renames over the executable on Linux. The staging directory is
-  a `mkdtemp` beside the target so the renames never cross a filesystem and two instances can't
-  clash. It and the download's temp directory carry the pid in their names
-  (`.update-<pid>-…`, `gpuix-svelte-update-<pid>-…`), so an app closed midway leaves nothing for
-  long: `finish_update()` deletes those whose process is gone (`process.kill(pid, 0)` says ESRCH)
-  and leaves a running instance's alone. If the rename-in fails the old one is renamed back, and if that fails too staging is kept
-  and the error says where the old bundle is. Post-swap cleanup is best-effort. `relaunch_app` is
-  Electron's `app.relaunch()` with no helper process: `spawn` of the new executable itself (the
-  bundle's `CFBundleExecutable` on macOS, never `open`, and never a shell or PowerShell, which
-  exits 0 without running its script under `detached`), `detached`, `stdio: 'ignore'`, this
-  process's `argv.slice(2)` replayed (`install({ args })` overrides), then `process.exit(0)`.
-  Electron's wait-for-parent (kqueue / PDEATHSIG / WaitForSingleObject in its relauncher helper)
-  is done by the new instance instead: `GPUIX_RELAUNCH_AFTER=<pid>` in its environment, and
+  (`plist_strings`: comments, CDATA and processing instructions stripped, first `<plist>` only, a
+  depth-aware scan of the top-level dict's `<key>`/`<string>` pairs with self-closing `<array/>`
+  /`<dict/>` not counted, entities decoded; `bplist` or no `<plist>` reads as null and fails the
+  check) and requires `CFBundleIdentifier` == the embedded identifier (when known), a
+  `CFBundleShortVersionString` equal to the manifest's, and a `CFBundleExecutable` that is a bare
+  name whose file is a regular, executable Mach-O (`check_executable`), so a relaunch can't die
+  silently. **This is a guard against a wrong upload, not against a hostile manifest**: the values
+  live in the attacker's own archive, so with an unsigned manifest whoever controls the host has
+  code execution on every client. The manifest signature is the only trust; `publicKey` stays
+  optional as a decision, and the docs say so.
+- **The swap** renames the old app aside on every platform (into the staging directory beside it,
+  or `.exe.old` on Windows, where a running exe can be renamed but not deleted or overwritten and
+  `finish_update()` deletes exactly `<exe>.old` / `<exe>.<pid>.old` next launch) and the new one
+  in; `swap` returns where the old copy is, and it is kept until the new instance has started. No
+  code-signature check: dropped as a decision. The staging directory is a `mkdtemp` beside the
+  target so the renames never cross a filesystem and two instances can't clash. It and the
+  download's temp directory carry the pid in their names (`.update-<pid>-…`,
+  `gpuix-svelte-update-<pid>-…`), so an app closed midway leaves nothing for long:
+  `finish_update()` deletes those whose process is gone (`process.kill(pid, 0)` says ESRCH) and
+  leaves a running instance's alone. If the rename-in fails (retried for a few seconds on Windows,
+  where an antivirus can hold a fresh exe) the old one is renamed back; if that fails too,
+  `StrandedError` makes `install()` rename staging to `.update-kept-…`, which the sweep's
+  `^\d+-` pid pattern never matches, and the error names the path. Post-swap cleanup is
+  best-effort. `relaunch_app` is Electron's `app.relaunch()` with no helper process: `spawn` of the
+  new executable itself (the bundle's `CFBundleExecutable` on macOS, never `open`, never a shell
+  or PowerShell, no `windowsHide`, which would apply to the app's own window), `detached`,
+  `stdio: 'ignore'`, cwd falling back to the app's directory when ours was just renamed away,
+  this process's `argv.slice(2)` replayed (`install({ args })` overrides). Electron's readiness
+  handshake and wait-for-parent are both kept, in portable form: `GPUIX_RELAUNCH_AFTER=<pid>` and
+  `GPUIX_RELAUNCH_READY=<sentinel>` go in the child's environment; the old process awaits the
+  `spawn`/`error` event, then polls for the sentinel (10 s, `READY_TIMEOUT`) and only then
+  `process.exit(0)`s — a spawn error, an early exit or no sentinel means `roll_back` (new one into
+  staging, old one back) and a `RelaunchError` with `installed` reset. The new instance's
   `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
-  before creating the window) polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH, 10 s
-  cap, then deletes the variable so children don't inherit it. `GPUIX_UPDATED_FROM=<old version>`
-  rides along for a "what's new". Electron's Windows de-elevation has no portable equivalent and is
-  not done. `Update.installed` makes a second `install()` throw; a download in flight is
-  memoised, and `signal` aborts it.
+  before creating the window; `process.getBuiltinModule('node:fs')` for the sentinel) writes the
+  sentinel first, then polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH and returns
+  `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
+  all three variables are taken out of the environment on the first call so children don't inherit
+  them. `updated_from()` answers from the same read. Electron's Windows de-elevation has no
+  portable equivalent and is not done. `Update.installed` makes a second `install()` throw; a
+  download in flight is memoised, and `signal` aborts it. `check_url` is applied to
+  `response.url` too, so a redirect can't leave https.
 - **Trust.** sha256 (and `size`) are checked while streaming, and the download stops as soon as
   it passes the manifest's `size`. An ed25519 signature over `canonical_manifest()` (keys sorted,
   no whitespace, `signature` excluded) is required when the app carries `update.publicKey` (the
@@ -1000,7 +1012,11 @@ gitignored `template/`; run from the repo, `index.js` reads `starter/` directly)
 `npm run consume` installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays
 pristine). It has its own tsconfig with the `paths` for the nested svelte and its own
 `AGENTS.md` (and a `CLAUDE.md` that imports it) for the consumer's agents, and is excluded from
-the root `tsconfig`, eslint and `files`.
+the root `tsconfig`, eslint and `files`. The scaffolder makes the release workflow optional: an
+interactive run asks (and asks for `owner/repo`, which it writes into `standalone.ts`'s commented
+`update:` line as the manifest URL), `--github [owner/repo]` / `--no-github` decide for scripts,
+and with neither a non-TTY run keeps the workflow, which is what `consume` gets. `--no-github`
+removes `.github/`, `release-please-config.json` and `.release-please-manifest.json` after the copy.
 
 ## Runtime
 

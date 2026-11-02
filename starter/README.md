@@ -35,8 +35,10 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
   writes the archive to distribute and the fragment an update manifest is made from.
 - `.github/workflows/release.yml`, `release-please-config.json`, `.release-please-manifest.json` —
   on GitHub, release-please keeps a release PR open from your conventional commits; merging it
-  builds the app on every platform and uploads the archives and an `update.json`. Uncomment the
-  `update` line in `standalone.ts` and the app checks that manifest through `check_for_update()`
+  builds the app on every platform and uploads the archives and an `update.json`. The scaffolder
+  asks whether to include them (`--github owner/repo` or `--no-github` decides without asking),
+  and with the repository named it fills in the `update` line of `standalone.ts`; otherwise
+  uncomment that line yourself. The app then checks that manifest through `check_for_update()`
   from `gpuix-svelte/update` (`App.svelte` shows the banner). See
   [docs/updating.md](https://github.com/khromov/gpuix-svelte/blob/main/docs/updating.md).
 - `test.ts` — a headless test through `gpuix-svelte/test`; plain script, exits 1 on failure.

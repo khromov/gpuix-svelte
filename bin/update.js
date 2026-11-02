@@ -66,7 +66,10 @@ export async function run(/** @type {string[]} */ argv) {
 	}
 
 	// Through the package's own exports: src/update.ts in the repo, lib/update.js once packed.
-	const { build_manifest, generate_keys, verify_manifest } = await import('gpuix-svelte/update');
+	const { build_manifest, generate_keys, is_public_key, verify_manifest } = await import('gpuix-svelte/update');
+if (flags['public-key'] !== undefined && !is_public_key(flags['public-key'])) {
+	fail(`--public-key is not the key keygen printed (32 bytes, base64); a shell may have rewritten it: ${flags['public-key']}`, 2);
+}
 
 	switch (command) {
 		case 'keygen': {

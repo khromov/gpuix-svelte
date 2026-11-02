@@ -11,7 +11,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
@@ -31,6 +31,7 @@ import {
 	plist_strings,
 	sign_manifest,
 	UpdateError,
+	updated_from,
 	verify_manifest,
 	wait_for_previous_instance,
 	type UpdateManifest
@@ -156,18 +157,20 @@ for (const dir of [src, installed, dist]) mkdirSync(dir, { recursive: true });
 const app_name = darwin ? 'Fake.app' : win32 ? 'fake.exe' : 'fake';
 const magic = win32 ? 'MZ' : '\x7fELF';
 
-function fake_app(dir: string, version: string, { identifier = 'com.x.fake', plist = true, program = true } = {}): string {
+function fake_app(dir: string, version: string, { identifier = 'com.x.fake', plist = true, program = true, version_key = true } = {}): string {
 	if (darwin) {
 		const bundle = join(dir, 'Fake.app');
 		const macos = join(bundle, 'Contents', 'MacOS');
 		mkdirSync(macos, { recursive: true });
 		if (plist) {
+			const version_pair = version_key ? `<key>CFBundleShortVersionString</key><string>${version}</string>` : '';
 			writeFileSync(
 				join(bundle, 'Contents', 'Info.plist'),
-				`<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${identifier}</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleExecutable</key><string>fake</string></dict></plist>\n`
+				`<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${identifier}</string>${version_pair}<key>CFBundleExecutable</key><string>fake</string></dict></plist>\n`
 			);
 		}
-		writeFileSync(join(macos, 'fake'), `#!/bin/sh\necho ${version}\n`);
+		// A Mach-O by its magic, which is what the bundle check wants; `program: false` is a script.
+		writeFileSync(join(macos, 'fake'), program ? Buffer.concat([Buffer.from([0xcf, 0xfa, 0xed, 0xfe]), Buffer.from(` fake ${version}`)]) : `#!/bin/sh\necho ${version}\n`);
 		chmodSync(join(macos, 'fake'), 0o755);
 		return bundle;
 	}
@@ -206,6 +209,17 @@ const other = archive_of(fake_app(other_dir, '5.0.0', { identifier: 'com.x.other
 const native_dir = join(scratch, 'native');
 mkdirSync(native_dir);
 const native_zip = archive_of(fake_app(native_dir, '6.0.0'), '6.0.0', { ditto: darwin });
+const nover_dir = join(scratch, 'nover');
+mkdirSync(nover_dir);
+const nover = archive_of(fake_app(nover_dir, '7.0.0', { version_key: false }), '7.0.0');
+const mislabeled_dir = join(scratch, 'mislabeled');
+mkdirSync(mislabeled_dir);
+const mislabeled = archive_of(fake_app(mislabeled_dir, '7.0.0'), '7.5.0');
+const bare_dir = join(scratch, 'bare');
+mkdirSync(bare_dir);
+const bare_file = join(dist, `fake-8.5.0-${platform}.bin`);
+copyFileSync(darwin ? join(fake_app(bare_dir, '8.5.0'), 'Contents', 'MacOS', 'fake') : fake_app(bare_dir, '8.5.0'), bare_file);
+const bare = update_fragment({ version: '8.5.0' }, bare_file);
 
 const manifests: Record<string, (base: string) => UpdateManifest> = {
 	'/update.json': (base) => build_manifest({ fragments: [fragment], base_url: base, notes: 'Second', url: `${base}/page`, private_key: keys.privateKey }),
@@ -219,6 +233,9 @@ const manifests: Record<string, (base: string) => UpdateManifest> = {
 	'/bad.json': (base) => build_manifest({ fragments: [bad], base_url: base }),
 	'/other.json': (base) => build_manifest({ fragments: [other], base_url: base }),
 	'/native.json': (base) => build_manifest({ fragments: [native_zip], base_url: base }),
+	'/nover.json': (base) => build_manifest({ fragments: [nover], base_url: base }),
+	'/mislabeled.json': (base) => build_manifest({ fragments: [mislabeled], base_url: base }),
+	'/bare.json': (base) => build_manifest({ fragments: [bare], base_url: base }),
 	'/real.json': (base) => build_manifest({ fragments: [real_fragment!], base_url: base, private_key: keys.privateKey })
 };
 let real_fragment: UpdateFragment | undefined;
@@ -324,6 +341,13 @@ try {
 		['6.0.0', true, false]
 	);
 
+	const without_version = await at('nover.json', { version: '6.0.0' });
+	check('on macOS a bundle with no version key is refused (elsewhere there is no plist)', [await code_async(() => without_version!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '7.0.0']);
+	const relabelled = await at('mislabeled.json', { version: '6.0.0' });
+	check('on macOS a bundle whose version is not the manifest\'s is refused', [await code_async(() => relabelled!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '7.0.0']);
+	const bare_update = await at('bare.json', { version: '6.0.0' });
+	check('a bare executable installs under the app\'s name on Windows and Linux; macOS wants a bundle', [await code_async(() => bare_update!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '8.5.0']);
+
 	check('a read-only install directory is reported at check time, before anything is downloaded', await read_only_reason(), win32 || process.getuid?.() === 0 ? 'skipped' : 'read-only:not-installable');
 
 	const gone = spawnSync(process.execPath, ['-e', '']).pid;
@@ -364,7 +388,7 @@ async function real_update() {
 		lines()
 			.filter((line) => !line.startsWith('abandoned '))
 			.map((line) => line.replace(/^(start \S+) \d+/, '$1')),
-		['start 8.0.0 abandon', 'done 8.0.0', 'start 8.0.0 --with an argument', 'start 9.0.0 --with an argument', 'waited for 8.0.0: true', 'done 9.0.0']
+		['start 8.0.0 abandon', 'done 8.0.0', 'start 8.0.0 --with an argument', 'start 9.0.0 --with an argument', 'waited for 8.0.0: exited, previous gone: true', 'done 9.0.0']
 	);
 	const old_pid = pid_of('8.0.0');
 	const new_pid = pid_of('9.0.0');
@@ -473,6 +497,16 @@ const corrupt = stored.toBuffer();
 corrupt[30 + 1 + 10] ^= 0xff;
 writeFileSync(join(scratch, 'corrupt.zip'), corrupt);
 check('a damaged entry fails its CRC rather than installing', message(() => extract_zip(join(scratch, 'corrupt.zip'), join(scratch, 'corrupt-out'))).includes('CRC'), true);
+const loose = new AdmZip();
+loose.addFile('loose/open', Buffer.from('x'), '', 0o777);
+loose.writeZip(join(scratch, 'loose.zip'));
+extract_zip(join(scratch, 'loose.zip'), join(scratch, 'loose-out'));
+check('an entry writable by everyone comes out writable by its owner only', win32 ? '755' : (statSync(join(scratch, 'loose-out', 'loose', 'open')).mode & 0o777).toString(8), '755');
+const linked = join(scratch, 'linked');
+mkdirSync(linked);
+writeFileSync(join(linked, 'real'), 'x');
+if (!win32) symlinkSync('real', join(linked, 'link'));
+check('a symlink is refused when the archive is written', win32 ? 'symlink' : message(() => write_zip(linked, join(scratch, 'linked.zip'))).includes('symlink') ? 'symlink' : 'written', 'symlink');
 writeFileSync(join(scratch, 'nope.zip'), 'nope');
 check('not a zip at all', message(() => extract_zip(join(scratch, 'nope.zip'), join(scratch, 'nope-out'))).startsWith('not a zip file'), true);
 
@@ -513,7 +547,13 @@ check(
 // --- the relaunch handshake and the plist reader ------------------------------------------------
 
 delete process.env.GPUIX_RELAUNCH_AFTER;
+process.env.GPUIX_UPDATED_FROM = '1.2.3';
 check('with no previous instance named there is nothing to wait for', wait_for_previous_instance(), false);
+check('updated_from() remembers the version the environment named and takes it out of the environment', [updated_from(), updated_from(), process.env.GPUIX_UPDATED_FROM], ['1.2.3', '1.2.3', undefined]);
+const ready = join(scratch, 'ready-sentinel');
+process.env.GPUIX_RELAUNCH_READY = ready;
+process.env.GPUIX_RELAUNCH_AFTER = 'not a pid';
+check('the sentinel is written for the instance that started this one, and a bad pid is ignored', [wait_for_previous_instance(), existsSync(ready) && readFileSync(ready, 'utf8') === String(process.pid), process.env.GPUIX_RELAUNCH_READY], [false, true, undefined]);
 // A grandchild, as the replaced instance is never the new one's child: a child would sit unreaped
 // (and so still "alive") while the wait blocks the event loop.
 const short_lived = Number(
@@ -524,20 +564,30 @@ const waited_from = Date.now();
 check(
 	'the new instance waits until the previous pid is gone, then forgets the variable',
 	[wait_for_previous_instance(), Date.now() - waited_from >= 250 && Date.now() - waited_from < 5000, alive(short_lived), process.env.GPUIX_RELAUNCH_AFTER],
-	[true, true, false, undefined]
+	['exited', true, false, undefined]
 );
 process.env.GPUIX_RELAUNCH_AFTER = String(spawnSync(process.execPath, ['-e', '']).pid);
-check('a previous instance that is already gone costs nothing', [wait_for_previous_instance(), process.env.GPUIX_RELAUNCH_AFTER], [true, undefined]);
+check('a previous instance that is already gone costs nothing', [wait_for_previous_instance(), process.env.GPUIX_RELAUNCH_AFTER], ['exited', undefined]);
+process.env.GPUIX_RELAUNCH_AFTER = String(process.pid);
+check('a previous instance that never exits is given up on, and said so', wait_for_previous_instance(300), 'timed-out');
 
 const plist = join(scratch, 'Info.plist');
 writeFileSync(
 	plist,
 	`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- <key>CFBundleIdentifier</key><string>comment.decoy</string> -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleDocumentTypes</key>
 	<array><dict><key>CFBundleIdentifier</key><string>nested.decoy</string><key>CFBundleTypeName</key><string>Text</string></dict></array>
+	<key>CFBundleURLTypes</key>
+	<array/>
+	<key>NSAppTransportSecurity</key>
+	<dict/>
+	<key>Note</key>
+	<string><![CDATA[<key>CFBundleIdentifier</key><string>cdata.decoy</string>]]></string>
+	<?decoy <key>CFBundleIdentifier</key><string>pi.decoy</string> ?>
 	<key>CFBundleExecutable</key>
 	<string>my-app</string>
 	<key>CFBundleIdentifier</key>
@@ -550,15 +600,18 @@ writeFileSync(
 	<string>1.2.3</string>
 	<key>Empty</key>
 	<string></string>
+	<key>Bad</key>
+	<string>&#x110000;</string>
 </dict>
 </plist>
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>second.root.decoy</string></dict></plist>
 `
 );
 const strings = plist_strings(plist);
 check(
-	'plist_strings reads the top-level strings, decodes entities, and ignores nested dictionaries',
-	[strings?.get('CFBundleIdentifier'), strings?.get('CFBundleExecutable'), strings?.get('CFBundleName'), strings?.get('CFBundleShortVersionString'), strings?.get('Empty'), strings?.get('LSUIElement'), strings?.get('CFBundleTypeName')],
-	['com.example.my-app', 'my-app', 'A & B <C> ’', '1.2.3', '', undefined, undefined]
+	'plist_strings reads the top-level strings past empty collections, decodes entities, and ignores nested dictionaries, comments, CDATA, processing instructions and a second root',
+	[strings?.get('CFBundleIdentifier'), strings?.get('CFBundleExecutable'), strings?.get('CFBundleName'), strings?.get('CFBundleShortVersionString'), strings?.get('Empty'), strings?.get('Bad'), strings?.get('LSUIElement'), strings?.get('CFBundleTypeName')],
+	['com.example.my-app', 'my-app', 'A & B <C> ’', '1.2.3', '', '&#x110000;', undefined, undefined]
 );
 check('the plist the build writes reads back', plist_strings((writeFileSync(plist, info_plist({ name: 'X', slug: 'x', identifier: 'com.x', version: '2.0.0', icon: '' })), plist))?.get('CFBundleIdentifier'), 'com.x');
 writeFileSync(plist, Buffer.from('bplist00\x00\x01'));
@@ -573,7 +626,7 @@ await until(() => {
 		return false;
 	}
 }, 5000);
-finish('update', 82);
+finish('update', 90);
 
 function code(fn: () => unknown): string | null {
 	try {

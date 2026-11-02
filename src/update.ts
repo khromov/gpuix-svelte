@@ -4,20 +4,20 @@
  * `check_for_update()` reads it, and the `Update` it returns downloads, verifies and swaps the
  * running app for the new one. The build bakes the manifest URL, the public key and the version
  * into the executable as `GPUIX_APP_INFO`, which is also how a dev run can pretend to be one.
- * Everything here is node:* (the zip is src/zip.ts) plus `plutil` on macOS, so it runs on Node
+ * Everything here is node:* (the zip is src/zip.ts through adm-zip), so it runs on Node
  * and Bun alike and the tests cover the swap on a copy.
  */
 
 import { spawn } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign as sign_bytes, verify as verify_bytes } from 'node:crypto';
-import { chmodSync, closeSync, copyFileSync, existsSync, readFileSync, mkdtempSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, readFileSync, mkdtempSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
 import { extract_zip } from './zip.ts';
 
 export type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
-export { wait_for_previous_instance } from './previous-instance.ts';
+export { updated_from, wait_for_previous_instance, type PreviousInstance } from './previous-instance.ts';
 
 export interface UpdateAsset {
 	url: string;
@@ -139,6 +139,8 @@ export async function check_for_update(options: CheckOptions = {}): Promise<Upda
 	} catch (error) {
 		throw new UpdateError('manifest', `${url}: ${(error as Error).message}`, { cause: error });
 	}
+	// A redirect could have left https behind.
+	if (response.url) check_url(response.url, 'manifest');
 	if (!response.ok) throw new UpdateError('manifest', `${url}: ${response.status} ${response.statusText}`);
 	let manifest: UpdateManifest;
 	try {
@@ -272,6 +274,7 @@ class AppUpdate implements Update {
 		} catch (error) {
 			throw new UpdateError('download', `${url}: ${(error as Error).message}`, { cause: error });
 		}
+		if (response.url) check_url(response.url, 'download');
 		if (!response.ok || !response.body) throw new UpdateError('download', `${url}: ${response.status} ${response.statusText}`);
 		const total = size ?? (Number(response.headers.get('content-length')) || null);
 		// A fixed name under a directory of its own: nothing from the URL becomes a path.
@@ -324,21 +327,53 @@ class AppUpdate implements Update {
 		} catch (error) {
 			throw new UpdateError('install', `cannot write next to ${target}: ${(error as Error).message}`, { cause: error });
 		}
-		let keep_staging = false;
+		let kept = false;
 		try {
-			extract(archive, staging);
+			extract(archive, staging, target);
 			const fresh = locate(staging, target);
 			if (process.platform === 'darwin') check_bundle(fresh, this.app, this.version);
-			keep_staging = swap(target, fresh, staging) === 'previous-kept';
+			const previous = swap(target, fresh, staging);
 			this.installed = true;
+			// Exits the process on success; on failure the old version is back in place.
+			if (relaunch) await relaunch_app(target, previous, staging, args ?? process.argv.slice(2), this.current);
+		} catch (error) {
+			if (error instanceof StrandedError) {
+				// The old app sits in staging and nothing else can put it back; keep it where no sweep reaches.
+				kept = true;
+				error.message += `; ${keep_staging(staging, error.stranded)}`;
+			}
+			if (error instanceof RelaunchError) this.installed = false;
+			throw error;
 		} finally {
 			// The swap is done (or rolled back); a leftover file must not turn that into a failure.
-			if (!keep_staging) rm_quietly(staging);
+			if (!kept) rm_quietly(staging);
 			if (this.download_dir) rm_quietly(this.download_dir);
 			this.download_dir = null;
 			this.downloading = null;
 		}
-		if (relaunch) relaunch_app(target, args ?? process.argv.slice(2), this.current);
+	}
+}
+
+/** The rename that should have put the old app back failed, so it is stranded at `stranded`. */
+class StrandedError extends UpdateError {
+	stranded: string;
+	constructor(message: string, stranded: string, options?: ErrorOptions) {
+		super('install', message, options);
+		this.stranded = stranded;
+	}
+}
+
+/** The new version was swapped in but never started, and the old one is back. */
+class RelaunchError extends UpdateError {}
+
+/** Renames staging to a name the sweep never matches and says where the old app is now. */
+function keep_staging(staging: string, stranded: string): string {
+	const kept = join(dirname(staging), `${STAGING_PREFIX}kept-${basename(staging).slice(STAGING_PREFIX.length)}`);
+	try {
+		renameSync(staging, kept);
+		return `the previous version was kept at ${stranded.startsWith(staging) ? join(kept, stranded.slice(staging.length + 1)) : stranded}`;
+	} catch {
+		return `the previous version was kept at ${stranded}`;
 	}
 }
 
@@ -371,14 +406,12 @@ function not_installable_text(reason: NotInstallable | undefined): string {
 
 /**
  * A Bun executable with the app compiled in serves its entry from a virtual filesystem
- * (`/$bunfs/`, `B:\~BUN\` on Windows); `bun app.ts` and Node serve it from disk. The executable's
- * name is the second signal, in case that prefix is ever spelled differently.
+ * (`/$bunfs/`, `B:\~BUN\` on Windows, both from Bun's source); `bun app.ts` and Node serve it from
+ * disk. Nothing about the executable's name is trusted: a renamed runtime must never become a target.
  */
 function is_compiled(): boolean {
-	const bun = (globalThis as { Bun?: { main?: string } }).Bun;
-	if (!bun) return false;
-	const main = bun.main ?? '';
-	return main.startsWith('/$bunfs/') || /[\\/]~BUN[\\/]/.test(main) || basename(process.execPath).replace(/\.exe$/i, '').toLowerCase() !== 'bun';
+	const main = (globalThis as { Bun?: { main?: string } }).Bun?.main ?? '';
+	return main.startsWith('/$bunfs/') || /[\\/]~BUN[\\/]/.test(main);
 }
 
 function resolve_target(override?: string): { target: string | null; reason?: NotInstallable } {
@@ -448,8 +481,8 @@ function is_executable(bytes: Buffer): boolean {
 	return [0xcafebabe, 0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic);
 }
 
-/** A zip is opened by src/zip.ts on every platform, which keeps an `.app`'s modes and symlinks and refuses paths that leave the directory. */
-function extract(archive: string, into: string) {
+/** A zip is opened by src/zip.ts on every platform, which keeps an `.app`'s modes and refuses paths that leave the directory and symlinks; a bare executable takes the target's name. */
+function extract(archive: string, into: string, target: string) {
 	switch (kind_of(archive)) {
 		case 'zip':
 			try {
@@ -459,7 +492,7 @@ function extract(archive: string, into: string) {
 			}
 			break;
 		case 'executable':
-			copyFileSync(archive, join(into, basename(archive)));
+			copyFileSync(archive, join(into, basename(target)));
 			break;
 		default:
 			throw new UpdateError('extract', 'the download is neither a zip nor an executable');
@@ -503,15 +536,21 @@ function locate(into: string, target: string): string {
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
 function decode_xml(text: string): string {
-	return text.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, entity: string) =>
-		entity.startsWith('#x') ? String.fromCodePoint(parseInt(entity.slice(2), 16)) : entity.startsWith('#') ? String.fromCodePoint(Number(entity.slice(1))) : (ENTITIES[entity] ?? whole)
-	);
+	return text.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, entity: string) => {
+		try {
+			return entity.startsWith('#x') ? String.fromCodePoint(parseInt(entity.slice(2), 16)) : entity.startsWith('#') ? String.fromCodePoint(Number(entity.slice(1))) : (ENTITIES[entity] ?? whole);
+		} catch {
+			return whole;
+		}
+	});
 }
 
 /**
  * The string values of an XML `Info.plist`'s top-level dictionary, which is all a bundle check
  * needs; null for a binary or unreadable plist. The build writes XML, and Apple's signing and
- * stapling leave it so.
+ * stapling leave it so. Comments, CDATA and processing instructions are dropped first and only
+ * the first `<plist>` counts, so they can't carry a decoy; this is a guard against mistakes, not
+ * a signature check.
  */
 export function plist_strings(path: string): Map<string, string> | null {
 	let text: string;
@@ -520,13 +559,21 @@ export function plist_strings(path: string): Map<string, string> | null {
 	} catch {
 		return null;
 	}
-	if (!text.includes('<plist')) return null;
+	if (text.startsWith('bplist')) return null;
+	const start = text.indexOf('<plist');
+	if (start === -1) return null;
+	const end = text.indexOf('</plist>', start);
+	text = text
+		.slice(start, end === -1 ? undefined : end)
+		.replace(/<!--[\s\S]*?-->/g, '')
+		.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
+		.replace(/<\?[\s\S]*?\?>/g, '');
 	const values = new Map<string, string>();
 	let depth = 0;
 	let key: string | null = null;
 	for (const [, closing, tag, self_closing, body] of text.matchAll(/<(\/?)(dict|array|key|string|data|date|integer|real|true|false)\b[^>]*?(\/?)>([^<]*)/g)) {
 		if (tag === 'dict' || tag === 'array') {
-			depth += closing ? -1 : 1;
+			if (!self_closing) depth += closing ? -1 : 1;
 			key = null;
 		} else if (depth === 1 && !closing) {
 			if (tag === 'key') {
@@ -540,30 +587,41 @@ export function plist_strings(path: string): Map<string, string> | null {
 	return values;
 }
 
-/** A manifest can only hand the app a newer build of itself: the bundle's identifier is the app's, its version the manifest's, and its executable exists. */
+/**
+ * The new bundle has to look like a build of this app: the identifier is this app's, the version
+ * is the manifest's, and the executable the plist names is a real Mach-O inside `Contents/MacOS`
+ * with the executable bit (so the relaunch can't silently die). A guard against a wrong upload,
+ * not against a hostile one: whoever can edit an unsigned manifest can write any plist. Sign the
+ * manifest for that.
+ */
 function check_bundle(fresh: string, app: EmbeddedAppInfo | null, version: string) {
 	const plist = plist_strings(join(fresh, 'Contents', 'Info.plist'));
 	const identifier = plist?.get('CFBundleIdentifier') ?? null;
 	if (app && identifier !== app.identifier) throw new UpdateError('extract', `${basename(fresh)} is ${identifier ?? 'no bundle'}, this app is ${app.identifier}`);
-	const bundle_version = plist?.get('CFBundleShortVersionString') ?? null;
-	if (bundle_version !== null && compare_versions(bundle_version, version) !== 0) {
-		throw new UpdateError('extract', `${basename(fresh)} is version ${bundle_version}, the manifest says ${version}`);
-	}
-	const executable = plist?.get('CFBundleExecutable');
-	if (!executable || !existsSync(join(fresh, 'Contents', 'MacOS', executable))) throw new UpdateError('extract', `${basename(fresh)} has no executable`);
+	const bundle_version = plist?.get('CFBundleShortVersionString');
+	if (bundle_version === undefined) throw new UpdateError('extract', `${basename(fresh)} has no CFBundleShortVersionString`);
+	if (compare_versions(bundle_version, version) !== 0) throw new UpdateError('extract', `${basename(fresh)} is version ${bundle_version}, the manifest says ${version}`);
+	const executable = plist?.get('CFBundleExecutable') ?? '';
+	if (!executable || /[/\\]/.test(executable) || executable === '.' || executable === '..') throw new UpdateError('extract', `${basename(fresh)} names no executable`);
+	check_executable(join(fresh, 'Contents', 'MacOS', executable), 'darwin');
 }
 
-function swap(target: string, fresh: string, staging: string): 'swapped' | 'previous-kept' {
-	if (process.platform === 'linux') {
-		// Renaming over the running executable is atomic, and the process keeps the old inode mapped.
-		chmodSync(fresh, 0o755);
-		try {
-			renameSync(fresh, target);
-		} catch (error) {
-			throw new UpdateError('install', `cannot replace ${target}: ${(error as Error).message}`, { cause: error });
-		}
-		return 'swapped';
+/** A regular file, not a link, with the executable bit and the platform's magic: what `spawn` can start. */
+function check_executable(path: string, platform: NodeJS.Platform) {
+	let stat;
+	try {
+		stat = lstatSync(path);
+	} catch {
+		throw new UpdateError('extract', `${path} is missing`);
 	}
+	if (!stat.isFile()) throw new UpdateError('extract', `${path} is not a file`);
+	if (platform !== 'win32' && (stat.mode & 0o111) === 0) throw new UpdateError('extract', `${path} is not executable`);
+	if (!is_executable(head(path, 4))) throw new UpdateError('extract', `${path} is not a ${platform === 'darwin' ? 'Mach-O' : platform === 'win32' ? 'Windows' : 'Linux'} executable`);
+}
+
+/** Moves the old app aside and the new one in; resolves to where the old one now is, for a rollback. */
+function swap(target: string, fresh: string, staging: string): string {
+	if (process.platform === 'linux') chmodSync(fresh, 0o755);
 	let previous = join(staging, `previous-${basename(target)}`);
 	if (process.platform === 'win32') {
 		// A running .exe can't be deleted or overwritten, only renamed; finish_update() deletes it next launch.
@@ -580,31 +638,94 @@ function swap(target: string, fresh: string, staging: string): 'swapped' | 'prev
 		throw new UpdateError('install', `cannot move ${target} aside: ${(error as Error).message}`, { cause: error });
 	}
 	try {
-		renameSync(fresh, target);
+		rename_in(fresh, target);
 	} catch (error) {
 		try {
 			renameSync(previous, target);
 		} catch (rollback) {
-			throw new UpdateError('install', `cannot move the new version into ${target} (${(error as Error).message}), and the old one is stuck at ${previous}: ${(rollback as Error).message}`, { cause: error });
+			throw new StrandedError(`cannot move the new version into ${target} (${(error as Error).message}), nor the old one back: ${(rollback as Error).message}`, previous, { cause: error });
 		}
 		throw new UpdateError('install', `cannot move the new version into ${target}: ${(error as Error).message}`, { cause: error });
 	}
-	return 'swapped';
+	return previous;
 }
 
+/** On Windows an antivirus can hold a freshly written executable for a moment, so the rename-in gets a few tries. */
+function rename_in(fresh: string, target: string) {
+	const sleeper = new Int32Array(new SharedArrayBuffer(4));
+	for (let attempt = 1; ; attempt++) {
+		try {
+			renameSync(fresh, target);
+			return;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (process.platform !== 'win32' || attempt >= 10 || !['EPERM', 'EBUSY', 'EACCES'].includes(code ?? '')) throw error;
+			Atomics.wait(sleeper, 0, 0, 300);
+		}
+	}
+}
+
+/** Puts the old app back after a relaunch that never came up; the new one goes into staging, which is deleted. */
+function roll_back(target: string, previous: string, staging: string) {
+	try {
+		renameSync(target, join(staging, `failed-${basename(target)}`));
+	} catch {
+		// Then the rename below fails too, and says so.
+	}
+	try {
+		renameSync(previous, target);
+	} catch (error) {
+		throw new StrandedError(`the new version did not start and the old one could not be put back: ${(error as Error).message}`, previous, { cause: error });
+	}
+}
+
+const READY_TIMEOUT = 10000;
+
 /**
- * What Electron's `app.relaunch()` does, with no shell: the new executable itself, detached, its
- * output dropped, the old arguments replayed. The new instance waits for this pid before it opens a
- * window (`wait_for_previous_instance`), so the two never overlap.
+ * What Electron's `app.relaunch()` does, with no helper process: the new executable itself,
+ * detached, its output dropped, the old arguments replayed. Electron's readiness handshake is a
+ * sentinel file: the new instance writes it as soon as it runs our code
+ * (`wait_for_previous_instance`, which render() calls before it opens a window), and only then
+ * does this process exit. A new version that fails to spawn, exits, or never reports is rolled
+ * back, so a swap can't end with no app that starts.
  */
-function relaunch_app(target: string, args: string[], from: string): never {
+async function relaunch_app(target: string, previous: string, staging: string, args: string[], from: string): Promise<never> {
 	let executable = target;
 	if (process.platform === 'darwin') {
 		const name = plist_strings(join(target, 'Contents', 'Info.plist'))?.get('CFBundleExecutable') ?? basename(process.execPath);
 		executable = join(target, 'Contents', 'MacOS', name);
 	}
-	const env = { ...process.env, GPUIX_RELAUNCH_AFTER: String(process.pid), GPUIX_UPDATED_FROM: from };
-	spawn(executable, args, { detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
+	const ready = join(tmpdir(), `gpuix-svelte-relaunch-${process.pid}-${Date.now()}`);
+	const env = { ...process.env, GPUIX_RELAUNCH_AFTER: String(process.pid), GPUIX_RELAUNCH_READY: ready, GPUIX_UPDATED_FROM: from };
+	// Started from inside the bundle, the working directory was just renamed away.
+	let cwd: string;
+	try {
+		cwd = process.cwd();
+	} catch {
+		cwd = dirname(target);
+	}
+	const failed = (why: string): never => {
+		rm_quietly(ready);
+		roll_back(target, previous, staging);
+		throw new RelaunchError('install', `the new version did not start (${why}); the previous one is back in place`);
+	};
+	const child = spawn(executable, args, { detached: true, stdio: 'ignore', env, cwd });
+	try {
+		await new Promise<void>((resolve, reject) => {
+			child.once('spawn', resolve);
+			child.once('error', reject);
+		});
+	} catch (error) {
+		failed((error as Error).message);
+	}
+	child.unref();
+	const deadline = Date.now() + READY_TIMEOUT;
+	while (!existsSync(ready)) {
+		if (child.exitCode !== null || child.signalCode !== null) failed(`it exited with ${child.signalCode ?? child.exitCode} before reporting`);
+		if (Date.now() > deadline) failed(`it did not report within ${READY_TIMEOUT} ms`);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+	rm_quietly(ready);
 	process.exit(0);
 }
 
@@ -694,11 +815,15 @@ export function is_public_key(key: string): boolean {
 
 /** A fresh ed25519 pair: `publicKey` goes into `app.update.publicKey`, `privateKey` (PEM) stays a secret. */
 export function generate_keys(): { publicKey: string; privateKey: string } {
-	const { publicKey, privateKey } = generateKeyPairSync('ed25519', {
-		publicKeyEncoding: { type: 'spki', format: 'der' },
-		privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-	});
-	return { publicKey: publicKey.subarray(ED25519_SPKI_PREFIX.length).toString('base64'), privateKey };
+	for (;;) {
+		const { publicKey, privateKey } = generateKeyPairSync('ed25519', {
+			publicKeyEncoding: { type: 'spki', format: 'der' },
+			privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+		});
+		const encoded = publicKey.subarray(ED25519_SPKI_PREFIX.length).toString('base64');
+		// Git Bash rewrites an argument that starts with `/` into a Windows path; one key in 64 would.
+		if (!encoded.startsWith('/')) return { publicKey: encoded, privateKey };
+	}
 }
 
 export function sign_manifest(manifest: UpdateManifest, private_key_pem: string): UpdateManifest {

@@ -104,7 +104,10 @@ CDN, an S3 bucket or a plain web server all do.
 
 ## On GitHub
 
-The starter carries `.github/workflows/release.yml`, which does steps 3 and 4 for you. It runs
+`npm create gpuix-svelte` asks whether to add `.github/workflows/release.yml`, which does steps 3
+and 4 for you, and for the repository (`owner/name`), which it writes into `standalone.ts` as the
+manifest URL; scripted runs take `--github owner/repo` or `--no-github`, and keep the workflow when
+given neither. It runs
 [release-please](https://github.com/googleapis/release-please-action) on every push to `main`: it
 keeps a release PR open from the conventional commits (`feat:`, `fix:`, …) since the last release,
 bumps `package.json`'s version and the changelog, and merging that PR tags a release. Then a build
@@ -192,34 +195,45 @@ On every platform the archive is downloaded to a temporary directory while its s
 the download stops as soon as it passes the size the manifest promised, and is refused if the hash
 or size differs. The archive is told apart by its bytes, not its name (a zip, or a bare
 executable), and the zip is opened by [adm-zip](https://www.npmjs.com/package/adm-zip) (no
-dependencies, `node:zlib` underneath), the same on every platform: unix modes are kept, every entry
-is checked to land inside the directory before anything is written, and the `__MACOSX` and `._`
-sidecars Finder and `ditto` add are skipped. Symlinks are not supported in an update archive (an
-app gpuix-svelte builds has none); one would come out as a file. Extraction goes into a directory
-next to the app, so the final move never crosses a file system, and what was extracted has to be
-an app of this platform: the entry named like the running one, or the only candidate, and a real
-`.app` with an `Info.plist`, a Windows PE or a Linux ELF executable. Then it is swapped in:
+dependencies, `node:zlib` underneath), the same on every platform: each entry's path is checked to
+land inside the directory before it is written, unix modes are kept but never group- or
+world-writable, the `__MACOSX` and `._` sidecars Finder and `ditto` add are skipped, and a symlink
+entry is refused (an app gpuix-svelte builds has none, and `build()` refuses to archive one).
+Extraction goes into a directory next to the app, so the final move never crosses a file system,
+and what was extracted has to be an app of this platform: the entry named like the running one,
+or the only candidate, and a real `.app` with an `Info.plist`, a Windows PE or a Linux ELF
+executable. Then it is swapped in:
 
-- **macOS.** The `.app`'s `CFBundleIdentifier` has to be the app's and its
-  `CFBundleShortVersionString` the manifest's, so a manifest can only hand the app a newer build
-  of itself. The old bundle is renamed aside, the new one moved into place, the old one deleted;
-  if moving the new one in fails, the old one is moved back, and if even that fails, the error
-  names where the old bundle is.
+- **macOS.** The `.app`'s `CFBundleIdentifier` has to be the app's, its
+  `CFBundleShortVersionString` the manifest's, and the executable its plist names a real Mach-O
+  inside `Contents/MacOS` with the executable bit. This catches a wrong upload, not a hostile one:
+  whoever can edit an unsigned manifest can write any plist, so sign the manifest for that.
 - **Windows.** A running executable can't be deleted or overwritten, but it can be renamed: the
-  old one becomes `<name>.exe.old`, the new one takes its place, and the `.old` file is deleted
-  by `check_for_update()` (or `finish_update()`) on the next launch.
-- **Linux.** The executable is renamed over the old one (atomic; the running process keeps its
-  old inode).
+  old one becomes `<name>.exe.old` and is deleted by `check_for_update()` (or `finish_update()`)
+  on the next launch.
+- **Linux.** The old executable is renamed aside and the new one in (the running process keeps
+  its old inode).
 
-The relaunch is the same on all three, and it is what Electron's `app.relaunch()` does: the new
-executable is started directly (on macOS the one inside the bundle), detached, with its output
-dropped and this process's arguments replayed (`install({ args })` replaces them), and this process
-exits. The new instance finds the old one's pid in `GPUIX_RELAUNCH_AFTER` and waits for it to be
-gone before it opens a window, so the two never overlap; an app with no window, or one that needs
-that guarantee earlier, calls `wait_for_previous_instance()` itself. It also finds the version it
-replaced in `GPUIX_UPDATED_FROM`, which is how to show "what's new" once. No shell, PowerShell or
-other tool is involved; the macOS bundle checks read the XML `Info.plist` directly (a binary one
-fails the check).
+On every platform the old copy is kept until the new one has started. If the new one can't be
+moved in, the old one is moved back; if even that fails, the old copy is kept where no cleanup
+touches it, and the error says where.
+
+The relaunch is the same on all three, and it is what Electron's `app.relaunch()` does, handshake
+included: the new executable is started directly (on macOS the one inside the bundle), detached,
+with its output dropped and this process's arguments replayed (`install({ args })` replaces
+them). The new instance finds the old one's pid in `GPUIX_RELAUNCH_AFTER` and a sentinel path in
+`GPUIX_RELAUNCH_READY`: it writes the sentinel as soon as it runs gpuix-svelte code, then waits
+for the old pid to be gone before it opens a window, so the two never overlap. Only once the
+sentinel appears does the old process exit; a new version that fails to spawn, exits, or does not
+report within ten seconds is rolled back, and `install()` throws with code `install`, so an
+update can't end with an app that doesn't start. That means an app with no window, or one that
+needs the guarantee earlier, has to call `wait_for_previous_instance()` itself; it returns
+`'exited'`, or `'timed-out'` after ten seconds (logged, and the app carries on), or false when
+this process was not started by an update. `updated_from()` gives the version this process
+replaced, which is how to show "what's new" once. The relaunch exits without running `onDestroy`
+or any teardown, so save state before calling `install()`. No shell, PowerShell or other tool is
+involved; the macOS bundle checks read the XML `Info.plist` directly (a binary one fails the
+check).
 
 With `relaunch: false`, `install()` returns after the swap and the app keeps running on the old
 code; the next launch is the new version. `update.installed` is then true and a second `install()`
@@ -305,7 +319,9 @@ From `gpuix-svelte/update`:
 - `Update`: `version`, `current`, `notes`, `published_at`, `url`, `platform`, `asset`
   (`{ url, sha256, size }` or null), `installable`, `reason`, `installed`;
   `download({ onProgress, signal })` resolves to the archive's path (aborting fails it with code
-  `download`); `install({ relaunch, onProgress, signal })` throws if it already ran.
+  `download`); `install({ relaunch, args, onProgress, signal })` throws if it already ran.
+- `wait_for_previous_instance()` → `'exited' | 'timed-out' | false` and `updated_from()` →
+  `string | null`: the relaunch handshake, which `render()` runs before it opens a window.
 - `finish_update()` deletes what earlier updates left: the `.old` executable on Windows, and the
   archive or staging directory of an app closed midway. `check_for_update()` calls it, so an app
   that never checks at startup calls this instead.
