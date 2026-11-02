@@ -98,7 +98,7 @@ export interface Update {
 	readonly asset: UpdateAsset | null;
 	readonly installable: boolean;
 	readonly reason?: NotInstallable;
-	/** True once `install()` has swapped the app; a second `install()` throws. */
+	/** True once `install()` has swapped the app and the swap stood; a second `install()` then throws. */
 	readonly installed: boolean;
 	/**
 	 * Fetches the archive into a temp directory and checks its size and sha256; resolves to its path, and `install()` calls it when it has not run.
@@ -266,7 +266,11 @@ class AppUpdate implements Update {
 		if (!this.asset) return Promise.reject(new UpdateError('not-installable', `the manifest has nothing for ${this.platform}`));
 		if (this.downloading) {
 			if (onProgress) this.progress.add(onProgress);
-			return signal ? until_aborted(this.downloading, signal, this.asset.url) : this.downloading;
+			if (!signal) return this.downloading;
+			const waiting = until_aborted(this.downloading, signal, this.asset.url);
+			// That caller has gone, so nothing should move its progress bar again.
+			if (onProgress) waiting.catch(() => this.progress.delete(onProgress));
+			return waiting;
 		}
 		this.progress = new Set(onProgress && [onProgress]);
 		this.downloading = this.fetch_archive(this.asset, signal).catch((error) => {

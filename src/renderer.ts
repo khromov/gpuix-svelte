@@ -803,6 +803,12 @@ export function commit() {
 	run_after_commit();
 }
 
+/** How native reports a batch it decoded and applied none of; it can also apply one and then fail to wake a closed window. */
+const REFUSED = /^(?:Failed to parse batch|Batch op \d)/;
+
+/** The wasm build throws plain strings. */
+const error_text = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /**
  * Native decodes a whole batch before applying any of it, so one op it refuses would lose the
  * frame while the shadow tree goes on believing those ids exist; sent singly, only that op is lost.
@@ -810,8 +816,9 @@ export function commit() {
 function ship(ops: Mutation[]): number[] {
 	try {
 		return native!.applyBatch(JSON.stringify(ops));
-	} catch {
-		// The loop below names the op responsible.
+	} catch (error) {
+		// A TypeError is JSON.stringify's, on a value it can't serialize, so nothing reached native.
+		if (!(error instanceof TypeError) && !REFUSED.test(error_text(error))) throw error;
 	}
 
 	const destroyed: number[] = [];
@@ -819,7 +826,7 @@ function ship(ops: Mutation[]): number[] {
 		try {
 			destroyed.push(...native!.applyBatch(JSON.stringify([op])));
 		} catch (error) {
-			console.error(`[gpuix-svelte] native refused ${op[0]}: ${(error as Error).message}`);
+			console.error(`[gpuix-svelte] native refused ${op[0]}: ${error_text(error)}`);
 		}
 	}
 	return destroyed;

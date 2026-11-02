@@ -13,13 +13,15 @@ import type { GpuiStyle } from '../src/types.ts';
 // --- a throwing commit must not kill the frame loop -----------------------
 {
 	let ticks = 0;
+	let batches = 0;
 	const exploding = {
 		requiresTick: () => true,
 		tick: () => (ticks++, true),
-		applyBatch: () => [],
-		commitMutations: () => {
+		applyBatch: () => {
+			batches++;
 			throw new Error('boom');
-		}
+		},
+		commitMutations: () => {}
 	};
 
 	set_native(exploding);
@@ -31,6 +33,7 @@ import type { GpuiStyle } from '../src/types.ts';
 	loop.stop();
 
 	check('the loop keeps ticking after a commit throws', ticks > 1, true);
+	check('a failure that is no refusal may have been applied, so it is not resent op by op', batches, 1);
 }
 
 // --- one op native refuses costs that op, not the frame --------------------
@@ -59,6 +62,23 @@ import type { GpuiStyle } from '../src/types.ts';
 	renderer.setAttribute(child, 'style', 'font-size: 12px');
 	commit();
 	check('a value that cannot be serialized costs only its own op', first()?.style?.fontSize, 12);
+}
+
+// --- the wasm build throws a plain string -----------------------------------
+{
+	const logged: unknown[] = [];
+	const error = console.error;
+	console.error = (line: unknown) => void logged.push(line);
+	set_native({
+		applyBatch(json: string) {
+			if (json.includes('"setStyle"')) throw 'Batch op 0 setStyle parse error: nope';
+			return [];
+		}
+	});
+	create_root();
+	commit();
+	console.error = error;
+	check('its refusal is still named', logged, ['[gpuix-svelte] native refused setStyle: Batch op 0 setStyle parse error: nope']);
 }
 
 // --- tick() going false ends the process, whatever timers are pending ------
@@ -162,4 +182,4 @@ import type { GpuiStyle } from '../src/types.ts';
 
 set_auto_commit(false);
 
-finish('lifecycle', 17);
+finish('lifecycle', 19);

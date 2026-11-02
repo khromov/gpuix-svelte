@@ -307,15 +307,16 @@ try {
 	{
 		const shared = (await at('unsigned.json'))!;
 		const seen: number[] = [];
+		const seen_by_leaver: number[] = [];
 		const leaving = new AbortController();
 		const first = shared.download();
 		const joined = shared.download({ onProgress: (received) => seen.push(received) });
-		const left = shared.download({ signal: leaving.signal });
+		const left = shared.download({ signal: leaving.signal, onProgress: (received) => seen_by_leaver.push(received) });
 		leaving.abort();
 		check(
-			"joining a download reports its progress, and a joiner's signal ends only that joiner's wait",
-			[await code_async(() => left), (await first) === (await joined), seen.at(-1)],
-			['download', true, fragment.size]
+			"joining a download reports its progress, and a joiner's signal ends only that joiner's wait, and its progress",
+			[await code_async(() => left), (await first) === (await joined), seen.at(-1), seen_by_leaver],
+			['download', true, fragment.size, []]
 		);
 		rmSync(dirname(await first), { recursive: true, force: true });
 	}

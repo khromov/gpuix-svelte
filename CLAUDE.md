@@ -733,7 +733,11 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   applies anything (`apply_batch_to_tree`'s phases; the apply phase cannot fail), so a rejected batch
   applied nothing and, in `ship`, is resent one op at a time without double-applying: only the op native
   refuses is lost and it is logged. Without that the nodes it created would keep ids native never got,
-  whose later ops are silent no-ops, so they would stay missing until a remount. The node's `listeners` map survives that purge, like `attrs`
+  whose later ops are silent no-ops, so they would stay missing until a remount. `ship` knows a refusal
+  by its text (`REFUSED`; a rewording fails `test:lifecycle`), because native's `apply_batch` can also
+  apply a batch and then throw from `request_invalidate` on a closed window or a stopped UI thread, and
+  that is rethrown. The resends can paint between ops on Windows and Linux, where the UI thread doesn't
+  wait, which only a refused batch risks. The node's `listeners` map survives that purge, like `attrs`
   does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
 **`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
@@ -886,7 +890,9 @@ are the ones that bite most often, and the renderer behaviour behind them.
   ~5 ms. `<svg source>` inherits **no** `color` natively, so the renderer
   copies the nearest ancestor's (from its class rules or inline style) onto any `<svg>` without one
   and re-copies it whenever that ancestor's resolved colour changes (`own_color`: only then does
-  `apply_style` scan `inheriting_svgs`, so a drag restyling a panel doesn't resend every icon in it); a parent's `:hover` colour does not reach it,
+  `apply_style` scan `inheriting_svgs`, so a drag restyling a panel doesn't resend every icon in it, and a live `<svg>` moved to another parent
+  through the raw renderer API keeps its colour until that parent's changes; Svelte moves nodes only
+  within a parent); a parent's `:hover` colour does not reach it,
   since hover is native.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or
   `autofocus`). Native 0.11 stops every Tab after the listeners ran (so it never types `\t` into an
