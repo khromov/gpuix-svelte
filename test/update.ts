@@ -437,7 +437,7 @@ check(
 		statSync(tree_zip).size < 70000,
 		win32 ? 'symlink' : entries.find((entry) => entry.name === 'tree/link')?.kind
 	],
-	[['tree/', 'tree/empty', ...(win32 ? [] : ['tree/link']), 'tree/sub/', 'tree/sub/data.bin', 'tree/sub/deep/', 'tree/sub/deep/run'], win32 ? undefined : '755', 70000, true, 'symlink']
+	[['tree/', 'tree/empty', ...(win32 ? [] : ['tree/link']), 'tree/sub/', 'tree/sub/data.bin', 'tree/sub/deep/', 'tree/sub/deep/run'], win32 ? '666' : '755', 70000, true, 'symlink']
 );
 const out = join(scratch, 'tree-out');
 check('extract_zip writes it all back', [extract_zip(tree_zip, out), readFileSync(join(out, 'tree', 'sub', 'data.bin')).length, win32 || (statSync(join(out, 'tree', 'sub', 'deep', 'run')).mode & 0o111) !== 0, win32 || readlinkSync(join(out, 'tree', 'link'))], [entries.length, 70000, true, win32 || 'sub/deep/run']);
