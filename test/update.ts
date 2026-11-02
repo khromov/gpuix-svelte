@@ -9,7 +9,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
@@ -31,6 +32,7 @@ import {
 	verify_manifest,
 	type UpdateManifest
 } from '../src/update.ts';
+import { build_zip, extract_zip, read_zip, write_zip } from '../src/zip.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'gpuix-svelte-update-test-'));
@@ -174,17 +176,12 @@ const read_version = (target: string) => {
 	const file = darwin ? join(target, 'Contents', 'MacOS', 'fake') : target;
 	return readFileSync(file, 'latin1').trim().split(' ').pop();
 };
-function archive_of(output: string, version: string, extra: string[] = []): UpdateFragment {
+function archive_of(output: string, version: string, { folder = false, ditto = false } = {}): UpdateFragment {
 	const archive = join(dist, archive_name({ slug: 'fake', version }));
-	if (extra.length === 0) {
-		write_archive(output, archive);
-	} else {
-		// An archive with more than the app in it, the way a hand-made one might be.
-		const tar = win32 ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
-		const names = [...extra, basename(output)];
-		if (darwin) run('zip', ['-q', '-r', archive, ...names], undefined, dirname(output));
-		else run(tar, [win32 ? '-a' : '-z', '-cf', archive, '-C', dirname(output), ...names]);
-	}
+	// `folder`: the whole directory around the app, the way a hand-made zip wraps things;
+	// `ditto`: Apple's own zip, which a notarized build ships.
+	if (ditto) run('/usr/bin/ditto', ['-c', '-k', '--keepParent', output, archive]);
+	else write_archive(folder ? dirname(output) : output, archive);
 	return update_fragment({ version }, archive);
 }
 
@@ -195,13 +192,16 @@ check('the archive is named for the platform and carries its hash and size', [fr
 const multi_dir = join(scratch, 'multi');
 mkdirSync(multi_dir);
 writeFileSync(join(multi_dir, 'LICENSE'), 'MIT');
-const multi = archive_of(fake_app(multi_dir, '3.0.0'), '3.0.0', ['LICENSE']);
+const multi = archive_of(fake_app(multi_dir, '3.0.0'), '3.0.0', { folder: true });
 const bad_dir = join(scratch, 'bad');
 mkdirSync(bad_dir);
 const bad = archive_of(fake_app(bad_dir, '4.0.0', { plist: false, program: false }), '4.0.0');
 const other_dir = join(scratch, 'other');
 mkdirSync(other_dir);
 const other = archive_of(fake_app(other_dir, '5.0.0', { identifier: 'com.x.other' }), '5.0.0');
+const native_dir = join(scratch, 'native');
+mkdirSync(native_dir);
+const native_zip = archive_of(fake_app(native_dir, '6.0.0'), '6.0.0', { ditto: darwin });
 
 const manifests: Record<string, (base: string) => UpdateManifest> = {
 	'/update.json': (base) => build_manifest({ fragments: [fragment], base_url: base, notes: 'Second', url: `${base}/page`, private_key: keys.privateKey }),
@@ -213,7 +213,8 @@ const manifests: Record<string, (base: string) => UpdateManifest> = {
 	'/insecure.json': () => build_manifest({ fragments: [fragment], base_url: 'http://example.com/' }),
 	'/multi.json': (base) => build_manifest({ fragments: [multi], base_url: base }),
 	'/bad.json': (base) => build_manifest({ fragments: [bad], base_url: base }),
-	'/other.json': (base) => build_manifest({ fragments: [other], base_url: base })
+	'/other.json': (base) => build_manifest({ fragments: [other], base_url: base }),
+	'/native.json': (base) => build_manifest({ fragments: [native_zip], base_url: base })
 };
 const server = createServer((request, response) => {
 	const path = request.url ?? '/';
@@ -306,6 +307,15 @@ try {
 	);
 	delete process.env.GPUIX_APP_INFO;
 
+	const from_native = await at('native.json', { version: '1.0.0' });
+	await from_native!.install({ relaunch: false });
+	const native_exe = darwin ? join(target, 'Contents', 'MacOS', 'fake') : target;
+	check(
+		darwin ? "a zip made by Apple's ditto (what a notarized build ships) installs, sidecars skipped, executable bit kept" : 'a zip from write_archive installs with the executable bit kept',
+		[read_version(target), win32 || (statSync(native_exe).mode & 0o111) !== 0, existsSync(join(target, 'Contents', 'MacOS', '._fake'))],
+		['6.0.0', true, false]
+	);
+
 	check('a read-only install directory is reported at check time, before anything is downloaded', await read_only_reason(), win32 || process.getuid?.() === 0 ? 'skipped' : 'read-only:not-installable');
 } finally {
 	server.close();
@@ -325,6 +335,59 @@ async function read_only_reason(): Promise<string> {
 		chmodSync(locked, 0o755);
 	}
 }
+
+// --- the zip itself ----------------------------------------------------------------------------
+
+const tree = join(scratch, 'tree');
+mkdirSync(join(tree, 'sub', 'deep'), { recursive: true });
+writeFileSync(join(tree, 'sub', 'deep', 'run'), '#!/bin/sh\n', { mode: 0o755 });
+writeFileSync(join(tree, 'sub', 'data.bin'), Buffer.alloc(70000, 7));
+writeFileSync(join(tree, 'empty'), '');
+if (!win32) symlinkSync('sub/deep/run', join(tree, 'link'));
+const tree_zip = join(scratch, 'tree.zip');
+write_zip(tree, tree_zip);
+const entries = read_zip(readFileSync(tree_zip));
+check(
+	'write_zip keeps the parent folder, directories, modes and symlinks, and deflates what shrinks',
+	[
+		entries.map((entry) => entry.name).sort(),
+		entries.find((entry) => entry.name === 'tree/sub/deep/run')?.mode?.toString(8),
+		entries.find((entry) => entry.name === 'tree/sub/data.bin')?.size,
+		statSync(tree_zip).size < 70000,
+		win32 ? 'symlink' : entries.find((entry) => entry.name === 'tree/link')?.kind
+	],
+	[['tree/', 'tree/empty', ...(win32 ? [] : ['tree/link']), 'tree/sub/', 'tree/sub/data.bin', 'tree/sub/deep/', 'tree/sub/deep/run'], win32 ? undefined : '755', 70000, true, 'symlink']
+);
+const out = join(scratch, 'tree-out');
+check('extract_zip writes it all back', [extract_zip(tree_zip, out), readFileSync(join(out, 'tree', 'sub', 'data.bin')).length, win32 || (statSync(join(out, 'tree', 'sub', 'deep', 'run')).mode & 0o111) !== 0, win32 || readlinkSync(join(out, 'tree', 'link'))], [entries.length, 70000, true, win32 || 'sub/deep/run']);
+const hostile = (inputs: Parameters<typeof build_zip>[0]) => {
+	const file = join(scratch, 'hostile.zip');
+	writeFileSync(file, build_zip(inputs));
+	try {
+		extract_zip(file, join(scratch, 'hostile-out'));
+		return 'extracted';
+	} catch (error) {
+		return (error as Error).name;
+	}
+};
+check(
+	'paths that would leave the directory are refused: .., absolute, drive letters, backslashes, a symlink pointing out',
+	[
+		hostile([{ name: '../escape', data: 'x' }]),
+		hostile([{ name: '/etc/escape', data: 'x' }]),
+		hostile([{ name: 'C:/escape', data: 'x' }]),
+		hostile([{ name: 'a\\..\\escape', data: 'x' }]),
+		win32 ? 'ZipError' : hostile([{ name: 'out', target: '../../escape' }]),
+		hostile([{ name: '__MACOSX/._junk', data: 'x' }, { name: 'ok/._junk', data: 'x' }, { name: 'ok/file', data: 'x' }])
+	],
+	['ZipError', 'ZipError', 'ZipError', 'ZipError', 'ZipError', 'extracted']
+);
+// Random bytes don't deflate, so the entry is stored and a flipped data byte is a CRC error, not a zlib one.
+const corrupt = build_zip([{ name: 'f', data: randomBytes(64) }]);
+corrupt[30 + 1 + 10] ^= 0xff;
+writeFileSync(join(scratch, 'corrupt.zip'), corrupt);
+check('a damaged entry fails its CRC rather than installing', message(() => extract_zip(join(scratch, 'corrupt.zip'), join(scratch, 'corrupt-out'))).includes('CRC'), true);
+check('not a zip at all', message(() => read_zip(Buffer.from('nope'))), 'not a zip file');
 
 // --- the CLI -------------------------------------------------------------------------------
 
@@ -361,7 +424,7 @@ check(
 );
 
 rmSync(scratch, { recursive: true, force: true });
-finish('update', 62);
+finish('update', 68);
 
 function code(fn: () => unknown): string | null {
 	try {

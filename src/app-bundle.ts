@@ -12,6 +12,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppOptions, AppUpdateOptions } from './types.ts';
 import { is_public_key } from './update.ts';
+import { write_zip } from './zip.ts';
 
 export interface AppInfo {
 	name: string;
@@ -178,22 +179,19 @@ export function update_platform(platform = process.platform, arch = process.arch
 	return `${platform}-${arch}`;
 }
 
-/** `<slug>-<version>-<platform>.zip` on macOS and Windows, `.tar.gz` on Linux. */
+/** `<slug>-<version>-<platform>.zip`. */
 export function archive_name(info: Pick<AppInfo, 'slug' | 'version'>, platform = update_platform()): string {
-	return `${info.slug}-${info.version}-${platform}${platform.startsWith('linux') ? '.tar.gz' : '.zip'}`;
+	return `${info.slug}-${info.version}-${platform}.zip`;
 }
 
 /**
- * The archive that ships and that `gpuix-svelte/update` installs: the `.app` zipped by `ditto`
- * (resource forks and the stapled ticket survive it), the `.exe` zipped by bsdtar, the Linux
- * executable in a `.tar.gz`, each with the file at the archive's top level.
+ * The archive that ships and that `gpuix-svelte/update` installs: the `.app`, `.exe` or
+ * executable at the zip's top level, written by src/zip.ts on every platform (modes kept, so
+ * the executable bit and a signature's layout survive).
  */
-export function write_archive(output: string, out: string, platform = process.platform) {
+export function write_archive(output: string, out: string) {
 	rmSync(out, { force: true });
-	if (platform === 'darwin') run('/usr/bin/ditto', ['-c', '-k', '--keepParent', output, out]);
-	// Windows' own bsdtar by its full path: Git's GNU tar, if it is first on PATH, can't write zip.
-	else if (platform === 'win32') run(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-a', '-cf', out, '-C', dirname(output), basename(output)]);
-	else run('tar', ['-czf', out, '-C', dirname(output), basename(output)]);
+	write_zip(output, out);
 }
 
 export function sha256_file(path: string): string {

@@ -4,8 +4,8 @@
  * `check_for_update()` reads it, and the `Update` it returns downloads, verifies and swaps the
  * running app for the new one. The build bakes the manifest URL, the public key and the version
  * into the executable as `GPUIX_APP_INFO`, which is also how a dev run can pretend to be one.
- * Everything here is node:* and the platform's own tools (ditto, tar, codesign, plutil), so it
- * runs on Node and Bun alike and the tests cover the swap on a copy.
+ * Everything here is node:* (the zip is src/zip.ts) plus `plutil` on macOS, so it runs on Node
+ * and Bun alike and the tests cover the swap on a copy.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -14,6 +14,7 @@ import { chmodSync, closeSync, copyFileSync, existsSync, mkdtempSync, openSync, 
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
+import { extract_zip } from './zip.ts';
 
 export type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
 
@@ -38,7 +39,7 @@ export interface UpdateManifest {
 	signature?: string;
 }
 
-export type UpdateErrorCode = 'version' | 'manifest' | 'signature' | 'download' | 'hash' | 'extract' | 'codesign' | 'install' | 'not-installable';
+export type UpdateErrorCode = 'version' | 'manifest' | 'signature' | 'download' | 'hash' | 'extract' | 'install' | 'not-installable';
 
 export class UpdateError extends Error {
 	code: UpdateErrorCode;
@@ -98,7 +99,7 @@ export interface Update {
 	readonly installed: boolean;
 	/** Fetches the archive into a temp directory and checks its size and sha256; resolves to its path. A download in flight is shared, and `install()` calls it when it has not run. */
 	download(options?: DownloadOptions): Promise<string>;
-	/** Extracts, verifies (on macOS a signed app only takes an app signed by the same team) and swaps the archive's contents in for the running app. */
+	/** Extracts, checks that what came out is this app (its kind of executable; on macOS the bundle's identifier and version) and swaps it in for the running app. */
 	install(options?: InstallOptions): Promise<void>;
 }
 
@@ -291,10 +292,7 @@ class AppUpdate implements Update {
 		try {
 			extract(archive, staging);
 			const fresh = locate(staging, target);
-			if (process.platform === 'darwin') {
-				check_bundle(fresh, this.app, this.version);
-				check_codesign(target, fresh);
-			}
+			if (process.platform === 'darwin') check_bundle(fresh, this.app, this.version);
 			keep_staging = swap(target, fresh, staging) === 'previous-kept';
 			this.installed = true;
 		} finally {
@@ -386,18 +384,8 @@ function check_url(url: string, code: UpdateErrorCode) {
 	throw new UpdateError(code, `${url} is not https`);
 }
 
-// Full paths for the system tools, so nothing earlier on PATH (Git's GNU tar, say) stands in for them.
-const TAR = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
-const DITTO = '/usr/bin/ditto';
-const CODESIGN = '/usr/bin/codesign';
+// By its full path, so nothing earlier on PATH stands in for it.
 const PLUTIL = '/usr/bin/plutil';
-
-function run_tool(code: UpdateErrorCode, command: string, args: string[]): string {
-	const { status, stdout, stderr, error } = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-	if (error) throw new UpdateError(code, `${command} failed to start: ${error.message}`, { cause: error });
-	if (status !== 0) throw new UpdateError(code, `${command} ${args.join(' ')} failed:\n${stderr}`);
-	return stdout;
-}
 
 function head(path: string, length: number): Buffer {
 	const buffer = Buffer.alloc(length);
@@ -409,14 +397,12 @@ function head(path: string, length: number): Buffer {
 	}
 }
 
-type Kind = 'zip' | 'tar' | 'executable' | 'unknown';
+type Kind = 'zip' | 'executable' | 'unknown';
 
 /** What a file is, from its first bytes rather than its name. */
 function kind_of(path: string): Kind {
-	const bytes = head(path, 262);
+	const bytes = head(path, 4);
 	if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) return 'zip';
-	if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) return 'tar';
-	if (bytes.length >= 262 && bytes.toString('latin1', 257, 262) === 'ustar') return 'tar';
 	if (is_executable(bytes)) return 'executable';
 	return 'unknown';
 }
@@ -429,22 +415,21 @@ function is_executable(bytes: Buffer): boolean {
 	return [0xcafebabe, 0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic);
 }
 
-/** ditto keeps an `.app` intact, Windows' own bsdtar reads zip, and tar reads a gzipped tar on every platform. */
+/** A zip is opened by src/zip.ts on every platform, which keeps an `.app`'s modes and symlinks and refuses paths that leave the directory. */
 function extract(archive: string, into: string) {
 	switch (kind_of(archive)) {
 		case 'zip':
-			if (process.platform === 'darwin') run_tool('extract', DITTO, ['-x', '-k', archive, into]);
-			else if (process.platform === 'win32') run_tool('extract', TAR, ['-xf', archive, '-C', into]);
-			else run_tool('extract', 'unzip', ['-q', archive, '-d', into]);
-			break;
-		case 'tar':
-			run_tool('extract', TAR, ['-xf', archive, '-C', into]);
+			try {
+				extract_zip(archive, into);
+			} catch (error) {
+				throw new UpdateError('extract', `cannot extract the download: ${(error as Error).message}`, { cause: error });
+			}
 			break;
 		case 'executable':
 			copyFileSync(archive, join(into, basename(archive)));
 			break;
 		default:
-			throw new UpdateError('extract', 'the download is neither an archive nor an executable');
+			throw new UpdateError('extract', 'the download is neither a zip nor an executable');
 	}
 }
 
@@ -498,27 +483,6 @@ function check_bundle(fresh: string, app: EmbeddedAppInfo | null, version: strin
 	}
 	const executable = plist_value(plist, 'CFBundleExecutable');
 	if (!executable || !existsSync(join(fresh, 'Contents', 'MacOS', executable))) throw new UpdateError('extract', `${basename(fresh)} has no executable`);
-}
-
-function team_id(path: string): string | null {
-	const { status, stderr } = spawnSync(CODESIGN, ['-dv', '--verbose=2', path], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
-	if (status !== 0) return null;
-	const match = /^TeamIdentifier=(.+)$/m.exec(stderr);
-	return match && match[1].trim() !== 'not set' ? match[1].trim() : null;
-}
-
-/**
- * A signed app only takes an update signed by the same team, so a hijacked manifest can't hand
- * it someone else's app. The requirement anchors the chain at Apple: an ad-hoc signature can
- * carry any TeamIdentifier, so the field alone proves nothing. An unsigned app has nothing to
- * hold the new one to.
- */
-function check_codesign(current: string, fresh: string) {
-	const team = team_id(current);
-	if (!team) return;
-	const requirement = `anchor apple generic and certificate leaf[subject.OU] = "${team}"`;
-	const verify = spawnSync(CODESIGN, ['--verify', '--deep', '--strict', `-R=${requirement}`, fresh], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
-	if (verify.status !== 0) throw new UpdateError('codesign', `the downloaded app is not signed by team ${team}: ${verify.stderr.trim()}`);
 }
 
 function swap(target: string, fresh: string, staging: string): 'swapped' | 'previous-kept' {

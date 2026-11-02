@@ -55,7 +55,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       # nullglob drops the extension this platform did not make; --clobber lets a re-run replace its upload.
-      - run: shopt -s nullglob; gh release upload --clobber "$TAG" dist/*.zip dist/*.tar.gz
+      - run: shopt -s nullglob; gh release upload --clobber "$TAG" dist/*.zip
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

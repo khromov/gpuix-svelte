@@ -413,16 +413,18 @@ Electron- or CLI-shaped. The design:
   since Windows ACLs ignore `accessSync`). Tests pass `target` to point the swap at a copy, which
   still goes through the writability probe. Both URLs must be `https:` (`check_url`; loopback
   `http:` allowed).
-- **Payload formats follow the platform's tools** so there is no archive library: `write_archive`
-  uses `ditto -c -k --keepParent` on macOS (the notarized zip is the same call, so with
-  `archive: true` notarization writes straight to the versioned name), bsdtar `tar -a -cf x.zip` on
-  Windows, `tar -czf` on Linux; `extract` tells the download apart by magic bytes (`kind_of`: zip,
-  gzip/ustar, or a PE/ELF/Mach-O executable, never by the URL) and uses `ditto -x -k`, `tar -xf`
-  (Windows' bsdtar reads zip) and `tar -xf`. Tools run by full path (`/usr/bin/ditto`,
-  `/usr/bin/codesign`, `/usr/bin/plutil`, `%SystemRoot%\System32\tar.exe`) so Git's GNU tar on
-  PATH can't stand in. `Bun.Archive` was ruled out: it reads tar/tar.gz only (a ditto zip is a
-  `ReadError`), and the module must also run on Node for the tests. The download lands under a
-  fixed name (`update.bin`) in its own `mkdtemp` directory: nothing from the URL becomes a path.
+- **The payload is a zip on every platform, read and written by `src/zip.ts`**: a central-directory
+  parser over `node:zlib`'s `inflateRawSync`/`deflateRawSync`/`crc32` (both runtimes have them),
+  no dependency and no OS tool. It keeps unix modes (the executable bit) and symlinks, reads what
+  `ditto`, bsdtar, Finder and `zip` write (zip64 fields read, not written; `._`/`__MACOSX`
+  sidecars skipped), and `extract_zip` refuses absolute names, drive letters, backslashes, `..`
+  and symlinks that point outside. `write_archive` is `write_zip` with `--keepParent` semantics;
+  the one remaining `ditto` call is `notarize()`'s submission zip on a macOS build machine, which
+  with `archive: true` is also the shipped file, so the reader is tested on a ditto zip. `extract`
+  tells the download apart by magic bytes (`kind_of`: zip or a PE/ELF/Mach-O executable, never by
+  the URL). `Bun.Archive` was ruled out: it reads tar/tar.gz only, and the module must also run on
+  Node for the tests. The download lands under a fixed name (`update.bin`) in its own `mkdtemp`
+  directory: nothing from the URL becomes a path.
 - **What was extracted has to be the app** (`locate`): the entry named like the target, else the
   only candidate, one folder deep at most; then a real `.app` with an `Info.plist`, or a file with
   the platform's executable magic. On macOS `check_bundle` reads the plist with `plutil -extract`
@@ -430,11 +432,9 @@ Electron- or CLI-shaped. The design:
   manifest's, and the `CFBundleExecutable` to exist, so a hijacked manifest can't hand the app
   another app or an old build relabelled.
 - **The swap** renames the old `.app` into the staging directory beside it and the new one into
-  place on macOS (after `check_codesign`: a running app with a `TeamIdentifier` only accepts an app
-  that passes `codesign --verify --deep --strict -R='anchor apple generic and certificate
-  leaf[subject.OU] = "<team>"'` — the anchored requirement matters, an ad-hoc signature can carry
-  any TeamIdentifier; unsigned apps skip it. Not yet confirmed against a real Developer ID build,
-  since no identity was available when it was written); renames the running `.exe` to `.exe.old`
+  place on macOS (no code-signature check: it was dropped as a decision, the manifest signature is
+  the trust, and macOS checks the new bundle's signature itself at launch; `plutil` is the one OS
+  tool the updater still calls, for `check_bundle`); renames the running `.exe` to `.exe.old`
   and the new one in on Windows (a running exe can be renamed, not deleted or overwritten;
   `finish_update()`, which `check_for_update` calls, deletes exactly `<exe>.old` /
   `<exe>.<pid>.old` next launch); renames over the executable on Linux. The staging directory is
@@ -458,7 +458,7 @@ Electron- or CLI-shaped. The design:
   (`check_for_update` resolves to null): the real module's `node:crypto` key functions have no
   browser shim and broke `demo:web`, which CI's linux job now builds with `--build-only`.
   `scripts/publish.ts` rewrites every conditional export, not just `.`.
-- **Release side.** `build({ archive: true })` writes `<slug>-<version>-<platform>.zip|.tar.gz`
+- **Release side.** `build({ archive: true })` writes `<slug>-<version>-<platform>.zip`
   plus `update-<platform>.json` (`UpdateFragment`); the launcher's `update` subcommand (`bin/update.js`: `keygen`,
   `manifest`, `verify`, plain JS over `gpuix-svelte/update`) merges fragments into the manifest.
   `notarize()` takes `NotaryAuth`: `NOTARY_PROFILE`, or `APPLE_ID` + `APPLE_PASSWORD` +
