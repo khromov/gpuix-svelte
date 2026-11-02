@@ -20,6 +20,7 @@ import renderer, {
 } from './renderer.ts';
 import { set_debug_overlay } from './window.ts';
 import { create_window_root, wants_titlebar } from './titlebar.ts';
+import { wait_for_previous_instance } from './previous-instance.ts';
 import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './types.ts';
 
 /**
@@ -196,6 +197,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	const created = !slot.native;
 
 	if (!slot.native) {
+		// After a self-update, the instance that installed it is still exiting; its window must be gone first.
+		wait_for_previous_instance();
 		slot.native = new GpuixRenderer((err, event) => {
 			if (err) {
 				console.error('[gpuix-svelte] native event error:', err);

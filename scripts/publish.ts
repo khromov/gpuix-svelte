@@ -70,7 +70,7 @@ function published_manifest() {
 			out.exports[key] = lib_for(value);
 		} else if (key === './html') {
 			out.exports[key] = { types: './lib/html.d.ts' };
-		} else if (key === '.' && value && typeof value === 'object') {
+		} else if (value && typeof value === 'object') {
 			out.exports[key] = Object.fromEntries(Object.entries(value).map(([condition, target]) => [condition, lib_for(target as string)]));
 		}
 	}

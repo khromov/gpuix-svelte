@@ -9,13 +9,13 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -40,6 +40,10 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    # Only this job mints the OIDC token npm's trusted publishing takes.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,3 +59,88 @@ jobs:
       # The scaffolder pins ^<its own version>, which release-please keeps equal to the root's.
       - run: npm publish
         working-directory: packages/create-gpuix-svelte
+
+  # The tic-tac-toe example built for every platform, plus the update manifest, as assets of the
+  # same release: what a scaffolded app's release workflow does, run for real on every release,
+  # and the built example updates itself from it (examples/tic-tac-toe/standalone.ts).
+  binaries:
+    needs: release
+    if: ${{ needs.release.outputs.release_created }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest, windows-11-arm, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Import the macOS signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
+          rm certificate.p12
+      - run: npm run compile -- --archive
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # nullglob drops the extension this platform did not make; --clobber lets a re-run replace its upload.
+      - run: shopt -s nullglob; gh release upload --clobber "$TAG" dist/*.zip
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag_name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: update-${{ matrix.os }}
+          path: dist/update-*.json
+
+  # Runs even when a platform failed to build, so the others still get their update; the
+  # manifest then lists only what was uploaded. Until it runs, the new release's manifest is a
+  # 404 and apps keep their version.
+  manifest:
+    needs: [release, binaries]
+    if: ${{ !cancelled() && needs.release.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: update-*
+          merge-multiple: true
+          path: fragments
+      - run: gh release view "$TAG" --json body --jq .body > notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag_name }}
+      - run: |
+          node bin/gpuix-svelte.js update manifest --out update.json \
+            --base-url "https://github.com/$REPO/releases/download/$TAG/" \
+            --notes notes.md --url "https://github.com/$REPO/releases/tag/$TAG" \
+            ${PUBLIC_KEY:+--public-key "$PUBLIC_KEY"} \
+            fragments/*.json
+          gh release upload --clobber "$TAG" update.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GPUIX_UPDATE_KEY: ${{ secrets.GPUIX_UPDATE_KEY }}
+          PUBLIC_KEY: ${{ vars.GPUIX_UPDATE_PUBLIC_KEY }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag_name }}

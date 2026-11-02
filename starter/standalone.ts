@@ -9,6 +9,11 @@ render(App, {
 	height: 480,
 	// What `npm run build` packages the executable as; the window takes only its Linux app id from it.
 	app: {
-		identifier: 'com.example.gpuix-svelte-starter'
+		identifier: 'com.example.gpuix-svelte-starter',
+		// Where a built app looks for a newer version of itself; the release workflow publishes it
+		// there (`npm create gpuix-svelte -- --github owner/repo` fills this in). `publicKey` from
+		// `gpuix-svelte update keygen` makes the app refuse a manifest you did not sign.
+		// See the Updating page of the docs.
+		// update: { manifest: 'https://github.com/<owner>/<repo>/releases/latest/download/update.json' }
 	}
 });

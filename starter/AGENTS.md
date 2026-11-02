@@ -1,8 +1,7 @@
 # AGENTS.md
 
-This is a gpuix-svelte app: Svelte 5 components rendered
-into a native desktop window by GPUI, the GPU-accelerated UI framework behind the Zed editor. It runs
-on Node.js >= 24 or Bun >= 1.4.
+This is a gpuix-svelte app: Svelte 5 components rendered into a native desktop window by GPUI, the
+GPU-accelerated UI framework behind the Zed editor. It runs on Node.js >= 24 or Bun >= 1.4.
 
 ## Documentation
 
@@ -19,9 +18,10 @@ npm run build        # the app for this platform, in dist/; needs Bun
 ```
 
 With Bun: `bun run start`, `bun run test`. After a change, run `npm run typecheck` and `npm test`.
-To see what the window draws, run `GPUIX_SCREENSHOT=/tmp/app.png npm start`: it writes a PNG after
-every mount and hot reload. That and `npm test` need macOS or Windows; on Linux, drive a real window
-with `launch()` from `gpuix-svelte/automation` instead.
+To see what the window draws, run `GPUIX_SCREENSHOT=/tmp/app.png npm start` (in PowerShell, set
+the variable first): it writes a PNG after every mount and hot reload. That and `npm test` need
+macOS or Windows; on Linux, drive a real window with `launch()` from `gpuix-svelte/automation`
+instead.
 
 ## Building
 
@@ -43,15 +43,24 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   relative to `standalone.ts`. On Linux the build uses no icon, and the window reports `identifier`
   as its app id, so a `.desktop` file for it is named `<identifier>.desktop`.
 - The output is for the platform it was built on: macOS arm64, Windows x64 or arm64, or Linux x64,
-  the platforms GPUI ships prebuilt (there is no Intel Mac build). To release for all three
-  systems, run `npm run build` on each with Bun installed, for example in a GitHub Actions matrix
-  over `macos-latest`, `windows-latest` and `ubuntu-latest` with `oven-sh/setup-bun`.
+  the platforms GPUI ships prebuilt (there is no Intel Mac build). `.github/workflows/release.yml`
+  already builds all of them in a matrix.
 - `standalone.ts` mounts `App.svelte` with `render` and a static import, since a binary has no
   source files to hot-reload. Keep its window options in step with `app.ts`.
 - macOS keeps a downloaded, unsigned app from opening until it is allowed under System Settings →
   Privacy & Security. With `CODESIGN_IDENTITY` set (a `.env` beside package.json), the build signs
-  the `.app`, and with `NOTARY_PROFILE` as well it notarizes it and leaves `dist/<slug>.zip` to
-  ship; the Shipping page of the docs has the setup.
+  the `.app`, and with `NOTARY_PROFILE` as well (or `APPLE_ID`, `APPLE_PASSWORD` and
+  `APPLE_TEAM_ID`, as the release workflow uses) it notarizes it and leaves a zip to ship:
+  `dist/<slug>.zip`, or with `--archive` the versioned archive. The Shipping page of the docs has
+  the setup.
+- A built app updates itself. Uncomment `update: { manifest }` in `standalone.ts`'s `app` options
+  (`https://github.com/<owner>/<repo>/releases/latest/download/update.json` on GitHub); then
+  `check_for_update()` from `gpuix-svelte/update` reads it and the `Update` it returns downloads,
+  hash-checks and swaps the app (`App.svelte` has the banner). `bun build.ts --archive` writes
+  the archive plus the fragment `gpuix-svelte update manifest` merges. `.github/workflows/release.yml`
+  does the whole release on GitHub: release-please cuts the version, every platform builds and
+  uploads, and `update.json` is written last. Under `npm start` the check resolves to null. The
+  Updating page of the docs has the manifest format, the signing key and the per-platform details.
 
 ## Writing components
 
@@ -67,7 +76,8 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   `min-*` and `max-*`. Use `flex-grow: 1; flex-basis: 0` for `flex: 1`, and `border-width` plus
   `border-color` for `border`; both shorthands are dropped. The styling page lists every property.
 - Colours go in `var(--token)`, with the palette set once from the root through
-  `set_css_vars({ token: '#fff' })`.
+  `set_css_vars({ token: '#fff' })`. (The starter's own `App.svelte` hard-codes its colours; switch
+  to variables once the app has a theme.)
 - Inputs report through events: `<input value={text} onchange={(e) => (text = e.value)} />`;
   `onchange` fires on every edit, and there is no `oninput`. `{@attach (node) => ...}` hands you
   an element.
@@ -118,5 +128,9 @@ every `svelte` import to it. Keep `svelte` itself out of `package.json`.
 - `test.ts` — the headless test (`gpuix-svelte/test`); a plain script that exits 1 on failure, and
   also when the count given to `finish()` is not how many `check()`s ran, so keep it in step.
 - `standalone.ts`, `build.ts` — the entry and the build script behind `npm run build`.
+- `.github/workflows/release.yml`, `release-please-config.json`, `.release-please-manifest.json` —
+  releases on GitHub: version, binaries for every platform and the update manifest. PR titles and
+  commits on main must be conventional commits for release-please to see them.
 - `tsconfig.json`, `svelte.d.ts`, `svelte.config.js` — TypeScript and svelte-check setup.
-- `bunfig.toml` — preloads the `.svelte` loader for ad-hoc `bun file.ts` runs.
+- `bunfig.toml` — preloads the `.svelte` loader for Bun; a plain `bun file.ts` still needs the
+  `--conditions custom-renderer --conditions development` flags, so use `bun run start`.

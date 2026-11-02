@@ -6,10 +6,13 @@
 
 import { Parser, type CallExpression, type Expression, type Literal, type Node, type SpreadElement } from 'acorn';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppOptions } from './types.ts';
+import type { AppOptions, AppUpdateOptions } from './types.ts';
+import { is_public_key } from './update.ts';
+import { write_zip } from './zip.ts';
 
 export interface AppInfo {
 	name: string;
@@ -22,6 +25,19 @@ export interface AppInfo {
 	copyright?: string;
 	publisher?: string;
 	description?: string;
+	update?: AppUpdateOptions;
+}
+
+/** What the executable knows about itself at runtime: `AppInfo` without the build-only icon, as `GPUIX_APP_INFO`. */
+export type EmbeddedAppInfo = Omit<AppInfo, 'icon'>;
+
+/** One platform's build, as `build({ archive: true })` writes it beside the archive for `gpuix-svelte update manifest`. */
+export interface UpdateFragment {
+	platform: string;
+	version: string;
+	file: string;
+	sha256: string;
+	size: number;
 }
 
 /** The `app` options and window title written in the entry's `render()` call. */
@@ -92,10 +108,27 @@ export function read_app_options(source: string): EntryApp {
 	const options = calls[0].arguments[1];
 	if (!options) return {};
 	const fields = object(options, "render()'s second argument");
-	const app: Record<string, string> = {};
+	const app: Record<string, string | Record<string, string>> = {};
 	const declared = fields.get('app');
 	if (declared) {
 		for (const [key, node] of object(declared, 'app')) {
+			if (key === 'update') {
+				const update: Record<string, string> = {};
+				for (const [field, inner] of object(node, 'app.update')) {
+					if (field !== 'manifest' && field !== 'publicKey') throw new Error(`app.update.${field} is not an option (manifest and publicKey are)`);
+					const value = string(inner);
+					if (value === undefined || inner.type === 'NewExpression') throw new Error(`app.update.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
+					update[field] = value;
+				}
+				// A wrong value here ships in an executable that can never update itself to a fixed one.
+				if (!update.manifest) throw new Error('app.update has no manifest URL');
+				if (!is_manifest_url(update.manifest)) throw new Error(`app.update.manifest is ${update.manifest}; it has to be an https URL (http only to this machine)`);
+				if (update.publicKey !== undefined && !is_public_key(update.publicKey)) {
+					throw new Error('app.update.publicKey is not the base64 key gpuix-svelte update keygen printed');
+				}
+				app[key] = update;
+				continue;
+			}
 			const value = string(node);
 			if (value === undefined) throw new Error(`app.${key} is \`${text(node)}\`; ${UNREADABLE}`);
 			app[key] = value;
@@ -103,7 +136,16 @@ export function read_app_options(source: string): EntryApp {
 	}
 	// A title worked out at runtime only costs the name its fallback, and package.json covers that.
 	const title = string(fields.get('title'));
-	return title === undefined ? app : { ...app, title };
+	return (title === undefined ? app : { ...app, title }) as EntryApp;
+}
+
+function is_manifest_url(url: string): boolean {
+	try {
+		const { protocol, hostname } = new URL(url);
+		return protocol === 'https:' || (protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(hostname));
+	} catch {
+		return false;
+	}
 }
 
 export function app_slug(name: string): string {
@@ -127,8 +169,37 @@ export function resolve_app_info(declared: EntryApp, entry: string): AppInfo {
 		icon: declared.icon ? icon_path(declared.icon, entry) : DEFAULT_ICON,
 		copyright: declared.copyright,
 		publisher: declared.publisher,
-		description: declared.description
+		description: declared.description,
+		update: declared.update
 	};
+}
+
+/** `update-<platform>.json`'s platform key, the same string `gpuix-svelte/update` looks its asset up by. */
+export function update_platform(platform = process.platform, arch = process.arch): string {
+	return `${platform}-${arch}`;
+}
+
+/** `<slug>-<version>-<platform>.zip`. */
+export function archive_name(info: Pick<AppInfo, 'slug' | 'version'>, platform = update_platform()): string {
+	return `${info.slug}-${info.version}-${platform}.zip`;
+}
+
+/**
+ * The archive that ships and that `gpuix-svelte/update` installs: the `.app`, `.exe` or
+ * executable at the zip's top level, written by src/zip.ts on every platform (modes kept, so
+ * the executable bit and a signature's layout survive).
+ */
+export function write_archive(output: string, out: string) {
+	rmSync(out, { force: true });
+	write_zip(output, out);
+}
+
+export function sha256_file(path: string): string {
+	return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+export function update_fragment(info: Pick<AppInfo, 'version'>, archive: string, platform = update_platform()): UpdateFragment {
+	return { platform, version: info.version, file: basename(archive), sha256: sha256_file(archive), size: statSync(archive).size };
 }
 
 function icon_path(icon: string | URL, entry: string): string {
@@ -290,14 +361,26 @@ export function sign(target: string, identity: string, scratch: string) {
 	run('codesign', ['--verify', '--strict', target]);
 }
 
+/** A keychain profile on a developer's machine; an Apple ID with an app-specific password on CI, where no keychain profile exists. */
+export type NotaryAuth = { profile: string } | { apple_id: string; password: string; team_id: string };
+
+/** `NOTARY_PROFILE`, else `APPLE_ID` + `APPLE_PASSWORD` + `APPLE_TEAM_ID`; null when neither is complete. */
+export function notary_auth(env: Record<string, string | undefined> = process.env): NotaryAuth | null {
+	if (env.NOTARY_PROFILE) return { profile: env.NOTARY_PROFILE };
+	if (env.APPLE_ID && env.APPLE_PASSWORD && env.APPLE_TEAM_ID) return { apple_id: env.APPLE_ID, password: env.APPLE_PASSWORD, team_id: env.APPLE_TEAM_ID };
+	return null;
+}
+
 /**
  * Stapling only works on a bundle, and the ticket has to be stapled before the zip that ships is
  * made, so the submission zip is rebuilt afterwards; `zip` is the one to ship.
  */
-export function notarize(bundle: string, profile: string, zip: string, log: (line: string) => void) {
+export function notarize(bundle: string, auth: NotaryAuth, zip: string, log: (line: string) => void) {
 	run('ditto', ['-c', '-k', '--keepParent', bundle, zip]);
 	log('notarizing (Apple usually takes a few minutes)');
-	const output = run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', profile, '--wait']);
+	const credentials =
+		'profile' in auth ? ['--keychain-profile', auth.profile] : ['--apple-id', auth.apple_id, '--password', auth.password, '--team-id', auth.team_id];
+	const output = run('xcrun', ['notarytool', 'submit', zip, ...credentials, '--wait']);
 	if (!/status: Accepted/.test(output)) {
 		throw new Error(`notarization was not accepted; see \`xcrun notarytool log\` for the submission below\n${output}`);
 	}
@@ -306,13 +389,17 @@ export function notarize(bundle: string, profile: string, zip: string, log: (lin
 	run('ditto', ['-c', '-k', '--keepParent', bundle, zip]);
 }
 
-export function run(command: string, args: string[], env?: Record<string, string>): string {
+export function run(command: string, args: string[], env?: Record<string, string>, cwd?: string): string {
 	const { status, stdout, stderr, error } = spawnSync(command, args, {
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],
-		...(env && { env: { ...process.env, ...env } })
+		windowsHide: true,
+		...(env && { env: { ...process.env, ...env } }),
+		...(cwd && { cwd })
 	});
 	if (error) throw error;
-	if (status !== 0) throw new Error(`${command} ${args.join(' ')} failed:\n${stderr || stdout}`);
+	// notarytool's --password must not end up in a log through the error.
+	const shown = args.map((arg, i) => (args[i - 1] === '--password' ? '***' : arg));
+	if (status !== 0) throw new Error(`${command} ${shown.join(' ')} failed:\n${stderr || stdout}`);
 	return stdout;
 }

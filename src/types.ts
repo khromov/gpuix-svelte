@@ -166,6 +166,15 @@ export interface AppOptions {
 	/** Windows file properties only. */
 	publisher?: string;
 	description?: string;
+	/** Where `gpuix-svelte/update` looks for a newer version; the build bakes it into the executable. */
+	update?: AppUpdateOptions;
+}
+
+export interface AppUpdateOptions {
+	/** URL of the update manifest, `https://github.com/<owner>/<repo>/releases/latest/download/update.json` on GitHub. */
+	manifest: string;
+	/** Base64 ed25519 public key from `gpuix-svelte update keygen`; set, every manifest has to carry a valid signature. */
+	publicKey?: string;
 }
 
 export interface RenderOptions extends WindowOptions {

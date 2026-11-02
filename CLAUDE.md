@@ -105,6 +105,13 @@ npm run test:bundle        # gpuix-svelte/build's Node half: the app options rea
                            # metadata defaults, what the window takes from them, the Info.plist,
                            # the .ico container, and real .ico/.icns where the platform has a
                            # scaler, under a path with a space and a ’
+npm run test:update        # gpuix-svelte/update: version order, manifest signing and merging,
+                           # app.update read from an entry, and the whole path on this platform
+                           # against a local http server — write_archive packs a fake app, the
+                           # updater downloads, hash-checks, extracts and swaps it in for a copy;
+                           # the gpuix-svelte update CLI; and test/relaunch-app.ts compiled by Bun
+                           # (`bun` on PATH), which replaces itself while running and has to come
+                           # back as the new version, leaving the swept leftovers behind
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -157,7 +164,9 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
 `npm run bun:demo:counter`, ...) running the same entry through Bun (`node bin/gpuix-svelte.js
 --bun ...`), which takes the loader as a `--preload` rather than an `--import`; `bunfig.toml`
-carries the same preload for ad-hoc `bun file.ts` runs. Deps come from `bun install` either way,
+carries the same preload, but an ad-hoc `bun file.ts` still lacks the two `--conditions` flags and
+resolves `svelte` to its server build (`custom_renderer_unavailable_on_server`), so go through the
+bin. Deps come from `bun install` either way,
 but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks its runtime
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
@@ -184,8 +193,10 @@ over what a paint queued (`layout`, say) right after that paint, and `Scroller`'
 it. Prefer them over calling `dispatch()` directly, which injects an
 event at an element and *bypasses* hit testing, so it can pass while the real window fails — the
 renderer's own tests do it only where the batching itself is under test. The headless viewport
-width follows `mount_headless`'s `width`/`height` on macOS, but its height caps at 538 logical px
-(`MAX_HEADLESS_HEIGHT`) — elements laid out below that can't be hit (`click` throws; shift the
+width follows `mount_headless`'s `width`/`height` on macOS, but its height caps at about 540
+logical px (`MAX_HEADLESS_HEIGHT` says 538, but it is only used in error text; a macOS 27 machine
+measured 542, so the real cap follows the display) — elements laid out below that can't be hit
+(`click` throws; shift the
 layout up inside an absolute wrapper to reach them) — and Windows ignores the request and opens a
 viewport sized from the display (1024×749 on CI, 1536×1095 on a dev machine), so never assert
 against the size you asked for; read `native.getWindowSize()`
@@ -232,8 +243,8 @@ CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows 
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
 launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
-a check that the binding loads (see the `@gpuix/native` constraint), the two suites that need no
-headless renderer (`test:bundle`, `test:compile`) and `test:automation-live` under `xvfb-run`, all
+a check that the binding loads (see the `@gpuix/native` constraint), the three suites that need no
+headless renderer (`test:bundle`, `test:compile`, `test:update`) and `test:automation-live` under `xvfb-run`, all
 on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
@@ -311,10 +322,9 @@ as `set_debug_overlay(mode)`, `cycle_debug_overlay()`, `debug_overlay()`,
 count, recorded even while the overlay is hidden). A headless bench of one component is those calls
 and `wheel()` from `gpuix-svelte/test` around `mount_headless` (from outside the repo it needs a
 `node_modules` of symlinks, `svelte` and `gpuix-svelte` → the repo, and a `{"type":"module"}`
-package.json). Substrate's `scripts/frame-cost.ts` (`bun run frames` in
-`../substrate-gpuix-svelte`) is the worked example over a real window: it boots the app against a
-`VACUUM INTO` copy of its data and prints idle and while-scrolling draw times per route; its
-AGENTS.md keeps the baselines.
+package.json). Over a real window, the same calls around `render()` plus a wheel through
+`gpuix-svelte/automation` give idle and while-scrolling draw times per screen; keep the baselines
+next to the app so a regression shows.
 
 ## Shipping
 
@@ -379,6 +389,116 @@ publish.ts's list, so it ships), and the examples and the starter all take that 
 homepage's macOS tile, rasterized at 1024 px from the `icon.svg` beside it (Chrome over CDP keeps
 both the bold text and the transparent corners, where `sips` drops the weight and `qlmanage` paints
 a white background).
+
+### Updates
+
+`docs/updating.md` is the user-facing page. `gpuix-svelte/update` (`src/update.ts`) is in-house
+(adm-zip is its one dependency), after a survey found nothing on npm that fits a Bun-compiled app: Velopack
+needs the .NET `vpk` toolchain, a second napi addon and its own installer formats, and the rest are
+Electron- or CLI-shaped. The design:
+
+- **The build embeds what the app knows about itself.** `build()` defines
+  `process.env.GPUIX_APP_INFO` as the JSON of `EmbeddedAppInfo` (`name`, `slug`, `identifier`,
+  `version`, `update`), and `app_info()` reads that exact expression (not through a helper, or
+  Bun's `define` would miss it); it also defines `process.env.GPUIX_UPDATE_MANIFEST` to `""`, so
+  the dev-run override can't redirect a shipped app. `read_app_options` accepts `app.update` as
+  the one nested object under `app`, with exactly `manifest` (an `https:` URL, or `http:` to
+  loopback) and an optional `publicKey` (`is_public_key`: 32 raw bytes, base64) — anything else
+  fails the build, because a wrong value ships in an executable that can never update itself to a
+  fixed one; `build()` likewise refuses a non-semver version when `update` is set. In a dev run
+  the variable is unset, so `check_for_update()` resolves to null unless `GPUIX_UPDATE_MANIFEST`
+  is set, and `GPUIX_APP_INFO` can be set by hand to fake a built app (docs: "Trying it out").
+- **Installability is decided before anything is downloaded** (`resolve_target`): not compiled
+  (`is_compiled`: `Bun.main` under `/$bunfs/` or `~BUN`, never a name heuristic) is
+  `development`; on macOS a path under `AppTranslocation` is `translocated` and the target is the
+  `.app` three levels up; a directory where a probe `mkdtemp` fails is `read-only` (a real write,
+  since Windows ACLs ignore `accessSync`). Tests pass `target` to point the swap at a copy, which
+  still goes through the writability probe. Both URLs must be `https:` (`check_url`; loopback
+  `http:` allowed).
+- **The payload is a zip on every platform, read and written through adm-zip** (`src/zip.ts` is
+  the thin layer): the third runtime dependency, chosen as a decision over a hand-written reader
+  because it is zero-dependency, widely used (~30M weekly downloads) and does its inflate/deflate
+  through `node:zlib`. Verified empirically before adopting it: modes round-trip (`addLocalFolder`
+  records `stat.mode`, `extractEntryTo(…, keepOriginalPermission)` chmods with it), CRCs are
+  checked on read, and a `../` entry is neutralised (kept inside the target), not followed. What
+  the layer adds, because adm-zip does not: every entry name is validated before extraction
+  (absolute, drive letter, backslash, `..`, `.` → `ZipError`), `._` and `__MACOSX` sidecars are
+  skipped (adm-zip would write them as files, which breaks a signed bundle's seal), and a symlink
+  entry is known to come out as a file holding its target (a bundle `build()` makes has none;
+  documented as unsupported). `write_archive` is `write_zip` with `--keepParent` semantics; the one
+  remaining `ditto` call is `notarize()`'s submission zip on a macOS build machine, which with
+  `archive: true` is also the shipped file, so the reader is tested on a ditto zip. `extract` tells
+  the download apart by magic bytes (`kind_of`: zip or a PE/ELF/Mach-O executable, never by the
+  URL). `Bun.Archive` was ruled out: it reads tar/tar.gz only, and the module must also run on
+  Node for the tests. The download lands under a fixed name (`update.bin`) in its own `mkdtemp`
+  directory: nothing from the URL becomes a path.
+- **What was extracted has to be the app** (`locate`): the entry named like the target, else the
+  only candidate, one folder deep at most; then a real `.app` with an `Info.plist`, or a file with
+  the platform's executable magic. On macOS `check_bundle` reads the XML plist itself
+  (`plist_strings`: comments, CDATA and processing instructions stripped, first `<plist>` only, a
+  depth-aware scan of the top-level dict's `<key>`/`<string>` pairs with self-closing `<array/>`
+  /`<dict/>` not counted, entities decoded; `bplist` or no `<plist>` reads as null and fails the
+  check) and requires `CFBundleIdentifier` == the embedded identifier (when known), a
+  `CFBundleShortVersionString` equal to the manifest's, and a `CFBundleExecutable` that is a bare
+  name whose file is a regular, executable Mach-O (`check_executable`), so a relaunch can't die
+  silently. **This is a guard against a wrong upload, not against a hostile manifest**: the values
+  live in the attacker's own archive, so with an unsigned manifest whoever controls the host has
+  code execution on every client. The manifest signature is the only trust; `publicKey` stays
+  optional as a decision, and the docs say so.
+- **The swap** renames the old app aside on every platform (into the staging directory beside it,
+  or `.exe.old` on Windows, where a running exe can be renamed but not deleted or overwritten and
+  `finish_update()` deletes exactly `<exe>.old` / `<exe>.<pid>.old` next launch) and the new one
+  in; `swap` returns where the old copy is, and it is kept until the new instance has started. No
+  code-signature check: dropped as a decision. The staging directory is a `mkdtemp` beside the
+  target so the renames never cross a filesystem and two instances can't clash. It and the
+  download's temp directory carry the pid in their names (`.update-<pid>-…`,
+  `gpuix-svelte-update-<pid>-…`), so an app closed midway leaves nothing for long:
+  `finish_update()` deletes those whose process is gone (`process.kill(pid, 0)` says ESRCH) and
+  leaves a running instance's alone. If the rename-in fails (retried for a few seconds on Windows,
+  where an antivirus can hold a fresh exe) the old one is renamed back; if that fails too,
+  `StrandedError` makes `install()` rename staging to `.update-kept-…`, which the sweep's
+  `^\d+-` pid pattern never matches, and the error names the path. Post-swap cleanup is
+  best-effort. `relaunch_app` is Electron's `app.relaunch()` with no helper process: `spawn` of the
+  new executable itself (the bundle's `CFBundleExecutable` on macOS, never `open`, never a shell
+  or PowerShell, no `windowsHide`, which would apply to the app's own window), `detached`,
+  `stdio: 'ignore'`, cwd falling back to the app's directory when ours was just renamed away,
+  this process's `argv.slice(2)` replayed (`install({ args })` overrides). Electron's readiness
+  handshake and wait-for-parent are both kept, in portable form: `GPUIX_RELAUNCH_AFTER=<pid>` and
+  `GPUIX_RELAUNCH_READY=<sentinel>` go in the child's environment; the old process awaits the
+  `spawn`/`error` event, then polls for the sentinel (10 s, `READY_TIMEOUT`) and only then
+  `process.exit(0)`s — a spawn error, an early exit or no sentinel means `roll_back` (new one into
+  staging, old one back) and a `RelaunchError` with `installed` reset. The new instance's
+  `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
+  before creating the window; `process.getBuiltinModule('node:fs')` for the sentinel) writes the
+  sentinel first, then polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH and returns
+  `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
+  all three variables are taken out of the environment on the first call so children don't inherit
+  them. `updated_from()` answers from the same read. Electron's Windows de-elevation has no
+  portable equivalent and is not done. `Update.installed` makes a second `install()` throw; a
+  download in flight is memoised, and `signal` aborts it. `check_url` is applied to
+  `response.url` too, so a redirect can't leave https.
+- **Trust.** sha256 (and `size`) are checked while streaming, and the download stops as soon as
+  it passes the manifest's `size`. An ed25519 signature over `canonical_manifest()` (keys sorted,
+  no whitespace, `signature` excluded) is required when the app carries `update.publicKey` (the
+  PEM private key is a CI secret, `GPUIX_UPDATE_KEY`; the `GPUIX_UPDATE_PUBLIC_KEY` repository
+  variable makes the manifest job verify its own output). The signature covers version, notes and
+  every asset, so a signed manifest can't be repointed; it does not expire, so a hijacked host can
+  replay an old signed manifest (documented, not solved). Windows and Linux have no
+  signature check on the executable beyond that; `build()`'s `beforeArchive` hook is where
+  `signtool` goes.
+- **Browser bundles** get `src/update-web.ts` through the `browser` condition on `./update`
+  (`check_for_update` resolves to null): the real module's `node:crypto` key functions have no
+  browser shim and broke `demo:web`, which CI's linux job now builds with `--build-only`.
+  `scripts/publish.ts` rewrites every conditional export, not just `.`.
+- **Release side.** `build({ archive: true })` writes `<slug>-<version>-<platform>.zip`
+  plus `update-<platform>.json` (`UpdateFragment`); the launcher's `update` subcommand (`bin/update.js`: `keygen`,
+  `manifest`, `verify`, plain JS over `gpuix-svelte/update`) merges fragments into the manifest.
+  `notarize()` takes `NotaryAuth`: `NOTARY_PROFILE`, or `APPLE_ID` + `APPLE_PASSWORD` +
+  `APPLE_TEAM_ID` for CI. `starter/.github/workflows/release.yml` is the GitHub golden path
+  (release-please → four-OS build matrix uploading archives → one manifest job), and this repo's
+  `release.yml` runs the same `binaries` + `manifest` jobs on tic-tac-toe, whose `standalone.ts`
+  points at this repo's `releases/latest/download/update.json`, so every gpuix-svelte release
+  exercises the path and the built example updates itself.
 
 ### Rendering to the web
 
@@ -529,7 +649,8 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
-  app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool  ─ Node-testable half of build.ts
+  app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool, the update archive + fragment  ─ Node-testable half of build.ts
+  update.ts    check_for_update(), the swap per platform, manifest signing/merging  ─ `gpuix-svelte/update`; bin/gpuix-svelte.js update is its CLI
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
   automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts
@@ -575,7 +696,8 @@ shorthand.
 The two loaders exist because there is no shared API: Bun has no `module.registerHooks`, and its
 `module.register()` is a silent no-op. Both are small wrappers around `compile_svelte()`, and both
 must be installed before the entry module resolves — Node via `--import gpuix-svelte/register`,
-Bun via `--preload gpuix-svelte/plugin` (or `bunfig.toml`'s `preload`), both supplied by
+Bun via `--preload gpuix-svelte/plugin` (or `bunfig.toml`'s `preload`, which alone is not enough:
+the `--conditions` flags are what pick the custom-renderer build), both supplied by
 `bin/gpuix-svelte.js`. Tests rely on that registration rather than importing a loader themselves.
 Both also compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
 `svelte/compiler`, no renderer option) — which does **not** strip types, so the loaders do it
@@ -621,8 +743,8 @@ keeps no `node:*` import, so it bundles for the browser as-is; `render_hot` live
 for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
 `compile.ts` propagates that query to child `.svelte` specifiers — static, side-effect and dynamic
 `import()` alike — or a reload would re-instantiate the root against stale children. It finds them
-by parsing the emitted JS with `acorn` (Svelte's own parser, and the one dependency besides
-`@gpuix/native` and the bundled svelte) and splicing the query in at each specifier's offset, so a
+by parsing the emitted JS with `acorn` (Svelte's own parser; the other runtime dependencies are
+`@gpuix/native`, the bundled svelte and `adm-zip` for update archives) and splicing the query in at each specifier's offset, so a
 `.svelte` string inside ordinary code or a comment is left alone and the rest of the output stays
 byte-identical. Only relative, absolute and `file:` specifiers are busted: Node refuses a bare one
 with a query, and a package component is not what is being edited. The query does nothing on Bun
@@ -666,8 +788,8 @@ Unknown events are dropped silently.
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
 `docs/components.md` documents their props and the native `<anchored>`.
 
-- **`Scroller`** is the scroll column with a drawn thumb (the tutorial, the styling playground and
-  Substrate all use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
+- **`Scroller`** is the scroll column with a drawn thumb (the tutorial and the styling playground
+  use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
   draws its own from what native reports (`layout` on the column and its content, `scrollChange`
   on the column) and drags on a panel-sized overlay. It has no timer and makes no native read, since
   on Windows and Linux reading bounds draws a frame (polling them kept an idle window at 8 frames/s
@@ -729,8 +851,8 @@ mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` 
 are the ones that bite most often, and the renderer behaviour behind them.
 
 - Style with `<style>` blocks for shape and colour, colours as `var(--token)` with the palette
-  handed to `set_css_vars({ token: '#fff' })` once from the root (Substrate does it in an `$effect`
-  over its `LIGHT`/`DARK` objects — a theme switch is one call), and `style:` / inline `style="..."`
+  handed to `set_css_vars({ token: '#fff' })` once from the root (an `$effect` over `LIGHT`/`DARK`
+  palette objects makes a theme switch one call), and `style:` / inline `style="..."`
   only for measured values. Class rules accept `.btn`, `.btn.primary`, `.a, .b`, one tag, and
   `:hover` / `:active` / `:focus-visible`; specificity is class count then source order, inline
   `style` always wins. Box shorthands work and `rem` is 16 px; `em`/`vh`/`vw` do not — GPUI lengths
@@ -746,10 +868,9 @@ are the ones that bite most often, and the renderer behaviour behind them.
   URL or an http(s) URL GPUI fetches in the background, so give it both a width and a height.
   `<markdown>` is rebuilt and laid out in full on every frame, on screen or not, and the cost
   follows its block count, not its bytes (a 226-block page cost ~7 ms a frame headless, ~18 ms in
-  Substrate's window), so a long document goes
-  one block per row under `<Scroller virtual>`, which brought it under 1 ms headless and the window
-  to ~5 ms — Substrate's `Item.svelte` with `lib/blocks.ts` (one row per top-level token of
-  `marked`'s lexer) is the example. `<svg source>` inherits **no** `color` natively, so the renderer
+  a real window), so a long document goes one block per row under `<Scroller virtual>`, one row
+  per top-level token of `marked`'s lexer, which brought it under 1 ms headless and the window to
+  ~5 ms. `<svg source>` inherits **no** `color` natively, so the renderer
   copies the nearest ancestor's (from its class rules or inline style) onto any `<svg>` without one
   and re-copies it whenever that ancestor restyles; a parent's `:hover` colour does not reach it,
   since hover is native.
@@ -800,8 +921,8 @@ are the ones that bite most often, and the renderer behaviour behind them.
   `e.isRightClick`, with `e.x`/`e.y` in window coordinates — which is what positions a `<Portal>`
   menu at the cursor (`getElementBounds` reports the border box since native 0.11). GPUI routes
   macOS's ctrl+click to `click`, not `auxClick`, so a surface that wants the platform's secondary
-  click needs both handlers; Substrate's `is_secondary(e)` in `lib/ui.svelte.ts` is that check
-  written once.
+  click needs both handlers; write the check (`e.isRightClick || e.modifiers.ctrl`) once in a
+  helper and share it.
 - **No mouse event bubbling, and a painted child occludes its parent's hitbox.** (Key events are
   the exception: a `keyDown` reaches the focused element *and* every focusable ancestor that
   listens, so a root shortcut handler also hears what is typed into an `<input>` below it.) A child
@@ -891,7 +1012,11 @@ gitignored `template/`; run from the repo, `index.js` reads `starter/` directly)
 `npm run consume` installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays
 pristine). It has its own tsconfig with the `paths` for the nested svelte and its own
 `AGENTS.md` (and a `CLAUDE.md` that imports it) for the consumer's agents, and is excluded from
-the root `tsconfig`, eslint and `files`.
+the root `tsconfig`, eslint and `files`. The scaffolder makes the release workflow optional: an
+interactive run asks (and asks for `owner/repo`, which it writes into `standalone.ts`'s commented
+`update:` line as the manifest URL), `--github [owner/repo]` / `--no-github` decide for scripts,
+and with neither a non-TTY run keeps the workflow, which is what `consume` gets. `--no-github`
+removes `.github/`, `release-please-config.json` and `.release-please-manifest.json` after the copy.
 
 ## Runtime
 
@@ -916,12 +1041,9 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
 - Sibling checkouts: `../gpuix` is the fork this repo was extracted from and lags upstream (native
   0.7.0) — read upstream release tags instead (see "Regenerating the styling reference");
   `../svelte` (khromov/svelte) is the local copy of the custom-renderer PR stack, on its
-  `custom-condition` branch (check it out before reading; it is force-pushed about weekly);
-  `../substrate-gpuix-svelte` (khromov/substrate-gpuix-svelte, private) is Substrate, the "second
-  brain" app that consumes the published package. Wherever this file says "Substrate's `x`", the
-  path is relative to that checkout. Its `bun run test` is the largest consumer suite there is; to
-  run it against this checkout, swap its `node_modules/gpuix-svelte` for a symlink to
-  `../../gpuix-svelte`, and `bun install` there restores the published copy.
+  `custom-condition` branch (check it out before reading; it is force-pushed about weekly). To run
+  a consumer app's test suite against this checkout, swap its `node_modules/gpuix-svelte` for a
+  symlink to this repo; `bun install` there restores the published copy.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
