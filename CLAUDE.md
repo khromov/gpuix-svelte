@@ -108,8 +108,10 @@ npm run test:bundle        # gpuix-svelte/build's Node half: the app options rea
 npm run test:update        # gpuix-svelte/update: version order, manifest signing and merging,
                            # app.update read from an entry, and the whole path on this platform
                            # against a local http server — write_archive packs a fake app, the
-                           # updater downloads, hash-checks, extracts and swaps it in for a copy
-                           # (relaunch is the one step not run); then the gpuix-svelte-update CLI
+                           # updater downloads, hash-checks, extracts and swaps it in for a copy;
+                           # the gpuix-svelte-update CLI; and test/relaunch-app.ts compiled by Bun
+                           # (`bun` on PATH), which replaces itself while running and has to come
+                           # back as the new version, leaving the swept leftovers behind
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -439,11 +441,15 @@ Electron- or CLI-shaped. The design:
   `finish_update()`, which `check_for_update` calls, deletes exactly `<exe>.old` /
   `<exe>.<pid>.old` next launch); renames over the executable on Linux. The staging directory is
   a `mkdtemp` beside the target so the renames never cross a filesystem and two instances can't
-  clash; if the rename-in fails the old one is renamed back, and if that fails too staging is kept
+  clash. It and the download's temp directory carry the pid in their names
+  (`.update-<pid>-…`, `gpuix-svelte-update-<pid>-…`), so an app closed midway leaves nothing for
+  long: `finish_update()` deletes those whose process is gone (`process.kill(pid, 0)` says ESRCH)
+  and leaves a running instance's alone. If the rename-in fails the old one is renamed back, and if that fails too staging is kept
   and the error says where the old bundle is. Post-swap cleanup is best-effort. `relaunch_app`
-  waits for this pid before starting the new one everywhere: `sh -c 'while kill -0 …; open -n/exec
-  "$0"'` on macOS/Linux, a detached `powershell Wait-Process; Start-Process` on Windows, then
-  `process.exit(0)`. `Update.installed` makes a second `install()` throw; a download in flight is
+  waits for this pid before starting the new one on macOS/Linux (`sh -c 'while kill -0 …; open
+  -n/exec "$0"'`) and on Windows spawns the new `.exe` directly, because PowerShell (5.1 and 7)
+  exits 0 without running its script under `detached`'s DETACHED_PROCESS, then `process.exit(0)`.
+  `Update.installed` makes a second `install()` throw; a download in flight is
   memoised, and `signal` aborts it.
 - **Trust.** sha256 (and `size`) are checked while streaming, and the download stops as soon as
   it passes the manifest's `size`. An ed25519 signature over `canonical_manifest()` (keys sorted,

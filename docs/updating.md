@@ -206,9 +206,9 @@ executable. Then it is swapped in:
   is. To relaunch, a shell waits for this process to exit and then runs `open -n` on the new one.
 - **Windows.** `tar` (in Windows since version 1803, run by its full path in `System32`) extracts
   the `.exe`. A running executable can't be deleted or overwritten, but it can be renamed: the old
-  one becomes `<name>.exe.old`, the new one takes its place, a detached PowerShell waits for this
-  process to exit and starts it, and the `.old` file is deleted by `check_for_update()` (or
-  `finish_update()`) on the next launch.
+  one becomes `<name>.exe.old`, the new one takes its place and is started directly as this process
+  exits, and the `.old` file is deleted by `check_for_update()` (or `finish_update()`) on the next
+  launch.
 - **Linux.** `tar` extracts the executable (`unzip` for a zip), which is renamed over the old one
   (atomic; the running process keeps its old inode) and started with `exec` once this one has
   exited.
@@ -216,7 +216,10 @@ executable. Then it is swapped in:
 With `relaunch: false`, `install()` returns after the swap and the app keeps running on the old
 code; the next launch is the new version. `update.installed` is then true and a second `install()`
 throws. A download in flight is shared between callers, and `download`/`install` take a `signal`
-to abort it. Nothing is signature-checked on Windows or Linux beyond the manifest's hash and
+to abort it. An app closed or killed midway leaves its archive in the temp directory, or a staging
+directory beside the app. `check_for_update()` (or `finish_update()`) deletes those on the next
+launch once the process that made them is gone, so another running instance's download is safe.
+Nothing is signature-checked on Windows or Linux beyond the manifest's hash and
 signature; `build()`'s `beforeArchive` hook is where a Windows `.exe` gets `signtool` before the
 archive is made.
 
@@ -295,8 +298,9 @@ From `gpuix-svelte/update`:
   (`{ url, sha256, size }` or null), `installable`, `reason`, `installed`;
   `download({ onProgress, signal })` resolves to the archive's path (aborting fails it with code
   `download`); `install({ relaunch, onProgress, signal })` throws if it already ran.
-- `finish_update()` deletes the `.old` executable a Windows update leaves; `check_for_update()`
-  calls it, so an app that never checks at startup calls this instead.
+- `finish_update()` deletes what earlier updates left: the `.old` executable on Windows, and the
+  archive or staging directory of an app closed midway. `check_for_update()` calls it, so an app
+  that never checks at startup calls this instead.
 - `app_info()`: what the build embedded (`name`, `slug`, `identifier`, `version`, `update`), or
   null in a dev run. Handy for an About screen.
 - `compare_versions(a, b)`, `is_version`, `is_public_key`, `canonical_manifest`, `sign_manifest`,

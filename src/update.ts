@@ -118,7 +118,7 @@ export function app_info(): EmbeddedAppInfo | null {
 export async function check_for_update(options: CheckOptions = {}): Promise<Update | null> {
 	const app = app_info();
 	const { target, reason } = resolve_target(options.target);
-	if (target) finish_update(target);
+	clean_up(target);
 	// The build defines this one away, so only a dev run can be pointed elsewhere.
 	const url = process.env.GPUIX_UPDATE_MANIFEST || options.manifest || app?.update?.manifest;
 	if (!url) return null;
@@ -152,29 +152,62 @@ export async function check_for_update(options: CheckOptions = {}): Promise<Upda
 }
 
 /**
- * Deletes what the last update left beside the executable: Windows can't delete a running
- * `.exe`, only rename it, so the old one waits as `<name>.exe.old` until the next launch.
+ * Deletes what earlier updates left: the archive or staging directory of an app that was closed
+ * or killed midway, and on Windows the old `.exe`, which can't be deleted while it runs, only
+ * renamed, so it waits as `<name>.exe.old` until the next launch.
  * `check_for_update()` does this; call it at startup in an app that checks later or never.
  */
 export function finish_update(target?: string) {
-	if (process.platform !== 'win32') return;
-	const exe = target ?? resolve_target().target;
+	clean_up(target ?? resolve_target().target);
+}
+
+function clean_up(exe: string | null) {
+	sweep(tmpdir(), DOWNLOAD_PREFIX);
 	if (!exe) return;
 	const dir = dirname(exe);
-	let entries: string[];
-	try {
-		entries = readdirSync(dir);
-	} catch {
-		return;
-	}
+	sweep(dir, STAGING_PREFIX);
+	if (process.platform !== 'win32') return;
 	const leftover = new RegExp(`^${escape_regexp(basename(exe))}(\\.\\d+)?\\.old$`, 'i');
-	for (const name of entries) {
+	for (const name of list(dir)) {
 		if (!leftover.test(name)) continue;
 		try {
 			rmSync(join(dir, name), { force: true });
 		} catch {
 			// Still running, or still exiting; the next launch gets it.
 		}
+	}
+}
+
+const DOWNLOAD_PREFIX = 'gpuix-svelte-update-';
+const STAGING_PREFIX = '.update-';
+
+// The pid in the name is what tells an abandoned directory from another instance's live download.
+function make_own_dir(parent: string, prefix: string): string {
+	return mkdtempSync(join(parent, `${prefix}${process.pid}-`));
+}
+
+function sweep(dir: string, prefix: string) {
+	for (const name of list(dir)) {
+		const pid = name.startsWith(prefix) ? /^\d+(?=-)/.exec(name.slice(prefix.length))?.[0] : undefined;
+		if (pid && !is_running(Number(pid))) rm_quietly(join(dir, name));
+	}
+}
+
+function list(dir: string): string[] {
+	try {
+		return readdirSync(dir);
+	} catch {
+		return [];
+	}
+}
+
+function is_running(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		// Only ESRCH says it is gone; EPERM is another user's live process.
+		return (error as NodeJS.ErrnoException).code !== 'ESRCH';
 	}
 }
 
@@ -238,7 +271,7 @@ class AppUpdate implements Update {
 		if (!response.ok || !response.body) throw new UpdateError('download', `${url}: ${response.status} ${response.statusText}`);
 		const total = size ?? (Number(response.headers.get('content-length')) || null);
 		// A fixed name under a directory of its own: nothing from the URL becomes a path.
-		const dir = mkdtempSync(join(tmpdir(), 'gpuix-svelte-update-'));
+		const dir = make_own_dir(tmpdir(), DOWNLOAD_PREFIX);
 		const file = join(dir, 'update.bin');
 		const hash = createHash('sha256');
 		const reader = response.body.getReader();
@@ -283,7 +316,7 @@ class AppUpdate implements Update {
 		let staging: string;
 		try {
 			// Beside the target, so the final rename never crosses a filesystem; making it also proves the directory is writable.
-			staging = mkdtempSync(join(dirname(target), '.update-'));
+			staging = make_own_dir(dirname(target), STAGING_PREFIX);
 		} catch (error) {
 			throw new UpdateError('install', `cannot write next to ${target}: ${(error as Error).message}`, { cause: error });
 		}
@@ -561,11 +594,11 @@ function swap(target: string, fresh: string, staging: string): 'swapped' | 'prev
 }
 
 function relaunch_app(target: string): never {
-	// Only once this process is gone, or the two instances overlap (and the Dock bounces twice).
 	if (process.platform === 'win32') {
-		const script = `Wait-Process -Id ${process.pid} -ErrorAction SilentlyContinue; Start-Process -FilePath '${target.replace(/'/g, "''")}'`;
-		spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+		// Directly, since PowerShell exits 0 without running its script under `detached`'s DETACHED_PROCESS.
+		spawn(target, [], { detached: true, stdio: 'ignore' }).unref();
 	} else {
+		// Only once this process is gone, or the two instances overlap (and the Dock bounces twice).
 		const launch = process.platform === 'darwin' ? '/usr/bin/open -n "$0"' : 'exec "$0"';
 		spawn('/bin/sh', ['-c', `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.2; done; ${launch}`, target], { detached: true, stdio: 'ignore' }).unref();
 	}
