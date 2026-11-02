@@ -79,9 +79,9 @@ has not run.
 **3. Build with the archive.** `build({ entry, archive: true })`, or `bun build.ts --archive` in a
 scaffolded app, writes two files beside the app in `dist/`:
 
-- `<slug>-<version>-<platform>.zip` on macOS and Windows, `.tar.gz` on Linux: the archive to
-  upload. The platform is `darwin-arm64`, `win32-x64`, `win32-arm64` or `linux-x64`. On macOS, with
-  notarization on, it is the stapled zip the build already makes.
+- `<slug>-<version>-<platform>.zip`: the archive to upload, with the `.app`, `.exe` or executable
+  at its top level. The platform is `darwin-arm64`, `win32-x64`, `win32-arm64` or `linux-x64`. On
+  macOS, with notarization on, it is the stapled zip the build already makes.
 - `update-<platform>.json`, a fragment with the archive's name, sha256 and size for the next step.
 
 Run it on each platform you ship, as with any build.
@@ -145,8 +145,9 @@ Secrets, all optional:
 | `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarize with an Apple ID and an [app-specific password](shipping.md#signing-and-notarizing-on-macos); a runner has no keychain profile. Needs `CODESIGN_IDENTITY` too |
 
 Without the macOS secrets the app is unsigned, which is fine for an update (the app downloads the
-archive itself, so Gatekeeper's quarantine never applies) but not for first installs. With a
-signed app, an update must be signed by the same team; see below.
+archive itself, so Gatekeeper's quarantine never applies) but not for first installs. The updater
+itself checks no code signature on any platform: what it trusts is the manifest's hash and, if you
+sign, its signature, so sign the manifest.
 
 Make the first release by merging the PR release-please opens; the app built from it is the first
 one that can update.
@@ -189,29 +190,26 @@ misspelled option, or a version that is not semver.
 
 On every platform the archive is downloaded to a temporary directory while its sha256 is computed;
 the download stops as soon as it passes the size the manifest promised, and is refused if the hash
-or size differs. The archive is told apart by its bytes, not its name (zip, gzipped tar, or a bare
-executable), extracted into a directory next to the app, so the final move never crosses a file
-system, and what was extracted has to be an app of this platform: the entry named like the running
-one, or the only candidate, and a real `.app` with an `Info.plist`, a Windows PE or a Linux ELF
-executable. Then it is swapped in:
+or size differs. The archive is told apart by its bytes, not its name (a zip, or a bare
+executable), and the zip is opened by gpuix-svelte's own reader, the same code on every platform:
+it keeps unix modes and symlinks, refuses any entry that would land outside the directory, and
+skips the `__MACOSX` and `._` sidecars Finder and `ditto` add. Extraction goes into a directory
+next to the app, so the final move never crosses a file system, and what was extracted has to be
+an app of this platform: the entry named like the running one, or the only candidate, and a real
+`.app` with an `Info.plist`, a Windows PE or a Linux ELF executable. Then it is swapped in:
 
-- **macOS.** `ditto` extracts the `.app`. Its `CFBundleIdentifier` has to be the app's and its
+- **macOS.** The `.app`'s `CFBundleIdentifier` has to be the app's and its
   `CFBundleShortVersionString` the manifest's, so a manifest can only hand the app a newer build
-  of itself. If the running app is signed with a Team ID, the new one must satisfy
-  `codesign --verify --deep --strict` with the requirement `anchor apple generic and certificate
-  leaf[subject.OU] = "<team>"`, that is, be signed by the same team through Apple's chain (an
-  ad-hoc signature can claim any team, so the field alone is not trusted). The old bundle is
-  renamed aside, the new one moved into place, the old one deleted; if moving the new one in
-  fails, the old one is moved back, and if even that fails, the error names where the old bundle
-  is. To relaunch, a shell waits for this process to exit and then runs `open -n` on the new one.
-- **Windows.** `tar` (in Windows since version 1803, run by its full path in `System32`) extracts
-  the `.exe`. A running executable can't be deleted or overwritten, but it can be renamed: the old
-  one becomes `<name>.exe.old`, the new one takes its place and is started directly as this process
-  exits, and the `.old` file is deleted by `check_for_update()` (or `finish_update()`) on the next
-  launch.
-- **Linux.** `tar` extracts the executable (`unzip` for a zip), which is renamed over the old one
-  (atomic; the running process keeps its old inode) and started with `exec` once this one has
-  exited.
+  of itself. The old bundle is renamed aside, the new one moved into place, the old one deleted;
+  if moving the new one in fails, the old one is moved back, and if even that fails, the error
+  names where the old bundle is. To relaunch, a shell waits for this process to exit and then runs
+  `open -n` on the new one.
+- **Windows.** A running executable can't be deleted or overwritten, but it can be renamed: the
+  old one becomes `<name>.exe.old`, the new one takes its place and is started directly as this
+  process exits, and the `.old` file is deleted by `check_for_update()` (or `finish_update()`) on
+  the next launch.
+- **Linux.** The executable is renamed over the old one (atomic; the running process keeps its
+  old inode) and started with `exec` once this one has exited.
 
 With `relaunch: false`, `install()` returns after the swap and the app keeps running on the old
 code; the next launch is the new version. `update.installed` is then true and a second `install()`
@@ -219,9 +217,9 @@ throws. A download in flight is shared between callers, and `download`/`install`
 to abort it. An app closed or killed midway leaves its archive in the temp directory, or a staging
 directory beside the app. `check_for_update()` (or `finish_update()`) deletes those on the next
 launch once the process that made them is gone, so another running instance's download is safe.
-Nothing is signature-checked on Windows or Linux beyond the manifest's hash and
-signature; `build()`'s `beforeArchive` hook is where a Windows `.exe` gets `signtool` before the
-archive is made.
+No code signature is checked at install on any platform: on macOS the system checks the new
+bundle's signature when it launches, as for any app, and `build()`'s `beforeArchive` hook is where
+a Windows `.exe` gets `signtool` before the archive is made.
 
 `installable` is false, and `install()` throws, when:
 
@@ -238,8 +236,8 @@ the new version by hand.
 
 Errors are `UpdateError`s with a `code`: `version` (the running version is unknown, or the
 manifest's is not semver), `manifest` (unreachable, not https, not JSON, malformed), `signature`,
-`download`, `hash`, `extract` (nothing usable in the archive, or another app's bundle), `codesign`,
-`install` and `not-installable`.
+`download`, `hash`, `extract` (a damaged or hostile zip, nothing usable in it, or another app's
+bundle), `install` and `not-installable`.
 
 ## The manifest
 
@@ -253,7 +251,7 @@ manifest's is not semver), `manifest` (unreachable, not https, not JSON, malform
 		"darwin-arm64": { "url": "https://…/my-app-1.2.0-darwin-arm64.zip", "sha256": "…", "size": 115331072 },
 		"win32-x64": { "url": "https://…/my-app-1.2.0-win32-x64.zip", "sha256": "…", "size": 136314880 },
 		"win32-arm64": { "url": "https://…/my-app-1.2.0-win32-arm64.zip", "sha256": "…", "size": 120586240 },
-		"linux-x64": { "url": "https://…/my-app-1.2.0-linux-x64.tar.gz", "sha256": "…", "size": 162529280 }
+		"linux-x64": { "url": "https://…/my-app-1.2.0-linux-x64.zip", "sha256": "…", "size": 162529280 }
 	},
 	"signature": "base64 ed25519 over the rest, keys sorted, no whitespace"
 }
@@ -263,9 +261,9 @@ manifest's is not semver), `manifest` (unreachable, not https, not JSON, malform
 is optional. Versions compare as semver (`1.2.0-beta.1 < 1.2.0 < 1.10.0`), and only a strictly
 newer version is offered. The archive at `url` holds the `.app`, the `.exe` or the executable at its
 top level (or inside one folder). The download's type is read from its bytes, not its name: a zip
-(Linux needs `unzip`), a gzipped or plain tar, or on Windows and Linux a bare executable. You can
-write the file by hand or with your own tooling as long as it has this shape;
-`gpuix-svelte update manifest` is one way.
+(stored or deflated entries, under 4 GB; what `build()`, `ditto`, bsdtar, Finder and `zip` write),
+or on Windows and Linux a bare executable. You can write the file by hand or with your own tooling
+as long as it has this shape; `gpuix-svelte update manifest` is one way.
 
 ## Trying it out
 

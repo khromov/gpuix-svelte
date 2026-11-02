@@ -82,7 +82,7 @@ executable for the platform it is running on.
 from the project root. The returned object names the `output` to ship, the `binary` inside it, the
 resolved `app` metadata, and whether it was `signed` and `notarized`. `archive: true`
 (`bun build.ts --archive` in a scaffolded app) also writes the archive to distribute,
-`<slug>-<version>-<platform>.zip` (`.tar.gz` on Linux), and the fragment an update manifest is made
+`<slug>-<version>-<platform>.zip`, and the fragment an update manifest is made
 from. [Updating](updating.md) covers that, including a GitHub workflow that builds and uploads every
 platform on each release.
 
