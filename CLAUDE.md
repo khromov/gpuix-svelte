@@ -109,7 +109,7 @@ npm run test:update        # gpuix-svelte/update: version order, manifest signin
                            # app.update read from an entry, and the whole path on this platform
                            # against a local http server — write_archive packs a fake app, the
                            # updater downloads, hash-checks, extracts and swaps it in for a copy
-                           # (relaunch is the one step not run); then the gpuix-svelte-update CLI
+                           # (relaunch is the one step not run); then the gpuix-svelte update CLI
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -459,7 +459,7 @@ Electron- or CLI-shaped. The design:
   browser shim and broke `demo:web`, which CI's linux job now builds with `--build-only`.
   `scripts/publish.ts` rewrites every conditional export, not just `.`.
 - **Release side.** `build({ archive: true })` writes `<slug>-<version>-<platform>.zip|.tar.gz`
-  plus `update-<platform>.json` (`UpdateFragment`); `bin/gpuix-svelte-update.js` (`keygen`,
+  plus `update-<platform>.json` (`UpdateFragment`); the launcher's `update` subcommand (`bin/update.js`: `keygen`,
   `manifest`, `verify`, plain JS over `gpuix-svelte/update`) merges fragments into the manifest.
   `notarize()` takes `NotaryAuth`: `NOTARY_PROFILE`, or `APPLE_ID` + `APPLE_PASSWORD` +
   `APPLE_TEAM_ID` for CI. `starter/.github/workflows/release.yml` is the GitHub golden path
@@ -618,7 +618,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
   app-bundle.ts  render()'s app options read from source, metadata defaults, Info.plist, .icns/.ico, codesign, notarytool, the update archive + fragment  ─ Node-testable half of build.ts
-  update.ts    check_for_update(), the swap per platform, manifest signing/merging  ─ `gpuix-svelte/update`; bin/gpuix-svelte-update.js is its CLI
+  update.ts    check_for_update(), the swap per platform, manifest signing/merging  ─ `gpuix-svelte/update`; bin/gpuix-svelte.js update is its CLI
   test.ts      headless harness over TestGpuixRenderer  ─ `gpuix-svelte/test`
   automation.ts  upstream's App/Locator, launch(), test_app()  ─ `gpuix-svelte/automation`
   automation-server.ts  GPUIX_AUTOMATION=1 stdio server  ─ imported lazily by render.ts

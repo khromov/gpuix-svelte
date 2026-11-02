@@ -15,8 +15,14 @@ import { fileURLToPath } from 'node:url';
 const args = process.argv.slice(2);
 const at = args.findIndex((arg) => !arg.startsWith('--'));
 if (at === -1) {
-	console.error('usage: gpuix-svelte [--bun] [runtime flags] <entry.ts> [args]');
+	console.error('usage: gpuix-svelte [--bun] [runtime flags] <entry.ts> [args]\n       gpuix-svelte update keygen | manifest | verify');
 	process.exit(2);
+}
+
+// The release-side commands of gpuix-svelte/update need no runtime flags or loader.
+if (args[at] === 'update') {
+	const { run } = await import('./update.js');
+	await run(args.slice(at + 1));
 }
 
 const flags = args.slice(0, at);

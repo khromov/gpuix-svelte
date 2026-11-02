@@ -34,7 +34,7 @@ export interface UpdateManifest {
 	url?: string;
 	/** Keyed by `<process.platform>-<process.arch>`: `darwin-arm64`, `win32-x64`, `win32-arm64`, `linux-x64`. */
 	platforms: Record<string, UpdateAsset>;
-	/** Base64 ed25519 signature over `canonical_manifest()`, from `gpuix-svelte-update manifest --key`. */
+	/** Base64 ed25519 signature over `canonical_manifest()`, from `gpuix-svelte update manifest --key`. */
 	signature?: string;
 }
 
@@ -572,7 +572,7 @@ function relaunch_app(target: string): never {
 	process.exit(0);
 }
 
-// --- The manifest: what `gpuix-svelte-update manifest` writes and the app checks -------------
+// --- The manifest: what `gpuix-svelte update manifest` writes and the app checks -------------
 
 const SHA256 = /^[0-9a-fA-F]{64}$/;
 

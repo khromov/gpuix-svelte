@@ -7,8 +7,7 @@
 	"author": "Stanislav Khromov",
 	"main": "src/index.ts",
 	"bin": {
-		"gpuix-svelte": "bin/gpuix-svelte.js",
-		"gpuix-svelte-update": "bin/gpuix-svelte-update.js"
+		"gpuix-svelte": "bin/gpuix-svelte.js"
 	},
 	"exports": {
 		".": {

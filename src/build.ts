@@ -38,7 +38,7 @@ export interface BuildOptions {
 	outdir?: string | URL;
 	/**
 	 * Also write the archive to distribute, `<slug>-<version>-<platform>.zip` (`.tar.gz` on Linux),
-	 * and `update-<platform>.json` beside it, the fragment `gpuix-svelte-update manifest` merges.
+	 * and `update-<platform>.json` beside it, the fragment `gpuix-svelte update manifest` merges.
 	 */
 	archive?: boolean;
 	/** Runs on the packaged output before the archive is made: where a Windows `.exe` gets `signtool`, say. */
@@ -209,7 +209,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		if (!notarized) write_archive(output, archive);
 		fragment = join(outdir, `update-${update_platform()}.json`);
 		writeFileSync(fragment, JSON.stringify(update_fragment(app, archive), null, '\t') + '\n');
-		log(`${rel(archive)} (${mb(statSync(archive).size)} MB) and ${rel(fragment)}, for gpuix-svelte-update manifest`);
+		log(`${rel(archive)} (${mb(statSync(archive).size)} MB) and ${rel(fragment)}, for gpuix-svelte update manifest`);
 	}
 
 	rmSync(scratch, { recursive: true, force: true });

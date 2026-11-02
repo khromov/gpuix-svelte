@@ -173,7 +173,7 @@ export interface AppOptions {
 export interface AppUpdateOptions {
 	/** URL of the update manifest, `https://github.com/<owner>/<repo>/releases/latest/download/update.json` on GitHub. */
 	manifest: string;
-	/** Base64 ed25519 public key from `gpuix-svelte-update keygen`; set, every manifest has to carry a valid signature. */
+	/** Base64 ed25519 public key from `gpuix-svelte update keygen`; set, every manifest has to carry a valid signature. */
 	publicKey?: string;
 }
 
