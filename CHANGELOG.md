@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/khromov/gpuix-svelte/compare/v0.4.1...v0.5.0) (2026-11-02)
+
+
+### Features
+
+* in-app updates from a static manifest, a GitHub release workflow, and a docs pass ([#61](https://github.com/khromov/gpuix-svelte/issues/61)) ([bb82508](https://github.com/khromov/gpuix-svelte/commit/bb82508a536c59d258a9fa30b275e8a80526b221))
+
 ## [0.4.1](https://github.com/khromov/gpuix-svelte/compare/v0.4.0...v0.4.1) (2026-11-01)
 
 
