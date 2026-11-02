@@ -57,7 +57,7 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   (`https://github.com/<owner>/<repo>/releases/latest/download/update.json` on GitHub); then
   `check_for_update()` from `gpuix-svelte/update` reads it and the `Update` it returns downloads,
   hash-checks and swaps the app (`App.svelte` has the banner). `bun build.ts --archive` writes
-  the archive plus the fragment `gpuix-svelte-update manifest` merges. `.github/workflows/release.yml`
+  the archive plus the fragment `gpuix-svelte update manifest` merges. `.github/workflows/release.yml`
   does the whole release on GitHub: release-please cuts the version, every platform builds and
   uploads, and `update.json` is written last. Under `npm start` the check resolves to null. The
   Updating page of the docs has the manifest format, the signing key and the per-platform details.

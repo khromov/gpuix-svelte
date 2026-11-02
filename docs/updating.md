@@ -7,7 +7,7 @@ swaps itself for the new version and restarts. GitHub Releases is the easiest ho
 workflow builds every platform and uploads both when release-please cuts a release.
 
 The pieces are `gpuix-svelte/update` in the app, `archive: true` in the build, and the
-`gpuix-svelte-update` command that writes the manifest.
+`gpuix-svelte update` command that writes the manifest.
 
 ## Setting it up
 
@@ -89,7 +89,7 @@ Run it on each platform you ship, as with any build.
 **4. Write the manifest and upload everything.** Given the fragments from every platform:
 
 ```bash
-npx gpuix-svelte-update manifest --out update.json \
+npx gpuix-svelte update manifest --out update.json \
     --base-url https://github.com/you/my-app/releases/download/v1.2.0/ \
     --notes CHANGELOG-1.2.0.md \
     --url https://github.com/you/my-app/releases \
@@ -137,7 +137,7 @@ Secrets, all optional:
 
 | Secret                       | What it does                                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `GPUIX_UPDATE_KEY`           | The private key from `gpuix-svelte-update keygen` (the PEM file's text); set, every manifest is signed         |
+| `GPUIX_UPDATE_KEY`           | The private key from `gpuix-svelte update keygen` (the PEM file's text); set, every manifest is signed         |
 | `GPUIX_UPDATE_PUBLIC_KEY`    | A repository *variable*, not a secret: the public key. Set, the manifest job fails unless the manifest verifies with it, so a missing or wrong `GPUIX_UPDATE_KEY` fails the release rather than every app's update |
 | `CODESIGN_IDENTITY`          | `Developer ID Application: Your Name (TEAMID)`: signs the macOS app, as on your machine                          |
 | `MACOS_CERTIFICATE`          | That certificate with its private key as a base64 `.p12` (`base64 -i cert.p12 \| pbcopy`), imported into a keychain for the build |
@@ -158,7 +158,7 @@ corrupted or swapped download. Whoever can edit the manifest can edit the hash t
 its own the check trusts the host as far as HTTPS does. To trust only yourself, sign:
 
 ```bash
-npx --no-install gpuix-svelte-update keygen   # writes update-key.pem, prints the public key
+npx --no-install gpuix-svelte update keygen   # writes update-key.pem, prints the public key
 ```
 
 Put the public key in the app and keep the PEM out of git (the scaffold's `.gitignore` lists it):
@@ -173,7 +173,7 @@ update: {
 From then on the app refuses a manifest that is unsigned or signed with another key. The
 `manifest` command signs when given `--key update-key.pem` or the PEM in `GPUIX_UPDATE_KEY`, which
 is what the workflow reads, and with `--public-key` it checks its own output, so a release with a
-missing or mismatched key fails on CI; `gpuix-svelte-update verify --public-key <key> update.json`
+missing or mismatched key fails on CI; `gpuix-svelte update verify --public-key <key> update.json`
 checks a file. The signature (ed25519) covers the whole manifest, version, notes and every asset's
 URL and hash, so a signed manifest can't be edited to point at an older or different archive. What
 it does not cover: an old signed manifest is still valid, so whoever controls the host can keep
@@ -265,7 +265,7 @@ newer version is offered. The archive at `url` holds the `.app`, the `.exe` or t
 top level (or inside one folder). The download's type is read from its bytes, not its name: a zip
 (Linux needs `unzip`), a gzipped or plain tar, or on Windows and Linux a bare executable. You can
 write the file by hand or with your own tooling as long as it has this shape;
-`gpuix-svelte-update manifest` is one way.
+`gpuix-svelte update manifest` is one way.
 
 ## Trying it out
 

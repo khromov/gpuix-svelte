@@ -107,7 +107,7 @@ jobs:
       - run: npm run compile -- --archive
       # The release side of gpuix-svelte/update over the fragment this build wrote.
       - run: |
-          key=$(node bin/gpuix-svelte-update.js keygen --out dist/update-key.pem 2>/dev/null)
-          node bin/gpuix-svelte-update.js manifest --out dist/update.json --base-url https://example.com/ --key dist/update-key.pem --public-key "$key" dist/update-*.json
-          node bin/gpuix-svelte-update.js verify --public-key "$key" dist/update.json
+          key=$(node bin/gpuix-svelte.js update keygen --out dist/update-key.pem 2>/dev/null)
+          node bin/gpuix-svelte.js update manifest --out dist/update.json --base-url https://example.com/ --key dist/update-key.pem --public-key "$key" dist/update-*.json
+          node bin/gpuix-svelte.js update verify --public-key "$key" dist/update.json
         shell: bash

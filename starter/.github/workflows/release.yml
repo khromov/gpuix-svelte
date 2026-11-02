@@ -89,7 +89,7 @@ jobs:
       # With the GPUIX_UPDATE_PUBLIC_KEY variable set, an unsigned or wrongly signed manifest
       # fails here instead of being refused by every app in the field.
       - run: |
-          bunx --no-install gpuix-svelte-update manifest --out update.json \
+          bunx --no-install gpuix-svelte update manifest --out update.json \
             --base-url "https://github.com/$REPO/releases/download/$TAG/" \
             --notes notes.md --url "https://github.com/$REPO/releases/tag/$TAG" \
             ${PUBLIC_KEY:+--public-key "$PUBLIC_KEY"} \

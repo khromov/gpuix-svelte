@@ -132,7 +132,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release.outputs.tag_name }}
       - run: |
-          node bin/gpuix-svelte-update.js manifest --out update.json \
+          node bin/gpuix-svelte.js update manifest --out update.json \
             --base-url "https://github.com/$REPO/releases/download/$TAG/" \
             --notes notes.md --url "https://github.com/$REPO/releases/tag/$TAG" \
             ${PUBLIC_KEY:+--public-key "$PUBLIC_KEY"} \

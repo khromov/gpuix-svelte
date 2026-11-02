@@ -30,7 +30,7 @@ export interface AppInfo {
 /** What the executable knows about itself at runtime: `AppInfo` without the build-only icon, as `GPUIX_APP_INFO`. */
 export type EmbeddedAppInfo = Omit<AppInfo, 'icon'>;
 
-/** One platform's build, as `build({ archive: true })` writes it beside the archive for `gpuix-svelte-update manifest`. */
+/** One platform's build, as `build({ archive: true })` writes it beside the archive for `gpuix-svelte update manifest`. */
 export interface UpdateFragment {
 	platform: string;
 	version: string;
@@ -123,7 +123,7 @@ export function read_app_options(source: string): EntryApp {
 				if (!update.manifest) throw new Error('app.update has no manifest URL');
 				if (!is_manifest_url(update.manifest)) throw new Error(`app.update.manifest is ${update.manifest}; it has to be an https URL (http only to this machine)`);
 				if (update.publicKey !== undefined && !is_public_key(update.publicKey)) {
-					throw new Error('app.update.publicKey is not the base64 key gpuix-svelte-update keygen printed');
+					throw new Error('app.update.publicKey is not the base64 key gpuix-svelte update keygen printed');
 				}
 				app[key] = update;
 				continue;

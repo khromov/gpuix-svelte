@@ -11,7 +11,7 @@ render(App, {
 	app: {
 		identifier: 'com.example.gpuix-svelte-starter'
 		// Where a built app looks for a newer version of itself (the release workflow publishes it
-		// there); see the Updating page of the docs. `publicKey` from `gpuix-svelte-update keygen`
+		// there); see the Updating page of the docs. `publicKey` from `gpuix-svelte update keygen`
 		// makes the app refuse a manifest you did not sign.
 		// update: { manifest: 'https://github.com/<owner>/<repo>/releases/latest/download/update.json' }
 	}

@@ -409,8 +409,8 @@ async function read_only_reason(): Promise<string> {
 
 // --- the CLI -------------------------------------------------------------------------------
 
-const bin = join(root, 'bin', 'gpuix-svelte-update.js');
-const cli = (...args: string[]) => spawnSync(process.execPath, [bin, ...args], { cwd: scratch, encoding: 'utf8', env: { ...process.env, GPUIX_UPDATE_KEY: undefined } });
+const bin = join(root, 'bin', 'gpuix-svelte.js');
+const cli = (...args: string[]) => spawnSync(process.execPath, [bin, 'update', ...args], { cwd: scratch, encoding: 'utf8', env: { ...process.env, GPUIX_UPDATE_KEY: undefined } });
 
 const keygen = cli('keygen', '--out', 'key.pem');
 const public_key = keygen.stdout.trim();
