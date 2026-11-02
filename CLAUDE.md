@@ -434,14 +434,16 @@ Electron- or CLI-shaped. The design:
   directory: nothing from the URL becomes a path.
 - **What was extracted has to be the app** (`locate`): the entry named like the target, else the
   only candidate, one folder deep at most; then a real `.app` with an `Info.plist`, or a file with
-  the platform's executable magic. On macOS `check_bundle` reads the plist with `plutil -extract`
-  and requires `CFBundleIdentifier` == the embedded identifier (when known), the version == the
-  manifest's, and the `CFBundleExecutable` to exist, so a hijacked manifest can't hand the app
-  another app or an old build relabelled.
+  the platform's executable magic. On macOS `check_bundle` reads the XML plist itself
+  (`plist_strings`: a depth-aware scan of the top-level dict's `<key>`/`<string>` pairs, entities
+  decoded; a binary plist reads as nothing and fails the check) and requires `CFBundleIdentifier`
+  == the embedded identifier (when known), the version == the manifest's, and the
+  `CFBundleExecutable` to exist, so a hijacked manifest can't hand the app another app or an old
+  build relabelled.
 - **The swap** renames the old `.app` into the staging directory beside it and the new one into
   place on macOS (no code-signature check: it was dropped as a decision, the manifest signature is
-  the trust, and macOS checks the new bundle's signature itself at launch; `plutil` is the one OS
-  tool the updater still calls, for `check_bundle`); renames the running `.exe` to `.exe.old`
+  the trust, and macOS checks the new bundle's signature itself at launch; the updater calls no
+  OS tool at all); renames the running `.exe` to `.exe.old`
   and the new one in on Windows (a running exe can be renamed, not deleted or overwritten;
   `finish_update()`, which `check_for_update` calls, deletes exactly `<exe>.old` /
   `<exe>.<pid>.old` next launch); renames over the executable on Linux. The staging directory is
@@ -450,11 +452,18 @@ Electron- or CLI-shaped. The design:
   (`.update-<pid>-…`, `gpuix-svelte-update-<pid>-…`), so an app closed midway leaves nothing for
   long: `finish_update()` deletes those whose process is gone (`process.kill(pid, 0)` says ESRCH)
   and leaves a running instance's alone. If the rename-in fails the old one is renamed back, and if that fails too staging is kept
-  and the error says where the old bundle is. Post-swap cleanup is best-effort. `relaunch_app`
-  waits for this pid before starting the new one on macOS/Linux (`sh -c 'while kill -0 …; open
-  -n/exec "$0"'`) and on Windows spawns the new `.exe` directly, because PowerShell (5.1 and 7)
-  exits 0 without running its script under `detached`'s DETACHED_PROCESS, then `process.exit(0)`.
-  `Update.installed` makes a second `install()` throw; a download in flight is
+  and the error says where the old bundle is. Post-swap cleanup is best-effort. `relaunch_app` is
+  Electron's `app.relaunch()` with no helper process: `spawn` of the new executable itself (the
+  bundle's `CFBundleExecutable` on macOS, never `open`, and never a shell or PowerShell, which
+  exits 0 without running its script under `detached`), `detached`, `stdio: 'ignore'`, this
+  process's `argv.slice(2)` replayed (`install({ args })` overrides), then `process.exit(0)`.
+  Electron's wait-for-parent (kqueue / PDEATHSIG / WaitForSingleObject in its relauncher helper)
+  is done by the new instance instead: `GPUIX_RELAUNCH_AFTER=<pid>` in its environment, and
+  `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
+  before creating the window) polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH, 10 s
+  cap, then deletes the variable so children don't inherit it. `GPUIX_UPDATED_FROM=<old version>`
+  rides along for a "what's new". Electron's Windows de-elevation has no portable equivalent and is
+  not done. `Update.installed` makes a second `install()` throw; a download in flight is
   memoised, and `signal` aborts it.
 - **Trust.** sha256 (and `size`) are checked while streaming, and the download stops as soon as
   it passes the manifest's `size`. An ed25519 signature over `canonical_manifest()` (keys sorted,

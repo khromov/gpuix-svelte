@@ -4,11 +4,12 @@
  * build({ archive: true })'s packer archives a fake app, the updater downloads it, checks the
  * hash, extracts it and swaps it in for a copy standing in for the running app, and refuses
  * what it must: insecure URLs, oversized or wrong downloads, archives without a real executable,
- * another app's bundle. The relaunch is the one step not run. No headless renderer, so it runs on
- * Linux too.
+ * another app's bundle. Then a real executable (relaunch-app.ts, compiled by Bun) replaces itself
+ * while running and has to come back as the new version. No headless renderer, so it runs on Linux
+ * too, and it needs `bun` on PATH under Node.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -16,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
-import { archive_name, read_app_options, run, update_fragment, update_platform, write_archive, type UpdateFragment } from '../src/app-bundle.ts';
+import { archive_name, info_plist, read_app_options, run, sha256_file, update_fragment, update_platform, write_archive, type UpdateFragment } from '../src/app-bundle.ts';
 import {
 	app_info,
 	build_manifest,
@@ -27,9 +28,11 @@ import {
 	generate_keys,
 	is_public_key,
 	is_version,
+	plist_strings,
 	sign_manifest,
 	UpdateError,
 	verify_manifest,
+	wait_for_previous_instance,
 	type UpdateManifest
 } from '../src/update.ts';
 import AdmZip from 'adm-zip';
@@ -215,8 +218,10 @@ const manifests: Record<string, (base: string) => UpdateManifest> = {
 	'/multi.json': (base) => build_manifest({ fragments: [multi], base_url: base }),
 	'/bad.json': (base) => build_manifest({ fragments: [bad], base_url: base }),
 	'/other.json': (base) => build_manifest({ fragments: [other], base_url: base }),
-	'/native.json': (base) => build_manifest({ fragments: [native_zip], base_url: base })
+	'/native.json': (base) => build_manifest({ fragments: [native_zip], base_url: base }),
+	'/real.json': (base) => build_manifest({ fragments: [real_fragment!], base_url: base, private_key: keys.privateKey })
 };
+let real_fragment: UpdateFragment | undefined;
 const server = createServer((request, response) => {
 	const path = request.url ?? '/';
 	const file = join(dist, basename(path));
@@ -277,6 +282,8 @@ try {
 	const [downloaded, again] = await Promise.all([update!.download({ onProgress: (received, total) => progress.push([received, total]) }), update!.download()]);
 	check('the download lands in a temp file, reports its progress to the full size, and is shared while in flight', [existsSync(downloaded), progress.at(-1), again], [true, [fragment.size, fragment.size], downloaded]);
 	check('a later download is the same file', await update!.download(), downloaded);
+	finish_update(target);
+	check("cleaning up leaves a running process's download alone", existsSync(downloaded), true);
 
 	await update!.install({ relaunch: false });
 	check('the new version is in place', [read_version(target), update!.installed], ['2.0.0', true]);
@@ -318,8 +325,84 @@ try {
 	);
 
 	check('a read-only install directory is reported at check time, before anything is downloaded', await read_only_reason(), win32 || process.getuid?.() === 0 ? 'skipped' : 'read-only:not-installable');
+
+	const gone = spawnSync(process.execPath, ['-e', '']).pid;
+	const stale = join(installed, `.update-${gone}-abcdef`);
+	const live = join(installed, `.update-${process.pid}-abcdef`);
+	mkdirSync(stale);
+	mkdirSync(live);
+	finish_update(target);
+	check('a staging directory is deleted once its process is gone, and not while it runs', [existsSync(stale), existsSync(live)], [false, true]);
+	rmSync(live, { recursive: true });
+
+	await real_update();
 } finally {
 	server.close();
+}
+
+/** The whole path with nothing stood in for: this is what shows a relaunch that never happens. */
+async function real_update() {
+	const home = join(scratch, 'real');
+	const fresh = join(scratch, 'real-new');
+	const trace = join(home, 'trace.log');
+	const lines = () => (existsSync(trace) ? readFileSync(trace, 'utf8').trim().split(/\r?\n/) : []);
+	const exe = build_real(home, '8.0.0');
+	const fresh_exe = build_real(fresh, '9.0.0');
+	real_fragment = archive_of(darwin ? join(fresh, 'Real.app') : fresh_exe, '9.0.0');
+	const launch = (...args: string[]) => spawn(exe, args, { detached: true, stdio: 'ignore', cwd: home }).unref();
+	const pid_of = (version: string) => Number(lines().findLast((line) => line.startsWith(`start ${version} `))?.split(' ')[2]);
+
+	launch('abandon');
+	const abandoned = (await until(() => lines().find((line) => line.startsWith('abandoned '))))?.slice('abandoned '.length);
+	await until(() => !alive(pid_of('8.0.0')));
+	check('an app closed after downloading leaves the archive in the temp directory', abandoned !== undefined && existsSync(abandoned), true);
+
+	launch('--with', 'an argument');
+	const back = await until(() => lines().some((line) => line === 'done 9.0.0' || line.startsWith('error ')));
+	check(
+		'a running app replaces itself and comes back as the new version on its own, after the old one is gone, with its arguments',
+		lines()
+			.filter((line) => !line.startsWith('abandoned '))
+			.map((line) => line.replace(/^(start \S+) \d+/, '$1')),
+		['start 8.0.0 abandon', 'done 8.0.0', 'start 8.0.0 --with an argument', 'start 9.0.0 --with an argument', 'waited for 8.0.0: true', 'done 9.0.0']
+	);
+	const old_pid = pid_of('8.0.0');
+	const new_pid = pid_of('9.0.0');
+	const settled = back && (await until(() => !alive(old_pid) && !alive(new_pid)));
+	check('the old process is gone and the new one was a process of its own', [settled, old_pid !== new_pid], [true, true]);
+	check('the new version is what is on disk', existsSync(exe) ? sha256_file(exe) : null, sha256_file(fresh_exe));
+	check('the next launch deleted the archive the closed app left', abandoned !== undefined && existsSync(abandoned), false);
+}
+
+function build_real(dir: string, version: string): string {
+	const bundle = join(dir, 'Real.app');
+	const exe = darwin ? join(bundle, 'Contents', 'MacOS', 'real') : join(dir, win32 ? 'real.exe' : 'real');
+	mkdirSync(dirname(exe), { recursive: true });
+	const app = { name: 'Real', slug: 'real', identifier: 'com.x.real', version, update: { manifest: `${base}/real.json`, publicKey: keys.publicKey } };
+	const bun = process.versions.bun ? process.execPath : 'bun';
+	// Windows gets the console-less executable gpuix-svelte/build makes, since that decides what a child inherits.
+	const flags = win32 ? ['--windows-hide-console'] : [];
+	run(bun, ['build', '--compile', ...flags, `--define=process.env.GPUIX_APP_INFO=${JSON.stringify(JSON.stringify(app))}`, join(root, 'test', 'relaunch-app.ts'), '--outfile', basename(exe)], undefined, dirname(exe));
+	if (darwin) writeFileSync(join(bundle, 'Contents', 'Info.plist'), info_plist({ ...app, icon: '' }));
+	return exe;
+}
+
+function alive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function until<T>(read: () => T, timeout = 30000): Promise<T | undefined> {
+	const started = Date.now();
+	for (;;) {
+		const value = read();
+		if (value || Date.now() - started > timeout) return value || undefined;
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
 }
 
 async function read_only_reason(): Promise<string> {
@@ -427,8 +510,70 @@ check(
 	[1, 1, 1, 2, 2, false]
 );
 
-rmSync(scratch, { recursive: true, force: true });
-finish('update', 69);
+// --- the relaunch handshake and the plist reader ------------------------------------------------
+
+delete process.env.GPUIX_RELAUNCH_AFTER;
+check('with no previous instance named there is nothing to wait for', wait_for_previous_instance(), false);
+// A grandchild, as the replaced instance is never the new one's child: a child would sit unreaped
+// (and so still "alive") while the wait blocks the event loop.
+const short_lived = Number(
+	spawnSync(process.execPath, ['-e', "const c = require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 400)'], { detached: true, stdio: 'ignore' }); c.unref(); console.log(c.pid)"], { encoding: 'utf8' }).stdout
+);
+process.env.GPUIX_RELAUNCH_AFTER = String(short_lived);
+const waited_from = Date.now();
+check(
+	'the new instance waits until the previous pid is gone, then forgets the variable',
+	[wait_for_previous_instance(), Date.now() - waited_from >= 250 && Date.now() - waited_from < 5000, alive(short_lived), process.env.GPUIX_RELAUNCH_AFTER],
+	[true, true, false, undefined]
+);
+process.env.GPUIX_RELAUNCH_AFTER = String(spawnSync(process.execPath, ['-e', '']).pid);
+check('a previous instance that is already gone costs nothing', [wait_for_previous_instance(), process.env.GPUIX_RELAUNCH_AFTER], [true, undefined]);
+
+const plist = join(scratch, 'Info.plist');
+writeFileSync(
+	plist,
+	`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDocumentTypes</key>
+	<array><dict><key>CFBundleIdentifier</key><string>nested.decoy</string><key>CFBundleTypeName</key><string>Text</string></dict></array>
+	<key>CFBundleExecutable</key>
+	<string>my-app</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.example.my-app</string>
+	<key>CFBundleName</key>
+	<string>A &amp; B &lt;C&gt; &#x2019;</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>CFBundleShortVersionString</key>
+	<string>1.2.3</string>
+	<key>Empty</key>
+	<string></string>
+</dict>
+</plist>
+`
+);
+const strings = plist_strings(plist);
+check(
+	'plist_strings reads the top-level strings, decodes entities, and ignores nested dictionaries',
+	[strings?.get('CFBundleIdentifier'), strings?.get('CFBundleExecutable'), strings?.get('CFBundleName'), strings?.get('CFBundleShortVersionString'), strings?.get('Empty'), strings?.get('LSUIElement'), strings?.get('CFBundleTypeName')],
+	['com.example.my-app', 'my-app', 'A & B <C> ’', '1.2.3', '', undefined, undefined]
+);
+check('the plist the build writes reads back', plist_strings((writeFileSync(plist, info_plist({ name: 'X', slug: 'x', identifier: 'com.x', version: '2.0.0', icon: '' })), plist))?.get('CFBundleIdentifier'), 'com.x');
+writeFileSync(plist, Buffer.from('bplist00\x00\x01'));
+check('a binary plist reads as nothing, not as a crash', [plist_strings(plist), plist_strings(join(scratch, 'missing.plist'))], [null, null]);
+
+// Defender can hold an executable it has just seen written, and a slow delete is not a failed test.
+await until(() => {
+	try {
+		rmSync(scratch, { recursive: true, force: true });
+		return true;
+	} catch {
+		return false;
+	}
+}, 5000);
+finish('update', 82);
 
 function code(fn: () => unknown): string | null {
 	try {

@@ -8,15 +8,16 @@
  * and Bun alike and the tests cover the swap on a copy.
  */
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign as sign_bytes, verify as verify_bytes } from 'node:crypto';
-import { chmodSync, closeSync, copyFileSync, existsSync, mkdtempSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, existsSync, readFileSync, mkdtempSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
 import { extract_zip } from './zip.ts';
 
 export type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
+export { wait_for_previous_instance } from './previous-instance.ts';
 
 export interface UpdateAsset {
 	url: string;
@@ -82,6 +83,8 @@ export interface DownloadOptions {
 export interface InstallOptions extends DownloadOptions {
 	/** Start the new version and exit this process once the swap is done; `false` keeps running on the old code until the next launch. Default true. */
 	relaunch?: boolean;
+	/** The arguments the new version starts with; this process's own (`process.argv.slice(2)`) by default. */
+	args?: string[];
 }
 
 export interface Update {
@@ -309,7 +312,7 @@ class AppUpdate implements Update {
 		return file;
 	}
 
-	async install({ relaunch = true, ...download }: InstallOptions = {}): Promise<void> {
+	async install({ relaunch = true, args, ...download }: InstallOptions = {}): Promise<void> {
 		if (!this.installable || !this.target) throw new UpdateError('not-installable', not_installable_text(this.reason));
 		if (this.installed) throw new UpdateError('install', `${this.version} is already installed; restart the app`);
 		const archive = await this.download(download);
@@ -335,7 +338,7 @@ class AppUpdate implements Update {
 			this.download_dir = null;
 			this.downloading = null;
 		}
-		if (relaunch) relaunch_app(target);
+		if (relaunch) relaunch_app(target, args ?? process.argv.slice(2), this.current);
 	}
 }
 
@@ -417,9 +420,6 @@ function check_url(url: string, code: UpdateErrorCode) {
 	throw new UpdateError(code, `${url} is not https`);
 }
 
-// By its full path, so nothing earlier on PATH stands in for it.
-const PLUTIL = '/usr/bin/plutil';
-
 function head(path: string, length: number): Buffer {
 	const buffer = Buffer.alloc(length);
 	const fd = openSync(path, 'r');
@@ -500,21 +500,56 @@ function locate(into: string, target: string): string {
 	return found;
 }
 
-function plist_value(plist: string, key: string): string | null {
-	const { status, stdout } = spawnSync(PLUTIL, ['-extract', key, 'raw', '-o', '-', plist], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-	return status === 0 ? stdout.trim() : null;
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+function decode_xml(text: string): string {
+	return text.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, entity: string) =>
+		entity.startsWith('#x') ? String.fromCodePoint(parseInt(entity.slice(2), 16)) : entity.startsWith('#') ? String.fromCodePoint(Number(entity.slice(1))) : (ENTITIES[entity] ?? whole)
+	);
+}
+
+/**
+ * The string values of an XML `Info.plist`'s top-level dictionary, which is all a bundle check
+ * needs; null for a binary or unreadable plist. The build writes XML, and Apple's signing and
+ * stapling leave it so.
+ */
+export function plist_strings(path: string): Map<string, string> | null {
+	let text: string;
+	try {
+		text = readFileSync(path, 'utf8');
+	} catch {
+		return null;
+	}
+	if (!text.includes('<plist')) return null;
+	const values = new Map<string, string>();
+	let depth = 0;
+	let key: string | null = null;
+	for (const [, closing, tag, self_closing, body] of text.matchAll(/<(\/?)(dict|array|key|string|data|date|integer|real|true|false)\b[^>]*?(\/?)>([^<]*)/g)) {
+		if (tag === 'dict' || tag === 'array') {
+			depth += closing ? -1 : 1;
+			key = null;
+		} else if (depth === 1 && !closing) {
+			if (tag === 'key') {
+				key = decode_xml(body);
+			} else {
+				if (tag === 'string' && key !== null) values.set(key, self_closing ? '' : decode_xml(body));
+				key = null;
+			}
+		}
+	}
+	return values;
 }
 
 /** A manifest can only hand the app a newer build of itself: the bundle's identifier is the app's, its version the manifest's, and its executable exists. */
 function check_bundle(fresh: string, app: EmbeddedAppInfo | null, version: string) {
-	const plist = join(fresh, 'Contents', 'Info.plist');
-	const identifier = plist_value(plist, 'CFBundleIdentifier');
+	const plist = plist_strings(join(fresh, 'Contents', 'Info.plist'));
+	const identifier = plist?.get('CFBundleIdentifier') ?? null;
 	if (app && identifier !== app.identifier) throw new UpdateError('extract', `${basename(fresh)} is ${identifier ?? 'no bundle'}, this app is ${app.identifier}`);
-	const bundle_version = plist_value(plist, 'CFBundleShortVersionString');
+	const bundle_version = plist?.get('CFBundleShortVersionString') ?? null;
 	if (bundle_version !== null && compare_versions(bundle_version, version) !== 0) {
 		throw new UpdateError('extract', `${basename(fresh)} is version ${bundle_version}, the manifest says ${version}`);
 	}
-	const executable = plist_value(plist, 'CFBundleExecutable');
+	const executable = plist?.get('CFBundleExecutable');
 	if (!executable || !existsSync(join(fresh, 'Contents', 'MacOS', executable))) throw new UpdateError('extract', `${basename(fresh)} has no executable`);
 }
 
@@ -557,15 +592,19 @@ function swap(target: string, fresh: string, staging: string): 'swapped' | 'prev
 	return 'swapped';
 }
 
-function relaunch_app(target: string): never {
-	if (process.platform === 'win32') {
-		// Directly, since PowerShell exits 0 without running its script under `detached`'s DETACHED_PROCESS.
-		spawn(target, [], { detached: true, stdio: 'ignore' }).unref();
-	} else {
-		// Only once this process is gone, or the two instances overlap (and the Dock bounces twice).
-		const launch = process.platform === 'darwin' ? '/usr/bin/open -n "$0"' : 'exec "$0"';
-		spawn('/bin/sh', ['-c', `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.2; done; ${launch}`, target], { detached: true, stdio: 'ignore' }).unref();
+/**
+ * What Electron's `app.relaunch()` does, with no shell: the new executable itself, detached, its
+ * output dropped, the old arguments replayed. The new instance waits for this pid before it opens a
+ * window (`wait_for_previous_instance`), so the two never overlap.
+ */
+function relaunch_app(target: string, args: string[], from: string): never {
+	let executable = target;
+	if (process.platform === 'darwin') {
+		const name = plist_strings(join(target, 'Contents', 'Info.plist'))?.get('CFBundleExecutable') ?? basename(process.execPath);
+		executable = join(target, 'Contents', 'MacOS', name);
 	}
+	const env = { ...process.env, GPUIX_RELAUNCH_AFTER: String(process.pid), GPUIX_UPDATED_FROM: from };
+	spawn(executable, args, { detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
 	process.exit(0);
 }
 

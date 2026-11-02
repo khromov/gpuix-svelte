@@ -204,14 +204,22 @@ an app of this platform: the entry named like the running one, or the only candi
   `CFBundleShortVersionString` the manifest's, so a manifest can only hand the app a newer build
   of itself. The old bundle is renamed aside, the new one moved into place, the old one deleted;
   if moving the new one in fails, the old one is moved back, and if even that fails, the error
-  names where the old bundle is. To relaunch, a shell waits for this process to exit and then runs
-  `open -n` on the new one.
+  names where the old bundle is.
 - **Windows.** A running executable can't be deleted or overwritten, but it can be renamed: the
-  old one becomes `<name>.exe.old`, the new one takes its place and is started directly as this
-  process exits, and the `.old` file is deleted by `check_for_update()` (or `finish_update()`) on
-  the next launch.
+  old one becomes `<name>.exe.old`, the new one takes its place, and the `.old` file is deleted
+  by `check_for_update()` (or `finish_update()`) on the next launch.
 - **Linux.** The executable is renamed over the old one (atomic; the running process keeps its
-  old inode) and started with `exec` once this one has exited.
+  old inode).
+
+The relaunch is the same on all three, and it is what Electron's `app.relaunch()` does: the new
+executable is started directly (on macOS the one inside the bundle), detached, with its output
+dropped and this process's arguments replayed (`install({ args })` replaces them), and this process
+exits. The new instance finds the old one's pid in `GPUIX_RELAUNCH_AFTER` and waits for it to be
+gone before it opens a window, so the two never overlap; an app with no window, or one that needs
+that guarantee earlier, calls `wait_for_previous_instance()` itself. It also finds the version it
+replaced in `GPUIX_UPDATED_FROM`, which is how to show "what's new" once. No shell, PowerShell or
+other tool is involved; the macOS bundle checks read the XML `Info.plist` directly (a binary one
+fails the check).
 
 With `relaunch: false`, `install()` returns after the swap and the app keeps running on the old
 code; the next launch is the new version. `update.installed` is then true and a second `install()`
