@@ -1,5 +1,11 @@
 # Shipping an app
 
+> [!NOTE]
+> **Partly unreleased.** The `archive` option, the `beforeArchive` hook, notarizing with an Apple
+> ID on CI and the scaffolder's release workflow described below ship in the next gpuix-svelte
+> release (0.5.0), together with [in-app updates](updating.md). The current release on npm, 0.4.1,
+> builds and signs the app but has none of those.
+
 An app made with `npm create gpuix-svelte` builds into something you can hand to people with one
 command:
 

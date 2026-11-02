@@ -1,5 +1,10 @@
 # Updating an app
 
+> [!NOTE]
+> **Not released yet.** Everything on this page ships in the next gpuix-svelte release (0.5.0).
+> The current release on npm, 0.4.1, has neither `gpuix-svelte/update` nor `build({ archive })`,
+> and `npm create gpuix-svelte` does not yet offer the release workflow.
+
 A built app can update itself. You publish a small JSON manifest and one archive per platform on
 any HTTPS host. The app reads the manifest, and when it names a newer version than the one
 running, it downloads the archive, checks its hash (and the manifest's signature, if you sign),
