@@ -65,6 +65,19 @@ check('keyboard-focus-dim becomes a bool, anything else is dropped', parse_css_t
 	keyboardFocusDim: false
 });
 
+check('a number is dropped on a key native reads as a string, or it would reject the whole batch', parse_css_text('color: 123456; background: 0; background-color: 12px; display: 0; font-family: 12; position: 1rem'), {});
+set_css_vars({ 'numeric-ink': 123456 });
+check('a var() that resolves to one too', parse_css_text('color: var(--numeric-ink)'), {});
+check('font-weight is the one that takes either', [parse_css_text('font-weight: 700'), parse_css_text('font-weight: bold')], [{ fontWeight: 700 }, { fontWeight: 'bold' }]);
+check('!important is stripped, or it would cost the declaration', parse_css_text('color: red !important; width: 12px !IMPORTANT; padding: 4px 8px!important'), {
+	color: 'red',
+	width: 12,
+	paddingTop: 4,
+	paddingRight: 8,
+	paddingBottom: 4,
+	paddingLeft: 8
+});
+
 check('single values keep GPUI shorthand', parse_css_text('padding: 12px; gap: 8px'), {
 	padding: 12,
 	gap: 8
@@ -211,4 +224,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 43);
+finish('style', 47);

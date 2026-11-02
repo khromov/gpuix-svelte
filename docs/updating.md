@@ -243,7 +243,8 @@ check).
 With `relaunch: false`, `install()` returns after the swap and the app keeps running on the old
 code; the next launch is the new version. `update.installed` is then true and a second `install()`
 throws. A download in flight is shared between callers, and `download`/`install` take a `signal`
-to abort it. An app closed or killed midway leaves its archive in the temp directory, or a staging
+to abort it: the first caller's stops the download for everyone, a later caller's ends only its
+own wait, and a later caller's `onProgress` joins in. An app closed or killed midway leaves its archive in the temp directory, or a staging
 directory beside the app. `check_for_update()` (or `finish_update()`) deletes those on the next
 launch once the process that made them is gone, so another running instance's download is safe.
 No code signature is checked at install on any platform: on macOS the system checks the new

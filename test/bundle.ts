@@ -72,6 +72,14 @@ check(
 	[true, true]
 );
 
+check('CFBundleVersion reads through a leading v', info_plist({ ...info, version: 'v1.2.3' }).includes('<key>CFBundleVersion</key>\n\t<string>1.2.3</string>'), true);
+check(
+	'an exported const reads like a bare one',
+	read_app_options(`import { render } from 'gpuix-svelte';\nexport const NAME = 'N';\nexport const app = { name: NAME };\nrender(A, { title: NAME, app });`),
+	{ name: 'N', title: 'N' }
+);
+check('and render() can initialize one', read_app_options(`import { render } from 'gpuix-svelte';\nexport const win = render(A, { title: 'T' });`), { title: 'T' });
+
 const container = ico([
 	{ size: 16, bytes: new Uint8Array([1, 2, 3]) },
 	{ size: 256, bytes: new Uint8Array([4, 5]) }
@@ -185,4 +193,4 @@ check('no app adds nothing', window_options_for({ width: 10 }, undefined), { wid
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 29 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));
+finish('bundle', 32 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));

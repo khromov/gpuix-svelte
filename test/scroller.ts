@@ -174,4 +174,23 @@ check('dragging the thumb scrolls by row', native.getListScrollTop(column().id)!
 mouse_up({ x: v_grip.x, y: v_grip.y + 60 });
 check('and the rows it left are no longer painted', painted().includes('row 0'), false);
 
-finish('scroller', 28);
+// The throttle must not outlive the component: a list that is gone has nothing to measure.
+{
+	const mounted = mount_headless(Tall, { props: { virtual: true, rows: 200 }, width: 400, height: 300 });
+	await wait(120);
+	wheel(list_at, 0, -100);
+	const own = column().id;
+	void mounted.unmount();
+	let reads = 0;
+	const read = mounted.native.getListScrollTop.bind(mounted.native);
+	// Only this list's, since the list an earlier section left mounted still polls the current native.
+	mounted.native.getListScrollTop = (id) => {
+		if (id === own) reads++;
+		return read(id);
+	};
+	// A plain timer, since `wait` would commit the unmount and hide a late read behind a cleared id.
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	check('a thumb update still pending at unmount reaches nothing', reads, 0);
+}
+
+finish('scroller', 29);

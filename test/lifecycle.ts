@@ -8,14 +8,17 @@ import { GpuixRenderer, TestGpuixRenderer } from '@gpuix/native';
 import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
 import { focus_dim_on_render, handle_event, start_frame_loop } from '../src/render.ts';
 import { check, finish } from 'gpuix-svelte/test';
+import type { GpuiStyle } from '../src/types.ts';
 
 // --- a throwing commit must not kill the frame loop -----------------------
 {
 	let ticks = 0;
+	let batches = 0;
 	const exploding = {
 		requiresTick: () => true,
 		tick: () => (ticks++, true),
 		applyBatch: () => {
+			batches++;
 			throw new Error('boom');
 		},
 		commitMutations: () => {}
@@ -30,6 +33,52 @@ import { check, finish } from 'gpuix-svelte/test';
 	loop.stop();
 
 	check('the loop keeps ticking after a commit throws', ticks > 1, true);
+	check('a failure that is no refusal may have been applied, so it is not resent op by op', batches, 1);
+}
+
+// --- one op native refuses costs that op, not the frame --------------------
+{
+	const native = new TestGpuixRenderer(200, 200);
+	set_native(native);
+	// Nothing parses a `rootStyle`, so this reaches native the way a key style.ts does not know yet would.
+	const root = create_root({ flexGrow: 'nope' } as unknown as GpuiStyle);
+	const child = renderer.createElement('div');
+	renderer.setAttribute(child, 'testId', 'kept');
+	renderer.insert(root, child, null);
+
+	console.log('-- the next line should report one refused setStyle --');
+	commit();
+	const first = () => JSON.parse(native.getTreeJson()).children?.[0];
+	check('the rest of the batch still lands', first()?.testId, 'kept');
+
+	renderer.setAttribute(child, 'style', 'font-size: 10px');
+	commit();
+	check('and the ids it created keep working', first()?.style?.fontSize, 10);
+
+	const cycle: Record<string, unknown> = {};
+	cycle.self = cycle;
+	console.log('-- the next line should report one refused setCustomProp --');
+	renderer.setAttribute(child, 'motion', cycle);
+	renderer.setAttribute(child, 'style', 'font-size: 12px');
+	commit();
+	check('a value that cannot be serialized costs only its own op', first()?.style?.fontSize, 12);
+}
+
+// --- the wasm build throws a plain string -----------------------------------
+{
+	const logged: unknown[] = [];
+	const error = console.error;
+	console.error = (line: unknown) => void logged.push(line);
+	set_native({
+		applyBatch(json: string) {
+			if (json.includes('"setStyle"')) throw 'Batch op 0 setStyle parse error: nope';
+			return [];
+		}
+	});
+	create_root();
+	commit();
+	console.error = error;
+	check('its refusal is still named', logged, ['[gpuix-svelte] native refused setStyle: Batch op 0 setStyle parse error: nope']);
 }
 
 // --- tick() going false ends the process, whatever timers are pending ------
@@ -133,4 +182,4 @@ import { check, finish } from 'gpuix-svelte/test';
 
 set_auto_commit(false);
 
-finish('lifecycle', 14);
+finish('lifecycle', 19);

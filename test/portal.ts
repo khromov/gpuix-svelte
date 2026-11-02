@@ -27,7 +27,7 @@ check('the sibling still takes clicks outside the portal', hits(), '1-1-0');
 click_test_id('toggle');
 check('removing the {#if} takes the portal out natively', find_test_id('over'), null);
 check("and the sibling after it in the same branch — Svelte's teardown walk still finds it", find_test_id('tail'), null);
-check('nothing leaks in the id map', native.getRetainedElementCount() < 20, true);
+check('nothing leaks in the id map', native.getRetainedElementCount() < 26, true);
 
 click_test_id('toggle');
 check('it comes back on the next render', holds(last_root_child(), 'over'), true);
@@ -47,4 +47,13 @@ check('a later portal is appended after the earlier one', holds(last_root_child(
 click_at(60, 50);
 check('so it paints and clicks on top where they overlap', hits(), '1-2-1');
 
-finish('portal', 14);
+// `portal` is a flag, so its false forms have to leave the element where it is.
+const row = () => find_test_id('row');
+check('portal="false" stays with its parent', holds(row(), 'static-off'), true);
+check('so does portal={false}', holds(row(), 'dynamic'), true);
+click_test_id('float');
+check('turned on, it moves to the root', [holds(last_root_child(), 'dynamic'), holds(row(), 'dynamic')], [true, false]);
+click_test_id('float');
+check('turned off again, it returns to its place among its siblings', [holds(last_root_child(), 'dynamic'), (row()!.children ?? []).at(-2)?.testId], [false, 'dynamic']);
+
+finish('portal', 18);

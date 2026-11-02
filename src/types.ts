@@ -32,6 +32,8 @@ export interface ShadowNode {
 	nativeId: number | null;
 	/** Its style read a `var()`, so `set_css_vars` has to restyle it. */
 	uses_vars: boolean;
+	/** Its resolved `color`, so a restyle that leaves it alone need not visit the `<svg>`s inheriting it. */
+	own_color: GpuiStyle[string];
 	/** Reachable from the designated GPUI root. */
 	live: boolean;
 	/** Currently appended to its native parent. */

@@ -221,7 +221,12 @@ const bare_file = join(dist, `fake-8.5.0-${platform}.bin`);
 copyFileSync(darwin ? join(fake_app(bare_dir, '8.5.0'), 'Contents', 'MacOS', 'fake') : fake_app(bare_dir, '8.5.0'), bare_file);
 const bare = update_fragment({ version: '8.5.0' }, bare_file);
 
+const strands_dir = join(scratch, 'strands');
+mkdirSync(strands_dir);
+const strands = archive_of(fake_app(strands_dir, '9.0.0'), '9.0.0');
+
 const manifests: Record<string, (base: string) => UpdateManifest> = {
+	'/strands.json': (base) => build_manifest({ fragments: [strands], base_url: base }),
 	'/update.json': (base) => build_manifest({ fragments: [fragment], base_url: base, notes: 'Second', url: `${base}/page`, private_key: keys.privateKey }),
 	'/unsigned.json': (base) => build_manifest({ fragments: [fragment], base_url: base }),
 	'/wrong-hash.json': (base) => build_manifest({ fragments: [{ ...fragment, sha256: 'ef'.repeat(32) }], base_url: base }),
@@ -299,6 +304,22 @@ try {
 	const [downloaded, again] = await Promise.all([update!.download({ onProgress: (received, total) => progress.push([received, total]) }), update!.download()]);
 	check('the download lands in a temp file, reports its progress to the full size, and is shared while in flight', [existsSync(downloaded), progress.at(-1), again], [true, [fragment.size, fragment.size], downloaded]);
 	check('a later download is the same file', await update!.download(), downloaded);
+	{
+		const shared = (await at('unsigned.json'))!;
+		const seen: number[] = [];
+		const seen_by_leaver: number[] = [];
+		const leaving = new AbortController();
+		const first = shared.download();
+		const joined = shared.download({ onProgress: (received) => seen.push(received) });
+		const left = shared.download({ signal: leaving.signal, onProgress: (received) => seen_by_leaver.push(received) });
+		leaving.abort();
+		check(
+			"joining a download reports its progress, and a joiner's signal ends only that joiner's wait, and its progress",
+			[await code_async(() => left), (await first) === (await joined), seen.at(-1), seen_by_leaver],
+			['download', true, fragment.size, []]
+		);
+		rmSync(dirname(await first), { recursive: true, force: true });
+	}
 	finish_update(target);
 	check("cleaning up leaves a running process's download alone", existsSync(downloaded), true);
 
@@ -349,6 +370,8 @@ try {
 	check('a bare executable installs under the app\'s name on Windows and Linux; macOS wants a bundle', [await code_async(() => bare_update!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '8.5.0']);
 
 	check('a read-only install directory is reported at check time, before anything is downloaded', await read_only_reason(), win32 || process.getuid?.() === 0 ? 'skipped' : 'read-only:not-installable');
+	check('a new version that cannot even be executed is rolled back', await after_failed_relaunch(), ['install', true, '1.0.0', false]);
+	check('a rollback that strands the app does not report it installed', await after_stranding(), win32 || process.getuid?.() === 0 ? 'skipped' : ['install', true, false]);
 
 	const gone = spawnSync(process.execPath, ['-e', '']).pid;
 	const stale = join(installed, `.update-${gone}-abcdef`);
@@ -426,6 +449,44 @@ async function until<T>(read: () => T, timeout = 30000): Promise<T | undefined> 
 		const value = read();
 		if (value || Date.now() - started > timeout) return value || undefined;
 		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+}
+
+/** The fake executable never starts, so an install that relaunches always ends in the rollback. */
+async function after_failed_relaunch(): Promise<unknown> {
+	const dir = join(scratch, 'rolled-back');
+	mkdirSync(dir);
+	const victim = fake_app(dir, '1.0.0');
+	const update = await check_for_update({ manifest: `${base}/strands.json`, version: '1.0.0', target: victim });
+	const failure = await update!.install().then(
+		() => null,
+		(error: Error & { code?: string }) => error
+	);
+	return [failure?.code, failure?.message.includes('the previous one is back in place'), read_version(victim), update!.installed];
+}
+
+async function after_stranding(): Promise<unknown> {
+	// Windows ACLs and root ignore mode bits, so nothing can stop the rename back there.
+	if (win32 || process.getuid?.() === 0) return 'skipped';
+	const dir = join(scratch, 'stranded');
+	mkdirSync(dir);
+	const victim = fake_app(dir, '1.0.0');
+	const update = await check_for_update({ manifest: `${base}/strands.json`, version: '1.0.0', target: victim });
+	const cwd = process.cwd;
+	// The relaunch reads the working directory right after the swap, and a fake executable never starts, so this locks the rollback out.
+	process.cwd = () => {
+		if (read_version(victim) === '9.0.0') chmodSync(dir, 0o555);
+		return cwd();
+	};
+	try {
+		const failure = await update!.install().then(
+			() => null,
+			(error: Error & { code?: string }) => error
+		);
+		return [failure?.code, failure?.message.includes('could not be put back'), update!.installed];
+	} finally {
+		process.cwd = cwd;
+		chmodSync(dir, 0o755);
 	}
 }
 
@@ -626,7 +687,7 @@ await until(() => {
 		return false;
 	}
 }, 5000);
-finish('update', 90);
+finish('update', 93);
 
 function code(fn: () => unknown): string | null {
 	try {

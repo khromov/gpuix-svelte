@@ -154,7 +154,8 @@ the certificate into a keychain first. The starter's release workflow does both 
 
 On Windows, sign the `.exe` with `signtool` if you have a certificate. Do it before the archive
 is made, since the archive's hash goes into the update manifest: `build()`'s `beforeArchive`
-callback runs on the packaged output at that point and gets the `binary` path.
+callback runs on the packaged output at that point and gets the `binary` path. On macOS it runs
+before signing, so the signature and the notarized archive both cover what it changes.
 
 ## Run it in a browser
 

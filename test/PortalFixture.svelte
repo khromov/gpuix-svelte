@@ -4,6 +4,7 @@
 	let show = $state(true);
 	let second = $state(false);
 	let lead = $state(false);
+	let floating = $state(false);
 	let hits = $state({ under: 0, over: 0, second: 0 });
 </script>
 
@@ -27,11 +28,14 @@
 			<div class="second" onclick={() => hits.second++} testId="second">second</div>
 		</Portal>
 	{/if}
-	<div class="row">
+	<div class="row" testId="row">
 		<div onclick={() => (show = !show)} testId="toggle">toggle</div>
 		<div onclick={() => (second = !second)} testId="add">add</div>
 		<div onclick={() => (lead = !lead)} testId="addlead">addlead</div>
 		<div testId="hits">{hits.under}-{hits.over}-{hits.second}</div>
+		<div portal="false" testId="static-off">off</div>
+		<div portal={floating} testId="dynamic">dynamic</div>
+		<div onclick={() => (floating = !floating)} testId="float">float</div>
 	</div>
 </div>
 

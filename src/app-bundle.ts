@@ -56,7 +56,8 @@ export function read_app_options(source: string): EntryApp {
 	const renders = new Set<string>();
 	const consts = new Map<string, Expression>();
 	const top: Array<Expression | null | undefined> = [];
-	for (const statement of program.body) {
+	for (const outer of program.body) {
+		const statement = outer.type === 'ExportNamedDeclaration' && outer.declaration ? outer.declaration : outer;
 		if (statement.type === 'ImportDeclaration' && statement.source.value === 'gpuix-svelte') {
 			for (const specifier of statement.specifiers) {
 				if (specifier.type !== 'ImportSpecifier') continue;
@@ -232,7 +233,7 @@ export function info_plist(info: AppInfo): string {
 		['CFBundlePackageType', 'APPL'],
 		['CFBundleShortVersionString', info.version],
 		// At most three integers here, so a prerelease suffix stays on the string above only.
-		['CFBundleVersion', /^\d+(\.\d+){0,2}/.exec(info.version)?.[0] ?? '0'],
+		['CFBundleVersion', /^v?(\d+(?:\.\d+){0,2})/.exec(info.version)?.[1] ?? '0'],
 		['CFBundleIconFile', 'AppIcon'],
 		['LSMinimumSystemVersion', MIN_MACOS],
 		['NSHighResolutionCapable', true]

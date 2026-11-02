@@ -8,7 +8,7 @@
  * and Bun alike and the tests cover the swap on a copy.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign as sign_bytes, verify as verify_bytes } from 'node:crypto';
 import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, readFileSync, mkdtempSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -98,9 +98,12 @@ export interface Update {
 	readonly asset: UpdateAsset | null;
 	readonly installable: boolean;
 	readonly reason?: NotInstallable;
-	/** True once `install()` has swapped the app; a second `install()` throws. */
+	/** True once `install()` has swapped the app and the swap stood; a second `install()` then throws. */
 	readonly installed: boolean;
-	/** Fetches the archive into a temp directory and checks its size and sha256; resolves to its path. A download in flight is shared, and `install()` calls it when it has not run. */
+	/**
+	 * Fetches the archive into a temp directory and checks its size and sha256; resolves to its path, and `install()` calls it when it has not run.
+	 * A download in flight is shared: a later caller's `onProgress` joins it and its `signal` ends only its own wait, while the first caller's stops it for everyone.
+	 */
 	download(options?: DownloadOptions): Promise<string>;
 	/** Extracts, checks that what came out is this app (its kind of executable; on macOS the bundle's identifier and version) and swaps it in for the running app. */
 	install(options?: InstallOptions): Promise<void>;
@@ -233,6 +236,7 @@ class AppUpdate implements Update {
 	private fetch_: typeof fetch;
 	private downloading: Promise<string> | null = null;
 	private download_dir: string | null = null;
+	private progress = new Set<NonNullable<DownloadOptions['onProgress']>>();
 
 	constructor(
 		manifest: UpdateManifest,
@@ -258,16 +262,25 @@ class AppUpdate implements Update {
 		this.fetch_ = fetch_;
 	}
 
-	download(options: DownloadOptions = {}): Promise<string> {
+	download({ onProgress, signal }: DownloadOptions = {}): Promise<string> {
 		if (!this.asset) return Promise.reject(new UpdateError('not-installable', `the manifest has nothing for ${this.platform}`));
-		this.downloading ??= this.fetch_archive(this.asset, options).catch((error) => {
+		if (this.downloading) {
+			if (onProgress) this.progress.add(onProgress);
+			if (!signal) return this.downloading;
+			const waiting = until_aborted(this.downloading, signal, this.asset.url);
+			// That caller has gone, so nothing should move its progress bar again.
+			if (onProgress) waiting.catch(() => this.progress.delete(onProgress));
+			return waiting;
+		}
+		this.progress = new Set(onProgress && [onProgress]);
+		this.downloading = this.fetch_archive(this.asset, signal).catch((error) => {
 			this.downloading = null;
 			throw error;
 		});
 		return this.downloading;
 	}
 
-	private async fetch_archive({ url, sha256, size }: UpdateAsset, { onProgress, signal }: DownloadOptions): Promise<string> {
+	private async fetch_archive({ url, sha256, size }: UpdateAsset, signal: AbortSignal | undefined): Promise<string> {
 		let response: Response;
 		try {
 			response = await this.fetch_(url, { signal });
@@ -294,7 +307,7 @@ class AppUpdate implements Update {
 				if (size !== undefined && received > size) throw new UpdateError('hash', `${url} is longer than the ${size} bytes the manifest says`);
 				hash.update(value);
 				writeSync(fd, value);
-				onProgress?.(received, total);
+				for (const report of this.progress) report(received, total);
 			}
 			closeSync(fd);
 			fd = null;
@@ -342,7 +355,7 @@ class AppUpdate implements Update {
 				kept = true;
 				error.message += `; ${keep_staging(staging, error.stranded)}`;
 			}
-			if (error instanceof RelaunchError) this.installed = false;
+			if (error instanceof RelaunchError || error instanceof StrandedError) this.installed = false;
 			throw error;
 		} finally {
 			// The swap is done (or rolled back); a leftover file must not turn that into a failure.
@@ -352,6 +365,15 @@ class AppUpdate implements Update {
 			this.downloading = null;
 		}
 	}
+}
+
+function until_aborted<T>(work: Promise<T>, signal: AbortSignal, url: string): Promise<T> {
+	return new Promise((resolve, reject) => {
+		const abort = () => reject(new UpdateError('download', `${url}: aborted`, { cause: signal.reason }));
+		if (signal.aborted) abort();
+		else signal.addEventListener('abort', abort, { once: true });
+		work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+	});
 }
 
 /** The rename that should have put the old app back failed, so it is stranded at `stranded`. */
@@ -709,15 +731,12 @@ async function relaunch_app(target: string, previous: string, staging: string, a
 		roll_back(target, previous, staging);
 		throw new RelaunchError('install', `the new version did not start (${why}); the previous one is back in place`);
 	};
-	const child = spawn(executable, args, { detached: true, stdio: 'ignore', env, cwd });
-	try {
-		await new Promise<void>((resolve, reject) => {
-			child.once('spawn', resolve);
-			child.once('error', reject);
-		});
-	} catch (error) {
-		failed((error as Error).message);
-	}
+	// In the promise because Node throws ENOEXEC, a wrong-architecture build's error, from `spawn` itself and reports only ENOENT and the like on the event.
+	const child = await new Promise<ChildProcess>((resolve, reject) => {
+		const started = spawn(executable, args, { detached: true, stdio: 'ignore', env, cwd });
+		started.once('spawn', () => resolve(started));
+		started.once('error', reject);
+	}).catch((error: Error) => failed(error.message));
 	child.unref();
 	const deadline = Date.now() + READY_TIMEOUT;
 	while (!existsSync(ready)) {

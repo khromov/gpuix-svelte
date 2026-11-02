@@ -46,6 +46,10 @@ work for class rules, which are translated the same way.
   `font: 12px Menlo`, `background` with anything but a single colour, and `box-shadow`. A
   `background: linear-gradient(...)` paints nothing but still blocks clicks to what is behind it.
 - Unitless `line-height`: `line-height: 1.5` means 1.5 px, so give it a unit.
+- A bare number on a property that takes a word or a colour (`color: 123456`, `background: 0`) is
+  dropped with a warning.
+- `!important` is ignored: the declaration applies as if it were not there, so it can't make a class
+  rule beat inline `style`.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
 - Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
   `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, `@media` and
