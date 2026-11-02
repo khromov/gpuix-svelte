@@ -113,7 +113,10 @@ let pending_portals: ShadowNode[] = [];
 /** Native calls on a node whose `createElement` is still queued, run once the batch has shipped. */
 let after_commit: Array<() => void> = [];
 
-const is_portal = (n: ShadowNode) => 'portal' in n.attrs;
+const is_portal = (n: ShadowNode) => {
+	const flag = n.attrs.portal;
+	return flag != null && flag !== false && flag !== 'false';
+};
 
 /**
  * Monotonic across remounts on purpose: `render_hot` builds a fresh tree while the old
@@ -181,6 +184,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		listeners: new Map(),
 		nativeId: null,
 		uses_vars: false,
+		own_color: undefined,
 		live: false,
 		attached: false,
 		parent: null,
@@ -321,9 +325,13 @@ function apply_style(el: ShadowNode) {
 		} else {
 			inheriting_svgs.delete(el);
 		}
-	} else if (inheriting_svgs.size > 0) {
-		for (const svg of inheriting_svgs) {
-			if (svg.nativeId !== null && descends(svg, el)) apply_style(svg);
+	} else if (style.color !== el.own_color) {
+		// Only a new colour changes what an `<svg>` below inherits, and a drag restyles its panel every frame.
+		el.own_color = style.color;
+		if (el.first) {
+			for (const svg of inheriting_svgs) {
+				if (svg.nativeId !== null && descends(svg, el)) apply_style(svg);
+			}
 		}
 	}
 
@@ -339,6 +347,7 @@ function restyle_subtree(el: ShadowNode) {
 
 /** `portal` toggled on a live node: GPUI reparents on the next appendChild/insertBefore. */
 function reparent(el: ShadowNode) {
+	if (!is_portal(el)) portals.delete(el);
 	if (el.nativeId === null || !el.attached || !el.live) return;
 	attach(el);
 	attach_portals();
@@ -491,10 +500,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		delete el.attrs[name];
 
 		if (STYLE_ATTRS.has(name)) apply_style(el);
-		else if (name === 'portal') {
-			portals.delete(el);
-			reparent(el);
-		} else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
+		else if (name === 'portal') reparent(el);
+		else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
 		else {
 			apply_prop(el, name, null);
 			if (FOCUS_ATTRS.has(name) && hitbox_root(el) !== null) apply_style(el);
@@ -772,13 +779,13 @@ export function commit() {
 		return;
 	}
 
-	const json = JSON.stringify(queue);
+	const ops = queue;
 	queue = [];
 	dirty = false;
 
 	// Rust destroys whole subtrees, so the returned ids are how we learn which
 	// descendants to purge from the id map.
-	const destroyed = native!.applyBatch(json);
+	const destroyed = ship(ops);
 	for (const id of destroyed) {
 		const n = by_id.get(id);
 		if (n) {
@@ -794,6 +801,28 @@ export function commit() {
 	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
 	native!.commitMutations?.();
 	run_after_commit();
+}
+
+/**
+ * Native decodes a whole batch before applying any of it, so one op it refuses would lose the
+ * frame while the shadow tree goes on believing those ids exist; sent singly, only that op is lost.
+ */
+function ship(ops: Mutation[]): number[] {
+	try {
+		return native!.applyBatch(JSON.stringify(ops));
+	} catch {
+		// The loop below names the op responsible.
+	}
+
+	const destroyed: number[] = [];
+	for (const op of ops) {
+		try {
+			destroyed.push(...native!.applyBatch(JSON.stringify([op])));
+		} catch (error) {
+			console.error(`[gpuix-svelte] native refused ${op[0]}: ${(error as Error).message}`);
+		}
+	}
+	return destroyed;
 }
 
 function run_after_commit() {

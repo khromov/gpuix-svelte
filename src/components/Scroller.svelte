@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onDestroy, type Snippet } from 'svelte';
 	import { get_native, read_native, type GpuixEvent, type Native, type ShadowNode } from 'gpuix-svelte';
 
 	// GPUI's own thumb can't be dragged, so the column draws a thumb sized from the heights
@@ -140,6 +140,10 @@
 			update();
 		}, 50);
 	}
+
+	onDestroy(() => {
+		if (pending !== null) clearTimeout(pending);
+	});
 
 	function on_range(e: GpuixEvent) {
 		const rows = (e.endIndex ?? 0) - (e.startIndex ?? 0);

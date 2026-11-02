@@ -9,7 +9,7 @@ import { renderer, set_native, create_root, commit } from 'gpuix-svelte';
 import { mount_headless, find_test_id, click_test_id, all_text, check, finish } from 'gpuix-svelte/test';
 
 const Hitbox = (await import('./Hitbox.svelte')).default;
-mount_headless(Hitbox, { width: 400, height: 300 });
+const { native: hit_native } = mount_headless(Hitbox, { width: 400, height: 300 });
 
 const pe = (id: string) => find_test_id(id)!.style?.pointerEvents ?? null;
 const counts = () => all_text().find((t) => /^\d+-\d+$/.test(t));
@@ -33,6 +33,20 @@ check('one with its own keeps it', find_test_id('own')!.style!.color, 'blue');
 click_test_id('toggle');
 check("restyling the ancestor restyles the svg", find_test_id('icon')!.style!.color, 'green');
 check('and still leaves the other alone', find_test_id('own')!.style!.color, 'blue');
+{
+	const icon = find_test_id('icon')!.id;
+	let resent = 0;
+	const apply = hit_native.applyBatch.bind(hit_native);
+	hit_native.applyBatch = (json) => {
+		if ((JSON.parse(json) as [string, number][]).some(([op, id]) => op === 'setStyle' && id === icon)) resent++;
+		return apply(json);
+	};
+	click_test_id('nudge');
+	check("a restyle that leaves the ancestor's colour alone sends the svg nothing", resent, 0);
+	click_test_id('uncolor');
+	check('with the nearest colour gone it takes the next one up', [resent, find_test_id('icon')!.style!.color], [1, 'purple']);
+	hit_native.applyBatch = apply;
+}
 
 // --- the attribute and listeners can change after the fact ------------------
 {
@@ -83,4 +97,4 @@ check('and still leaves the other alone', find_test_id('own')!.style!.color, 'bl
 	check('removing the attribute restores the default', badge_pe(), null);
 }
 
-finish('hitbox', 21);
+finish('hitbox', 23);

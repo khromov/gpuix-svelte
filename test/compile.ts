@@ -7,7 +7,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { compile_svelte } from '../src/compile.ts';
-import { import_fresh } from '../src/hot.ts';
+import { import_fresh, on_change } from '../src/hot.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 const FIXTURE = fileURLToPath(new URL('./HotImports.svelte', import.meta.url));
@@ -62,4 +62,10 @@ try {
 	rmSync(dir, { recursive: true, force: true });
 }
 
-finish('compile', 15);
+check(
+	"a component's edit remounts, a module's asks for a restart, and nothing inside a package is an edit",
+	['App.svelte', 'lib\\Row.svelte', 'state.svelte.ts', 'util.js', 'notes.md', 'node_modules/pkg/A.svelte', 'sub\\node_modules\\pkg\\B.svelte', 'node_modules/pkg/a.js', 'my_node_modules_notes.svelte'].map(on_change),
+	['remount', 'remount', 'restart', 'restart', null, null, null, null, 'remount']
+);
+
+finish('compile', 16);

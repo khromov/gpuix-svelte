@@ -67,6 +67,7 @@ await app.mouse.move({ x: 390, y: 5 });
 check('and mouse.move() off it leaves', await app.getByTestId('hover').textContent(), 'idle');
 
 check('input outside the viewport is refused, not dropped', await code_of(app.mouse.click({ x: 10, y: 5000 })), 'NotFound');
+check('on the negative side too', await code_of(app.mouse.click({ x: -1, y: 5 })), 'NotFound');
 
 await app.getByText('reveal').click();
 check('waitFor() sees an update that lands on a timer', (await app.getByText('revealed').waitFor({ timeoutMs: 2000 })).text, 'revealed');
@@ -80,4 +81,4 @@ rmSync(shot, { force: true });
 await app.close();
 check('a closed app refuses further calls', await code_of(app.getByTestId('inc').count()), 'Closed');
 
-finish('automation', 18);
+finish('automation', 19);

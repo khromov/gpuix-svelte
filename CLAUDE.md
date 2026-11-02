@@ -467,7 +467,10 @@ Electron- or CLI-shaped. The design:
   `GPUIX_RELAUNCH_READY=<sentinel>` go in the child's environment; the old process awaits the
   `spawn`/`error` event, then polls for the sentinel (10 s, `READY_TIMEOUT`) and only then
   `process.exit(0)`s — a spawn error, an early exit or no sentinel means `roll_back` (new one into
-  staging, old one back) and a `RelaunchError` with `installed` reset. The new instance's
+  staging, old one back) and a `RelaunchError` with `installed` reset, as does the `StrandedError` from
+  a rollback that can't rename back. A spawn error arrives either way: Node throws ENOEXEC (a
+  wrong-architecture build) from `spawn` itself and puts ENOENT and the like on the event, and
+  `test:update` goes through the first, since its fake executables can't exec. The new instance's
   `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
   before creating the window; `process.getBuiltinModule('node:fs')` for the sentinel) writes the
   sentinel first, then polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH and returns
@@ -475,7 +478,8 @@ Electron- or CLI-shaped. The design:
   all three variables are taken out of the environment on the first call so children don't inherit
   them. `updated_from()` answers from the same read. Electron's Windows de-elevation has no
   portable equivalent and is not done. `Update.installed` makes a second `install()` throw; a
-  download in flight is memoised, and `signal` aborts it. `check_url` is applied to
+  download in flight is shared: a later caller's `onProgress` joins it and its `signal` ends only its
+  own wait (`until_aborted`), while the first caller's stops it for everyone. `check_url` is applied to
   `response.url` too, so a redirect can't leave https.
 - **Trust.** sha256 (and `size`) are checked while streaming, and the download stops as soon as
   it passes the manifest's `size`. An ed25519 signature over `canonical_manifest()` (keys sorted,
@@ -485,7 +489,7 @@ Electron- or CLI-shaped. The design:
   every asset, so a signed manifest can't be repointed; it does not expire, so a hijacked host can
   replay an old signed manifest (documented, not solved). Windows and Linux have no
   signature check on the executable beyond that; `build()`'s `beforeArchive` hook is where
-  `signtool` goes.
+  `signtool` goes; it runs before macOS signing, so the signature and archive cover what it does.
 - **Browser bundles** get `src/update-web.ts` through the `browser` condition on `./update`
   (`check_for_update` resolves to null): the real module's `node:crypto` key functions have no
   browser shim and broke `demo:web`, which CI's linux job now builds with `--build-only`.
@@ -725,7 +729,11 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   A remount queues the old root's `destroyElement` after the new `setRoot`, in the same batch.
 - Mutations queue as tuples and ship as **one** `applyBatch(json)` per commit, then
   `commitMutations()`. `applyBatch` returns the ids Rust destroyed (whole subtrees), which is how
-  the id map learns what to purge. The node's `listeners` map survives that purge, like `attrs`
+  the id map learns what to purge. Native decodes a whole batch and resolves its styles before it
+  applies anything (`apply_batch_to_tree`'s phases; the apply phase cannot fail), so a rejected batch
+  applied nothing and, in `ship`, is resent one op at a time without double-applying: only the op native
+  refuses is lost and it is logged. Without that the nodes it created would keep ids native never got,
+  whose later ops are silent no-ops, so they would stay missing until a remount. The node's `listeners` map survives that purge, like `attrs`
   does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
 **`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
@@ -762,13 +770,17 @@ express, so they arrive as their own attributes (`focus-visible=` for the last) 
 in.
 
 Unknown *keys* need no allowlist — serde drops them. Unknown **values** are the opposite: a key
-GPUI does know, handed a string it can't parse, throws out of `applyBatch`, and that throw loses
-the whole frame. So multi-value box shorthands (`padding`, `margin`, `border-width`,
+GPUI does know, handed a value it can't deserialize, throws out of `applyBatch`, and `commit`'s
+fallback then costs the element that whole `setStyle`. So multi-value box shorthands (`padding`, `margin`, `border-width`,
 `border-radius`, `gap`, `inset`) expand to the longhands GPUI actually has, and each value is then
 checked against the key's Rust type: `NUMBER_ONLY` keys (all the spacing, border and font metrics)
 are `f64`, so `1em`, `50%` and `auto` are all fatal there; only `width`/`height`/`min*`/`max*` are
-`DimensionValue` and take `%` or `auto`; `boxShadow` is a struct CSS text can never build. Anything
-that fails is dropped with a one-time warning per property rather than shipped. `inset` expands
+`DimensionValue` and take `%` or `auto`; `TEXT_ONLY` keys are `String`, so a value that coerced to a
+number is the fatal one there (`color: 123456`, `background: 0`), while any string passes and native
+ignores one it can't read (a bad colour never throws); `boxShadow` is a struct CSS text can never
+build. Anything
+that fails is dropped with a one-time warning per property rather than shipped. A trailing
+`!important` is stripped first, since there is no cascade for it to outrank. `inset` expands
 even when it holds a single value, because GPUI has `top`/`right`/`bottom`/`left` but no `inset`.
 Three spellings are rewritten before that check: `Nrem` becomes `N × 16` (GPUI's rem size, which
 gpuix never changes), `overflow*: auto` becomes `scroll` (native matches only `scroll`/`hidden`
@@ -840,7 +852,8 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
   is the weight names; `overflow: scroll` is handled separately in `build_host_container`.
 - `color.rs` — colour syntax (`csscolorparser`, so names and `hsl()` work).
 
-Then mirror any new pixel-only or dimension key into `NUMBER_ONLY` / `DIMENSION` in `src/style.ts`,
+Then mirror any new pixel-only, dimension or `String` key into `NUMBER_ONLY` / `DIMENSION` /
+`TEXT_ONLY` in `src/style.ts`,
 add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
 mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
 `StyleDesc`, with unknown keys already dropped, which is exactly what `docs/styling.md` claims.
@@ -872,7 +885,8 @@ are the ones that bite most often, and the renderer behaviour behind them.
   per top-level token of `marked`'s lexer, which brought it under 1 ms headless and the window to
   ~5 ms. `<svg source>` inherits **no** `color` natively, so the renderer
   copies the nearest ancestor's (from its class rules or inline style) onto any `<svg>` without one
-  and re-copies it whenever that ancestor restyles; a parent's `:hover` colour does not reach it,
+  and re-copies it whenever that ancestor's resolved colour changes (`own_color`: only then does
+  `apply_style` scan `inheriting_svgs`, so a drag restyling a panel doesn't resend every icon in it); a parent's `:hover` colour does not reach it,
   since hover is native.
 - Only the events in `GPUI_EVENTS` fire. `keyDown`/`keyUp` require focus (`tabIndex` or
   `autofocus`). Native 0.11 stops every Tab after the listeners ran (so it never types `\t` into an

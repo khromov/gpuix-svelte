@@ -97,7 +97,7 @@ function native(): TestGpuixRenderer {
 /** GPUI drops input outside the viewport without a word, so say so where test.ts's `click()` would. */
 function pointer(x: number, y: number, send: (native: TestGpuixRenderer) => void) {
 	const { width, height } = native().getWindowSize();
-	if (x > width || y > height) {
+	if (x < 0 || y < 0 || x > width || y > height) {
 		throw new AutomationError(
 			'NotFound',
 			`(${Math.round(x)}, ${Math.round(y)}) is outside the ${width}×${height} headless viewport (its height caps at ${MAX_HEADLESS_HEIGHT})`

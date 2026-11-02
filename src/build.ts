@@ -37,12 +37,12 @@ export interface BuildOptions {
 	/** Where the output goes; `dist` in the working directory by default. */
 	outdir?: string | URL;
 	/**
-	 * Also write the archive to distribute, `<slug>-<version>-<platform>.zip` (`.tar.gz` on Linux),
+	 * Also write the archive to distribute, `<slug>-<version>-<platform>.zip`,
 	 * and `update-<platform>.json` beside it, the fragment `gpuix-svelte update manifest` merges.
 	 */
 	archive?: boolean;
-	/** Runs on the packaged output before the archive is made: where a Windows `.exe` gets `signtool`, say. */
-	beforeArchive?: (result: Omit<BuildResult, 'archive' | 'fragment'>) => void | Promise<void>;
+	/** With `archive`, runs on the packaged output before macOS signing, so the signature and the archive both cover what it does: where a Windows `.exe` gets `signtool`, say. */
+	beforeArchive?: (result: Pick<BuildResult, 'output' | 'binary' | 'app'>) => void | Promise<void>;
 }
 
 export interface BuildResult {
@@ -101,7 +101,7 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	if (process.platform === 'win32') {
 		// Anything left unset keeps bun.exe's own value: description "Bun", publisher "Oven", Bun's version.
 		windows = { hideConsole: true, title: app.name, description: app.description || app.name, publisher: app.publisher || app.name, copyright: app.copyright || ' ' };
-		const numeric = /^\d+(\.\d+){0,3}/.exec(app.version)?.[0];
+		const numeric = /^v?(\d+(?:\.\d+){0,3})/.exec(app.version)?.[1];
 		windows.version = numeric && windows_version(numeric) ? numeric : '0.0.0.0';
 		if (windows.version !== app.version) log(`version "${app.version}" goes into the .exe as ${windows.version}; Windows file properties take numbers only`);
 		windows.icon = join(scratch, 'AppIcon.ico');
@@ -179,9 +179,11 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	}
 	log(`${rel(output)} (${mb(size)} MB) — ${app.name} ${app.version}, ${app.identifier}${app.icon === DEFAULT_ICON ? ', default icon' : ''}`);
 
+	const archive = options.archive ? join(outdir, archive_name(app)) : undefined;
+	if (archive) await options.beforeArchive?.({ output, binary: executable, app });
+
 	const identity = process.env.CODESIGN_IDENTITY;
 	const notary = notary_auth();
-	const archive = options.archive ? join(outdir, archive_name(app)) : undefined;
 	let signed = false;
 	let notarized = false;
 	if (process.platform !== 'darwin') {
@@ -204,7 +206,6 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 
 	let fragment: string | undefined;
 	if (archive) {
-		await options.beforeArchive?.({ output, binary: executable, app, signed, notarized });
 		// Notarization already wrote the stapled zip there.
 		if (!notarized) write_archive(output, archive);
 		fragment = join(outdir, `update-${update_platform()}.json`);

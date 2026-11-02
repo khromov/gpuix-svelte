@@ -12,6 +12,9 @@ const PERCENT = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)%$/;
 const REM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)rem$/i;
 const NUMERIC_ISH = /^[-+.\d]/;
 
+/** There is no cascade for it to outrank, and left on a value it fails every check below. */
+const IMPORTANT = /\s*!\s*important$/i;
+
 /** No GPUI sizing mode matches these, and `auto` is the nearest a `DimensionValue` can say. */
 const INTRINSIC = /^(?:max-content|min-content|fit-content)(?:\(.*\))?$/;
 
@@ -60,6 +63,40 @@ const NUMBER_ONLY = new Set([
 	'outlineWidth',
 	'outlineOffset',
 	'scrollbarWidth'
+]);
+
+/** Rust `String`s (`background` an enum of one or a gradient), so `color: 123456` must not coerce into a number. */
+const TEXT_ONLY = new Set([
+	'display',
+	'visibility',
+	'flexDirection',
+	'flexWrap',
+	'alignItems',
+	'alignSelf',
+	'alignContent',
+	'justifyContent',
+	'gridColumnMin',
+	'gridRowMin',
+	'position',
+	'background',
+	'backgroundColor',
+	'color',
+	'borderColor',
+	'borderStyle',
+	'outlineColor',
+	'fontFamily',
+	'textAlign',
+	'whiteSpace',
+	'textOverflow',
+	'textDecoration',
+	'overflow',
+	'overflowX',
+	'overflowY',
+	'scrollbarColor',
+	'cursor',
+	'pointerEvents',
+	'userSelect',
+	'selectionColor'
 ]);
 
 /** Rust `bool`s: the string CSS text hands over would fail to deserialize. */
@@ -222,6 +259,7 @@ function accepts(key: string, value: StyleValue) {
 	if (NEVER.has(key)) return false;
 	if (NUMBER_ONLY.has(key)) return typeof value === 'number';
 	if (BOOLEAN.has(key)) return typeof value === 'boolean';
+	if (TEXT_ONLY.has(key) && typeof value === 'number') return false;
 	if (DIMENSION.has(key)) {
 		return typeof value === 'number' || value === 'auto' || (typeof value === 'string' && PERCENT.test(value));
 	}
@@ -315,7 +353,7 @@ export function parse_css_text(css: string | null | undefined): GpuiStyle {
 		if (colon === -1) continue;
 
 		const key = camel(decl.slice(0, colon).trim());
-		const raw = decl.slice(colon + 1).trim();
+		const raw = decl.slice(colon + 1).trim().replace(IMPORTANT, '');
 		if (key === '' || raw === '') continue;
 
 		const value = raw.includes('var(') ? substitute_vars(raw) : raw;
