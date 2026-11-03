@@ -82,7 +82,12 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 	try {
 		return await build_in(options, outdir, scratch);
 	} finally {
-		rmSync(scratch, { recursive: true, force: true });
+		try {
+			rmSync(scratch, { recursive: true, force: true });
+		} catch (error) {
+			// Thrown from a finally, this would replace the error the build itself failed with.
+			log(`could not remove ${rel(scratch)}: ${(error as Error).message}`);
+		}
 	}
 }
 
