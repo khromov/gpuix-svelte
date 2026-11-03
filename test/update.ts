@@ -821,8 +821,12 @@ async function after_stranding(): Promise<unknown> {
 
 async function after_stranding_kept(): Promise<unknown> {
 	if (no_locks) return 'skipped';
-	// Locking only staging leaves the directory around it writable, so the rename out of the sweep's reach goes through.
-	const { failure, dir } = await relaunch_into('stranded-kept', (_exe, dir) => chmodSync(join(dir, staging_in(dir)[0]), 0o555));
+	const { failure, dir } = await relaunch_into('stranded-kept', (_exe, dir) => {
+		const staging = join(dir, staging_in(dir)[0]);
+		// Staging has to stay renamable, and macOS 15 won't rename a read-only directory, so a bundle gets a non-empty directory in its way instead.
+		if (darwin) mkdirSync(join(staging, `failed-${app_name}`, 'in the way'), { recursive: true });
+		else chmodSync(staging, 0o555);
+	});
 	const { path, version } = kept_app(failure);
 	const named = path !== undefined && /^\.update-kept-\d+-/.test(basename(dirname(path)));
 	for (const name of staging_in(dir)) chmodSync(join(dir, name), 0o755);
