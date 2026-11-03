@@ -189,11 +189,15 @@ A test has to fail when the behaviour it names breaks, which passing says nothin
 assertion against a mutation of the code it covers, and put a positive control beside any assertion
 that something is absent (the same query finding it when it is there). `check` compares
 `JSON.stringify` output: `undefined` and `null` are equal inside an array, `NaN` and `Infinity` equal
-`null`, `{ a: undefined }` equals `{}`, and every `Map`, `Set` and `Error` equals `{}`, so where that
-matters compare what you mean (`.map(String)`, `=== undefined`, `.has()`, the message). `render()`
-itself runs headlessly on a `TestGpuixRenderer` put in its `globalThis` slot, which takes it past `new
-GpuixRenderer` (`test/seed-window.ts`); `created: true` there depends on `render()` reading
-`slot.native` twice, so restructuring that read could open a real window.
+`null`, `{ a: undefined }` equals `{}`, every `Map` and `Set` equals `{}`, and an `Error` keeps only
+its enumerable own fields (none, for a plain one), so where that matters compare what you mean
+(`.map(String)`, `=== undefined`, `.has()`, the message). `render()` itself runs headlessly on a
+`TestGpuixRenderer` put in its `globalThis` slot, which takes it past `new GpuixRenderer` and `init()`
+(`test/seed-window.ts`); `created: true` there depends on `render()` reading `slot.native` twice, so
+restructuring that read could open a real window. `test/update.ts` reaches into `install()` through
+three hooks a refactor can break with no change in behaviour: the `SharedArrayBuffer` `rename_in`
+allocates between the swap's two renames, the `process.cwd()` read right after the swap, and the
+`process.platform` reads during extraction.
 
 `docs/testing.md` is the helper reference (`mount_headless`, `settle`/`wait`, `find_*`/`tree()`,
 `click*`/`press`/`type`/`drop_files`, `hover`/`mouse_*`/`wheel`/`drag`/`drag_select`/`key_up`,
@@ -479,8 +483,10 @@ Electron- or CLI-shaped. The design:
   `GPUIX_RELAUNCH_READY=<sentinel>` go in the child's environment; the old process awaits the
   `spawn`/`error` event, then polls for the sentinel (10 s, `READY_TIMEOUT`) and only then
   `process.exit(0)`s — a spawn error, an early exit or no sentinel means `roll_back` (new one into
-  staging, old one back) and a `RelaunchError` with `installed` reset, as does the `StrandedError` from
-  a rollback that can't rename back. A spawn error arrives either way: Node throws ENOEXEC (a
+  staging, old one back; on no sentinel the new one is first killed with its process group, or a merely
+  slow start would come up beside the restored app) and a `RelaunchError` with `installed` reset, as
+  does the `StrandedError` from a rollback that can't rename back. A spawn error arrives either way:
+  Node throws ENOEXEC (a
   wrong-architecture build) from `spawn` itself and puts ENOENT and the like on the event, and
   `test:update` goes through the first, since its fake executables can't exec. The new instance's
   `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
@@ -489,7 +495,8 @@ Electron- or CLI-shaped. The design:
   `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
   all three variables are taken out of the environment on the first call so children don't inherit
   them. `updated_from()` answers from the same read. Electron's Windows de-elevation has no
-  portable equivalent and is not done. `Update.installed` makes a second `install()` throw; a
+  portable equivalent and is not done. `Update.installed` makes a later `install()` throw, and one
+  still in progress makes a concurrent call throw too (`installing`, set before the download); a
   download in flight is shared: a later caller's `onProgress` joins it and its `signal` ends only its
   own wait (`until_aborted`), while the first caller's stops it for everyone. `check_url` is applied to
   `response.url` too, so a redirect can't leave https.

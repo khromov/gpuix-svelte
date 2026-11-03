@@ -503,6 +503,12 @@ try {
 	check('the new version is in place', [read_version(target), update!.installed], ['2.0.0', true]);
 	check('the download and the staging directory are gone', [existsSync(downloaded), staging_left()], [false, []]);
 	check('installing it again throws', await code_async(() => update!.install({ relaunch: false })), 'install');
+	{
+		const { dir, victim, check: check_it } = strandable('concurrent');
+		const twice = (await check_it())!;
+		const codes = await Promise.all([code_async(() => twice.install({ relaunch: false })), code_async(() => twice.install({ relaunch: false }))]);
+		check('a second install() while the first is still downloading throws install, and only one swap happens', [codes, read_version(victim), staging_in(dir)], [[null, 'install'], '9.0.0', []]);
+	}
 	writeFileSync(`${target}.settings.old`, 'mine');
 	if (!win32) {
 		const executable = darwin ? join(target, 'Contents', 'MacOS', 'fake') : target;
@@ -575,7 +581,12 @@ try {
 	check('a stranded app is kept under a name no sweep matches', await after_stranding_kept(), no_locks ? 'skipped' : ['install', true, '1.0.0']);
 	check('a relaunch whose executable has gone is rolled back rather than waited on forever', await rolled_back('gone', 'did not start', (exe) => rmSync(exe)), win32 ? 'skipped' : ['install', 'did not start', '1.0.0', false, null]);
 	check('a new version that exits before reporting is rolled back', await rolled_back('exits', 'it exited with 3', script('exit 3')), win32 ? 'skipped' : ['install', 'it exited with 3', '1.0.0', false, null]);
-	check('a new version that never reports is rolled back, rather than the old one exiting', await rolled_back('silent', 'did not report', hurried), win32 ? 'skipped' : ['install', 'did not report', '1.0.0', false, null]);
+	const silent_pid = join(scratch, 'silent.pid');
+	check(
+		'a new version that never reports is rolled back and stopped, rather than the old one exiting',
+		[await rolled_back('silent', 'did not report', hurried(silent_pid)), win32 || (await gone_soon(silent_pid))],
+		[win32 ? 'skipped' : ['install', 'did not report', '1.0.0', false, null], true]
+	);
 	check(
 		'a relaunch starts the new version detached and silent, in the old working directory, with the args given and the version it replaced, and exits once it reports, sentinel gone',
 		await relaunch_reports(),
@@ -732,11 +743,16 @@ async function relaunch_into(name: string, after_swap: (exe: string, dir: string
 		exited = code ?? 0;
 		throw new Error('exited');
 	}) as typeof process.exit;
+	// A hung install carries on after this returns and could reach the real process.exit(0) before finish(), so a hang ends the suite here.
+	const hung = setTimeout(() => {
+		console.error(`update: the install in ${name} had not settled after 20 s`);
+		exit.call(process, 1);
+	}, 20000);
 	try {
-		const hung = new Promise<Failure>((resolve) => setTimeout(resolve, 20000, new Error('hung')));
-		const failure = await Promise.race([failure_of(update!.install(options)), hung]);
+		const failure = await failure_of(update!.install(options));
 		return { failure, exited, installed: update!.installed, version: existsSync(exe) ? read_version(victim) : undefined, dir };
 	} finally {
+		clearTimeout(hung);
 		process.cwd = cwd;
 		process.exit = exit;
 		Date.now = now;
@@ -763,11 +779,18 @@ async function after_failed_relaunch(): Promise<unknown> {
 }
 
 // Ten seconds of READY_TIMEOUT in half a second: the relaunch reads the clock once a poll.
-function hurried(exe: string) {
-	script('sleep 3')(exe);
-	const now = Date.now;
-	let skew = 0;
-	Date.now = () => now() + (skew += 1000);
+function hurried(pid_file: string) {
+	return (exe: string) => {
+		script(`echo $$ > "${pid_file}"\nsleep 10`)(exe);
+		const now = Date.now;
+		let skew = 0;
+		Date.now = () => now() + (skew += 1000);
+	};
+}
+
+async function gone_soon(pid_file: string): Promise<boolean> {
+	const pid = existsSync(pid_file) ? Number(readFileSync(pid_file, 'utf8')) : 0;
+	return pid > 0 && (await until(() => !alive(pid), 2000)) === true;
 }
 
 function reporting(out: string) {
@@ -782,6 +805,8 @@ function read_report(out: string): string[] {
 }
 
 function stop_group(pid: string) {
+	// An empty pid would make this -0, which is this runner's own process group.
+	if (!/^[1-9]\d*$/.test(pid)) return;
 	try {
 		process.kill(-Number(pid));
 	} catch {
@@ -794,7 +819,7 @@ async function relaunch_reports(): Promise<unknown> {
 	const out = join(scratch, 'reports.txt');
 	const { exited } = await relaunch_into('reports', reporting(out), { args: ['--flag', 'two words'] });
 	const [pid, output, cwd, from, ...args] = read_report(out);
-	const own_group = pid !== undefined && alive(-Number(pid));
+	const own_group = /^[1-9]\d*$/.test(pid ?? '') && alive(-Number(pid));
 	stop_group(pid);
 	return [exited, output, cwd, from, args, own_group, in_temp('gpuix-svelte-relaunch-')];
 }
@@ -1233,7 +1258,7 @@ await until(() => {
 		return false;
 	}
 }, 5000);
-finish('update', 135);
+finish('update', 136);
 
 /** A hostile name of the same length as a benign one, patched into a valid zip: the headers stay intact. */
 function hostile_zip(benign: string, name: string, file: string) {
