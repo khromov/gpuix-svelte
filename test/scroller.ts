@@ -126,6 +126,23 @@ await wait(THUMB_MS);
 	check('a sustained scroll restyles the thumb on the throttle, not once per event', restyles > 0 && restyles <= 12, true);
 }
 
+// The thumb's 24 px minimum is the whole track of a column that short.
+({ native, component } = mount_headless(Tall, { width: 400, height: 300 }));
+component.resize(20);
+await wait(THUMB_MS);
+{
+	const scrolls: number[] = [];
+	const scroll_to = native.scrollTo.bind(native);
+	native.scrollTo = (id, x, y) => (scrolls.push(y), scroll_to(id, x, y));
+	const grip = center(thumb());
+	mouse_down(grip);
+	mouse_move(grip, { pressed_button: 0 });
+	mouse_move({ x: grip.x, y: grip.y + 3 }, { pressed_button: 0 });
+	mouse_up({ x: grip.x, y: grip.y + 3 });
+	native.scrollTo = scroll_to;
+	check('a column shorter than the thumb minimum gets a thumb that fills it, and dragging it hands native no NaN', [Math.round(bounds(thumb())!.height), scrolls], [20, []]);
+}
+
 ({ native, component } = mount_headless(Tall, { props: { follow: true }, width: 400, height: 300 }));
 await wait(THUMB_MS);
 await wait(THUMB_MS);
@@ -193,4 +210,4 @@ check('and the rows it left are no longer painted', painted().includes('row 0'),
 	check('a thumb update still pending at unmount reaches nothing', reads, 0);
 }
 
-finish('scroller', 29);
+finish('scroller', 30);

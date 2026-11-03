@@ -476,7 +476,8 @@ Electron- or CLI-shaped. The design:
   sentinel first, then polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH and returns
   `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
   all three variables are taken out of the environment on the first call so children don't inherit
-  them. `updated_from()` answers from the same read. Electron's Windows de-elevation has no
+  them. `updated_from()` takes only `GPUIX_UPDATED_FROM`, never the two relaunch variables, so an
+  app can call it before `render()` without the old instance rolling back. Electron's Windows de-elevation has no
   portable equivalent and is not done. `Update.installed` makes a second `install()` throw; a
   download in flight is shared: a later caller's `onProgress` joins it and its `signal` ends only its
   own wait (`until_aborted`), while the first caller's stops it for everyone. `check_url` is applied to

@@ -75,15 +75,22 @@ const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
 
 export async function build(options: BuildOptions): Promise<BuildResult> {
 	if (!process.versions.bun) throw new Error(`${TAG} needs Bun — run the build script with \`bun\``);
-	// Imported after the guard: plugin.ts imports `bun`, which Node cannot resolve.
-	const { load_module, load_svelte, resolve_native_cjs, resolve_svelte } = await import('./plugin.ts');
-
-	const entry = to_path(options.entry);
 	const outdir = to_path(options.outdir ?? 'dist');
 	const scratch = join(outdir, '.gpuix-svelte-build');
 	rmSync(scratch, { recursive: true, force: true });
 	mkdirSync(scratch, { recursive: true });
+	try {
+		return await build_in(options, outdir, scratch);
+	} finally {
+		rmSync(scratch, { recursive: true, force: true });
+	}
+}
 
+async function build_in(options: BuildOptions, outdir: string, scratch: string): Promise<BuildResult> {
+	// Imported after the guard: plugin.ts imports `bun`, which Node cannot resolve.
+	const { load_module, load_svelte, resolve_native_cjs, resolve_svelte } = await import('./plugin.ts');
+
+	const entry = to_path(options.entry);
 	const app = resolve_app_info(entry_app(entry), entry);
 	if (!existsSync(app.icon)) throw new Error(`${TAG} the icon ${rel(entry)} names, ${app.icon}, does not exist`);
 	if (app.update && !is_version(app.version)) throw new Error(`${TAG} version "${app.version}" is not semver, which an app that updates itself compares by`);
@@ -213,7 +220,6 @@ export async function build(options: BuildOptions): Promise<BuildResult> {
 		log(`${rel(archive)} (${mb(statSync(archive).size)} MB) and ${rel(fragment)}, for gpuix-svelte update manifest`);
 	}
 
-	rmSync(scratch, { recursive: true, force: true });
 	return { output, binary: executable, app, signed, notarized, archive, fragment };
 }
 
