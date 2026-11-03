@@ -250,6 +250,9 @@ const nover = archive_of(fake_app(nover_dir, '7.0.0', { version_key: false }), '
 const mislabeled_dir = join(scratch, 'mislabeled');
 mkdirSync(mislabeled_dir);
 const mislabeled = archive_of(fake_app(mislabeled_dir, '7.0.0'), '7.5.0');
+const unversioned_dir = join(scratch, 'unversioned');
+mkdirSync(unversioned_dir);
+const unversioned = archive_of(fake_app(unversioned_dir, 'seven'), '7.6.0');
 const bare_dir = join(scratch, 'bare');
 mkdirSync(bare_dir);
 const bare_file = join(dist, `fake-8.5.0-${platform}.bin`);
@@ -300,6 +303,7 @@ const manifests: Record<string, (base: string) => UpdateManifest> = {
 	'/native.json': (base) => build_manifest({ fragments: [native_zip], base_url: base }),
 	'/nover.json': (base) => build_manifest({ fragments: [nover], base_url: base }),
 	'/mislabeled.json': (base) => build_manifest({ fragments: [mislabeled], base_url: base }),
+	'/unversioned.json': (base) => build_manifest({ fragments: [unversioned], base_url: base }),
 	'/bare.json': (base) => build_manifest({ fragments: [bare], base_url: base }),
 	'/real.json': (base) => build_manifest({ fragments: [real_fragment!], base_url: base, private_key: keys.privateKey }),
 	'/missing-asset.json': (base) => build_manifest({ fragments: [{ ...fragment, file: 'nowhere.zip' }], base_url: base }),
@@ -549,6 +553,8 @@ try {
 	check('on macOS a bundle with no version key is refused (elsewhere there is no plist)', [await code_async(() => without_version!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '7.0.0']);
 	const relabelled = await at('mislabeled.json', { version: '6.0.0' });
 	check('on macOS a bundle whose version is not the manifest\'s is refused', [await code_async(() => relabelled!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '7.0.0']);
+	const unreadable = await at('unversioned.json', { version: '6.0.0' });
+	check('on macOS a bundle whose version is no version at all is refused as extract too', [await code_async(() => unreadable!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, 'seven']);
 	const bare_update = await at('bare.json', { version: '6.0.0' });
 	check('a bare executable installs under the app\'s name on Windows and Linux; macOS wants a bundle', [await code_async(() => bare_update!.install({ relaunch: false })), read_version(target)], darwin ? ['extract', '6.0.0'] : [null, '8.5.0']);
 
@@ -1195,6 +1201,14 @@ check('a previous instance that never exits is given up on, and said so', [wait_
 process.env.GPUIX_RELAUNCH_AFTER = '1';
 check("another user's live process is not taken for gone", win32 ? 'timed-out' : wait_for_previous_instance(100), 'timed-out');
 console.warn = console_warn;
+const ready_late = join(scratch, 'ready-after-updated-from');
+process.env.GPUIX_RELAUNCH_READY = ready_late;
+process.env.GPUIX_RELAUNCH_AFTER = String(spawnSync(process.execPath, ['-e', '']).pid);
+check(
+	'updated_from() called before render() leaves the handshake for wait_for_previous_instance()',
+	[updated_from(), wait_for_previous_instance(), existsSync(ready_late)],
+	['1.2.3', 'exited', true]
+);
 
 const plist = join(scratch, 'Info.plist');
 writeFileSync(
@@ -1258,7 +1272,7 @@ await until(() => {
 		return false;
 	}
 }, 5000);
-finish('update', 136);
+finish('update', 138);
 
 /** A hostile name of the same length as a benign one, patched into a valid zip: the headers stay intact. */
 function hostile_zip(benign: string, name: string, file: string) {

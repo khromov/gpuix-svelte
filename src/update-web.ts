@@ -4,7 +4,7 @@
  * "nothing to update" and keeps the same types.
  */
 
-import type { CheckOptions, Update } from './update.ts';
+import type { CheckOptions, Update, UpdateErrorCode } from './update.ts';
 
 export type {
 	CheckOptions,
@@ -21,9 +21,9 @@ export type {
 export type { PreviousInstance } from './previous-instance.ts';
 
 export class UpdateError extends Error {
-	code: string;
-	constructor(code: string, message: string) {
-		super(message);
+	code: UpdateErrorCode;
+	constructor(code: UpdateErrorCode, message: string, options?: ErrorOptions) {
+		super(message, options);
 		this.name = 'UpdateError';
 		this.code = code;
 	}

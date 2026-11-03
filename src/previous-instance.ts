@@ -12,16 +12,24 @@ export type PreviousInstance = 'exited' | 'timed-out' | false;
 
 let from: string | null | undefined;
 
+function read_from(): string | null {
+	if (from === undefined) {
+		const env = globalThis.process?.env;
+		from = env?.GPUIX_UPDATED_FROM || null;
+		if (env) delete env.GPUIX_UPDATED_FROM;
+	}
+	return from;
+}
+
 /** Takes the handshake variables out of the environment once, so children of this process never inherit them. */
 function handshake(): { previous: number | null; ready: string | null } {
+	read_from();
 	const env = globalThis.process?.env;
 	if (!env) return { previous: null, ready: null };
 	const raw = env.GPUIX_RELAUNCH_AFTER;
 	const ready = env.GPUIX_RELAUNCH_READY ?? null;
-	if (from === undefined) from = env.GPUIX_UPDATED_FROM || null;
 	delete env.GPUIX_RELAUNCH_AFTER;
 	delete env.GPUIX_RELAUNCH_READY;
-	delete env.GPUIX_UPDATED_FROM;
 	return { previous: raw && /^[1-9]\d*$/.test(raw) ? Number(raw) : null, ready };
 }
 
@@ -56,8 +64,11 @@ export function wait_for_previous_instance(timeout_ms = 10000): PreviousInstance
 	return 'timed-out';
 }
 
-/** The version this process replaced through an update, or null; the same answer on every call in this process. */
+/**
+ * The version this process replaced through an update, or null; the same answer on every call in
+ * this process. It leaves the relaunch variables alone, so calling it before `render()` still lets
+ * `wait_for_previous_instance()` report to the old instance.
+ */
 export function updated_from(): string | null {
-	handshake();
-	return from ?? null;
+	return read_from();
 }

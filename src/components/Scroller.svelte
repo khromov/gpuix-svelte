@@ -84,7 +84,7 @@
 		let top = 0;
 		let height = 0;
 		if ((scroll || virtual) && m.total > m.viewport) {
-			const h = Math.max(24, (m.viewport / m.total) * m.viewport);
+			const h = Math.min(m.viewport, Math.max(24, (m.viewport / m.total) * m.viewport));
 			height = Math.round(h);
 			top = Math.round((-offset / (m.total - m.viewport)) * (m.viewport - h));
 		}
@@ -123,7 +123,9 @@
 		const m = metrics();
 		if (!m || m.total <= m.viewport) return;
 
+		// A viewport no taller than the thumb's minimum leaves it no track, and dividing by that is NaN.
 		const travel = m.viewport - thumb.height;
+		if (travel <= 0) return;
 		const wanted = drag.offset - ((e.y! - drag.y) / travel) * (m.total - m.viewport);
 		const offset = Math.max(m.viewport - m.total, Math.min(0, wanted));
 		scroll_to(m, offset);

@@ -635,7 +635,7 @@ function check_bundle(fresh: string, app: EmbeddedAppInfo | null, version: strin
 	if (app && identifier !== app.identifier) throw new UpdateError('extract', `${basename(fresh)} is ${identifier ?? 'no bundle'}, this app is ${app.identifier}`);
 	const bundle_version = plist?.get('CFBundleShortVersionString');
 	if (bundle_version === undefined) throw new UpdateError('extract', `${basename(fresh)} has no CFBundleShortVersionString`);
-	if (compare_versions(bundle_version, version) !== 0) throw new UpdateError('extract', `${basename(fresh)} is version ${bundle_version}, the manifest says ${version}`);
+	if (!is_version(bundle_version) || compare_versions(bundle_version, version) !== 0) throw new UpdateError('extract', `${basename(fresh)} is version ${bundle_version}, the manifest says ${version}`);
 	const executable = plist?.get('CFBundleExecutable') ?? '';
 	if (!executable || /[/\\]/.test(executable) || executable === '.' || executable === '..') throw new UpdateError('extract', `${basename(fresh)} names no executable`);
 	check_executable(join(fresh, 'Contents', 'MacOS', executable), 'darwin');

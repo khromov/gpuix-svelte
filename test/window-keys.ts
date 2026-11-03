@@ -39,6 +39,13 @@ press('d');
 check('keyup has its own channel', [after_up, ups], [[1, 'cmd-k escape* a b b|1'], 1]);
 off_up();
 
+let later = 0;
+const off_later = on_window_key('keyup', () => later++);
+off_up();
+key_up('b');
+check('calling a spent unsubscribe again leaves a later subscription alone', later, 1);
+off_later();
+
 // A handler registered outside the tree (render's onKeyDown) has to survive set_native,
 // which is all that can tell the new renderer about it while nothing in the new tree subscribes.
 let outer = 0;
@@ -66,4 +73,4 @@ try {
 }
 check('the window helpers are no-ops on the test renderer', helpers, 'no throw');
 
-finish('window-keys', 9);
+finish('window-keys', 10);

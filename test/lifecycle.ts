@@ -211,6 +211,16 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	check('the exception does not reach the caller', escaped, null);
 	check('it reaches the log instead', logged, ['[gpuix-svelte] event handler failed: Error: handler blew up']);
 	check("and the host's onEvent still runs", seen, 'click');
+
+	console.log('-- and this one a failed onEvent --');
+	try {
+		handle_event({ elementId: button.nativeId!, eventType: 'click' }, () => {
+			throw new Error('onEvent blew up');
+		});
+	} catch (error) {
+		escaped = (error as Error).message;
+	}
+	check('a throwing onEvent does not reach the caller either, which in a window ends the process', escaped, null);
 }
 
 // --- a remount retires the old root inside the new tree's batch -----------
@@ -338,4 +348,4 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 
 set_auto_commit(false);
 
-finish('lifecycle', 32);
+finish('lifecycle', 33);
