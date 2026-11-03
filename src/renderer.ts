@@ -697,7 +697,11 @@ function on_window_event(event: string, handler: (event: GpuixEvent) => void): (
 	handlers.push(handler);
 	sync_window_events();
 
+	let subscribed = true;
 	return () => {
+		// Once its emptied array is dropped, a repeat call would delete a later subscription's.
+		if (!subscribed) return;
+		subscribed = false;
 		const index = handlers.indexOf(handler);
 		if (index !== -1) handlers.splice(index, 1);
 		if (handlers.length === 0) window_node.listeners.delete(event);

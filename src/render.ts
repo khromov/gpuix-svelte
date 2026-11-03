@@ -50,8 +50,8 @@ function host(): Host {
 }
 
 /**
- * A throwing handler must not escape into the native callback, and must not
- * cost the host its own `onEvent`.
+ * A throw escaping into the native callback ends the process, so neither a handler nor the
+ * host's `onEvent` may let one through, and a handler's must not cost the host its `onEvent`.
  */
 export function handle_event(event: EventPayload, onEvent?: (event: EventPayload) => void) {
 	try {
@@ -63,7 +63,11 @@ export function handle_event(event: EventPayload, onEvent?: (event: EventPayload
 	} catch (error) {
 		console.error('[gpuix-svelte] event handler failed:', error);
 	}
-	onEvent?.(event);
+	try {
+		onEvent?.(event);
+	} catch (error) {
+		console.error('[gpuix-svelte] onEvent failed:', error);
+	}
 }
 
 const frame_waiters: Array<() => void> = [];

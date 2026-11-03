@@ -189,6 +189,16 @@ import type { GpuiStyle } from '../src/types.ts';
 
 	check('the exception does not reach the caller', escaped, null);
 	check("and the host's onEvent still runs", seen, 'click');
+
+	console.log('-- and this one a failed onEvent --');
+	try {
+		handle_event({ elementId: button.nativeId!, eventType: 'click' }, () => {
+			throw new Error('onEvent blew up');
+		});
+	} catch (error) {
+		escaped = (error as Error).message;
+	}
+	check('a throwing onEvent does not reach the caller either, which in a window ends the process', escaped, null);
 }
 
 // --- a remount retires the old root inside the new tree's batch -----------
@@ -243,4 +253,4 @@ import type { GpuiStyle } from '../src/types.ts';
 
 set_auto_commit(false);
 
-finish('lifecycle', 24);
+finish('lifecycle', 25);

@@ -70,7 +70,8 @@ if (!github.workflow) for (const file of GITHUB_FILES) rmSync(join(target, file)
 const own = JSON.parse(readFileSync(join(here, 'package.json'), 'utf8'));
 const manifest = join(target, 'package.json');
 const json = JSON.parse(readFileSync(manifest, 'utf8'));
-json.name = basename(target).toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+// npm refuses a name that starts with `.`, `_` or `-`.
+json.name = basename(target).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[._-]+/, '') || 'gpuix-svelte-app';
 json.dependencies['gpuix-svelte'] = `^${own.version}`;
 writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
 // The window title and the app's identifier take the project's name, so `build` makes <name>.app;
