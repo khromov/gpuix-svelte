@@ -4,7 +4,7 @@
  * renders it and the code that imports it directly.
  */
 
-import { mount_headless, settle, click_text, all_text, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, settle, click_text, all_text, painted, check, finish } from 'gpuix-svelte/test';
 import { store, bump } from './ModuleStore.svelte.ts';
 
 const ModuleUser = (await import('./ModuleUser.svelte')).default;
@@ -13,7 +13,7 @@ mount_headless(ModuleUser);
 check('initial render reads the module state', all_text().includes('count is 0'), true);
 
 click_text('bump');
-check('a click through the component updates the painted text', all_text().includes('count is 1'), true);
+check('a click through the component updates the painted text', painted().split('\n').includes('count is 1'), true);
 check('the test sees the same module instance', store.count, 1);
 
 bump();

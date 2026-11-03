@@ -1,7 +1,7 @@
 /**
- * A known GPUI style key handed a string it can't parse throws out of
- * `applyBatch`, which loses the frame and kills the loop that calls it. CSS
- * shorthands are the common way to trip that, so they expand here instead.
+ * A known GPUI style key handed a value it can't parse makes native refuse the
+ * batch, and the element then loses that whole `setStyle`. CSS shorthands are the
+ * common way to trip that, so they expand here instead.
  */
 
 import { fileURLToPath } from 'node:url';
@@ -34,6 +34,13 @@ check('border-radius uses corner order', parse_css_text('border-radius: 4px 8px'
 	borderBottomRightRadius: 4,
 	borderBottomLeftRadius: 8
 });
+check('border-width expands like padding', parse_css_text('border-width: 1px 2px'), {
+	borderTopWidth: 1,
+	borderRightWidth: 2,
+	borderBottomWidth: 1,
+	borderLeftWidth: 2
+});
+check('five values are one too many for a box shorthand', parse_css_text('margin: 1px 2px 3px 4px 5px'), {});
 check('gap splits row before column', parse_css_text('gap: 10px 20px'), {
 	rowGap: 10,
 	columnGap: 20
@@ -58,17 +65,23 @@ check('aspect-ratio drops a length rather than reading it as a ratio', parse_css
 check('scrollbar-color keeps the thumb of a thumb-and-track pair', parse_css_text('scrollbar-color: rgb(1, 2, 3) #000'), {
 	scrollbarColor: 'rgb(1, 2, 3)'
 });
-check('a nested pseudo style written as a declaration is dropped', parse_css_text('focus-visible: red; hover: red; color: blue'), {
+check('a nested pseudo style written as a declaration is dropped', parse_css_text('focus-visible: red; hover: red; active: red; color: blue'), {
 	color: 'blue'
 });
-check('keyboard-focus-dim becomes a bool, anything else is dropped', parse_css_text('keyboard-focus-dim: false; outline-width: 1em'), {
-	keyboardFocusDim: false
-});
+check(
+	'keyboard-focus-dim becomes a bool, anything else is dropped',
+	[parse_css_text('keyboard-focus-dim: false'), parse_css_text('keyboard-focus-dim: true'), parse_css_text('keyboard-focus-dim: maybe')],
+	[{ keyboardFocusDim: false }, { keyboardFocusDim: true }, {}]
+);
 
 check('a number is dropped on a key native reads as a string, or it would reject the whole batch', parse_css_text('color: 123456; background: 0; background-color: 12px; display: 0; font-family: 12; position: 1rem'), {});
 set_css_vars({ 'numeric-ink': 123456 });
 check('a var() that resolves to one too', parse_css_text('color: var(--numeric-ink)'), {});
-check('font-weight is the one that takes either', [parse_css_text('font-weight: 700'), parse_css_text('font-weight: bold')], [{ fontWeight: 700 }, { fontWeight: 'bold' }]);
+check(
+	'font-weight is the one that takes either, though not a length',
+	[parse_css_text('font-weight: 700'), parse_css_text('font-weight: bold'), parse_css_text('font-weight: 1em')],
+	[{ fontWeight: 700 }, { fontWeight: 'bold' }, {}]
+);
 check('!important is stripped, or it would cost the declaration', parse_css_text('color: red !important; width: 12px !IMPORTANT; padding: 4px 8px!important'), {
 	color: 'red',
 	width: 12,
@@ -82,20 +95,28 @@ check('single values keep GPUI shorthand', parse_css_text('padding: 12px; gap: 8
 	padding: 12,
 	gap: 8
 });
-check('leading dot and plus coerce', parse_css_text('padding-left: .5px; top: +5px'), {
+check('a leading dot, a plus and an upper-case unit coerce', parse_css_text('padding-left: .5px; top: +5px; left: 2PX'), {
 	paddingLeft: 0.5,
-	top: 5
+	top: 5,
+	left: 2
 });
 check('keywords, percents and colors stay strings', parse_css_text('width: 50%; height: auto; background-color: #1e1e2e'), {
 	width: '50%',
 	height: 'auto',
 	backgroundColor: '#1e1e2e'
 });
-check('a ; inside quotes or parens stays in its value', parse_css_text('font-family: "a;b"; color: rgb(1, 2, 3); background-color: url(x;y)'), {
-	fontFamily: '"a;b"',
-	color: 'rgb(1, 2, 3)',
-	backgroundColor: 'url(x;y)'
-});
+check(
+	'a ; inside quotes, parens or a comment stays in its value',
+	parse_css_text(`font-family: "a;b"; color: rgb(1, 2, 3); background-color: url(x;y); border-color: 'c;d'; cursor: "e\\";f"; outline-color: g /* h;i */`),
+	{
+		fontFamily: '"a;b"',
+		color: 'rgb(1, 2, 3)',
+		backgroundColor: 'url(x;y)',
+		borderColor: "'c;d'",
+		cursor: '"e\\";f"',
+		outlineColor: 'g /* h;i */'
+	}
+);
 check('negative lengths survive', parse_css_text('margin-top: -4px'), { marginTop: -4 });
 // GPUI reads longhands over the shorthand, so the later shorthand has to clear them.
 check('a later shorthand clears the earlier longhands', parse_css_text('padding: 12px 24px; padding: 20px'), { padding: 20 });
@@ -116,11 +137,11 @@ check('rem is 16 px, shorthands included', parse_css_text('padding: .5rem 1rem; 
 	marginTop: -16,
 	width: 160
 });
-check('overflow: auto is scroll, on either axis', parse_css_text('overflow: auto; overflow-y: auto; overflow-x: hidden'), {
-	overflow: 'scroll',
-	overflowY: 'scroll',
-	overflowX: 'hidden'
-});
+check(
+	'overflow: auto is scroll, on either axis, and hidden stays hidden',
+	[parse_css_text('overflow: auto; overflow-y: auto; overflow-x: auto'), parse_css_text('overflow-x: hidden')],
+	[{ overflow: 'scroll', overflowY: 'scroll', overflowX: 'scroll' }, { overflowX: 'hidden' }]
+);
 check('intrinsic sizes read as auto', parse_css_text('width: max-content; min-width: fit-content(200px); max-height: min-content; height: fit-content'), {
 	width: 'auto',
 	minWidth: 'auto',
@@ -152,7 +173,7 @@ check('auto never reaches a pixel-only key', parse_css_text('margin: 0 auto'), {
 	marginBottom: 0
 });
 check('percent never reaches a pixel-only key', parse_css_text('border-radius: 50%; top: 50%'), {});
-check('the slash form of border-radius is dropped', parse_css_text('border-radius: 10px / 20px'), {
+check('the slash of border-radius is dropped, and with it the two corners it fills', parse_css_text('border-radius: 10px / 20px'), {
 	borderTopLeftRadius: 10,
 	borderBottomRightRadius: 20
 });
@@ -195,25 +216,69 @@ const label = renderer.createElement('text');
 renderer.setText(label, 'X');
 renderer.insert(box, label, null);
 
+// commit() outlives a refused batch by resending it one op at a time, so only its log says whether native refused one.
+const logged: string[] = [];
+const log_error = console.error;
+console.error = (message) => logged.push(String(message));
 let threw: Error | null = null;
 try {
 	commit();
 } catch (error) {
 	threw = error as Error;
 }
-check('commit survives a shorthand-heavy style', threw && threw.message, null);
+console.error = log_error;
+check('commit survives a shorthand-heavy style, with nothing refused', [threw && threw.message, logged], [null, []]);
 
 native.flush();
 const box_bounds = native.getElementBounds(label.nativeId!);
 check('padding actually applied (x, y)', box_bounds && [box_bounds.x, box_bounds.y].map(Math.round), [24, 12]);
-check('and 1rem reached GPUI as 16 px', JSON.parse(native.getTreeJson()).children[0].style.fontSize, 16);
+check('and 1rem reached GPUI as 16 px', JSON.parse(native.getTreeJson()).children[0].style?.fontSize, 16);
+
+// Copied from native's StyleDesc rather than exported by style.ts, so every entry is held against native as well.
+const PIXEL_ONLY = [
+	'flexGrow', 'flexShrink', 'flexBasis', 'gap', 'rowGap', 'columnGap', 'gridTemplateColumns', 'gridTemplateRows',
+	'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+	'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+	'top', 'right', 'bottom', 'left', 'opacity',
+	'borderWidth', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+	'borderRadius', 'borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius',
+	'fontSize', 'lineHeight', 'lineClamp', 'aspectRatio', 'outlineWidth', 'outlineOffset', 'scrollbarWidth'
+];
+const TEXT_ONLY = [
+	'display', 'visibility', 'flexDirection', 'flexWrap', 'alignItems', 'alignSelf', 'alignContent', 'justifyContent',
+	'gridColumnMin', 'gridRowMin', 'position', 'background', 'backgroundColor', 'color', 'borderColor', 'borderStyle',
+	'outlineColor', 'fontFamily', 'textAlign', 'whiteSpace', 'textOverflow', 'textDecoration',
+	'overflow', 'overflowX', 'overflowY', 'scrollbarColor', 'cursor', 'pointerEvents', 'userSelect', 'selectionColor'
+];
+const DIMENSIONS = ['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight'];
+const refused = (key: string, value: unknown) => {
+	try {
+		native.applyBatch(JSON.stringify([['setStyle', box.nativeId, { [key]: value }]]));
+		return false;
+	} catch (error) {
+		return /parse error/.test((error as Error).message);
+	}
+};
+console.warn = () => {};
+check('no keyword reaches any pixel-only key, each of which native would refuse it on', PIXEL_ONLY.filter((key) => key in parse_css_text(`${key}: auto`) || !refused(key, 'auto')), []);
+check('no number reaches any text key, each of which native would refuse it on', TEXT_ONLY.filter((key) => key in parse_css_text(`${key}: 123456`) || !refused(key, 123456)), []);
+check(
+	'every dimension key takes % and auto, reads intrinsic sizes as auto, and keeps out a length native would refuse',
+	DIMENSIONS.filter((key) => {
+		const read = (value: string) => parse_css_text(`${key}: ${value}`)[key];
+		return read('50%') !== '50%' || read('auto') !== 'auto' || read('max-content') !== 'auto' || read('1em') !== undefined || !refused(key, '1em');
+	}),
+	[]
+);
+console.warn = warn;
 
 // Class rules are parsed at compile time and a var() at runtime, so both paths have to reach the tree.
 const FIXTURE = fileURLToPath(new URL('./StyleParity.svelte', import.meta.url));
 check('a class rule converts rem when it is compiled', compile_svelte(FIXTURE).includes('"fontSize":16'), true);
 
-set_css_vars({ 'parity-pad': '0.5rem 1rem' });
 const StyleParity = (await import('./StyleParity.svelte')).default;
+// Set only now, past compile time: a real app's palette does not exist while its components compile.
+set_css_vars({ 'parity-pad': '0.5rem 1rem' });
 const parity = mount_headless(StyleParity);
 const style_of = (id: string) => find_test_id(id)!.style ?? {};
 
@@ -224,4 +289,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 47);
+finish('style', 52);

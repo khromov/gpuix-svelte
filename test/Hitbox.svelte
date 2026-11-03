@@ -18,6 +18,8 @@
 		<div class="focusable" tabindex="0" testId="focusable">focusable</div>
 		<div class="scroller" testId="scroller"><div class="tall">tall</div></div>
 		<div class="scroller auto" testId="auto-scroller"><div class="tall">tall</div></div>
+		<div class="box both" testId="both-scroller"><div class="tall">tall</div></div>
+		<div class="box sideways" testId="x-scroller"><div class="tall">tall</div></div>
 	</div>
 
 	<div class="parent {tone}" style:padding-left="{nudge}px" testId="parent">
@@ -41,6 +43,9 @@
 	.focusable { padding: 4px; background-color: #444444; }
 	.scroller { height: 30px; width: 60px; overflow-y: scroll; }
 	.scroller.auto { overflow-y: auto; }
+	.box { position: absolute; top: 0; right: 0; height: 30px; width: 20px; }
+	.box.both { overflow: scroll; }
+	.box.sideways { overflow-x: scroll; }
 	.tall { height: 100px; }
 	.parent { display: flex; flex-direction: row; gap: 8px; }
 	.parent.red { color: red; }

@@ -6,7 +6,7 @@
  */
 
 import { debug_overlay, debug_overlay_stats, elements_at, focused_element, prompt_for_paths, read_native, set_image, set_image_pixels, type ShadowNode } from 'gpuix-svelte';
-import { all_text, bounds, check, find_test_id, finish, mount_headless, wait, wheel, center } from 'gpuix-svelte/test';
+import { all_text, bounds, check, find_test_id, finish, focus, mount_headless, wait, wheel, center } from 'gpuix-svelte/test';
 
 type Fake = Record<string, (...args: never[]) => unknown>;
 
@@ -105,18 +105,25 @@ for (const virtual of [false, true]) {
 // --- the wrappers in window.ts answer without reaching native -------------------------------------
 {
 	const { native } = mount_headless(Fixture, { width: 400, height: 300 });
+	const focused = find_test_id('size')!;
+	focus(focused);
 	const { counts, close } = block_ui_thread(native);
 	const prompt = prompt_for_paths();
 	check('focused_element is null during a dialog', focused_element(), null);
 	check('elements_at is empty', elements_at(5, 5), []);
 	check('debug_overlay answers nothing', debug_overlay() === undefined, true);
 	check('debug_overlay_stats answers nothing', debug_overlay_stats() === undefined, true);
-	check('read_native is null', read_native((n) => n.getElementBounds(1)), null);
+	// A read that skips the fake, whose throw `answered` would turn into this same null without the guard.
+	check('read_native is null', read_native(() => 'it ran'), null);
 	check('and none of them reached native', counts.blocked, 0);
 	close();
 	await prompt;
 	check('afterwards read_native reads again', read_native((n) => n.getWindowSize()) !== null, true);
-	check('and so do the wrappers', elements_at(5, 5).length > 0, true);
+	check(
+		'and so do the wrappers',
+		[focused_element()?.nativeId, elements_at(5, 5).length > 0, debug_overlay(), typeof debug_overlay_stats()?.frames],
+		[focused.id, true, 'hidden', 'number']
+	);
 }
 
 // --- a dialog that fails, or two at once, must not leave the guard stuck ---------------------------
@@ -132,10 +139,18 @@ for (const virtual of [false, true]) {
 	const fake = native as unknown as Fake;
 	const resolvers: Array<() => void> = [];
 	fake.promptForPaths = (() => new Promise<null>((resolve) => resolvers.push(() => resolve(null)))) as never;
+	const size_before = size_text();
 	const first = prompt_for_paths();
+	const unblocked_size = fake.getWindowSize!;
+	fake.getWindowSize = (() => {
+		throw new Error('Timed out after 2 seconds waiting for getWindowSize');
+	}) as never;
 	const second = prompt_for_paths();
 	resolvers[0]!();
 	await first;
+	await wait(WHILE_OPEN_MS);
+	check('with a second dialog still open window_size keeps the size the first one held', size_text(), size_before);
+	fake.getWindowSize = unblocked_size;
 	check('with a second dialog still open the guard holds', read_native((n) => n.getWindowSize()), null);
 	resolvers[1]!();
 	await second;
@@ -451,4 +466,4 @@ for (const virtual of [false, true]) {
 	check('the thumb follows the wheel again', bounds(find_test_id('list-thumb')!)!.y > before, true);
 }
 
-finish('dialog', 48);
+finish('dialog', 49);

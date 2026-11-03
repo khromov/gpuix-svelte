@@ -3,11 +3,17 @@
  * `launch()` the way an external process would, over the app's stdin/stdout.
  */
 
-import { existsSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { launch } from 'gpuix-svelte/automation';
 import { check, finish } from 'gpuix-svelte/test';
+
+// An app that stays up and never answers would otherwise leave this waiting until the CI job's own limit.
+setTimeout(() => {
+	console.error('automation-live: no verdict after 60 s');
+	process.exit(1);
+}, 60_000).unref();
 
 const app = await launch({ entry: 'examples/counter/main.ts' });
 
@@ -20,12 +26,15 @@ const screenshots = process.platform !== 'linux';
 if (screenshots) {
 	const shot = join(tmpdir(), `gpuix-svelte-live-${process.pid}.png`);
 	await app.screenshot({ path: shot });
-	check('screenshot() writes a PNG of the window', existsSync(shot) && statSync(shot).size > 0, true);
+	check('screenshot() writes a PNG of the window', existsSync(shot) && readFileSync(shot).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
 	rmSync(shot, { force: true });
 }
 
-await app.getByText('Reset').click();
+// Sent in the same turn as the click: a pipe's round trip gives the event time to land, and only this leaves frame_synced as what holds the read back.
+const reset = await app.getByText('Reset').center();
+const clicked = app.call('click', reset);
 check('a read right after a click sees its effect', await app.getByText('clicks').count(), 0);
+await clicked;
 
 const started = Date.now();
 await app.close();

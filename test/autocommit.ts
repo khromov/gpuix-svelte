@@ -13,6 +13,10 @@ async function mount_and_wait(auto: boolean) {
 	const AutoCommit = (await import('./AutoCommit.svelte')).default;
 	const { native, unmount } = mount_headless(AutoCommit);
 
+	let batches = 0;
+	const applyBatch = native.applyBatch.bind(native);
+	native.applyBatch = (json) => (batches++, applyBatch(json));
+
 	// Nothing below settles — the timer inside the component is the only thing
 	// driving the update.
 	await new Promise((resolve) => setTimeout(resolve, 50));
@@ -22,11 +26,31 @@ async function mount_and_wait(auto: boolean) {
 	// The next run swaps in a fresh native, so these effects must not outlive it.
 	unmount();
 	set_auto_commit(false);
-	return text;
+	return { text, batches };
 }
 
-check('off: the timer update never reaches native', await mount_and_wait(false), ['0']);
-check('on: the timer update commits itself', await mount_and_wait(true), ['1']);
+check('off: the timer update never reaches native', (await mount_and_wait(false)).text, ['0', '0']);
+const on = await mount_and_wait(true);
+check('on: the timer update commits itself', on.text, ['1', '1']);
+check('on: its two text updates ship as one batch', on.batches, 1);
+
+// Nothing wraps the microtask, so if this throw escaped it would end the process here.
+{
+	const native = new TestGpuixRenderer();
+	native.applyBatch = () => {
+		throw new Error('native went away');
+	};
+	set_native(native);
+	set_auto_commit(true);
+	const logged: unknown[] = [];
+	const error = console.error;
+	console.error = (message) => logged.push(message);
+	create_root();
+	await Promise.resolve();
+	console.error = error;
+	set_auto_commit(false);
+	check('on: a commit that throws is logged', logged, ['[gpuix-svelte] commit failed:']);
+}
 
 // A leaked flag would make every later test file self-commit on a microtask.
 {
@@ -38,4 +62,4 @@ check('on: the timer update commits itself', await mount_and_wait(true), ['1']);
 	check('auto-commit does not outlive the run', native.getRetainedElementCount(), 0);
 }
 
-finish('autocommit', 3);
+finish('autocommit', 5);

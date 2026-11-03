@@ -22,7 +22,7 @@
 </script>
 
 <div style="display: flex; flex-direction: column; width: 300px; height: 300px">
-	<div testId="size">{window_size.width}x{window_size.height}</div>
+	<div testId="size" tabIndex={0}>{window_size.width}x{window_size.height}</div>
 	{#if images}
 		<img {@attach bind_a} src="" alt="" style="width: 10px; height: 10px" />
 		<img {@attach bind_b} src="" alt="" style="width: 10px; height: 10px" />

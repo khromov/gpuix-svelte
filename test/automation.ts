@@ -4,7 +4,7 @@
  * against a stub frame loop. `test:automation-live` drives a real window.
  */
 
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AutomationError, test_app, type AutomationBackend } from 'gpuix-svelte/automation';
@@ -28,17 +28,33 @@ const code_of = (promise: Promise<unknown>) =>
 	};
 	const backend = frame_synced(inner, { getWindowSize: () => ({ width: 640, height: 480 }) }, next_frame);
 
+	// The running frame loop would keep a reply that never comes waiting forever, so one deadline ends them all.
+	const deadline = new Promise<null>((resolve) => setTimeout(resolve, 10_000, null));
+	const within = <T>(reply: Promise<T>) => Promise.race([reply, deadline]);
+
 	const before = ticks;
 	let clicked = -1;
 	let read = -1;
-	await Promise.all([
-		backend.call('click', { x: 1, y: 1 }).then(() => (clicked = ticks - before)),
-		backend.call('getTree', {}).then(() => (read = ticks - before))
-	]);
+	await within(
+		Promise.all([
+			backend.call('click', { x: 1, y: 1 }).then(() => (clicked = ticks - before)),
+			backend.call('getTree', {}).then(() => (read = ticks - before))
+		])
+	);
 	check('a click replies only after two frames have ticked', clicked, 2);
 	check('a getTree pipelined behind it answers right after it, with no frame of its own', read, 2);
-	const init = await backend.call('initialize', { protocolVersion: 1, client: 'test' });
-	check('initialize reports the size native reports, not a fixed 800×600', init.window, { width: 640, height: 480 });
+
+	const other_inputs = ['mouseDown', 'mouseUp', 'mouseMove', 'scrollWheel', 'keystrokes', 'keyDown', 'keyUp', 'focus', 'blur', 'scrollTo', 'clearSelection', 'clockSet', 'clockFastForward'] as const;
+	const frames: Record<string, number> = {};
+	for (const method of other_inputs) {
+		const from = ticks;
+		await within(backend.call(method, {} as never));
+		frames[method] = ticks - from;
+	}
+	check('every other input waits the same two frames', frames, Object.fromEntries(other_inputs.map((method) => [method, 2])));
+
+	const init = await within(backend.call('initialize', { protocolVersion: 1, client: 'test' }));
+	check('initialize reports the size native reports, not a fixed 800×600', init?.window, { width: 640, height: 480 });
 	loop.stop();
 }
 
@@ -66,19 +82,20 @@ check('hover() moves the pointer onto the element', await app.getByTestId('hover
 await app.mouse.move({ x: 390, y: 5 });
 check('and mouse.move() off it leaves', await app.getByTestId('hover').textContent(), 'idle');
 
-check('input outside the viewport is refused, not dropped', await code_of(app.mouse.click({ x: 10, y: 5000 })), 'NotFound');
-check('on the negative side too', await code_of(app.mouse.click({ x: -1, y: 5 })), 'NotFound');
+check('input outside the viewport is refused, not dropped', [await code_of(app.mouse.click({ x: 10, y: 5000 })), await code_of(app.mouse.click({ x: 5000, y: 5 }))], ['NotFound', 'NotFound']);
+check('on the negative side too', [await code_of(app.mouse.click({ x: -1, y: 5 })), await code_of(app.mouse.click({ x: 5, y: -1 }))], ['NotFound', 'NotFound']);
 
 await app.getByText('reveal').click();
-check('waitFor() sees an update that lands on a timer', (await app.getByText('revealed').waitFor({ timeoutMs: 2000 })).text, 'revealed');
+const revealed = await app.getByText('revealed').waitFor({ timeoutMs: 2000 }).then((node) => node.text, (error: AutomationError) => error.code);
+check('waitFor() sees an update that lands on a timer', revealed, 'revealed');
 check('waitFor() times out with Timeout', await code_of(app.getByText('never').waitFor({ timeoutMs: 100 })), 'Timeout');
 
 const shot = join(tmpdir(), `gpuix-svelte-automation-${process.pid}.png`);
 await app.screenshot({ path: shot });
-check('screenshot() writes the PNG', existsSync(shot), true);
+check('screenshot() writes the PNG', existsSync(shot) && readFileSync(shot).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
 rmSync(shot, { force: true });
 
 await app.close();
 check('a closed app refuses further calls', await code_of(app.getByTestId('inc').count()), 'Closed');
 
-finish('automation', 19);
+finish('automation', 20);

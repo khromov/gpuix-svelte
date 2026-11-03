@@ -5,6 +5,7 @@
 	let second = $state(false);
 	let lead = $state(false);
 	let floating = $state(false);
+	let branch = $state(false);
 	let hits = $state({ under: 0, over: 0, second: 0 });
 </script>
 
@@ -37,6 +38,13 @@
 		<div portal={floating} testId="dynamic">dynamic</div>
 		<div onclick={() => (floating = !floating)} testId="float">float</div>
 	</div>
+	<div onclick={() => (branch = !branch)} testId="branch">branch</div>
+	{#if branch}
+		<Portal>
+			<div testId="branch-over">branch-over</div>
+		</Portal>
+		<div testId="branch-tail">branch-tail</div>
+	{/if}
 </div>
 
 <style>

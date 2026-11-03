@@ -8,6 +8,7 @@ import {
 	find,
 	find_test_id,
 	find_text,
+	element_of,
 	bounds,
 	drain,
 	settle,
@@ -68,9 +69,14 @@ function move(x: number, y: number) {
 
 // --- Tooltip -----------------------------------------------------------------
 {
+	const slow = box(find_test_id('slow'));
+	move(mid_x(slow), mid_y(slow));
+	await wait(60);
+	check('a decorative trigger shows nothing before the delay', shown('slow-tip'), false);
+	move(2, 2);
+
 	const trigger = box(find_test_id('deco'));
 	move(mid_x(trigger), mid_y(trigger));
-	check('a decorative trigger shows nothing before the delay', shown('deco-tip'), false);
 	await wait(80);
 	check('and the tip after it', shown('deco-tip'), true);
 
@@ -116,10 +122,10 @@ function move(x: number, y: number) {
 }
 
 {
-	const anchor = box(find_test_id('pinned'));
+	const badge = box(element_of('pinned'));
 	check('open forces the tip without a hover, and content can be a snippet', find_text('Rich') !== null, true);
 	const tip = box(layer_of_id('pinned-tip'));
-	check('side="right" centres it beside a trigger whose wrapper the column stretched', [tip.x, near(mid_y(tip), mid_y(anchor))], [anchor.x + anchor.width + 6, true]);
+	check('side="right" centres it beside a trigger whose wrapper the column stretched', [tip.x, near(mid_y(tip), mid_y(badge))], [badge.x + badge.width + 6, true]);
 	const styled = find_test_id('pinned-tip')!.style!;
 	check("style lays inline CSS over the tip's own rules and leaves the rest", [styled.backgroundColor, styled.borderRadius, styled.paddingTop], ['#1e66f5', 0, 4]);
 }
@@ -140,6 +146,8 @@ function move(x: number, y: number) {
 	check('a press outside closes it, and the click still lands', [counts(), shown('menu-panel')], ['1-1-1-1-1', false]);
 
 	click_test_id('menu-trigger');
+	press('a');
+	check('another key leaves it open', [counts(), shown('menu-panel')], ['1-1-1-1-1', true]);
 	press('escape');
 	check('Escape closes it', [counts(), shown('menu-panel')], ['1-1-2-1-1', false]);
 
@@ -154,4 +162,4 @@ function move(x: number, y: number) {
 	check('a right click outside closes it too', [counts(), shown('menu-panel')], ['1-1-3-1-1', false]);
 }
 
-finish('tooltip', 27);
+finish('tooltip', 28);

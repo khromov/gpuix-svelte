@@ -7,3 +7,4 @@
 </script>
 
 <text>{count}</text>
+<text>{count}</text>

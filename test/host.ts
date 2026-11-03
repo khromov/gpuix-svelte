@@ -4,7 +4,9 @@
  * walking, image uploads, scroll_into_view, hit lookups and font registration.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
 	on_selection_change,
 	scroll_into_view,
@@ -34,12 +36,13 @@ import {
 	settle,
 	bounds,
 	all_text,
+	screenshot,
 	check,
 	finish
 } from 'gpuix-svelte/test';
 
 interface A11yNode {
-	aria?: { role?: string; label?: string; expanded?: boolean; level?: number };
+	aria?: { role?: string; label?: string; expanded?: boolean; selected?: boolean; level?: number };
 }
 
 const PNG = Uint8Array.from(
@@ -78,6 +81,8 @@ const labelled = () => a11y().find((n) => n.aria?.label === 'Delete note')?.aria
 check('role and aria-label reach the accessibility tree, as AccessKit roles', labelled()?.role, 'Button');
 check('a boolean aria-expanded arrives as a boolean', labelled()?.expanded, false);
 check('a string aria-level arrives as a number', a11y().find((n) => n.aria?.role === 'Heading')?.aria?.level, 2);
+const written_out = a11y().find((n) => n.aria?.label === 'Static')?.aria;
+check('a string aria-expanded and aria-selected arrive as booleans', [written_out?.expanded, written_out?.selected], [false, true]);
 click(find_test_id('delete')!);
 native.flush();
 check('and it follows state', labelled()?.expanded, true);
@@ -127,27 +132,36 @@ scroll_into_view(row);
 native.flush();
 check('scroll_into_view scrolls the row in', (native.getScrollOffset(list)?.[1] ?? 0) < -400, true);
 
-let pixels_error: unknown = null;
-try {
-	set_image_pixels(img, 2, 2, new Uint8Array(16).fill(255));
-	native.flush();
-} catch (error) {
-	pixels_error = error;
+// Only a screenshot shows what an <img> painted, and nothing in the window moves from here on.
+const shot_path = join(tmpdir(), `gpuix-svelte-host-${process.pid}.png`);
+function shot() {
+	settle();
+	screenshot(shot_path);
+	return readFileSync(shot_path).toString('base64');
 }
-check('set_image_pixels takes a plain Uint8Array', pixels_error, null);
-
-let bgra_error: unknown = null;
-try {
-	set_image_pixels(img, 2, 2, new Uint8Array(16).fill(128), 'bgra');
-	native.flush();
-} catch (error) {
-	bgra_error = error;
+function paint(pixels: number[], format?: 'bgra') {
+	try {
+		set_image_pixels(img, 1, 1, Uint8Array.from(pixels), format);
+		return shot();
+	} catch (error) {
+		return (error as Error).message;
+	}
 }
-check('and BGRA, native 0.11', bgra_error, null);
+const TRANSPARENT = [0, 0, 0, 0];
 
-const target = bounds(find_test_id('delete')!)!;
-const under = elements_at(target.x + target.width / 2, target.y + target.height / 2);
-check('elements_at maps the ids under a point back to shadow nodes', under.some((n) => n.nativeId === f('delete')), true);
+const attached = shot();
+const blank = paint(TRANSPARENT);
+set_image(img, PNG);
+check('the image an attach queued is what painted', [shot() === attached, blank === attached], [true, false]);
+
+// PNG is one pixel of rgba(255, 0, 0, 127), so the same colour as raw pixels has to paint the same.
+check('set_image_pixels takes a plain Uint8Array', [paint([255, 0, 0, 127]) === attached, paint(TRANSPARENT) === attached], [true, false]);
+check('and BGRA, native 0.11', paint([0, 0, 255, 127], 'bgra') === attached, true);
+rmSync(shot_path, { force: true });
+
+const target = bounds(find_test_id('drop')!)!;
+const under = (y: number) => elements_at(target.x + target.width / 2, y).some((n) => n.nativeId === f('drop'));
+check('elements_at maps the ids under a point back to shadow nodes', [under(target.y + target.height / 2), under(target.y + target.height + 1)], [true, false]);
 
 check('register_font throws on bytes that are no font', (() => {
 	try {
@@ -168,10 +182,15 @@ try {
 }
 check('register_font takes a system font', font_error, null);
 
-minimize_window();
-zoom_window();
-toggle_fullscreen();
-check('window controls are no-ops headlessly', true);
+let controls = 'no throw';
+try {
+	minimize_window();
+	zoom_window();
+	toggle_fullscreen();
+} catch (error) {
+	controls = (error as Error).message;
+}
+check('window controls are no-ops headlessly', controls, 'no throw');
 check('prompt_for_paths resolves null without a picker', await prompt_for_paths({ multiple: true }).catch((e: Error) => e.message), null);
 
-finish('host', 27);
+finish('host', 29);
