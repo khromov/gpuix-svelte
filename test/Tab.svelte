@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { on_window_key, type GpuixEvent } from 'gpuix-svelte';
 
+	let { listen = true }: { listen?: boolean } = $props();
+
 	const log = $state<string[]>([]);
 
-	$effect(() => on_window_key('keydown', (e: GpuixEvent) => log.push(`window:${e.key}${e.defaultPrevented ? '!' : ''}`)));
+	$effect(() => (listen ? on_window_key('keydown', (e: GpuixEvent) => log.push(`window:${e.key}${e.defaultPrevented ? '!' : ''}`)) : undefined));
 
 	function trap(e: GpuixEvent) {
 		if (e.key === 'tab') e.preventDefault();

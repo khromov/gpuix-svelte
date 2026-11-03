@@ -4,11 +4,25 @@
  * leave the tree rootless between two batches.
  */
 
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { GpuixRenderer, TestGpuixRenderer } from '@gpuix/native';
 import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
-import { focus_dim_on_render, handle_event, start_frame_loop } from '../src/render.ts';
+import { focus_dim_on_render, handle_event, render, start_frame_loop } from '../src/render.ts';
+import { render_hot } from '../src/hot.ts';
 import { check, finish } from 'gpuix-svelte/test';
-import type { GpuiStyle } from '../src/types.ts';
+import type { GpuiStyle, Mutation, RenderOptions, ShadowNode } from '../src/types.ts';
+
+async function errors_during(body: (logged: string[]) => unknown): Promise<string[]> {
+	const logged: string[] = [];
+	const error = console.error;
+	console.error = (...args: unknown[]) => void logged.push(args.map(String).join(' '));
+	try {
+		await body(logged);
+	} finally {
+		console.error = error;
+	}
+	return logged;
+}
 
 // --- a throwing commit must not kill the frame loop -----------------------
 {
@@ -27,13 +41,15 @@ import type { GpuiStyle } from '../src/types.ts';
 	set_native(exploding);
 	create_root();
 
-	console.log('-- the next line should report one failed commit --');
-	const loop = start_frame_loop(exploding);
-	await new Promise((resolve) => setTimeout(resolve, 60));
-	loop.stop();
+	const logged = await errors_during(async () => {
+		const loop = start_frame_loop(exploding);
+		await new Promise((resolve) => setTimeout(resolve, 60));
+		loop.stop();
+	});
 
 	check('the loop keeps ticking after a commit throws', ticks > 1, true);
 	check('a failure that is no refusal may have been applied, so it is not resent op by op', batches, 1);
+	check('and it reaches the log rather than vanishing', logged, ['[gpuix-svelte] commit failed: Error: boom']);
 }
 
 // --- one op native refuses costs that op, not the frame --------------------
@@ -45,44 +61,48 @@ import type { GpuiStyle } from '../src/types.ts';
 	const child = renderer.createElement('div');
 	renderer.setAttribute(child, 'testId', 'kept');
 	renderer.insert(root, child, null);
-
-	console.log('-- the next line should report one refused setStyle --');
-	commit();
 	const first = () => JSON.parse(native.getTreeJson()).children?.[0];
-	check('the rest of the batch still lands', first()?.testId, 'kept');
 
-	renderer.setAttribute(child, 'style', 'font-size: 10px');
-	commit();
-	check('and the ids it created keep working', first()?.style?.fontSize, 10);
+	const logged = await errors_during(() => {
+		commit();
+		check('the rest of the batch still lands', first()?.testId, 'kept');
 
-	const cycle: Record<string, unknown> = {};
-	cycle.self = cycle;
-	console.log('-- the next line should report one refused setCustomProp --');
-	renderer.setAttribute(child, 'motion', cycle);
-	renderer.setAttribute(child, 'style', 'font-size: 12px');
-	commit();
-	check('a value that cannot be serialized costs only its own op', first()?.style?.fontSize, 12);
+		renderer.setAttribute(child, 'style', 'font-size: 10px');
+		commit();
+		check('and the ids it created keep working', first()?.style?.fontSize, 10);
 
-	console.log('-- the next line should report one refused setCustomProp --');
-	renderer.setAttribute(child, 'motion', {
-		toJSON() {
-			throw new RangeError('not a TypeError');
-		}
+		const cycle: Record<string, unknown> = {};
+		cycle.self = cycle;
+		renderer.setAttribute(child, 'motion', cycle);
+		renderer.setAttribute(child, 'style', 'font-size: 12px');
+		commit();
+		check('a value that cannot be serialized costs only its own op', first()?.style?.fontSize, 12);
+
+		renderer.setAttribute(child, 'motion', {
+			toJSON() {
+				throw new RangeError('not a TypeError');
+			}
+		});
+		renderer.setAttribute(child, 'style', 'font-size: 14px');
+		commit();
+		check('so does one whose toJSON throws anything else', first()?.style?.fontSize, 14);
+
+		// Native's other kind of refusal, at decoding rather than at resolving a style, so its wording is covered too.
+		queue_destroy('nope' as unknown as number);
+		renderer.setAttribute(child, 'style', 'font-size: 16px');
+		commit();
+		check('an op native cannot decode costs only its own op', first()?.style?.fontSize, 16);
 	});
-	renderer.setAttribute(child, 'style', 'font-size: 14px');
-	commit();
-	check('so does one whose toJSON throws anything else', first()?.style?.fontSize, 14);
+	check('each of those was a real refusal of one op', logged.map((line) => line.split(':')[0]), [
+		'[gpuix-svelte] native refused setStyle',
+		'[gpuix-svelte] native refused setCustomProp',
+		'[gpuix-svelte] native refused setCustomProp',
+		'[gpuix-svelte] native refused destroyElement'
+	]);
 
-	// Native's other kind of refusal, at decoding rather than at resolving a style, so its wording is covered too.
-	console.log('-- the next line should report one refused destroyElement --');
-	queue_destroy('nope' as unknown as number);
-	renderer.setAttribute(child, 'style', 'font-size: 16px');
-	commit();
-	check('an op native cannot decode costs only its own op', first()?.style?.fontSize, 16);
-
-	const logged: unknown[] = [];
+	const refusals_of_text: unknown[] = [];
 	const error = console.error;
-	console.error = (line: unknown) => void logged.push(line);
+	console.error = (line: unknown) => void refusals_of_text.push(line);
 	const cut = '\u{1F600}'.slice(0, 1);
 	const wording = `whole \u{1F600} cut ${cut} literal \\ud83d`;
 	const text = renderer.createTextNode(wording);
@@ -94,7 +114,7 @@ import type { GpuiStyle } from '../src/types.ts';
 	console.error = error;
 	check(
 		'a string cut mid-emoji reaches native as U+FFFD, in text and props alike, and nothing is refused',
-		[first()?.children?.[0]?.text, JSON.parse(native.getTreeJson()).children?.[1]?.testId, logged],
+		[first()?.children?.[0]?.text, JSON.parse(native.getTreeJson()).children?.[1]?.testId, refusals_of_text],
 		['whole \u{1F600} cut \uFFFD literal \\ud83d', '\uFFFD', []]
 	);
 	check('while the shadow node keeps the string Svelte gave it, for its own diffing', text.data === wording, true);
@@ -180,14 +200,16 @@ import type { GpuiStyle } from '../src/types.ts';
 
 	let seen: string | null = null;
 	let escaped: string | null = null;
-	console.log('-- the next line should report one failed handler --');
-	try {
-		handle_event({ elementId: button.nativeId!, eventType: 'click' }, (e) => (seen = e.eventType));
-	} catch (error) {
-		escaped = (error as Error).message;
-	}
+	const logged = await errors_during(() => {
+		try {
+			handle_event({ elementId: button.nativeId!, eventType: 'click' }, (e) => (seen = e.eventType));
+		} catch (error) {
+			escaped = (error as Error).message;
+		}
+	});
 
 	check('the exception does not reach the caller', escaped, null);
+	check('it reaches the log instead', logged, ['[gpuix-svelte] event handler failed: Error: handler blew up']);
 	check("and the host's onEvent still runs", seen, 'click');
 
 	console.log('-- and this one a failed onEvent --');
@@ -243,14 +265,87 @@ import type { GpuiStyle } from '../src/types.ts';
 		'render ships the option on a new window or when it changed, never on a remount, so a runtime switch survives',
 		[
 			focus_dim_on_render(undefined, undefined, true),
+			focus_dim_on_render(true, undefined, true),
+			focus_dim_on_render(true, true, true),
 			focus_dim_on_render(undefined, false, false),
 			focus_dim_on_render(true, false, false),
+			focus_dim_on_render(false, true, false),
 			focus_dim_on_render(true, true, false)
 		],
-		[false, null, true, null]
+		[false, true, true, null, true, false, null]
 	);
+}
+
+// --- render() and render_hot() themselves, not a copy of their order --------
+{
+	const native = new TestGpuixRenderer();
+	const batches: Mutation[][] = [];
+	const applyBatch = native.applyBatch.bind(native);
+	native.applyBatch = (json) => (batches.push(JSON.parse(json)), applyBatch(json));
+	const slot = {
+		native,
+		root: null as ShadowNode | null,
+		component: null as { toggle(show: boolean): void } | null,
+		loop: { stop() {} },
+		keys: []
+	};
+	// render() opens a window only for a native it creates itself, so a filled slot takes it past that.
+	(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('gpuix.svelte.host')] = slot;
+
+	const Reorder = (await import('./Reorder.svelte')).default;
+	const dim_shipped_by_render = (options: RenderOptions = {}) => {
+		batches.length = 0;
+		render(Reorder, { titlebar: false, ...options });
+		return batches.flat().find((op) => op[0] === 'setKeyboardFocusDim')?.[1] ?? null;
+	};
+
+	const dims = [dim_shipped_by_render()];
+	const retiring = JSON.parse(native.getTreeJson()).id;
+	dims.push(dim_shipped_by_render());
+	const swap = batches.find((ops) => ops.some((op) => op[0] === 'setRoot'));
+	check(
+		"render() ships the new root and then the old root's destroy in one batch",
+		swap?.filter((op) => op[0] === 'setRoot' || (op[0] === 'destroyElement' && op[1] === retiring)).map((op) => op[0]),
+		['setRoot', 'destroyElement']
+	);
+
+	dims.push(dim_shipped_by_render({ keyboardFocusDim: true }), dim_shipped_by_render({ keyboardFocusDim: true }));
+	check('render() goes by focus_dim_on_render and records what it applied', dims, [false, null, true, null]);
+
+	renderer.addEventListener(slot.root!, 'click', () => slot.component!.toggle(false));
+	const shown = native.getAllText().includes('IF');
+	handle_event({ elementId: slot.root!.nativeId!, eventType: 'click' });
+	check("a handler's update reaches native before handle_event returns", [shown, native.getAllText().includes('IF')], [true, false]);
+
+	// Left behind for the next run to clear: the watcher below is never closed, and Windows may refuse to delete what it holds.
+	const dir = new URL('./.hot-tmp/lifecycle/', import.meta.url);
+	rmSync(dir, { recursive: true, force: true });
+	mkdirSync(dir, { recursive: true });
+	const app = new URL('App.svelte', dir);
+	const until = async (done: () => boolean, each?: () => void) => {
+		for (const end = Date.now() + 10_000; !done() && Date.now() < end; ) {
+			each?.();
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+	};
+
+	writeFileSync(app, '<div>one</div>');
+	let mounted: string[] = [];
+	const logged = await errors_during(async (lines) => {
+		await render_hot(app, { titlebar: false });
+		mounted = native.getAllText();
+		// Under load a watcher that has only just started can miss a save, so this one repeats until it is heard.
+		await until(
+			() => lines.length > 0,
+			() => writeFileSync(app, '{#if')
+		);
+		writeFileSync(app, '<div>two</div>');
+		await until(() => native.getAllText().includes('two'));
+	});
+	check('a save that does not compile is logged and takes nothing down', logged[0]?.startsWith('[gpuix-svelte] reload failed:'), true);
+	check('and the next save still reloads', [mounted, native.getAllText()], [['one'], ['two']]);
 }
 
 set_auto_commit(false);
 
-finish('lifecycle', 25);
+finish('lifecycle', 33);

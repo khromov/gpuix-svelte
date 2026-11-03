@@ -27,6 +27,9 @@
 				<div class="btn" {...hover} onclick={() => counts.save++} testId="save-trigger">Save</div>
 			{/snippet}
 		</Tooltip>
+		<Tooltip content="Slow" delay={60000} testid="slow">
+			<div class="badge">slow</div>
+		</Tooltip>
 	</div>
 	<div class="under" onclick={() => counts.under++} testId="under">under</div>
 

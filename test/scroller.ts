@@ -117,13 +117,16 @@ await wait(THUMB_MS);
 		if ((JSON.parse(json) as [string, number][]).some(([op, id]) => op === 'setStyle' && id === thumb_id)) restyles++;
 		return applyBatch(json);
 	};
+	const started = performance.now();
 	for (let i = 0; i < 24; i++) {
 		wheel(at, 0, -30);
 		await wait(10);
 	}
 	await wait(80);
+	const elapsed = performance.now() - started;
 	native.applyBatch = applyBatch;
-	check('a sustained scroll restyles the thumb on the throttle, not once per event', restyles > 0 && restyles <= 12, true);
+	// Bounded by the clock rather than the event count, since a loaded machine stretches the gaps between events past the throttle.
+	check('a sustained scroll restyles the thumb on the throttle, not once per event', restyles > 0 && restyles <= elapsed / 50 + 1, true);
 }
 
 // The thumb's 24 px minimum is the whole track of a column that short.
@@ -168,28 +171,42 @@ const { x: vx, y: vy, width: vw } = bounds(find((n) => n.children?.some((c) => c
 const vh = native.getListScrollTop(column().id)![2];
 const list_at = { x: vx + vw / 2, y: vy + vh / 2 };
 const v0 = bounds(thumb())!;
-check('the thumb is drawn from the row count', v0.height > 0 && v0.height < vh, true);
+check('this many rows put the thumb at its minimum', Math.round(v0.height), 24);
 wheel(list_at, 0, -400);
 await wait(120);
 check('a wheel scrolls the list', native.getListScrollTop(column().id)![0] > 0, true);
 const v1 = bounds(thumb())!;
 check('and the thumb moves down', v1.y > v0.y, true);
-// Rows alternate 30/90 px, so GPUI reports 3 to 5 rows in view as the list moves; the
-// thumb's length must not follow that report around (it swung by 40% before).
-const lengths: number[] = [];
-for (let i = 0; i < 12; i++) {
-	wheel(list_at, 0, -(15 + (i % 4) * 10));
-	await wait(60);
-	lengths.push(bounds(thumb())!.height);
-}
-check('the thumb keeps its length while the rows in view vary', Math.max(...lengths) - Math.min(...lengths) <= 5, true);
 const v_grip = center(thumb());
 mouse_down(v_grip);
 const before_index = native.getListScrollTop(column().id)![0];
+const painted_rows = () => painted().split('\n');
+const was_in_view = painted_rows().includes(`row ${before_index}`);
 mouse_move({ x: v_grip.x, y: v_grip.y + 60 }, { pressed_button: 0 });
 check('dragging the thumb scrolls by row', native.getListScrollTop(column().id)![0] > before_index, true);
 mouse_up({ x: v_grip.x, y: v_grip.y + 60 });
-check('and the rows it left are no longer painted', painted().includes('row 0'), false);
+check('and the rows it left are no longer painted', [was_in_view, painted_rows().includes(`row ${before_index}`), painted_rows().includes('row 0')], [true, false, false]);
+
+// At that minimum the thumb's length says nothing, so reading it takes few enough rows to stay above it.
+({ native, component } = mount_headless(Tall, { props: { virtual: true, rows: 10 }, width: 400, height: 300 }));
+await wait(300);
+{
+	const ten = bounds(thumb())!.height;
+	component.grow(10);
+	await wait(300);
+	check('the thumb is drawn from the row count', Math.abs(ten / bounds(thumb())!.height - 2) < 0.2, true);
+
+	// Rows alternate 30/90 px, so GPUI reports 3 to 5 rows in view as the list moves; the
+	// thumb's length must not follow that report around (it swung by 40% before).
+	const lengths: number[] = [];
+	for (let i = 0; i < 12; i++) {
+		wheel(list_at, 0, -(15 + (i % 4) * 10));
+		await wait(60);
+		lengths.push(bounds(thumb())!.height);
+	}
+	// The running mean settles by about 5 px over these; following each report swings it by 20.
+	check('the thumb keeps its length while the rows in view vary', Math.max(...lengths) - Math.min(...lengths) <= 10, true);
+}
 
 // The throttle must not outlive the component: a list that is gone has nothing to measure.
 {
@@ -205,9 +222,9 @@ check('and the rows it left are no longer painted', painted().includes('row 0'),
 		if (id === own) reads++;
 		return read(id);
 	};
-	// A plain timer, since `wait` would commit the unmount and hide a late read behind a cleared id.
-	await new Promise((resolve) => setTimeout(resolve, 100));
-	check('a thumb update still pending at unmount reaches nothing', reads, 0);
+	// A plain timer, since `wait` would commit the unmount and hide a late read behind a cleared id; long enough for the list's 250 ms poll too.
+	await new Promise((resolve) => setTimeout(resolve, 300));
+	check('a thumb update still pending at unmount reaches nothing, and neither does the poll', reads, 0);
 }
 
-finish('scroller', 30);
+finish('scroller', 31);

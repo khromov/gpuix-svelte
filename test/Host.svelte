@@ -50,4 +50,5 @@
 			{/if}
 		{/each}
 	</div>
+	<div role="tab" aria-label="Static" aria-expanded="false" aria-selected="true" style="width: 10px; height: 10px"></div>
 </div>

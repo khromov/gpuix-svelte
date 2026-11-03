@@ -61,13 +61,13 @@ npm run tutorial           # interactive onboarding guide (examples/tutorial): 1
                            # at step 7. The only user of GPUI's <code>/<markdown> elements
 
 npm test                   # typecheck, then every test:* below except automation-live and coverage
-npm run test:reorder       # keyed {#each} reordering
+npm run test:reorder       # keyed {#each} reordering, and a node re-inserted or parked in one frame
 npm run test:smoke         # mount + click Counter headlessly
 npm run test:autocommit    # the microtask drain used where there is no frame loop
 npm run test:style         # CSS shorthand expansion, and what must never reach serde
 npm run test:teardown      # removal marks dirty, blank text demotes, listeners survive
 npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch; when the focus
-                           # dim ships
+                           # dim ships; render_hot outlives a save that does not compile
 npm run test:compile       # the ?v=N cache-buster reaches every child specifier, and a reload
                            # picks up an edited child and root on the runtime running it
 npm run test:css           # <style> class rules: specificity, inline wins, :hover, class: toggles
@@ -111,7 +111,9 @@ npm run test:update        # gpuix-svelte/update: version order, manifest signin
                            # updater downloads, hash-checks, extracts and swaps it in for a copy;
                            # the gpuix-svelte update CLI; and test/relaunch-app.ts compiled by Bun
                            # (`bun` on PATH), which replaces itself while running and has to come
-                           # back as the new version, leaving the swept leftovers behind
+                           # back as the new version, leaving the swept leftovers behind; the
+                           # Windows and Linux branches also run everywhere on a faked
+                           # process.platform, which proves their logic and not their renames
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -182,6 +184,20 @@ actual, expected)` and `finish(name, expected)` exit 1 on any failure. **`finish
 argument is how many `check` calls should have run**, and a mismatch (zero included) fails:
 nothing else counts them, so assertions that stop executing would otherwise take the file green
 with them — adding or removing a check means bumping that number.
+
+A test has to fail when the behaviour it names breaks, which passing says nothing about, so try a new
+assertion against a mutation of the code it covers, and put a positive control beside any assertion
+that something is absent (the same query finding it when it is there). `check` compares
+`JSON.stringify` output: `undefined` and `null` are equal inside an array, `NaN` and `Infinity` equal
+`null`, `{ a: undefined }` equals `{}`, every `Map` and `Set` equals `{}`, and an `Error` keeps only
+its enumerable own fields (none, for a plain one), so where that matters compare what you mean
+(`.map(String)`, `=== undefined`, `.has()`, the message). `render()` itself runs headlessly on a
+`TestGpuixRenderer` put in its `globalThis` slot, which takes it past `new GpuixRenderer` and `init()`
+(`test/seed-window.ts`); `created: true` there depends on `render()` reading `slot.native` twice, so
+restructuring that read could open a real window. `test/update.ts` reaches into `install()` through
+three hooks a refactor can break with no change in behaviour: the `SharedArrayBuffer` `rename_in`
+allocates between the swap's two renames, the `process.cwd()` read right after the swap, and the
+`process.platform` reads during extraction.
 
 `docs/testing.md` is the helper reference (`mount_headless`, `settle`/`wait`, `find_*`/`tree()`,
 `click*`/`press`/`type`/`drop_files`, `hover`/`mouse_*`/`wheel`/`drag`/`drag_select`/`key_up`,
@@ -424,8 +440,8 @@ Electron- or CLI-shaped. The design:
   the layer adds, because adm-zip does not: every entry name is validated before extraction
   (absolute, drive letter, backslash, `..`, `.` → `ZipError`), `._` and `__MACOSX` sidecars are
   skipped (adm-zip would write them as files, which breaks a signed bundle's seal), and a symlink
-  entry is known to come out as a file holding its target (a bundle `build()` makes has none;
-  documented as unsupported). `write_archive` is `write_zip` with `--keepParent` semantics; the one
+  is refused at both ends (adm-zip would write the entry as a file holding its target, and follow
+  one when archiving). `write_archive` is `write_zip` with `--keepParent` semantics; the one
   remaining `ditto` call is `notarize()`'s submission zip on a macOS build machine, which with
   `archive: true` is also the shipped file, so the reader is tested on a ditto zip. `extract` tells
   the download apart by magic bytes (`kind_of`: zip or a PE/ELF/Mach-O executable, never by the
@@ -467,8 +483,10 @@ Electron- or CLI-shaped. The design:
   `GPUIX_RELAUNCH_READY=<sentinel>` go in the child's environment; the old process awaits the
   `spawn`/`error` event, then polls for the sentinel (10 s, `READY_TIMEOUT`) and only then
   `process.exit(0)`s — a spawn error, an early exit or no sentinel means `roll_back` (new one into
-  staging, old one back) and a `RelaunchError` with `installed` reset, as does the `StrandedError` from
-  a rollback that can't rename back. A spawn error arrives either way: Node throws ENOEXEC (a
+  staging, old one back; on no sentinel the new one is first killed with its process group, or a merely
+  slow start would come up beside the restored app) and a `RelaunchError` with `installed` reset, as
+  does the `StrandedError` from a rollback that can't rename back. A spawn error arrives either way:
+  Node throws ENOEXEC (a
   wrong-architecture build) from `spawn` itself and puts ENOENT and the like on the event, and
   `test:update` goes through the first, since its fake executables can't exec. The new instance's
   `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
@@ -477,8 +495,10 @@ Electron- or CLI-shaped. The design:
   `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
   all three variables are taken out of the environment on the first call so children don't inherit
   them. `updated_from()` takes only `GPUIX_UPDATED_FROM`, never the two relaunch variables, so an
-  app can call it before `render()` without the old instance rolling back. Electron's Windows de-elevation has no
-  portable equivalent and is not done. `Update.installed` makes a second `install()` throw; a
+  app can call it before `render()` without the old instance rolling back. Electron's Windows
+  de-elevation has no portable equivalent and is not done. `Update.installed` makes a later
+  `install()` throw, and one still in progress makes a concurrent call throw too (`installing`, set
+  before the download); a
   download in flight is shared: a later caller's `onProgress` joins it and its `signal` ends only its
   own wait (`until_aborted`), while the first caller's stops it for everyone. `check_url` is applied to
   `response.url` too, so a redirect can't leave https.
@@ -1077,13 +1097,15 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
   map a stale `./x.js` specifier onto `x.ts`; Node's own stripping does not, so only the Node
   suite catches one.
-- A mutation sweep (inverting each assertion in turn; every one failed its run) found two guards
-  that survive source mutation because no reachable state distinguishes them:
-  `first_native_after`'s `n.attached` check (every id-bearing node the scan reaches is attached or
-  a portal, and `!is_portal` already excludes those) and `flush_var_warnings()` sitting above
-  `commit()`'s empty-queue return (a var read always queues the `setStyle` that read it, so moving
-  it below would at worst defer a warning one frame). Both are deliberate belt-and-braces; don't
-  "cover" them, and don't delete them on the grounds that no test fails.
+- Mutation sweeps (breaking the code under each assertion in turn, since flipping an assertion only
+  proves it runs) found three guards that survive source mutation because no reachable state
+  distinguishes them: `first_native_after`'s `n.attached` check (every id-bearing node the scan reaches
+  is attached or a portal, and `!is_portal` already excludes those), `flush_var_warnings()` sitting
+  above `commit()`'s empty-queue return (a var read always queues the `setStyle` that read it, so
+  moving it below would at worst defer a warning one frame), and `insert`'s
+  `pending_destroy.delete(n)` (`commit()` already spares a node that is live again). All three are
+  deliberate belt-and-braces; don't "cover" them, and don't delete them on the grounds that no test
+  fails.
 - `check:svelte` talks the MCP streamable-HTTP protocol over `fetch` (initialize → tool call,
   answered as one-message SSE) rather than pulling in a client library, and the npm script passes
   `--use-env-proxy` so it works behind one. Its `FILTERS` table drops two classes that can never

@@ -26,15 +26,17 @@ check('focus moving to a plain focusable clears the flag', seen(), 'cmd-k escape
 let hits = 0;
 const off = on_window_key('keydown', () => hits++);
 press('b');
-check('a second handler subscribes alongside', hits, 1);
+check('a second handler subscribes alongside', [hits, seen()], [1, 'cmd-k escape* a b|1']);
 off();
 press('b');
-check('and its unsubscribe stops it', hits, 1);
+check('and its unsubscribe stops it, not the other', [hits, seen()], [1, 'cmd-k escape* a b b|1']);
 
 let ups = 0;
 const off_up = on_window_key('keyup', () => ups++);
 key_up('b');
-check('keyup has its own channel', ups, 1);
+const after_up = [ups, seen()];
+press('d');
+check('keyup has its own channel', [after_up, ups], [[1, 'cmd-k escape* a b b|1'], 1]);
 off_up();
 
 let later = 0;
@@ -44,14 +46,18 @@ key_up('b');
 check('calling a spent unsubscribe again leaves a later subscription alone', later, 1);
 off_later();
 
-// A handler registered outside the tree (render's onKeyDown) has to survive set_native.
+// A handler registered outside the tree (render's onKeyDown) has to survive set_native,
+// which is all that can tell the new renderer about it while nothing in the new tree subscribes.
 let outer = 0;
 const off_outer = on_window_key('keydown', () => outer++);
 unmount();
-mount_headless(Keys);
+const bare = mount_headless(Keys, { props: { listen: false } });
 press('c');
 check('a handler registered outside the tree survives a remount', outer, 1);
-check('and the remounted component hears it too', seen(), 'c|0');
+bare.unmount();
+mount_headless(Keys);
+press('e');
+check('and the remounted component hears it too', [outer, seen()], [2, 'e|0']);
 off_outer();
 
 // The test renderer has none of these methods, so app code calling them unguarded

@@ -3,10 +3,11 @@
  * which is the one place the projection can silently produce the wrong native order.
  */
 
-import { mount_headless, settle, all_text, check, finish } from 'gpuix-svelte/test';
+import { renderer } from 'gpuix-svelte';
+import { mount_headless, settle, all_text, painted, check, finish } from 'gpuix-svelte/test';
 
 const Reorder = (await import('./Reorder.svelte')).default;
-const { component } = mount_headless(Reorder);
+const { component, root, anchor } = mount_headless(Reorder);
 
 const around = (items: number[]) => ['head', 'IF', ...items.map(String), 'tail'];
 
@@ -47,4 +48,28 @@ order('reorder while {#if} hidden', ['head', '1', '2', '3', 'tail']);
 component.toggle(true);
 order('show {#if} again', ['head', 'IF', '1', '2', '3', 'tail']);
 
-finish('reorder', 15);
+// By hand, because a keyed {#each} moves its rows with no remove in between, so nothing above takes these paths.
+const moved = renderer.createElement('div');
+renderer.insert(moved, renderer.createTextNode('moved'), null);
+renderer.insert(root, moved, anchor);
+settle();
+const moved_id = moved.nativeId;
+const has_moved = () => painted().split('\n').includes('moved');
+check('a hand-built node is painted to begin with', has_moved(), true);
+
+renderer.remove(moved);
+renderer.insert(root, moved, anchor);
+settle();
+check('removed and re-inserted in one frame, it stays the same native node', [moved.nativeId, has_moved()], [moved_id, true]);
+
+const offscreen = renderer.createFragment();
+renderer.insert(offscreen, moved, null);
+renderer.insert(root, offscreen, anchor);
+settle();
+check('parked offscreen and brought back in one frame, too', [moved.nativeId, has_moved()], [moved_id, true]);
+
+renderer.insert(offscreen, moved, null);
+settle();
+check('left parked offscreen, it stops painting', has_moved(), false);
+
+finish('reorder', 19);

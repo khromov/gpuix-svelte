@@ -36,6 +36,13 @@ const results: Record<'ok' | 'expected_compile_error' | 'compile_error' | 'runti
 	runtime_error: []
 };
 
+const refusals: string[] = [];
+const error = console.error;
+console.error = (...args: unknown[]) => {
+	if (String(args[0]).includes('native refused')) refusals.push(String(args[0]));
+	error(...args);
+};
+
 for (const name of readdirSync(SAMPLES).sort()) {
 	const dir = join(SAMPLES, name);
 	const main = join(dir, 'main.svelte');
@@ -43,6 +50,7 @@ for (const name of readdirSync(SAMPLES).sort()) {
 
 	const config = existsSync(join(dir, '_config.js')) ? readFileSync(join(dir, '_config.js'), 'utf8') : '';
 	const expects_compile_error = config.includes('compile_error');
+	refusals.length = 0;
 
 	try {
 		const Component = (await import(main)).default;
@@ -52,15 +60,22 @@ for (const name of readdirSync(SAMPLES).sort()) {
 		mount(Component, { renderer, target: root, anchor, props: {} });
 		flushSync();
 		commit();
+		// `ship` logs a refused op rather than throwing and a commit that shipped nothing succeeds, so not throwing proves neither.
+		if (refusals.length > 0) throw new Error(refusals[0]);
+		const shipped = JSON.parse(native.getTreeJson());
+		if (shipped?.id !== root.nativeId || !shipped.children?.length) throw new Error('nothing it rendered reached native');
 		results.ok.push(name);
 	} catch (err) {
 		const message = String((err as Error).message ?? err).split('\n')[0];
-		if (expects_compile_error) results.expected_compile_error.push(name);
-		else if (/Unrecognised|not compatible|compile|svelte_options/i.test(message))
+		const compile_error = (err as Error).name === 'CompileError';
+		if (expects_compile_error && compile_error) results.expected_compile_error.push(name);
+		else if (compile_error || /Unrecognised|not compatible|compile|svelte_options/i.test(message))
 			results.compile_error.push(`${name}: ${message}`);
 		else results.runtime_error.push(`${name}: ${message}`);
 	}
 }
+
+console.error = error;
 
 const total =
 	results.ok.length +
@@ -91,11 +106,7 @@ check('the samples directory was not empty', total > 0);
 check('nothing we should support fails to compile', results.compile_error, []);
 // raw-snippet's _config.js declares `error:` rather than `compile_error`, so its throw —
 // the outcome the sample asks for — lands here instead of with the expected refusals.
-check(
-	'only the known runtime failure',
-	results.runtime_error.map((entry) => entry.split(':')[0]).sort(),
-	['raw-snippet']
-);
+check('only the known runtime failure', results.runtime_error.sort(), ['raw-snippet: snippet_renderer_mismatch']);
 check('at least the recorded baseline still mounts', results.ok.length >= 33);
 
 finish('coverage', 4);

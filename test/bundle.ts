@@ -22,7 +22,7 @@ const awkward = join(root, 'test', '.bundle-tmp', 'gpuix svelte ’x');
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
 mkdirSync(awkward, { recursive: true });
 
-check('a slug is lowercase ASCII words joined by dashes', app_slug('GPUIX + Svelte — Tic-tac-toe'), 'gpuix-svelte-tic-tac-toe');
+check('a slug is lowercase ASCII words joined by dashes', app_slug('GPUIX + Svelte — Tic-tac-toe é'), 'gpuix-svelte-tic-tac-toe');
 check('a name with nothing usable in it slugs to "app"', app_slug('—'), 'app');
 
 const project = join(scratch, 'project');
@@ -36,20 +36,29 @@ check(
 	[from_title.name, from_title.slug, from_title.identifier, from_title.version, from_title.icon],
 	['My App', 'my-app', 'local.my-app', '1.2.3', DEFAULT_ICON]
 );
-check('the default icon is the shipped assets/icon.png', [DEFAULT_ICON, existsSync(DEFAULT_ICON)], [join(root, 'assets', 'icon.png'), true]);
-check('with no title either, the name is package.json\'s', resolve_app_info({}, entry).name, 'my-app');
+check(
+	'the default icon is the shipped assets/icon.png',
+	[DEFAULT_ICON, existsSync(DEFAULT_ICON), JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).files.includes('assets/icon.png'), readFileSync(join(root, 'scripts', 'publish.ts'), 'utf8').includes("'assets/icon.png'")],
+	[join(root, 'assets', 'icon.png'), true, true, true]
+);
+check("with no title either, the name is the nearest package.json's", resolve_app_info({}, join(project, 'src', 'deep', 'standalone.ts')).name, 'my-app');
 check('a relative icon is read from the entry\'s directory', resolve_app_info({ icon: './icon.png' }, entry).icon, join(project, 'icon.png'));
 check('a file: URL icon is a path again',resolve_app_info({ icon: pathToFileURL(join(project, 'x.png')).href }, entry).icon, join(project, 'x.png'));
-const explicit = resolve_app_info({ name: 'Named', identifier: 'com.example.named', version: '9.9', title: 'Titled', copyright: '© me' }, entry);
+const update = { manifest: 'https://example.com/update.json' };
+const explicit = resolve_app_info({ name: 'Named', identifier: 'com.example.named', version: '9.9', title: 'Titled', copyright: '© me', publisher: 'Me', description: 'Mine', update }, entry);
 check(
 	'explicit values win',
-	[explicit.name, explicit.identifier, explicit.version, explicit.copyright],
-	['Named', 'com.example.named', '9.9', '© me']
+	[explicit.name, explicit.identifier, explicit.version, explicit.copyright, explicit.publisher, explicit.description, explicit.update],
+	['Named', 'com.example.named', '9.9', '© me', 'Me', 'Mine', update]
 );
 
 const info: AppInfo = { name: 'A & B <C>', slug: 'a-b-c', identifier: 'com.x.y', version: '1.0', icon: '/i.png', copyright: '© me' };
 const plist = info_plist(info);
-check('the plist escapes the name', plist.includes('<string>A &amp; B &lt;C&gt;</string>'), true);
+check(
+	'the plist escapes the name, under both keys that show it',
+	[plist.includes('<key>CFBundleName</key>\n\t<string>A &amp; B &lt;C&gt;</string>'), plist.includes('<key>CFBundleDisplayName</key>\n\t<string>A &amp; B &lt;C&gt;</string>')],
+	[true, true]
+);
 check(
 	'the plist names the executable, identifier, version, icon and copyright',
 	[
@@ -72,7 +81,8 @@ check(
 	[true, true]
 );
 
-check('CFBundleVersion reads through a leading v', info_plist({ ...info, version: 'v1.2.3' }).includes('<key>CFBundleVersion</key>\n\t<string>1.2.3</string>'), true);
+const bundle_version = (version: string) => /<key>CFBundleVersion<\/key>\n\t<string>(.*)<\/string>/.exec(info_plist({ ...info, version }))?.[1];
+check('CFBundleVersion reads through a leading v, stops at three numbers and falls back to 0', ['v1.2.3', '1.2.3.4', 'beta'].map(bundle_version), ['1.2.3', '1.2.3', '0']);
 check(
 	'an exported const reads like a bare one',
 	read_app_options(`import { render } from 'gpuix-svelte';\nexport const NAME = 'N';\nexport const app = { name: NAME };\nrender(A, { title: NAME, app });`),
@@ -86,6 +96,7 @@ const container = ico([
 ]);
 check('ico header: reserved 0, type 1, two entries', [container.readUInt16LE(0), container.readUInt16LE(2), container.readUInt16LE(4)], [0, 1, 2]);
 check('ico entries: 16 px as is, 256 px written as 0', [container[6], container[7], container[22], container[23]], [16, 16, 0, 0]);
+check('ico entries: one colour plane at 32 bits', [container.readUInt16LE(10), container.readUInt16LE(12), container.readUInt16LE(26), container.readUInt16LE(28)], [1, 32, 1, 32]);
 check(
 	'ico entries point at contiguous blobs after the directory',
 	[container.readUInt32LE(14), container.readUInt32LE(18), container.readUInt32LE(30), container.readUInt32LE(34)],
@@ -111,13 +122,16 @@ if (scaler) {
 	check(
 		'the .ico holds one PNG per size, each scaled to it',
 		entries,
-		ICO_SIZES.map((size) => ({ declared: size, png: true, width: size }))
+		[256, 48, 32, 16].map((size) => ({ declared: size, png: true, width: size }))
 	);
 }
 if (process.platform === 'darwin') {
 	const icns = join(awkward, 'App Icon.icns');
 	write_icns(png, icns, awkward);
-	check('the .icns starts with its magic', readFileSync(icns).subarray(0, 4).toString('latin1'), 'icns');
+	const bytes = readFileSync(icns);
+	check('the .icns starts with its magic', bytes.subarray(0, 4).toString('latin1'), 'icns');
+	// iconutil takes a partial iconset without complaint; 16 and 32 at 1x are left out because their type codes vary by macOS.
+	check('and holds every size but the 1x of 16 and 32', ['ic07', 'ic08', 'ic09', 'ic10', 'ic11', 'ic12', 'ic13', 'ic14'].filter((type) => !bytes.includes(type)), []);
 }
 
 // Bun strips types the way build.ts does; Bun's node:module has no stripTypeScriptTypes.
@@ -171,9 +185,9 @@ check(
 );
 check('no options, nothing declared', read(`${head}render(App);`), {});
 check(
-	'an app value worked out at runtime fails and names itself',
-	error_of(`${head}render(App, { app: { identifier: 'x.y', version: pkg.version } });`).startsWith('app.version is `pkg.version`;'),
-	true
+	'an app value worked out at runtime fails and names itself, as does one that is not a string',
+	[`pkg.version`, `1`].map((version) => error_of(`${head}render(App, { app: { identifier: 'x.y', version: ${version} } });`).startsWith(`app.version is \`${version}\`;`)),
+	[true, true]
 );
 check('a spread in app fails', error_of(`${head}render(App, { app: { ...shared, name: 'x' } });`).startsWith('app has `...shared`;'), true);
 check(
@@ -182,6 +196,16 @@ check(
 	true
 );
 check('two render() calls fail', error_of(`${head}render(App, {});\nrender(App, {});`).startsWith('render() is called 2 times'), true);
+check('only a render() imported from gpuix-svelte counts', error_of("import { render } from './mine.js';\nrender(App, {});").startsWith('no top-level render()'), true);
+check('options worked out at runtime fail and name themselves', error_of(`${head}render(App, opts);`).startsWith("render()'s second argument is `opts`;"), true);
+check('a computed key in app fails', error_of(`${head}render(App, { app: { [key]: 'x' } });`).startsWith('app has `[key]'), true);
+check('a top-level let is not followed, since it could be reassigned', error_of(`${head}let name = 'x';\nrender(App, { app: { name } });`).startsWith('app.name is `name`;'), true);
+check(
+	'a URL with another base or from another constructor is not the icon beside the entry',
+	[`new URL('./x.png', 'https://example.com/')`, `new Other('./x.png')`].map((icon) => error_of(`${head}render(App, { app: { icon: ${icon} } });`).startsWith('app.icon is')),
+	[true, true]
+);
+check('a quoted key reads like a bare one', read_app_options(`${head}render(App, { app: { 'name': 'Q' } });`), { name: 'Q' });
 
 check(
 	'the window takes its title fallback and app id from app',
@@ -193,4 +217,4 @@ check('no app adds nothing', window_options_for({ width: 10 }, undefined), { wid
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 32 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 1 : 0));
+finish('bundle', 39 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));

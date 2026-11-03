@@ -5,7 +5,7 @@
  */
 
 import { to_gpui_event } from '../src/events.ts';
-import { mount_headless, find_test_id, click_test_id, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, click_test_id, center, check, finish } from 'gpuix-svelte/test';
 
 const AuxClick = (await import('./AuxClick.svelte')).default;
 mount_headless(AuxClick, { width: 400, height: 300 });
@@ -13,7 +13,8 @@ mount_headless(AuxClick, { width: 400, height: 300 });
 const log = () => find_test_id('log')!.children![0]?.text ?? '';
 const at = () => /at=(\d+),(\d+)/.exec(log());
 
-check('the card listens for both', find_test_id('card')!.events?.includes('auxClick'));
+const card_events = find_test_id('card')!.events;
+check('the card listens for both', [card_events?.includes('click'), card_events?.includes('auxClick')], [true, true]);
 // Svelte hands over whatever the author wrote; a name GPUI has no event for must be
 // dropped rather than registered under its own spelling.
 check('auxclick maps to GPUI\'s spelling', to_gpui_event('auxclick'), 'auxClick');
@@ -22,9 +23,12 @@ check('and an event GPUI does not have maps to null', to_gpui_event('mouseover')
 click_test_id('card');
 check('a left click is a click', log().startsWith('click right=false'));
 
+// Before the click, since the log's width below it resizes the card.
+const aimed_at = center(find_test_id('card')!);
 click_test_id('card', { button: 2 });
 check('a right click is an auxClick', log().startsWith('auxClick right=true'));
-check('carrying the position it happened at', at() !== null && Number(at()![1]) > 0);
+const [got_x, got_y] = at()?.slice(1).map(Number) ?? [-1, -1];
+check('carrying the position it happened at', [Math.abs(got_x - aimed_at.x) <= 1, Math.abs(got_y - aimed_at.y) <= 1], [true, true]);
 
 click_test_id('card', { button: 1 });
 check('a middle click is an auxClick that is not a right click', log().startsWith('auxClick right=false'));

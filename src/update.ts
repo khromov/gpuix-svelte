@@ -231,6 +231,7 @@ class AppUpdate implements Update {
 	readonly installable: boolean;
 	readonly reason?: NotInstallable;
 	installed = false;
+	private installing = false;
 	private target: string | null;
 	private app: EmbeddedAppInfo | null;
 	private fetch_: typeof fetch;
@@ -328,10 +329,22 @@ class AppUpdate implements Update {
 		return file;
 	}
 
-	async install({ relaunch = true, args, ...download }: InstallOptions = {}): Promise<void> {
+	async install(options: InstallOptions = {}): Promise<void> {
 		if (!this.installable || !this.target) throw new UpdateError('not-installable', not_installable_text(this.reason));
 		if (this.installed) throw new UpdateError('install', `${this.version} is already installed; restart the app`);
+		// `installed` is only set once the download is done, so a second click before then would install twice.
+		if (this.installing) throw new UpdateError('install', `${this.version} is already being installed`);
+		this.installing = true;
+		try {
+			await this.install_now(options);
+		} finally {
+			this.installing = false;
+		}
+	}
+
+	private async install_now({ relaunch = true, args, ...download }: InstallOptions): Promise<void> {
 		const archive = await this.download(download);
+		if (!this.target) throw new UpdateError('not-installable', not_installable_text(this.reason));
 		const target = this.target;
 		let staging: string;
 		try {
@@ -741,11 +754,25 @@ async function relaunch_app(target: string, previous: string, staging: string, a
 	const deadline = Date.now() + READY_TIMEOUT;
 	while (!existsSync(ready)) {
 		if (child.exitCode !== null || child.signalCode !== null) failed(`it exited with ${child.signalCode ?? child.exitCode} before reporting`);
-		if (Date.now() > deadline) failed(`it did not report within ${READY_TIMEOUT} ms`);
+		if (Date.now() > deadline) {
+			// Rolled back from under it, a new version that is only slow to start would otherwise come up beside the old one.
+			stop(child);
+			failed(`it did not report within ${READY_TIMEOUT} ms`);
+		}
 		await new Promise((resolve) => setTimeout(resolve, 50));
 	}
 	rm_quietly(ready);
 	process.exit(0);
+}
+
+/** Started detached, the child leads its own process group on macOS and Linux, so that is what stops. */
+function stop(child: ChildProcess) {
+	try {
+		if (process.platform === 'win32' || child.pid === undefined) child.kill('SIGKILL');
+		else process.kill(-child.pid, 'SIGKILL');
+	} catch {
+		// Already gone.
+	}
 }
 
 // --- The manifest: what `gpuix-svelte update manifest` writes and the app checks -------------

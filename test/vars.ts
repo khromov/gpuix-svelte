@@ -7,6 +7,7 @@
  */
 
 import { fileURLToPath } from 'node:url';
+import { TestGpuixRenderer } from '@gpuix/native';
 import { set_css_vars, type GpuiStyle, type Mutation } from 'gpuix-svelte';
 import { compile_svelte } from '../src/compile.ts';
 import { mount_headless, element_of, click_text, settle, check, finish } from 'gpuix-svelte/test';
@@ -21,12 +22,24 @@ check('a rule without one is still pre-parsed', code.includes('"style":{"gap":2}
 // --- runtime half ------------------------------------------------------------
 set_css_vars({ surface: '#111111', raised: '#222222', pad: '12px 24px', accent: '#abcdef' });
 
+// On the prototype, so the mount's own batches are counted too.
+let batches = 0;
+let ops = null as Mutation[] | null;
+const apply_batch = TestGpuixRenderer.prototype.applyBatch;
+TestGpuixRenderer.prototype.applyBatch = function (json) {
+	batches++;
+	ops = JSON.parse(json);
+	return apply_batch.call(this, json);
+};
+const shipped = () => ops?.length;
+
 const warnings: string[] = [];
 const warn = console.warn;
 console.warn = (message) => warnings.push(String(message));
 const Vars = (await import('./Vars.svelte')).default;
-const { native } = mount_headless(Vars);
+mount_headless(Vars);
 console.warn = warn;
+const mount_batches = batches;
 
 const pick = (style: GpuiStyle | undefined, ...keys: string[]) => keys.map((k) => style![k] ?? null);
 
@@ -36,22 +49,24 @@ check('a var on a pixel-only key resolves, shorthand expanded', pick(card.style!
 check(':hover resolves too', card.style!.hover?.backgroundColor, '#222222');
 check('plain declarations in the same rule survive', card.style!.color, 'red');
 check('the fallback is used when the var is undefined', element_of('fallback')!.style!.color, '#123456');
+check('a fallback may hold parens or another var()', pick(element_of('fallback')!.style!, 'backgroundColor', 'borderColor', 'outlineColor'), ['#111111', '#111111', null]);
+check('a value may read several var()s', pick(element_of('fallback')!.style!, 'marginTop', 'marginRight'), [1, 2]);
 check('an undefined var without a fallback drops that declaration only', pick(element_of('missing')!.style!, 'color', 'borderWidth'), [null, 1]);
 check('and warns once, naming it', warnings.filter((w) => w.includes('var(--absent)')).length, 1);
 check('a palette set from an $effect is not a false alarm', warnings.filter((w) => w.includes('var(--late)')).length, 0);
-check('and the first paint already carries it', element_of('late')!.style!.color, '#0f0f0f');
+check('and the first paint already carries it', [mount_batches, element_of('late')!.style!.color], [1, '#0f0f0f']);
 check('an inline style resolves as well', element_of('inline')!.style!.color, '#abcdef');
 
 click_text('card');
 check('a later class change still resolves', pick(element_of('card')!.style!, 'padding', 'paddingTop', 'backgroundColor'), [20, null, '#111111']);
 
-let ops = null as Mutation[] | null;
-const applyBatch = native.applyBatch.bind(native);
-native.applyBatch = (json) => ((ops = JSON.parse(json)), applyBatch(json));
+// This one has stopped reading its variable, so the sweep below must leave it out too.
+click_text('former reader');
 
+batches = 0;
 set_css_vars({ surface: '#333333', '--accent': '#fedcba' });
 settle();
-check('a theme change ships as one batch of setStyle ops', ops!.every(([op]) => op === 'setStyle'), true);
+check('a theme change ships as one batch of setStyle ops', [batches, ops!.every(([op]) => op === 'setStyle')], [1, true]);
 check('restyling only the elements that read a variable', ops!.length, 5);
 check('with the new values', [element_of('card')!.style!.backgroundColor, element_of('inline')!.style!.color], ['#333333', '#fedcba']);
 
@@ -69,15 +84,16 @@ settle();
 console.warn = warn;
 check('it warns when the frame that read it ships', late.filter((w) => w.includes('var(--accent)')).length, 1);
 check('deleting a var drops the declaration it fed', element_of('inline')!.style!.color ?? null, null);
-check('and still restyles every element that read one', ops!.length, 5);
+check('and still restyles every element that read one', shipped(), 5);
 
 // Still undefined and read again on the next frame — but reporting it once is the point.
 const again: string[] = [];
 console.warn = (message) => again.push(String(message));
+ops = null;
 set_css_vars({ surface: '#444444' });
 settle();
 console.warn = warn;
 check('a var already reported stays quiet on later frames', again.filter((w) => w.includes('var(--accent)')).length, 0);
-check('though the frame itself still ships', ops!.length, 5);
+check('though the frame itself still ships', shipped(), 5);
 
-finish('vars', 23);
+finish('vars', 25);

@@ -101,4 +101,17 @@ function fresh(width?: number, height?: number) {
 	check('so the handler still fires', clicks, 1);
 }
 
-finish('teardown', 14);
+// --- parking a live node offscreen is a removal too --------------------------
+{
+	const { root, anchor } = fresh();
+	const parked = renderer.createElement('div');
+	renderer.insert(root, parked, anchor);
+	settle();
+
+	renderer.insert(renderer.createFragment(), parked, null);
+	check('moving a live node offscreen marks the tree dirty as well', is_dirty(), true);
+	settle();
+	check('and destroys it natively', parked.nativeId, null);
+}
+
+finish('teardown', 16);

@@ -20,7 +20,7 @@ check('a child with its own listener keeps its hitbox', pe('button'), null);
 check("while that child's decoration loses it", pe('inner'), 'none');
 check('an <input> keeps it', pe('field'), null);
 check('so does a painted element that is merely focusable', pe('focusable'), null);
-check('a scroll container keeps it', pe('scroller'), null);
+check('a scroll container keeps it, on either axis or both', [pe('scroller'), pe('x-scroller'), pe('both-scroller')], [null, null, null]);
 check('one written overflow-y: auto too', pe('auto-scroller'), null);
 
 click_test_id('badge');
@@ -62,6 +62,13 @@ check('and still leaves the other alone', find_test_id('own')!.style!.color, 'bl
 	renderer.setAttribute(badge, 'style', 'background-color: #555555');
 	renderer.insert(card, badge, null);
 	renderer.insert(root, card, anchor);
+	// A div drops every prop it has no use for, so only a tag that forwards them can show one reaching native.
+	const before_live = renderer.createElement('input');
+	renderer.setAttribute(before_live, 'placeholder', 'forwarded');
+	renderer.setAttribute(before_live, 'hitbox', 'self');
+	renderer.insert(root, before_live, anchor);
+	const after_live = renderer.createElement('input');
+	renderer.insert(root, after_live, anchor);
 	commit();
 	native.flush();
 
@@ -69,10 +76,11 @@ check('and still leaves the other alone', find_test_id('own')!.style!.color, 'bl
 	check('without the attribute nothing changes', badge_pe(), null);
 
 	renderer.setAttribute(card, 'hitbox', 'self');
+	renderer.setAttribute(after_live, 'hitbox', 'self');
 	commit();
 	native.flush();
 	check('setting hitbox="self" later restyles the subtree', badge_pe(), 'none');
-	check('and never reaches native as a prop', native.getTreeJson().includes('hitbox'), false);
+	check('and never reaches native as a prop', [native.getTreeJson().includes('forwarded'), native.getTreeJson().includes('hitbox')], [true, false]);
 
 	const handler = () => {};
 	renderer.addEventListener(badge, 'click', handler);

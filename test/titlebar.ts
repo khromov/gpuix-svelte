@@ -1,11 +1,13 @@
 /**
  * GNOME under Wayland gives a GPUI window no title bar, so `render`'s `titlebar` option draws
- * one above the app. `mount_headless` takes the same option, which is how this reaches it.
+ * one above the app. `mount_headless` takes the same option, which is how this reaches the bar;
+ * what only `render` does runs on a seeded native at the end.
  */
 
-import { set_window_title } from 'gpuix-svelte';
+import { render, set_window_title } from 'gpuix-svelte';
 import { mount_headless, tree, find_text, bounds, click, settle, all_text, check, finish, type TreeNode } from 'gpuix-svelte/test';
 import { wants_titlebar } from '../src/titlebar.ts';
+import { seed_window } from './seed-window.ts';
 
 interface A11yNode {
 	aria?: { role?: string; label?: string };
@@ -34,8 +36,14 @@ click(minimize);
 click(maximize);
 check('minimise and maximise are no-ops headlessly', all_text().includes('app body'), true);
 
+const asked: string[] = [];
+Object.assign(native, { minimizeWindow: () => asked.push('minimize'), zoomWindow: () => asked.push('zoom') });
+click(minimize);
+click(maximize);
+check('on a real window they ask native to minimise and zoom', asked, ['minimize', 'zoom']);
+
 click(close);
-check('close unmounts the app (render exits the process instead)', all_text().includes('app body'), false);
+check('close unmounts the app', all_text().includes('app body'), false);
 
 const warn = console.warn;
 const warnings: string[] = [];
@@ -76,4 +84,25 @@ check(
 );
 check('false and true overrule it', [wants_titlebar(false, gnome, 'linux'), wants_titlebar(true, desktop({}), 'win32')], [false, true]);
 
-finish('titlebar', 13);
+Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+Object.assign(process.env, { WAYLAND_DISPLAY: 'wayland-0', XDG_CURRENT_DESKTOP: 'ubuntu:GNOME' });
+seed_window();
+render(Titled, { title: 'From render' });
+settle();
+check('with no option render() asks its own environment, and the bar takes the window title', [all_text().includes('From render'), buttons().length], [true, 3]);
+
+delete process.env.XDG_CURRENT_DESKTOP;
+render(Titled, { title: 'From render' });
+settle();
+check('and draws none when it says otherwise', [all_text().includes('From render'), buttons().length, all_text().includes('app body')], [false, 0, true]);
+
+const exits: unknown[] = [];
+const exit = process.exit;
+process.exit = ((code?: number) => void exits.push(code)) as typeof process.exit;
+render(Titled, { title: 'From render', titlebar: true });
+settle();
+click(buttons()[2]!);
+process.exit = exit;
+check('its close unmounts the app and ends the process', [all_text().includes('app body'), exits], [false, [0]]);
+
+finish('titlebar', 17);
