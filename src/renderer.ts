@@ -809,23 +809,40 @@ const REFUSED = /^(?:Failed to parse batch|Batch op \d)/;
 /** The wasm build throws plain strings. */
 const error_text = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/** Whatever a value's `toJSON` threw, nothing reached native. */
+class Unserializable extends Error {}
+
+/** Costs one op rather than the frame; anything else may have come after the batch applied. */
+const costs_one_op = (error: unknown) => error instanceof Unserializable || REFUSED.test(error_text(error));
+
+/** JSON.stringify escapes a lone surrogate, an emoji cut by `.slice()` say, and native refuses the escape. */
+function to_json(ops: Mutation[]): string {
+	try {
+		const json = JSON.stringify(ops);
+		return json.includes('\\ud') ? JSON.stringify(ops, (_key, value) => (typeof value === 'string' ? value.toWellFormed() : value)) : json;
+	} catch (error) {
+		throw new Unserializable(error_text(error));
+	}
+}
+
 /**
  * Native decodes a whole batch before applying any of it, so one op it refuses would lose the
  * frame while the shadow tree goes on believing those ids exist; sent singly, only that op is lost.
  */
 function ship(ops: Mutation[]): number[] {
 	try {
-		return native!.applyBatch(JSON.stringify(ops));
+		return native!.applyBatch(to_json(ops));
 	} catch (error) {
-		// A TypeError is JSON.stringify's, on a value it can't serialize, so nothing reached native.
-		if (!(error instanceof TypeError) && !REFUSED.test(error_text(error))) throw error;
+		if (!costs_one_op(error)) throw error;
 	}
 
 	const destroyed: number[] = [];
 	for (const op of ops) {
 		try {
-			destroyed.push(...native!.applyBatch(JSON.stringify([op])));
+			destroyed.push(...native!.applyBatch(to_json([op])));
 		} catch (error) {
+			// The window went away, and every op after this one would say so too.
+			if (!costs_one_op(error)) throw error;
 			console.error(`[gpuix-svelte] native refused ${op[0]}: ${error_text(error)}`);
 		}
 	}

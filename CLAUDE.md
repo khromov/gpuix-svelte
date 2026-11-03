@@ -736,8 +736,15 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   whose later ops are silent no-ops, so they would stay missing until a remount. `ship` knows a refusal
   by its text (`REFUSED`; a rewording fails `test:lifecycle`), because native's `apply_batch` can also
   apply a batch and then throw from `request_invalidate` on a closed window or a stopped UI thread, and
-  that is rethrown. The resends can paint between ops on Windows and Linux, where the UI thread doesn't
-  wait, which only a refused batch risks. The node's `listeners` map survives that purge, like `attrs`
+  that is rethrown, from the resend too, so a refused frame on a closing window is one failure rather
+  than a line per op. A rewording of either kind of refusal fails `test:lifecycle`, but only at our next
+  bump; a consumer can pick up a new 0.11.x first. The probe alternative (create and destroy a throwaway
+  element, and treat a throw as a failed wake) drops the wording but was rejected: if native ever gained
+  another failure after applying, it would apply the batch twice, duplicating children with nothing
+  thrown or logged. The resends can paint between ops on Windows and Linux, where the UI thread doesn't
+  wait, which only a refused batch risks. `to_json` writes a lone surrogate (an emoji cut by `.slice()`) as
+  U+FFFD, since native refuses its JSON escape; that happens on the wire, in text and props alike, because
+  the shadow node has to keep Svelte's exact string. The node's `listeners` map survives that purge, like `attrs`
   does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
 **`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts

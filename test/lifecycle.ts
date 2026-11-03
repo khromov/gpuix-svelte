@@ -62,6 +62,67 @@ import type { GpuiStyle } from '../src/types.ts';
 	renderer.setAttribute(child, 'style', 'font-size: 12px');
 	commit();
 	check('a value that cannot be serialized costs only its own op', first()?.style?.fontSize, 12);
+
+	console.log('-- the next line should report one refused setCustomProp --');
+	renderer.setAttribute(child, 'motion', {
+		toJSON() {
+			throw new RangeError('not a TypeError');
+		}
+	});
+	renderer.setAttribute(child, 'style', 'font-size: 14px');
+	commit();
+	check('so does one whose toJSON throws anything else', first()?.style?.fontSize, 14);
+
+	// Native's other kind of refusal, at decoding rather than at resolving a style, so its wording is covered too.
+	console.log('-- the next line should report one refused destroyElement --');
+	queue_destroy('nope' as unknown as number);
+	renderer.setAttribute(child, 'style', 'font-size: 16px');
+	commit();
+	check('an op native cannot decode costs only its own op', first()?.style?.fontSize, 16);
+
+	const logged: unknown[] = [];
+	const error = console.error;
+	console.error = (line: unknown) => void logged.push(line);
+	const cut = '\u{1F600}'.slice(0, 1);
+	const wording = `whole \u{1F600} cut ${cut} literal \\ud83d`;
+	const text = renderer.createTextNode(wording);
+	renderer.insert(child, text, null);
+	const labelled = renderer.createElement('div');
+	renderer.setAttribute(labelled, 'testId', cut);
+	renderer.insert(root, labelled, null);
+	commit();
+	console.error = error;
+	check(
+		'a string cut mid-emoji reaches native as U+FFFD, in text and props alike, and nothing is refused',
+		[first()?.children?.[0]?.text, JSON.parse(native.getTreeJson()).children?.[1]?.testId, logged],
+		['whole \u{1F600} cut \uFFFD literal \\ud83d', '\uFFFD', []]
+	);
+	check('while the shadow node keeps the string Svelte gave it, for its own diffing', text.data === wording, true);
+}
+
+// --- a refused frame on a window that has gone ------------------------------
+{
+	// Never init()ed, so the first op that applies fails to wake the window, as on a closed one.
+	const window = new GpuixRenderer();
+	const logged: unknown[] = [];
+	const error = console.error;
+	console.error = (line: unknown) => void logged.push(line);
+	let batches = 0;
+	set_native({
+		applyBatch(json: string) {
+			batches++;
+			return window.applyBatch(json);
+		}
+	});
+	create_root({ flexGrow: 'nope' } as unknown as GpuiStyle);
+	let thrown: unknown = null;
+	try {
+		commit();
+	} catch (failure) {
+		thrown = failure;
+	}
+	console.error = error;
+	check('a refused frame on a window that has gone is one failure for the frame loop, not a misleading line per op', [batches, logged, thrown instanceof Error], [2, [], true]);
 }
 
 // --- the wasm build throws a plain string -----------------------------------
@@ -182,4 +243,4 @@ import type { GpuiStyle } from '../src/types.ts';
 
 set_auto_commit(false);
 
-finish('lifecycle', 19);
+finish('lifecycle', 24);
