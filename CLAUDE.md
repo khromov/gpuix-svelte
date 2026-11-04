@@ -126,7 +126,8 @@ npm run check:svelte       # every .svelte / .svelte.ts past the Svelte MCP serv
 npm run docs               # README.md + docs/*.md → static HTML in dist/docs via marked
                            # (scripts/docs.ts; links to other repo files go to GitHub), plus a
                            # markdown copy of each page with absolute links, llms.txt indexing
-                           # them and llms-full.txt — starter/AGENTS.md points agents there;
+                           # them and llms-full.txt — starter/AGENTS.md points agents there, and
+                           # each page links its copy (llms.txt) and copies it (Copy page);
                            # homepage/ is copied to the root, so README becomes overview.html;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
                            # A new docs page also needs an entry in scripts/docs.ts's PAGES
@@ -1045,10 +1046,14 @@ make the title the commit, and release-please ignores anything else. With the de
 fixes that.
 
 `homepage/share/index.html` (`/share/`, `noindex`) draws a release's 16:9 share cards: eight layouts
-at 1600×900 from one `release` object at the top of its script. A new release means editing that
-object and redrawing what is specific to it, Bento's tiles and Showcase's desktop. Fill it from
-`git log` as well as the release PR, since release-please leaves `ci:` and `docs:` commits out of
-its notes; the log's bug-fix count is that PR's Bug Fixes section. **Download PNG** is `card_png()`: the card and the page's stylesheet go into an SVG
+at 1600×900 from one entry of the `RELEASES` array at the top of its script, newest first, which the
+header's version toggle (and `?v=0.4.0`) switches between. A new release is a new entry on top with
+its own `tiles` (Bento) and `desk` (Showcase), so older releases keep their cards. Fill it from
+`git log` as well as the release PR, since release-please leaves `ci:`, `docs:` and `chore:` commits
+out of its notes. The bug-fix count is the fixes to behaviour an earlier release shipped, not the PR's
+Bug Fixes entries: one entry can bundle a dozen, and a fix to a feature new in the same release is not
+one. Matrix sets log items 2–4 on one line each in narrowing columns, so they stay short (about 33, 24
+and 17 characters). **Download PNG** is `card_png()`: the card and the page's stylesheet go into an SVG
 `foreignObject`, every font and image inlined as a data URL, and that is drawn on a 3200×1800 canvas.
 WebKit shapes two things there. The markup is 2× through CSS `zoom`, because it ignores a `viewBox`
 on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either of which still
