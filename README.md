@@ -102,6 +102,9 @@ files, spawn processes, open SQLite databases and load native addons directly.
 - **Window and desktop APIs** cover the title, fullscreen, the file picker, file drops, images
   from raw pixels, focus and accessibility attributes.
   → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
+- **The same component can also run in a browser DOM.** A Vite or SvelteKit build gets a DOM
+  twin of every helper and component under the same imports, and `is_gpuix()` tells a component
+  which renderer it is on. → [docs/dom.md](docs/dom.md)
 
 ## Documentation
 
@@ -112,6 +115,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
+| [DOM](docs/dom.md) | The same component in a browser DOM with Vite or SvelteKit: `is_gpuix()`, what each helper and component does there, writing for both renderers |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)).
@@ -216,10 +220,11 @@ The scripts below run them in a clone of the repository (`bun install`, then the
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
 | `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
+| `npm run demo:cross` | One component on both renderers: a GPUI window here, a browser DOM through Vite with `npm run demo:dom` |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 
-Each of these, apart from `demo:web` (which always runs on Bun), has a Bun twin under a `bun:`
-prefix, such as `npm run bun:demo:counter`.
+Each of these, apart from `demo:web` (which always runs on Bun) and `demo:dom` (Vite), has a Bun
+twin under a `bun:` prefix, such as `npm run bun:demo:counter`.
 
 ## About the Svelte version
 

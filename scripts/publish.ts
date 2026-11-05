@@ -59,6 +59,12 @@ function lib_for(target: string) {
 	return out;
 }
 
+// Conditions nest (`.` picks the DOM twin under `default`), and `.svelte` pattern targets ship as they are.
+function published_target(value: unknown): unknown {
+	if (typeof value === 'string') return value.endsWith('.ts') ? lib_for(value) : value;
+	return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([condition, target]) => [condition, published_target(target)]));
+}
+
 // TypeScript finds each lib/x.d.ts beside its lib/x.js, so no `types` conditions are needed.
 function published_manifest() {
 	const out = structuredClone(json);
@@ -66,13 +72,7 @@ function published_manifest() {
 	out.main = lib_for(out.main);
 	out.files = ['lib', 'src/components', 'bin', 'assets/icon.png'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
-		if (typeof value === 'string' && value.endsWith('.ts')) {
-			out.exports[key] = lib_for(value);
-		} else if (key === './html') {
-			out.exports[key] = { types: './lib/html.d.ts' };
-		} else if (value && typeof value === 'object') {
-			out.exports[key] = Object.fromEntries(Object.entries(value).map(([condition, target]) => [condition, lib_for(target as string)]));
-		}
+		out.exports[key] = key === './html' ? { types: './lib/html.d.ts' } : published_target(value);
 	}
 	return JSON.stringify(out, null, '\t') + '\n';
 }

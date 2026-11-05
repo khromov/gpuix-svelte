@@ -37,8 +37,10 @@ npm run demo:desktop      # desktop APIs: window controls, file picker and drops
 npm run demo:native-0.11  # what @gpuix/native 0.11 added: focus-visible, focus dim, Tab,
                           # onlayout/onscrollchange, new styles, register_font, elements_at
 npm run demo:web          # tic-tac-toe in a browser, on GPUI's WebAssembly/WebGPU build (Bun only)
+npm run demo:cross        # one component on both renderers: here in a GPUI window, and
+npm run demo:dom          # here in a browser DOM through Vite (-- --build-only writes dist/dom)
 npm run tutorial          # interactive onboarding guide: 12 steps with live samples and quizzes
-npm run typecheck         # tsc, then svelte-check
+npm run typecheck         # tsc, then svelte-check for the GPUI markup and again for the DOM components
 npm test                  # typecheck, then every test suite except automation-live and coverage
 npm run lint              # ESLint; not part of `npm test`, so run it before pushing
 npm run check:svelte      # every component through the Svelte MCP server's autofixer (needs network)
@@ -49,8 +51,8 @@ New here? `npm run tutorial` opens a guided walkthrough of the renderer that is 
 gpuix-svelte app. Each step pairs an explanation and a diagram with the source of a small
 component, most of them running live, and ends with a quiz.
 
-Every test script, and every demo apart from the Bun-only `demo:web`, has a Bun twin under a
-`bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
+Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`,
+has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
 twins run the same entry points on Bun, which takes the `.svelte` loader as a `--preload`. CI runs
 both runtimes.
 
@@ -67,7 +69,7 @@ single demo for that, since several would all write to the same file.
 
 The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`) run anywhere, and so do
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
 the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
 

@@ -80,6 +80,22 @@ const typescript = (readdirSync(installed, { recursive: true }) as string[]).fil
 	(f) => /\.(c|m)?ts$/.test(f) && !f.endsWith('.d.ts') && !f.startsWith('node_modules')
 );
 if (typescript.length) throw new Error(`the package ships TypeScript Node cannot run: ${typescript.join(', ')}`);
+
+// The published `exports` have to pick the DOM twin without the custom-renderer condition and the GPUI entry with it.
+function resolved(specifier: string, conditions: string[]): string {
+	const flags = conditions.flatMap((c) => ['--conditions', c]);
+	const { stdout } = spawnSync(process.execPath, [...flags, '--input-type=module', '-e', `console.log(import.meta.resolve(${JSON.stringify(specifier)}))`], { cwd: consumer, encoding: 'utf8' });
+	return stdout.trim();
+}
+for (const [specifier, conditions, expected] of [
+	['gpuix-svelte', [], '/lib/dom.js'],
+	['gpuix-svelte', ['custom-renderer'], '/lib/index.js'],
+	['gpuix-svelte/components/Scroller.svelte', [], '/src/components/dom/Scroller.svelte'],
+	['gpuix-svelte/components/Scroller.svelte', ['custom-renderer'], '/src/components/Scroller.svelte']
+] as const) {
+	const url = resolved(specifier, [...conditions]);
+	if (!url.endsWith(expected)) throw new Error(`${specifier} resolves to ${url || 'nothing'} under [${conditions.join(', ')}], expected …${expected}`);
+}
 run(pm, ['run', 'typecheck'], consumer);
 // The Linux addon has no TestGpuixRenderer, so the starter's test can only throw there.
 if (open || process.platform !== 'linux') run(pm, ['run', open ? 'start' : 'test'], consumer);

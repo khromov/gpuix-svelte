@@ -161,7 +161,9 @@ bar.
 
 All of these come from `gpuix-svelte`, and wherever they take an element they take the node an
 `{@attach}` gives you. Where the platform has no such call, they quietly do nothing: the window
-controls and `blur` do nothing headlessly, and the browser build has no file system. The
+controls and `blur` do nothing headlessly, and the browser build has no file system. In a browser
+DOM build each one becomes its DOM counterpart or a no-op; [The same component in a browser
+DOM](dom.md#what-the-helpers-do-in-the-dom) lists them. The
 repository's [desktop-apis example](../examples/desktop-apis) puts most of them to work in one
 component (in a clone, `npm run demo:desktop`), and [native-0.11](../examples/native-0.11) shows
 what `@gpuix/native` 0.11 added (`npm run demo:native-0.11`).

@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"target": "esnext",
-		"lib": ["esnext"],
+		"lib": ["esnext", "dom", "dom.iterable"],
 		"module": "nodenext",
 		"moduleResolution": "nodenext",
 		"customConditions": ["custom-renderer", "development"],
@@ -17,5 +17,5 @@
 	},
 	"svelteOptions": { "namespace": "gpuixHTML" },
 	"include": ["types", "src", "bin", "scripts", "test", "examples", "packages"],
-	"exclude": ["**/node_modules", "test/.samples-tmp", "test/.hot-tmp", "test/.bundle-tmp", "vendor", "dist", "lib", "starter", "packages/*/template"]
+	"exclude": ["**/node_modules", "test/.samples-tmp", "test/.hot-tmp", "test/.bundle-tmp", "test/.dom-tmp", "vendor", "dist", "lib", "starter", "packages/*/template", "src/components/dom"]
 }

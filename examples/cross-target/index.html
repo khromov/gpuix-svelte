@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- Served by Vite (npm run demo:dom). render() mounts the component into <body>. -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" href="data:," />
+		<title>GPUIX + Svelte — Cross-target</title>
+		<style>
+			/* What a GPUI window gives for free: border-box sizing, no margin, one UI font, and the app filling the window. */
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				width: 100%;
+				height: 100%;
+			}
+			body {
+				font: 14px system-ui, sans-serif;
+				-webkit-font-smoothing: antialiased;
+			}
+			text {
+				display: inline;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module" src="./dom.ts"></script>
+	</body>
+</html>
