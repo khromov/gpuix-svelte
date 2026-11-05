@@ -106,8 +106,9 @@ npm run test:tooltip       # native <anchored> placement and its center quirk; T
                            # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
 npm run test:cross-target  # the cross-target example on GPUI: the palette through set_css_vars and the
                            # T shortcut, Scroller, Tooltip, Popover and Portal, all by test id
-npm run test:dom           # the same example on the DOM twin in happy-dom, plus every stub of dom.ts;
-                           # needs no headless renderer, so it runs on Linux too
+npm run test:dom           # the same example on the DOM twin in happy-dom, the stubs of dom.ts and a
+                           # name-by-name parity check against web.ts; needs no headless renderer, so it
+                           # runs on Linux too
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
@@ -176,9 +177,9 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
 `npm run bun:demo:counter`, ...) running the same entry through Bun (`node bin/gpuix-svelte.js
 --bun ...`), which takes the loader as a `--preload` rather than an `--import`; `bunfig.toml`
-carries the same preload, but an ad-hoc `bun file.ts` still lacks the two `--conditions` flags and
-resolves `svelte` to its server build (`custom_renderer_unavailable_on_server`), so go through the
-bin. Deps come from `bun install` either way,
+carries the same preload, but an ad-hoc `bun file.ts` (or `node file.ts`) still lacks the two
+`--conditions` flags, so `gpuix-svelte` resolves to its DOM twin, whose `render_hot` rejects and
+whose `render()` throws, both naming the bin — so go through the bin. Deps come from `bun install` either way,
 but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks its runtime
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
@@ -598,21 +599,34 @@ bundler without conditions. `docs/dom.md` is the user-facing page. The design:
   through `createSubscriber` on `resize`; `render` → `mount` into `document.body`) and a typed
   no-op where only GPUI has the feature. `style.ts`, `events.ts` and `search.ts` are re-exported
   as they are, since none of them touches native (`@gpuix/native/host` is pure JS). The host
-  plumbing (`renderer`, `set_native`, `create_root`, `commit`, `dispatch`, …) and `render_hot` are
-  deliberately absent. Every `document`/`window` read goes through `doc()`/`win()`, so
-  SvelteKit's server pass gets no-ops. The types are the same re-exports: `focused_element()` and
-  `elements_at()` return DOM elements typed as `ShadowNode`, because a shared component is typed
-  by the GPUI project, not the DOM one.
+  plumbing (`renderer`, `set_native`, `create_root`, `commit`, `dispatch`, …) is deliberately
+  absent; `render_hot` is there only to reject with a message naming the bin, because an entry
+  run as plain `node app.ts` lands here and would otherwise die on a missing-export SyntaxError.
+  `render()` gives `<body>` `create_root`'s box (flex, `100%` × viewport, relative, no margin), or
+  `rootStyle` in its place as on GPUI, and clears what the previous call set. Key names follow
+  GPUI's `press()` spelling, with the physical key (`e.code`) standing in under Alt or Shift once
+  the layout has turned the key into a symbol (⌥T is `†`), and `editing` means a text field, not a
+  checkbox. Every `document`/`window` read goes through `doc()`/`win()`, so SvelteKit's server pass
+  gets no-ops. The types are the same re-exports: `focused_element()` and `elements_at()` return
+  DOM elements typed as `ShadowNode`, because a shared component is typed by the GPUI project, not
+  the DOM one.
 - **The DOM components** keep the GPUI props, with `testid` as `data-testid`. `Anchored.svelte`
   stands in for the native element: `Tooltip` and `Popover` hang a `position: fixed` layer off
-  `<body>`, placed from `getBoundingClientRect` by `side`/`align`/`gap`, snapped 8 px inside the
-  viewport and re-placed on scroll, resize and a `ResizeObserver`. `Portal` moves its layer to
-  `<body>` too. Both render a `display: contents` slot that stays in place and move only the inner
-  element, because Svelte's block teardown walks `nextSibling` from the block's first node to its
-  last, and a moved first node would have it remove `<body>`'s other children. `pointer-events:
-  none` is inherited in the DOM, so the portal's direct children get `pointer-events: auto`.
-- **Typechecking is split.** The root tsconfig carries `lib: dom` (for `dom.ts`; harmless for the
-  rest, and svelte-check loaded it anyway) and excludes `src/components/dom`, which
+  `<body>`, placed from `getBoundingClientRect` by `side`/`align`/`gap` and snapped 8 px inside
+  the viewport, on every animation frame while shown (as GPUI places its layers, so a trigger that
+  moves through layout alone is followed; the first placement runs `untrack`ed, or a prop change
+  would re-run the attachment, re-hang the layer and blur what has focus in it). Its `occlude`
+  prop is GPUI's: `Tooltip` passes `false`, which is inline `pointer-events: none`, because a tip
+  snapped over its own trigger must not take the trigger's clicks; that also means the DOM tip
+  can't hear hover, so leaving the trigger onto it hides it after the grace. `Portal` moves its
+  layer to `<body>` too. Both render a `display: contents` slot that stays in place and move only
+  the inner element, because Svelte's block teardown walks `nextSibling` from the block's first
+  node to its last, and a moved first node would have it remove `<body>`'s other children.
+  `pointer-events: none` is inherited in the DOM, unlike on GPUI, so the portal's direct children
+  get `pointer-events: auto` from a `:where()` rule at zero specificity, under any rule of their own.
+- **Typechecking is split.** The root tsconfig carries `lib: dom` (for `dom.ts`; svelte-check
+  loaded it anyway, but tsc no longer catches a stray `document` in Node-only code) and excludes
+  `src/components/dom`, which
   `tsconfig.dom.json` covers with no `customConditions` (so `gpuix-svelte` resolves to the twin)
   and the default `svelteHTML` namespace; `typecheck` runs svelte-check once per tsconfig. Never
   put a `vite.config.*` beside a component: svelte-check's config loader reads it as that
@@ -624,12 +638,22 @@ bundler without conditions. `docs/dom.md` is the user-facing page. The design:
   DOM components and the example with `svelte/compiler` (no `customRenderer`, `css: 'injected'`)
   into `test/.dom-tmp/`, and rewrites their `'gpuix-svelte'` and component specifiers to
   `src/dom.ts` and the compiled twins, because the process itself runs under the custom-renderer
-  condition. `test/cross-target.ts` mounts the same example on GPUI. `check` compares JSON, under
-  which every DOM element is `{}`, so element identity is asserted as `a === b`.
+  condition. It also checks `dom.ts`'s export names against `web.ts`'s (minus the host plumbing,
+  plus `render_hot`), stubs `getBoundingClientRect` on a trigger to cover placement and the snap,
+  since happy-dom lays nothing out, and tears down the example's dialog beside a sibling in the
+  same `{#if}` with a tooltip layer after it in `<body>`, which is what the `display: contents`
+  slot guards. `test/cross-target.ts` mounts the same example on GPUI. `check` compares JSON,
+  under which every DOM element is `{}`, so element identity is asserted as `a === b`.
 - **Publishing**: `scripts/publish.ts` rewrites nested condition objects recursively and leaves
   `.svelte` pattern targets alone; `src/components/dom` ships under `src/components`.
   `scripts/consume.ts` checks that the installed package resolves `gpuix-svelte` and a component to
-  the DOM twin without the condition and to the GPUI entry with it.
+  the DOM twin without the condition and to the GPUI entry with it, then installs `vite`, the
+  svelte plugin and the registry's `svelte` into the consumer and builds a page that imports the
+  starter's `App.svelte` and a shipped component, with a plugin that fails the build if any
+  `svelte` import made from inside the package resolves to the bundled copy instead of the app's
+  (vite-plugin-svelte's `resolve.dedupe` is what keeps the two runtimes apart). The consumer's
+  GPUI test runs once more afterwards, because an app that ships to both targets has that registry
+  svelte in its root `node_modules` and the loaders have to keep pinning the bundled one.
 
 ## Hard constraints
 

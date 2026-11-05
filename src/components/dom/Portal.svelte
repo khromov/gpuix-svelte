@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Paint order is document order, so the layer moves to the end of <body> from wherever it is rendered;
-	// the slot stays put so Svelte's teardown walk never leaves the component.
+	// the slot stays put so Svelte's teardown walk never leaves the component. `pointer-events: none` is
+	// inherited here, unlike on GPUI, so the children get it back at zero specificity, under their own rules.
 	import type { Snippet } from 'svelte';
 
 	let { children }: { children: Snippet } = $props();
@@ -16,5 +17,5 @@
 <style>
 	.slot { display: contents; }
 	.portal { position: fixed; inset: 0; pointer-events: none; z-index: 1000; }
-	.portal > :global(*) { pointer-events: auto; }
+	:where(.portal) > :global(*) { pointer-events: auto; }
 </style>

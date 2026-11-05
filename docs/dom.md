@@ -25,9 +25,9 @@ export default defineConfig({ plugins: [svelte()] });
 That is all. Vite, SvelteKit and every other browser toolchain resolve without the
 `custom-renderer` condition, so `import { … } from 'gpuix-svelte'` lands on the DOM twin and
 `gpuix-svelte/components/Scroller.svelte` on the DOM `Scroller`. (The desktop side always sets
-the condition: the bin, `gpuix-svelte/build` and the tsconfig a scaffolded app comes with.) A
-bundler that cannot read export conditions can import `gpuix-svelte/dom` directly, or alias
-`gpuix-svelte` to it.
+the condition: the bin, `gpuix-svelte/build` and the tsconfig a scaffolded app comes with.)
+`gpuix-svelte/dom` names the twin outright, for a tool that sets the `custom-renderer` condition
+anyway, such as the tsconfig of an app that ships to both targets.
 
 The DOM `Scroller`, `Portal`, `Tooltip` and `Popover` are compiled by your app's Svelte, so they
 need Svelte 5.29 or later (they use `{@attach}`). Vite dedupes `svelte` to your app's copy; the
@@ -42,14 +42,17 @@ import App from './App.svelte';
 render(App, { title: 'My app' });
 ```
 
-`render()` mounts into `document.body` and sets the page title; `width` and `height` are the
-page's. A second `render()` replaces the first. There is no `render_hot`: Vite's own hot reload
-takes its place.
+`render()` mounts into `document.body` and sets the page title. `<body>` gets the box GPUI gives
+its root, a flex row filling the viewport with `position: relative` and no margin, or `rootStyle`
+in its place, so a root with `width: 100%; height: 100%` fills the page as it fills the window.
+`width`, `height`, `titlebar`, `tabNavigation`, `keyboardFocusDim`, `debugFrameOverlay` and
+`onEvent` are ignored. A second `render()` replaces the first. `render_hot` exists only to reject
+with a message naming the bin, which is what an entry that lands here by mistake has skipped;
+Vite's own hot reload takes its place.
 
-Give the page what a GPUI window gives for free, or the layout will differ: border-box sizing, no
-body margin, one UI font, and `html, body { height: 100% }` so a `height: 100%` root fills the
-window. GPUI's `<text>` is an unknown element to the browser and renders inline, as it does in GPUI.
-The repository's [`examples/cross-target/index.html`](../examples/cross-target/index.html) is a
+Give the page the rest of what a GPUI window gives for free: border-box sizing and one UI font.
+GPUI's `<text>` is an unknown element to the browser and renders inline, as it does in GPUI. The
+repository's [`examples/cross-target/index.html`](../examples/cross-target/index.html) is a
 complete page.
 
 ## `is_gpuix()`
@@ -78,9 +81,10 @@ is the DOM element.
 - `set_css_vars({ token: '#fff' })` sets `--token` on `:root`, so `var(--token)` in your styles
   resolves natively; `null` removes one.
 - `on_window_key('keydown', handler)` listens on `window`. The event is shaped like GPUI's:
-  `e.key` is spelled the GPUI way (`escape`, `enter`, `space`, `up`, lowercase letters),
-  `e.modifiers` has `shift`, `ctrl`, `alt` and `cmd` (the Meta key), `e.editing` is true while an
-  input, textarea or contenteditable has focus, and `e.preventDefault()` reaches the browser event.
+  `e.key` is spelled the GPUI way (`escape`, `enter`, `space`, `up`, lowercase letters, and under
+  Alt or Shift the physical key's letter or digit, so ⌥T is `t` with `alt`), `e.modifiers` has
+  `shift`, `ctrl`, `alt` and `cmd` (the Meta key), `e.editing` is true while a text input, a
+  textarea or a contenteditable has focus, and `e.preventDefault()` reaches the browser event.
   `render()`'s `onKeyDown` / `onKeyUp` go through it too.
 - `on_selection_change(handler)` hears `selectionchange`; `e.value` is the selected text.
 - `window_size` is `innerWidth` × `innerHeight`, reactive through the resize event (no polling).
@@ -92,9 +96,10 @@ is the DOM element.
   `focus_next_within(node)` and `focus_previous_within(node)` use the document's focus and walk
   the usual tab stops (links, buttons, fields, `tabindex`).
 - `scroll_into_view(node)` is `scrollIntoView({ block: 'nearest' })`.
-- `set_image(node, bytes)` shows the bytes on an `<img>` through an object URL, and
+- `set_image(node, bytes)` shows the bytes on an `<img>` through an object URL (SVG bytes are
+  recognised and typed, since browsers sniff every raster format but that one), and
   `set_image_pixels(node, w, h, pixels, format)` draws them to a canvas first (`bgra` is swapped
-  for you).
+  for you). The newest upload per element wins, as on GPUI.
 - `elements_at(x, y)` is `document.elementsFromPoint`.
 - `prompt_for_paths()` resolves to `null`: a page cannot learn a file's path. `read_native()` and
   `get_native()` return `null`, as they do when there is no window.
@@ -120,8 +125,10 @@ Same props, same slots, same CSS variables; `testid` becomes a `data-testid` att
   against the window.
 - **Tooltip** and **Popover** hang a `position: fixed` layer off `<body>`, placed beside the
   trigger (or `position`) from measured boxes with `side`, `align` and `gap`, snapped inside the
-  viewport and re-placed on scroll and resize. The tooltip has `role="tooltip"`; the popover
-  closes on a `mousedown` outside the panel and the trigger, and on Escape.
+  viewport, and placed again every frame while shown, as GPUI's layers are, so it follows a
+  trigger that moves. The tooltip has `role="tooltip"` and takes no pointer, so a click on it
+  lands on what lies beneath, as on GPUI; the popover closes on a `mousedown` outside the panel
+  and the trigger, and on Escape.
 
 ## Writing a component for both
 
@@ -132,15 +139,20 @@ stay inside what both renderers draw the same way. The repository's
 `test:dom` click through it on each renderer.
 
 - Use `div` for boxes and text, `display: flex` where you need it, and `<style>` blocks with
-  class rules and `:hover`. Both renderers read the same CSS. Colours as `var(--token)` with one
-  `set_css_vars` call give both the same theme.
+  class rules and `:hover`. Colours as `var(--token)` with one `set_css_vars` call give both the
+  same theme. Both read the same CSS text, with three differences to keep in mind: GPUI takes a
+  bare number as pixels (`gap: 8`, `set_css_vars({ gap: 8 })`) and the browser does not, so give
+  lengths a unit; `pointer-events: none` is inherited in the DOM and per element on GPUI, so a
+  pass-through wrapper's interactive descendants need `pointer-events: auto` of their own there;
+  and GPUI's root is a flex row, which `render()` gives `<body>` too.
 - Avoid what only one side has, or branch on `is_gpuix()`: the `hover=` / `active=` attributes
   and `hitbox="self"` (plain attributes in the DOM), `onauxclick` and `e.isRightClick`
   (`oncontextmenu` in the DOM), `e.value` on inputs (`e.target.value` in the DOM),
   `onlayout` / `onscrollchange` / `onfiledrop` (DOM events differ), `<virtual-list>`,
   `<anchored>`, `<markdown>`, `<code>` and `<diff>`.
 - Event handlers that only react, without reading GPUI-specific fields, work as they are.
-  `e.stopPropagation()` exists on both, and only matters in the DOM, where mouse events bubble.
+  `e.stopPropagation()` exists on both: in the DOM it stops a mouse event from bubbling; on GPUI,
+  where mouse events never bubble, it skips the key handlers still to come.
 - `{@attach}` hands over a `ShadowNode` on GPUI and an `HTMLElement` in the DOM. The helpers
   accept either; your own code can tell them apart with `is_gpuix()`.
 - Type the markup in the GPUI project, whose tsconfig names the `gpuixHTML` namespace. A DOM

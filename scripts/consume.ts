@@ -4,7 +4,7 @@
 // test where there is one (or opens the window).
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -99,6 +99,61 @@ for (const [specifier, conditions, expected] of [
 run(pm, ['run', 'typecheck'], consumer);
 // The Linux addon has no TestGpuixRenderer, so the starter's test can only throw there.
 if (open || process.platform !== 'linux') run(pm, ['run', open ? 'start' : 'test'], consumer);
+
+// Every svelte import made from inside the package has to land on the app's svelte, never the bundled custom-renderer build.
+const VITE_CONFIG = `import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+
+const strays = [];
+export default defineConfig({
+	root: 'dom',
+	logLevel: 'warn',
+	build: { outDir: '../dist-dom', emptyOutDir: true },
+	plugins: [
+		{
+			name: 'one-svelte',
+			enforce: 'pre',
+			async resolveId(source, importer) {
+				if (!importer || !/^svelte(\\/|$)/.test(source) || !importer.replaceAll('\\\\', '/').includes('/node_modules/gpuix-svelte/')) return null;
+				const resolved = await this.resolve(source, importer, { skipSelf: true });
+				if (resolved && resolved.id.replaceAll('\\\\', '/').includes('/gpuix-svelte/node_modules/svelte/')) strays.push(source + ' from ' + importer);
+				return resolved;
+			},
+			closeBundle() {
+				if (strays.length) throw new Error('the bundled svelte reached the DOM build:\\n' + strays.join('\\n'));
+			}
+		},
+		// The starter's svelte.config.js sits above this root, so its a11y filter is repeated here.
+		svelte({ onwarn: (warning, handler) => warning.code.startsWith('a11y_') || handler(warning) })
+	]
+});
+`;
+
+// The DOM twin through a consumer's own Vite: the packed package's lib/dom.js, the shipped components compiled by
+// the consumer's plugin against the registry's svelte, and that svelte deduped over the bundled one. The GPUI test
+// runs again afterwards, because an app that ships to both targets has that svelte in its root node_modules.
+if (!open) {
+	const tools = ['vite', '@sveltejs/vite-plugin-svelte', 'svelte'];
+	run(pm, bun ? ['add', '-d', ...tools] : ['install', '--no-audit', '--no-fund', '-D', ...tools], consumer);
+	const dom = join(consumer, 'dom');
+	mkdirSync(dom);
+	writeFileSync(join(dom, 'index.html'), '<!doctype html><html><body><script type="module" src="./main.ts"></script></body></html>\n');
+	writeFileSync(
+		join(dom, 'main.ts'),
+		[
+			"import { render, is_gpuix } from 'gpuix-svelte';",
+			"import 'gpuix-svelte/components/Scroller.svelte';",
+			"import App from '../App.svelte';",
+			"if (is_gpuix()) throw new Error('a DOM build got the GPUI entry');",
+			'render(App);',
+			''
+		].join('\n')
+	);
+	writeFileSync(join(consumer, 'vite.config.mjs'), VITE_CONFIG);
+	run(process.execPath, [join(consumer, 'node_modules/vite/bin/vite.js'), 'build', '--config', 'vite.config.mjs'], consumer);
+	if (!existsSync(join(consumer, 'dist-dom/index.html'))) throw new Error('the Vite build wrote no dist-dom/index.html');
+	if (process.platform !== 'linux') run(pm, ['run', 'test'], consumer);
+}
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.
 if (bun) {
 	run(pm, ['run', 'build'], consumer);

@@ -28,11 +28,16 @@ const element = (node: NodeRef): HTMLElement | null => (typeof Element !== 'unde
 
 const noop = () => {};
 
-const EDITING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+const BIN_HINT = 'a desktop app runs its entry through the gpuix-svelte bin, which selects the GPUI renderer';
+
+// GPUI's `editing` means a text field; an `<input>` of these types takes keys without taking typing.
+const NOT_TEXT = new Set(['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit']);
 
 const is_editing = (): boolean => {
 	const active = doc()?.activeElement as HTMLElement | null | undefined;
-	return !!active && (EDITING_TAGS.has(active.tagName) || active.isContentEditable);
+	if (!active) return false;
+	if (active instanceof HTMLInputElement) return !NOT_TEXT.has(active.type);
+	return active.tagName === 'TEXTAREA' || active.isContentEditable;
 };
 
 /** A GPUI-shaped event over a DOM one, so a handler reading `e.key`, `e.modifiers.cmd` or `e.editing` reads the same here. */
@@ -62,9 +67,14 @@ function shaped(type: string, source: Event, fields: Partial<EventPayload>): Gpu
 
 const KEY_NAMES: Record<string, string> = { ' ': 'space', spacebar: 'space', esc: 'escape', del: 'delete' };
 
-/** GPUI spells keys the way `press()` does: lowercase, `space`, and `up` rather than `ArrowUp`. */
-function key_name(key: string): string {
-	const lower = key.toLowerCase();
+/**
+ * GPUI spells keys the way `press()` does: lowercase, `space`, `up` rather than `ArrowUp`, and under Alt or Shift the
+ * unshifted key (⌥T is `t` with `alt`, not `†`), which only the physical key tells once the layout has produced a symbol.
+ */
+function key_name(e: KeyboardEvent): string {
+	const physical = /^(?:Key|Digit)(\w)$/.exec(e.code);
+	if (physical && (e.altKey || e.shiftKey) && !/^[a-zA-Z0-9]$/.test(e.key)) return physical[1].toLowerCase();
+	const lower = e.key.toLowerCase();
 	return KEY_NAMES[lower] ?? (lower.startsWith('arrow') ? lower.slice(5) : lower);
 }
 
@@ -72,14 +82,14 @@ const WINDOW_KEYS: Record<string, 'keydown' | 'keyup'> = { keydown: 'keydown', k
 
 /** Listens on `window`, which hears a key after the focused element did, as GPUI's window handlers do. Returns the unsubscribe. */
 export function on_window_key(type: WindowKeyType, handler: (event: GpuixEvent) => void): () => void {
-	const name = WINDOW_KEYS[type.toLowerCase()];
+	const name = Object.hasOwn(WINDOW_KEYS, type.toLowerCase()) ? WINDOW_KEYS[type.toLowerCase()] : undefined;
 	if (!name) throw new Error(`[gpuix-svelte] on_window_key: unknown type "${type}" (keydown or keyup)`);
 	const target = win();
 	if (!target) return noop;
 	const listener = (e: KeyboardEvent) =>
 		handler(
 			shaped(name === 'keydown' ? 'windowKeyDown' : 'windowKeyUp', e, {
-				key: key_name(e.key),
+				key: key_name(e),
 				keyChar: e.key.length === 1 ? e.key : undefined,
 				isHeld: e.repeat,
 				modifiers: { shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, cmd: e.metaKey }
@@ -98,7 +108,7 @@ export function on_selection_change(handler: (event: GpuixEvent) => void): () =>
 	return () => document.removeEventListener('selectionchange', listener);
 }
 
-/** `var(--name)` resolves against `:root` here, which is where the DOM keeps a palette. */
+/** `var(--name)` resolves against `:root` here, which is where the DOM keeps a palette. A bare number stays bare, so give lengths a unit. */
 export function set_css_vars(vars: Record<string, string | number | null>) {
 	const root = doc()?.documentElement;
 	if (!root) return;
@@ -121,16 +131,21 @@ function apply_style(target: HTMLElement, style: GpuiStyle) {
 	}
 }
 
+/** GPUI's default root (`create_root`), plus the margin a `<body>` has and a window does not. */
+const ROOT_BOX: GpuiStyle = { display: 'flex', position: 'relative', margin: 0, width: '100%', height: '100vh' };
+
 let mounted: Record<string, unknown> | null = null;
 let kept: Array<() => void> = [];
+let root_keys: string[] = [];
 
-/** Mounts the component into `document.body`, the DOM's window; a second call replaces the first, as a remount does. */
+/** Mounts the component into `document.body`, the DOM's window, styled like GPUI's root; a second call replaces the first, as a remount does. */
 export function render(Component: AnyComponent, options: RenderOptions = {}): Record<string, unknown> {
 	const { props = {}, rootStyle, onKeyDown, onKeyUp, onSelectionChange, title, app } = options;
 	const document = doc();
-	if (!document) throw new Error('[gpuix-svelte] render() needs a document; on a server, render nothing');
+	if (!document) throw new Error(`[gpuix-svelte] render() needs a document: in a browser, call it once the page has loaded; ${BIN_HINT}`);
 
 	if (mounted) unmount(mounted);
+	mounted = null;
 	for (const off of kept) off();
 	kept = [];
 	if (onKeyDown) kept.push(on_window_key('keydown', onKeyDown));
@@ -139,12 +154,24 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 
 	const name = title ?? app?.name;
 	if (name != null) document.title = name;
-	if (rootStyle) apply_style(document.body, rootStyle);
 
-	mounted = mount(Component, { target: document.body, props }) as Record<string, unknown>;
+	// As on GPUI, `rootStyle` replaces the default box rather than adding to it, and so does the next render()'s.
+	const body = document.body;
+	for (const key of root_keys) (body.style as unknown as Record<string, string>)[key] = '';
+	const root = rootStyle ?? ROOT_BOX;
+	apply_style(body, root);
+	// Dynamic viewport units leave out a mobile browser's chrome; where they are unknown the assignment is dropped and `vh` stays.
+	if (root === ROOT_BOX) body.style.height = '100dvh';
+	root_keys = Object.keys(root);
+
+	mounted = mount(Component, { target: body, props }) as Record<string, unknown>;
 	flushSync();
 	return mounted;
 }
+
+/** Hot reload belongs to the GPUI window; an entry that calls this landed on the DOM twin, usually by skipping the bin. */
+export const render_hot: (entry: string | URL, options?: RenderOptions) => Promise<void> = () =>
+	Promise.reject(new Error(`[gpuix-svelte] render_hot() opens a GPUI window and this build resolved gpuix-svelte to its DOM twin: ${BIN_HINT}; a browser entry calls render() with an imported component`));
 
 // Window and desktop helpers: the browser's version where it has one.
 
@@ -187,15 +214,22 @@ export const focused_element = (): ShadowNode | null => {
 const TABBABLE = 'a[href], button, input, textarea, select, summary, [tabindex], [contenteditable]';
 
 function tab_stops(scope: ParentNode): HTMLElement[] {
-	return Array.from(scope.querySelectorAll<HTMLElement>(TABBABLE)).filter((el) => el.tabIndex >= 0 && !el.matches(':disabled') && !el.hidden);
+	return Array.from(scope.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+		(el) => el.tabIndex >= 0 && !el.matches(':disabled') && !el.hidden && !(el instanceof HTMLInputElement && el.type === 'hidden')
+	);
 }
 
 function step(scope: ParentNode | null, delta: 1 | -1) {
 	const stops = scope ? tab_stops(scope) : [];
-	if (stops.length === 0) return;
-	const at = stops.indexOf(doc()?.activeElement as HTMLElement);
-	const next = at === -1 ? (delta === 1 ? 0 : stops.length - 1) : (at + delta + stops.length) % stops.length;
-	stops[next].focus();
+	const document = doc();
+	if (stops.length === 0 || !document) return;
+	let at = stops.indexOf(document.activeElement as HTMLElement);
+	// A stop that is display: none, inert or inside a closed <details> refuses focus silently, so walk on until one takes it.
+	for (let tried = 0; tried < stops.length; tried++) {
+		at = at === -1 ? (delta === 1 ? 0 : stops.length - 1) : (at + delta + stops.length) % stops.length;
+		stops[at].focus();
+		if (document.activeElement === stops[at]) return;
+	}
 }
 
 /** Moves focus to the next tab stop in the document, wrapping at the end. */
@@ -215,6 +249,14 @@ export function scroll_into_view(node: NodeRef) {
 }
 
 const object_urls = new WeakMap<Element, string>();
+const uploads = new WeakMap<Element, number>();
+
+/** The newest upload per element wins, as on GPUI; a canvas encode that finishes after a later call is dropped. */
+function claim(target: Element): number {
+	const token = (uploads.get(target) ?? 0) + 1;
+	uploads.set(target, token);
+	return token;
+}
 
 function show(target: HTMLElement, blob: Blob) {
 	const url = URL.createObjectURL(blob);
@@ -225,17 +267,27 @@ function show(target: HTMLElement, blob: Blob) {
 	else target.style.backgroundImage = `url(${url})`;
 }
 
+/** Browsers sniff raster formats from the bytes but never SVG, which has to carry its type. */
+function blob_of(bytes: Uint8Array): Blob {
+	const head = new TextDecoder().decode(bytes.subarray(0, 512)).trimStart();
+	const svg = head.startsWith('<') && /<svg[\s>]/i.test(head);
+	return new Blob([bytes as Uint8Array<ArrayBuffer>], svg ? { type: 'image/svg+xml' } : undefined);
+}
+
 /** Encoded image bytes onto an `<img>` through an object URL, which the next upload revokes. */
 export function set_image(node: NodeRef, bytes: Uint8Array) {
 	const target = element(node);
-	if (target) show(target, new Blob([bytes as Uint8Array<ArrayBuffer>]));
+	if (!target) return;
+	claim(target);
+	show(target, blob_of(bytes));
 }
 
 /** Packed straight-alpha pixels, drawn to a canvas and shown like `set_image`. */
 export function set_image_pixels(node: NodeRef, width: number, height: number, pixels: Uint8Array, format: PixelFormat = 'rgba') {
 	const target = element(node);
 	const document = doc();
-	if (!target || !document) return;
+	if (!target || !document || width <= 0 || height <= 0) return;
+	const token = claim(target);
 	const canvas = document.createElement('canvas');
 	canvas.width = width;
 	canvas.height = height;
@@ -247,7 +299,9 @@ export function set_image_pixels(node: NodeRef, width: number, height: number, p
 		for (let i = 0; i < rgba.length; i += 4) [rgba[i], rgba[i + 2]] = [rgba[i + 2], rgba[i]];
 	}
 	context.putImageData(new ImageData(rgba, width, height), 0, 0);
-	canvas.toBlob((blob) => blob && show(target, blob));
+	canvas.toBlob((blob) => {
+		if (blob && uploads.get(target) === token) show(target, blob);
+	});
 }
 
 /** A font file carries its family name, but the DOM wants it spelled out: use `@font-face` instead. */

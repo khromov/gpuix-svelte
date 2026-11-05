@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
@@ -11,6 +11,7 @@
 		align = 'start',
 		gap = 0,
 		position = null,
+		occlude = true,
 		children,
 		...rest
 	}: {
@@ -20,6 +21,8 @@
 		gap?: number;
 		/** Viewport coordinates to hang from instead of `anchor`. */
 		position?: { x: number; y: number } | null;
+		/** False lets the pointer through to whatever lies beneath, as GPUI's `occlude={false}` does. */
+		occlude?: boolean;
 		children: Snippet;
 		onmouseenter?: (e: MouseEvent) => void;
 		onmouseleave?: (e: MouseEvent) => void;
@@ -44,30 +47,30 @@
 		// `fit: snap`, by the margin GPUI keeps from the window edge.
 		x = Math.max(MARGIN, Math.min(x, window.innerWidth - width - MARGIN));
 		y = Math.max(MARGIN, Math.min(y, window.innerHeight - height - MARGIN));
-		layer.style.left = `${Math.round(x)}px`;
-		layer.style.top = `${Math.round(y)}px`;
+		const left = `${Math.round(x)}px`;
+		const top = `${Math.round(y)}px`;
+		if (layer.style.left !== left) layer.style.left = left;
+		if (layer.style.top !== top) layer.style.top = top;
 	}
 
-	// Off <body>, out of every ancestor's overflow and stacking context like a deferred GPUI layer, while the slot stays
-	// put so Svelte's teardown walk never leaves the component; the props read here re-hang the layer when they change.
+	// Off <body>, out of every ancestor's overflow and stacking context like a deferred GPUI layer, while the slot stays put
+	// so Svelte's teardown walk never leaves the component. Placed every frame, as GPUI places its layers, so it follows a
+	// trigger that moves through layout alone; the props are read untracked, or a change would re-hang the layer and blur it.
 	function hang(layer: HTMLElement) {
 		document.body.appendChild(layer);
-		place(layer);
-		const again = () => place(layer);
-		window.addEventListener('resize', again);
-		window.addEventListener('scroll', again, true);
-		const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(again);
-		observer?.observe(layer);
+		untrack(() => place(layer));
+		let frame = requestAnimationFrame(function again() {
+			place(layer);
+			frame = requestAnimationFrame(again);
+		});
 		return () => {
-			observer?.disconnect();
-			window.removeEventListener('resize', again);
-			window.removeEventListener('scroll', again, true);
+			cancelAnimationFrame(frame);
 			layer.remove();
 		};
 	}
 </script>
 
-<div class="slot"><div class="layer" {...rest} {@attach hang}>{@render children()}</div></div>
+<div class="slot"><div class="layer" style:pointer-events={occlude ? null : 'none'} {...rest} {@attach hang}>{@render children()}</div></div>
 
 <style>
 	.slot { display: contents; }

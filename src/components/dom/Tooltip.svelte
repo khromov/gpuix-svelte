@@ -36,13 +36,13 @@
 	let shown = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
-	// A pointer that jumps onto the tip enters it before it leaves the trigger, so hover is tracked per
-	// source rather than by the last event, and the 80 ms grace once none is hovered lets it cross the gap.
-	const over = { wrap: false, trigger: false, tip: false };
+	// The wrapper and the trigger's spread handlers report separately, so hover is tracked per source
+	// rather than by the last event, and the 80 ms grace once neither is hovered covers the handoff.
+	const over = { wrap: false, trigger: false };
 
 	function sync() {
 		clearTimeout(timer);
-		if (!over.wrap && !over.trigger && !over.tip) timer = setTimeout(() => (shown = false), 80);
+		if (!over.wrap && !over.trigger) timer = setTimeout(() => (shown = false), 80);
 		else if (!shown) timer = setTimeout(() => (shown = true), delay);
 	}
 
@@ -59,7 +59,6 @@
 
 	const wrap = track('wrap');
 	const trigger = track('trigger');
-	const tip = track('tip');
 
 	onDestroy(() => clearTimeout(timer));
 </script>
@@ -68,7 +67,8 @@
 	<div class="anchor" {...wrap} data-testid={testid} {@attach (node: HTMLElement) => (anchor = node)}>
 		{@render children(trigger)}
 		{#if open ?? shown}
-			<Anchored {anchor} {side} {align} {gap} {...tip}>
+			<!-- No pointer, as on GPUI: a tip snapped over its own trigger must not take the trigger's clicks. -->
+			<Anchored {anchor} {side} {align} {gap} occlude={false}>
 				<div class="tip" role="tooltip" {style} data-testid={testid && `${testid}-tip`}>
 					{#if typeof content === 'string'}{content}{:else}{@render content()}{/if}
 				</div>

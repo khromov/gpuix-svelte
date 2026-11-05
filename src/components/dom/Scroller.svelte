@@ -41,9 +41,9 @@
 	}
 </script>
 
-<div class="wrap" style="flex-grow: {grow}">
+<div class="wrap" style="flex-grow: {grow}; padding: {virtual ? pad : '0'}">
 	<div class="column" class:fixed={!scroll && !virtual} data-testid={testid} {@attach (node: HTMLElement) => (column = node)}>
-		<div class="content" class:fixed={!scroll && !virtual} style="gap: {virtual ? 0 : gap}px; padding: {pad}" {@attach watch}>
+		<div class="content" class:fixed={!scroll && !virtual} style="gap: {virtual ? 0 : gap}px; padding: {virtual ? '0' : pad}" {@attach watch}>
 			{@render children()}
 		</div>
 	</div>

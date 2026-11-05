@@ -42,13 +42,16 @@ check('it reopens', find_test_id('menu-panel') !== null, true);
 click_test_id('picked');
 check('a press outside closes it', find_test_id('menu-panel'), null);
 click_test_id('menu-trigger');
+click_test_id('menu-trigger');
+check('a click on the trigger while open closes it without reopening', find_test_id('menu-panel'), null);
+click_test_id('menu-trigger');
 press('escape');
 check('so does Escape', find_test_id('menu-panel'), null);
 
 click_test_id('open');
-check('the Portal shows the dialog', find_test_id('dialog') !== null, true);
+check('the Portal shows the dialog, and its sibling in the same block', [find_test_id('dialog') !== null, find_test_id('dialog-open') !== null], [true, true]);
 press('escape');
-check('Escape closes it through on_window_key', find_test_id('dialog'), null);
+check('Escape closes it through on_window_key', [find_test_id('dialog'), find_test_id('dialog-open')], [null, null]);
 click_test_id('open');
 click_test_id('close');
 check('and so does its Close button', find_test_id('dialog'), null);
@@ -58,4 +61,4 @@ check('a click inside the dialog stays inside', find_test_id('dialog') !== null,
 click_at(20, 20);
 check('a click on the scrim closes it', find_test_id('dialog'), null);
 
-finish('cross-target', 19);
+finish('cross-target', 20);

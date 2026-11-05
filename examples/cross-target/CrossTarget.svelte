@@ -105,6 +105,7 @@
 				</div>
 			</div>
 		</Portal>
+		<div class="muted" testid="dialog-open">A dialog is open; it paints on top from inside a Portal.</div>
 	{/if}
 </div>
 
