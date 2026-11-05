@@ -50,10 +50,10 @@ in its place, so a root with `width: 100%; height: 100%` fills the page as it fi
 with a message naming the bin, which is what an entry that lands here by mistake has skipped;
 Vite's own hot reload takes its place.
 
-Give the page the rest of what a GPUI window gives for free: border-box sizing and one UI font.
-GPUI's `<text>` is an unknown element to the browser and renders inline, as it does in GPUI. The
-repository's [`examples/cross-target/index.html`](../examples/cross-target/index.html) is a
-complete page.
+The page itself supplies the little that a GPUI window gives for free and `render()` does not:
+copy the stylesheet from
+[`examples/cross-target/index.html`](../examples/cross-target/index.html), which is a complete
+page.
 
 ## `is_gpuix()`
 
