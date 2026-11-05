@@ -1052,8 +1052,9 @@ its own `tiles` (Bento) and `desk` (Showcase), so older releases keep their card
 `git log` as well as the release PR, since release-please leaves `ci:`, `docs:` and `chore:` commits
 out of its notes. The bug-fix count is the fixes to behaviour an earlier release shipped, not the PR's
 Bug Fixes entries: one entry can bundle a dozen, and a fix to a feature new in the same release is not
-one. Matrix sets log items 2–4 on one line each in narrowing columns, so they stay short (about 33, 24
-and 17 characters). **Download PNG** is `card_png()`: the card and the page's stylesheet go into an SVG
+one. Matrix sets log items 2–4 side by side in columns, and Poster keeps each item after the first on
+one line; neither wraps, so `fit_cards()` measures after every draw and once the fonts load, stacking
+Matrix one item per row and letting a too-wide Poster item break. **Download PNG** is `card_png()`: the card and the page's stylesheet go into an SVG
 `foreignObject`, every font and image inlined as a data URL, and that is drawn on a 3200×1800 canvas.
 WebKit shapes two things there. The markup is 2× through CSS `zoom`, because it ignores a `viewBox`
 on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either of which still

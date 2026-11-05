@@ -92,6 +92,7 @@ ul{list-style:none}
 .c-matrix ul{flex:1;display:grid;grid-template-columns:1.5fr 1.1fr .8fr;grid-auto-rows:1fr;gap:0 44px;padding:18px 64px 36px}
 .c-matrix li{display:flex;align-items:center;gap:18px;border-top:1px solid var(--line-2);font-size:36px;font-weight:500;white-space:nowrap}
 .c-matrix li:first-child{grid-column:1/-1;font-size:42px}
+.c-matrix ul.stack{grid-template-columns:1fr}
 .c-matrix li::before{content:"";flex:none;width:12px;height:12px;border-radius:3px;background:var(--accent)}
 
 .c-diff{display:flex;flex-direction:column;background:#050505}
@@ -206,10 +207,13 @@ ul{list-style:none}
 .v-update div{font-size:30px;font-weight:600;letter-spacing:-.03em;white-space:nowrap}
 .v-update small{display:flex;gap:16px;margin-top:10px;font:500 22px/1 var(--mono);letter-spacing:-.03em;color:#73c784}
 .v-update small svg{width:22px;height:22px;margin-right:4px;vertical-align:-4px}
-.v-steps{display:grid;gap:16px;font:500 25px/1 var(--mono);letter-spacing:-.035em;color:var(--text-2);white-space:nowrap}
-.v-steps span{display:flex;align-items:center;gap:14px}
-.v-steps span::before{content:"";flex:none;width:12px;height:12px;border-radius:50%;background:var(--accent)}
-.v-steps span:last-child{color:var(--text)}
+.v-flow{display:flex;align-items:center;gap:14px;font:500 25px/1 var(--mono);letter-spacing:-.035em;white-space:nowrap}
+.v-flow span{display:flex;align-items:center;height:60px;padding:0 20px;border:1px solid var(--line-3);border-radius:13px;background:#000}
+.v-flow span:last-child{border-color:var(--accent);background:rgba(255,62,0,.1)}
+.v-flow i{font-style:normal;color:var(--text-3)}
+.v-crash.col{flex-direction:column;gap:6px;font-size:24px}
+.v-crash.col span{height:54px;padding:0 18px}
+.v-crash.col svg{width:24px;height:24px}
 .btn{flex:none;display:grid;place-items:center;height:60px;padding:0 26px;border-radius:13px;background:var(--accent);color:#000;font-size:26px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
 
 .c-poster{display:flex;flex-direction:column;padding:56px 64px 44px;background:#ff3e00;color:#000}
@@ -217,6 +221,7 @@ ul{list-style:none}
 .c-poster .run{margin-top:44px;font-size:68px;font-weight:600;line-height:1.1;letter-spacing:-.042em;text-wrap:pretty}
 .c-poster .run code{font-size:.9em;font-weight:600;letter-spacing:-.065em}
 .c-poster .run span:not(:first-child){white-space:nowrap}
+.c-poster .run span.wrap{white-space:normal}
 .c-poster .run i{margin-left:.16em;font-style:normal;font-weight:400;color:rgba(0,0,0,.42)}
 .c-poster .big{display:flex;align-items:baseline;gap:44px;margin-top:auto}
 .c-poster .ver{margin-left:-20px;font-size:400px;letter-spacing:-.04em;line-height:.76}
@@ -270,9 +275,9 @@ const RELEASES = [
 			{ label: '2,000 icons mount', value: '470 → 41 ms' }
 		],
 		log: [
-			{ kind: 'new', icon: 'update', text: 'In-app updates from a static manifest, hash and signature checked' },
-			{ kind: 'perf', icon: 'fast', text: '`<svg>` icons up to 11× faster' },
-			{ kind: 'new', icon: 'flow', text: 'GitHub release workflow' },
+			{ kind: 'new', icon: 'update', text: 'Built-in automatic updates for your apps' },
+			{ kind: 'perf', icon: 'fast', text: '`<svg>` renders up to 11× faster' },
+			{ kind: 'new', icon: 'flow', text: 'Built-in GitHub releases workflow in starter template' },
 			{ kind: 'fix', icon: 'bug', text: '14 bug fixes' }
 		],
 		tiles: (r) => `
@@ -285,12 +290,12 @@ const RELEASES = [
 				<p class="cap">${fmt(r.log[1].text)}</p>
 			</div>
 			<div class="t">
-				<div class="viz"><div class="v-steps"><span>merge release PR</span><span>build ×4</span><span>update.json</span></div></div>
-				<p class="cap">${fmt(r.log[2].text)}</p>
+				<div class="viz"><div class="v-crash col"><span class="was">color: 123456</span><i>↓</i><span class="now">${icon('check')}frame survives</span></div></div>
+				<p class="cap">${fmt(r.log[3].text)}</p>
 			</div>
 			<div class="t t-wide">
-				<div class="viz"><div class="v-crash"><span class="was">color: 123456</span><i>→</i><span class="now">${icon('check')}frame survives</span></div></div>
-				<p class="cap">${fmt(r.log[3].text)}</p>
+				<div class="viz"><div class="v-flow"><span>release PR</span><i>→</i><span>build ×4</span><i>→</i><span>update.json</span></div></div>
+				<p class="cap">${fmt(r.log[2].text)}</p>
 			</div>`,
 		desk: () => `
 			<div class="finder prompt">${chrome('Tic-tac-toe')}<div class="inner">
@@ -518,11 +523,30 @@ gallery.innerHTML = layouts.map((l) => `
 const versions = document.getElementById('versions');
 versions.innerHTML = RELEASES.map((r) => `<button type="button" data-version="${r.version}">${r.version}</button>`).join('');
 
+// Matrix's columns and Poster's items never wrap, so a log line too long for them stacks Matrix one item per row and breaks that Poster item.
+function fit_cards() {
+	const list = document.querySelector('#matrix ul');
+	if (list.offsetWidth) {
+		list.classList.remove('stack');
+		list.classList.toggle('stack', list.scrollWidth > list.clientWidth);
+	}
+	const run = document.querySelector('#poster .run');
+	if (run.offsetWidth) {
+		for (const item of run.children) {
+			item.classList.remove('wrap');
+			item.classList.toggle('wrap', item.offsetWidth > run.clientWidth);
+		}
+	}
+}
+
 function draw() {
 	for (const l of layouts) document.querySelector(`#${l.id} .card`).innerHTML = l.render(release);
 	for (const button of versions.children) button.setAttribute('aria-pressed', String(button.dataset.version === release.version));
+	fit_cards();
 }
 draw();
+document.fonts.addEventListener('loadingdone', fit_cards);
+document.fonts.ready.then(fit_cards);
 
 versions.addEventListener('click', (e) => {
 	const button = e.target.closest('button');
@@ -545,6 +569,7 @@ function route() {
 	const id = location.hash.slice(1);
 	document.documentElement.toggleAttribute('data-solo', layouts.some((l) => l.id === id));
 	for (const frame of gallery.children) frame.classList.toggle('on', frame.id === id);
+	fit_cards();
 }
 addEventListener('hashchange', route);
 route();
