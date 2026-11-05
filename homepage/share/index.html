@@ -39,6 +39,8 @@ ul{list-style:none}
 .seg button[aria-pressed=true]{background:#1f1f1f;color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
 .seg button:focus-visible{outline:2px solid var(--text);outline-offset:1px}
 .versions button{font-family:var(--mono);letter-spacing:-.02em}
+.walls{height:34px;max-width:220px;padding:0 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--s1);color:var(--text-2);font:500 13px/1 var(--sans);cursor:pointer}
+.walls:focus-visible{outline:2px solid var(--text);outline-offset:1px}
 .gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 28px;padding:32px}
 .gallery[data-size=feed]{grid-template-columns:repeat(auto-fill,min(500px,100%))}
 .gallery[data-size=full]{grid-template-columns:minmax(0,1fr)}
@@ -57,7 +59,7 @@ ul{list-style:none}
 [data-solo] .slot{border-radius:0;box-shadow:none}
 @media (max-width:900px){
 .top{padding:0 16px}
-.home span,.sizes{display:none}
+.home span,.sizes,.walls{display:none}
 .gallery,.gallery[data-size]{grid-template-columns:minmax(0,1fr);padding:16px}
 .frame figcaption{flex-wrap:wrap}
 }
@@ -130,7 +132,8 @@ ul{list-style:none}
 .c-shot .ver{margin:14px 0 44px -6px;font-size:168px}
 .c-shot li{display:flex;align-items:flex-start;gap:18px;padding:17px 0;border-top:1px solid var(--line-2);font-size:33px;font-weight:500;line-height:1.18}
 .c-shot li svg{flex:none;width:30px;height:30px;margin-top:5px;color:var(--accent)}
-.c-shot .desk{position:relative;overflow:hidden;background:url(../assets/wall/wall-mac.webp) center/cover}
+.c-shot .desk{position:relative;overflow:hidden;background:#1a1a24}
+.wallpaper{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .c-shot .finder{position:absolute;top:64px;left:48px;width:500px;overflow:hidden;border-radius:16px;background:#1e1e24;box-shadow:0 0 0 1px rgba(255,255,255,.18),0 30px 70px rgba(0,0,0,.5)}
 .c-shot .finder .chrome{background:#2a2a32}
 .c-shot .item{display:grid;justify-items:center;gap:6px;padding:26px 0 36px;font:500 28px/1 var(--mono);letter-spacing:-.035em}
@@ -143,6 +146,16 @@ ul{list-style:none}
 .c-shot .prompt .checks{display:flex;gap:22px;margin:26px 0;font:500 22px/1 var(--mono);letter-spacing:-.03em;color:#73c784}
 .c-shot .prompt .checks svg{width:22px;height:22px;margin-right:6px;vertical-align:-4px}
 .c-shot .prompt .btn{width:100%;height:68px;font-size:28px}
+.c-shot .toast{position:absolute;top:56px;right:48px;display:flex;align-items:center;gap:20px;width:440px;padding:22px 26px 24px 22px;border-radius:24px;background:rgba(40,40,48,.86);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 30px 70px rgba(0,0,0,.5)}
+.c-shot .toast img{flex:none;width:72px;height:72px}
+.c-shot .toast div{flex:1;min-width:0}
+.c-shot .toast b{display:flex;align-items:baseline;justify-content:space-between;font-size:26px;font-weight:600;letter-spacing:-.025em}
+.c-shot .toast b small{font:500 22px/1 var(--mono);letter-spacing:-.03em;color:var(--text-2)}
+.c-shot .toast p{margin-top:6px;font-size:22px;color:var(--text-2);white-space:nowrap}
+.c-shot .toast .bar{height:10px;margin-top:14px;overflow:hidden;border-radius:5px;background:rgba(255,255,255,.12)}
+.c-shot .toast .bar i{display:block;width:64%;height:100%;border-radius:5px;background:var(--accent)}
+.c-shot .win.back{top:250px;right:64px;width:330px}
+.c-shot .win.back::after{content:"";position:absolute;inset:0;background:rgba(10,10,16,.6)}
 .c-shot .win{position:absolute;top:132px;right:48px;width:436px;overflow:hidden;border-radius:16px;background:#11111b;box-shadow:0 0 0 1px rgba(255,255,255,.2),0 40px 90px rgba(0,0,0,.6)}
 .c-shot .win img{display:block;width:100%;height:auto;border-radius:0 0 16px 16px}
 .c-shot .dock{position:absolute;bottom:14px;left:50%;display:flex;align-items:center;gap:14px;padding:8px 16px;transform:translateX(-50%);border-radius:26px;background:rgba(50,50,56,.74);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
@@ -157,8 +170,8 @@ ul{list-style:none}
 .chrome i:nth-child(3){background:#28c840}
 .chrome span{position:absolute;left:0;right:0;text-align:center;letter-spacing:-.01em}
 
-.c-dialog{display:grid;place-items:center;background:url(../assets/wall/wall-mac.webp) center/cover}
-.c-dialog::before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.c-dialog{display:grid;place-items:center;background:#1a1a24}
+.c-dialog .scrim{position:absolute;inset:0;background:rgba(0,0,0,.28)}
 .c-dialog .win{position:relative;width:1290px;overflow:hidden;border-radius:26px;background:rgba(17,17,20,.93);box-shadow:0 0 0 1px rgba(255,255,255,.18),0 50px 120px rgba(0,0,0,.65)}
 .c-dialog .chrome{height:58px;background:rgba(255,255,255,.035);border-radius:26px 26px 0 0;font-size:24px}
 .c-dialog .inner{display:flex;flex-direction:column;align-items:center;padding:34px 56px 42px}
@@ -250,6 +263,7 @@ ul{list-style:none}
 <header class="top">
 <a class="home" href="../"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte<span>share cards</span></a>
 <div class="controls">
+<select class="walls" id="walls" aria-label="Mac wallpaper" hidden></select>
 <div class="seg versions" id="versions" role="group" aria-label="Release"></div>
 <div class="seg sizes" role="group" aria-label="Preview size">
 <button type="button" data-size="two" aria-pressed="true">Two up</button>
@@ -268,6 +282,7 @@ const RELEASES = [
 		date: '5 Nov 2026',
 		lead: 'Built apps now update themselves',
 		install: 'npm i gpuix-svelte@0.5.0',
+		wall: '../assets/wall/wall-mac-tahoe-dark.webp',
 		url: 'gpuix-svelte.stanislav.garden',
 		facts: [
 			{ label: 'update checks', value: 'sha256, ed25519' },
@@ -298,6 +313,7 @@ const RELEASES = [
 				<p class="cap">${fmt(r.log[2].text)}</p>
 			</div>`,
 		desk: () => `
+			<div class="win back">${chrome('Tic-tac-toe')}<img src="../assets/shots/tictactoe.png" alt=""></div>
 			<div class="finder prompt">${chrome('Tic-tac-toe')}<div class="inner">
 				<img src="${APP_ICON}" alt="">
 				<h3>Version 1.2.0 is available</h3>
@@ -305,7 +321,11 @@ const RELEASES = [
 				<div class="checks"><span>${icon('check')}sha256</span><span>${icon('check')}signature</span></div>
 				<div class="btn">Install and restart</div>
 			</div></div>
-			<div class="win">${chrome('GPUIX + Svelte — Tic-tac-toe')}<img src="../assets/shots/tictactoe.png" alt=""></div>
+			<div class="toast"><img src="${APP_ICON}" alt=""><div>
+				<b>Updating Tic-tac-toe<small>64%</small></b>
+				<p>Downloading 1.2.0 · 41 of 64 MB</p>
+				<div class="bar"><i></i></div>
+			</div></div>
 			<div class="dock"><div class="finder-tile"></div><div class="running"><img src="${APP_ICON}" alt=""></div></div>`
 	},
 	{
@@ -314,6 +334,7 @@ const RELEASES = [
 		date: '31 Oct 2026',
 		lead: '`npm run build` now makes a real app',
 		install: 'npm i gpuix-svelte@0.4.0',
+		wall: '../assets/wall/wall-mac.webp',
 		url: 'gpuix-svelte.stanislav.garden',
 		facts: [
 			{ label: 'builds', value: '.app and .exe' },
@@ -352,6 +373,8 @@ const RELEASES = [
 let release = RELEASES.find((r) => r.version === new URLSearchParams(location.search).get('v')) ?? RELEASES[0];
 
 const APP_ICON = '../assets/shots/app-icon.png';
+let wallpaper = null;
+const wall = (r) => `<img class="wallpaper" src="${wallpaper ?? r.wall}" alt="">`;
 const COMMIT_TYPES = { new: 'feat:', perf: 'perf:', fix: 'fix:' };
 const fmt = (s) => s.replaceAll('<', '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>');
 const mark = (body = '#fff', tip = '#ff3e00') => `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="${body}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="${tip}" stroke="${tip}" stroke-width="5" stroke-linejoin="round"/></svg>`;
@@ -455,13 +478,14 @@ const layouts = [
 				<div class="ver">${r.version}</div>
 				<ul>${r.log.map((i) => `<li>${icon('check')}<span>${fmt(i.text)}</span></li>`).join('')}</ul>
 			</div>
-			<div class="desk">${r.desk(r)}</div>`
+			<div class="desk">${wall(r)}${r.desk(r)}</div>`
 	},
 	{
 		id: 'dialog',
 		name: '5 Dialog',
 		note: 'A native “What’s new” window on a wallpaper.',
 		render: (r) => `
+			${wall(r)}<div class="scrim"></div>
 			<div class="win">
 				${chrome('gpuix-svelte')}
 				<div class="inner">
@@ -548,6 +572,20 @@ draw();
 document.fonts.addEventListener('loadingdone', fit_cards);
 document.fonts.ready.then(fit_cards);
 
+// The library is local (`npm run wallpapers`), so the picker appears only where it was built.
+const walls = document.getElementById('walls');
+fetch('../assets/wall/library/index.json')
+	.then((response) => (response.ok ? response.json() : []))
+	.then((library) => {
+		if (!library.length) return;
+		walls.innerHTML = `<option value="">Release’s wallpaper</option>${library.map((w) => `<option value="${w.file}">${w.name}</option>`).join('')}`;
+		walls.hidden = false;
+	}, () => {});
+walls.addEventListener('change', () => {
+	wallpaper = walls.value ? `../assets/wall/library/${walls.value}` : null;
+	draw();
+});
+
 versions.addEventListener('click', (e) => {
 	const button = e.target.closest('button');
 	if (!button) return;
@@ -580,7 +618,7 @@ addEventListener('keydown', (e) => {
 });
 
 const EXPORT_SCALE = 2;
-const ASSET_TYPES = { woff2: 'font/woff2', webp: 'image/webp', png: 'image/png' };
+const ASSET_TYPES = { woff2: 'font/woff2', webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg' };
 const assets = new Map();
 
 // An SVG drawn as an image can't load anything, so fonts and images travel inside it as data URLs.

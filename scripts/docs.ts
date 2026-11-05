@@ -495,6 +495,9 @@ function serve(open: boolean) {
 		'.js': 'text/javascript',
 		'.css': 'text/css',
 		'.png': 'image/png',
+		'.jpg': 'image/jpeg',
+		'.webp': 'image/webp',
+		'.json': 'application/json',
 		'.svg': 'image/svg+xml',
 		'.woff2': 'font/woff2'
 	};
