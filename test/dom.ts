@@ -82,8 +82,8 @@ function box_of(target: HTMLElement, left: number, top: number, width: number, h
 }
 
 // --- the entry --------------------------------------------------------------
-check('is_gpuix() is false on the DOM entry', dom.is_gpuix(), false);
-check('and true on the GPUI entry', gpui.is_gpuix(), true);
+check('IS_GPUIX is false on the DOM entry', dom.IS_GPUIX, false);
+check('and true on the GPUI entry', gpui.IS_GPUIX, true);
 
 const HOST_ONLY = new Set(['renderer', 'set_native', 'create_root', 'commit', 'is_dirty', 'set_auto_commit', 'dispatch']);
 check(

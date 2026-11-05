@@ -5,7 +5,7 @@
  */
 
 /** True on GPUI, native window or wasm canvas alike; `dom.ts` answers false. Decided per build, so it can be read before anything is mounted. */
-export const is_gpuix = (): boolean => true;
+export const IS_GPUIX: boolean = true;
 
 export { render } from './render.ts';
 export {

@@ -16,7 +16,7 @@ export { to_gpui_event, GPUI_EVENTS } from './events.ts';
 export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
 
 /** False here; the GPUI entries answer true. Decided per build, so it can be read before anything is mounted. */
-export const is_gpuix = (): boolean => false;
+export const IS_GPUIX: boolean = false;
 
 /** What an `{@attach}` hands over here: a DOM element. A GPUI shadow node is accepted and ignored. */
 type NodeRef = Element | { nativeId?: number | null } | null | undefined;

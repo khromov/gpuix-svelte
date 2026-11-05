@@ -171,4 +171,4 @@ string reaches native as a string and reads as `0` or `true`.
 All four ship with a DOM twin that a Vite or SvelteKit build picks up under the same import
 paths, with the same props and CSS variables: the browser scrolls the `Scroller`, `Portal` moves
 its layer to `<body>`, and `Tooltip` and `Popover` place a fixed layer beside the trigger. See
-[The same component in a browser DOM](dom.md#the-components-in-the-dom).
+[Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md#the-components-in-the-dom).

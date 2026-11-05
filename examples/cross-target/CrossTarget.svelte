@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { is_gpuix, on_window_key, set_css_vars, window_size } from 'gpuix-svelte';
+	import { IS_GPUIX, on_window_key, set_css_vars, window_size } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
@@ -65,7 +65,7 @@
 <div class="app" testid="app">
 	<div class="bar">
 		<div class="title">Cross-target</div>
-		<div class="badge" testid="target">{is_gpuix() ? 'GPUI' : 'DOM'}</div>
+		<div class="badge" testid="target">{IS_GPUIX ? 'GPUI' : 'DOM'}</div>
 		<div class="muted" testid="size">{window_size.width} × {window_size.height}</div>
 		<div class="spacer"></div>
 		<Tooltip content="Toggle the theme (T)">

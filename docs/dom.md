@@ -1,9 +1,9 @@
-# The same component in a browser DOM
+# Rendering Svelte components in both gpuix-svelte and normal DOM
 
 A component written for gpuix-svelte can also be rendered by Svelte's ordinary DOM renderer, in a
 Vite or SvelteKit app, without changes to its code. The package ships a DOM twin of its exports
 and of its components, and a build that does not set the `custom-renderer` export condition gets
-the twin. `is_gpuix()` tells a component which renderer it is on.
+the twin. `IS_GPUIX` tells a component which renderer it is on.
 
 This is not the [WebAssembly build](shipping.md#run-it-in-a-browser), which is GPUI itself
 painting a canvas in the page. Here the browser lays out and paints real DOM elements, your
@@ -55,14 +55,14 @@ copy the stylesheet from
 [`examples/cross-target/index.html`](../examples/cross-target/index.html), which is a complete
 page.
 
-## `is_gpuix()`
+## `IS_GPUIX`
 
 ```svelte
 <script>
-  import { is_gpuix } from 'gpuix-svelte';
+  import { IS_GPUIX } from 'gpuix-svelte';
 </script>
 
-{#if is_gpuix()}
+{#if IS_GPUIX}
   <div onauxclick={menu}>…</div>
 {:else}
   <div oncontextmenu={menu}>…</div>
@@ -145,7 +145,7 @@ stay inside what both renderers draw the same way. The repository's
   lengths a unit; `pointer-events: none` is inherited in the DOM and per element on GPUI, so a
   pass-through wrapper's interactive descendants need `pointer-events: auto` of their own there;
   and GPUI's root is a flex row, which `render()` gives `<body>` too.
-- Avoid what only one side has, or branch on `is_gpuix()`: the `hover=` / `active=` attributes
+- Avoid what only one side has, or branch on `IS_GPUIX`: the `hover=` / `active=` attributes
   and `hitbox="self"` (plain attributes in the DOM), `onauxclick` and `e.isRightClick`
   (`oncontextmenu` in the DOM), `e.value` on inputs (`e.target.value` in the DOM),
   `onlayout` / `onscrollchange` / `onfiledrop` (DOM events differ), `<virtual-list>`,
@@ -154,7 +154,7 @@ stay inside what both renderers draw the same way. The repository's
   `e.stopPropagation()` exists on both: in the DOM it stops a mouse event from bubbling; on GPUI,
   where mouse events never bubble, it skips the key handlers still to come.
 - `{@attach}` hands over a `ShadowNode` on GPUI and an `HTMLElement` in the DOM. The helpers
-  accept either; your own code can tell them apart with `is_gpuix()`.
+  accept either; your own code can tell them apart with `IS_GPUIX`.
 - Type the markup in the GPUI project, whose tsconfig names the `gpuixHTML` namespace. A DOM
   project's `svelte-check` types every element as a DOM element and would flag `testid`,
   `hover=` and `GpuixEvent`, so keep shared components out of its `include`, or let it check only

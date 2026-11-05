@@ -591,7 +591,7 @@ resolves to when the `custom-renderer` condition is absent, which is every brows
 `./components/*` likewise falls back to `src/components/dom/*`; `./dom` names the twin for a
 bundler without conditions. `docs/dom.md` is the user-facing page. The design:
 
-- **`is_gpuix()` is a constant per entry** (`true` in `web.ts`, hence in `index.ts`; `false` in
+- **`IS_GPUIX` is a constant per entry** (`true` in `web.ts`, hence in `index.ts`; `false` in
   `dom.ts`), not `get_native() !== null`, so a `.svelte.ts` module can read it before `render()`.
 - **`dom.ts` mirrors `web.ts`'s export list** with the browser's version of each call
   (`set_css_vars` → custom properties on `:root`; `on_window_key` → a `window` listener handing
@@ -762,8 +762,8 @@ renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are i
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
   hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
-  web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; is_gpuix() → true
-  dom.ts       the entry without `custom-renderer`  ─ the DOM twin for Vite / SvelteKit; is_gpuix() → false
+  web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
+  dom.ts       the entry without `custom-renderer`  ─ the DOM twin for Vite / SvelteKit; IS_GPUIX → false
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only

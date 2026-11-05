@@ -141,10 +141,10 @@ if (!open) {
 	writeFileSync(
 		join(dom, 'main.ts'),
 		[
-			"import { render, is_gpuix } from 'gpuix-svelte';",
+			"import { render, IS_GPUIX } from 'gpuix-svelte';",
 			"import 'gpuix-svelte/components/Scroller.svelte';",
 			"import App from '../App.svelte';",
-			"if (is_gpuix()) throw new Error('a DOM build got the GPUI entry');",
+			"if (IS_GPUIX) throw new Error('a DOM build got the GPUI entry');",
 			'render(App);',
 			''
 		].join('\n')

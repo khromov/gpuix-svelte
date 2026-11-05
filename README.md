@@ -102,8 +102,8 @@ files, spawn processes, open SQLite databases and load native addons directly.
 - **Window and desktop APIs** cover the title, fullscreen, the file picker, file drops, images
   from raw pixels, focus and accessibility attributes.
   → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
-- **The same component can also run in a browser DOM.** A Vite or SvelteKit build gets a DOM
-  twin of every helper and component under the same imports, and `is_gpuix()` tells a component
+- **Svelte components render in both gpuix-svelte and a normal DOM.** A Vite or SvelteKit build gets a DOM
+  twin of every helper and component under the same imports, and `IS_GPUIX` tells a component
   which renderer it is on. → [docs/dom.md](docs/dom.md)
 
 ## Documentation
@@ -115,7 +115,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
-| [DOM](docs/dom.md) | The same component in a browser DOM with Vite or SvelteKit: `is_gpuix()`, what each helper and component does there, writing for both renderers |
+| [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)).
