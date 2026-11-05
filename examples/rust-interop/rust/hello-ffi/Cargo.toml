@@ -1,0 +1,11 @@
+[package]
+name = "hello-ffi"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+hello-core = { path = "../hello-core" }

@@ -50,6 +50,18 @@ npm run demo:native-0.11   # what native 0.11 added (examples/native-0.11): :foc
                            # focus dim, Tab with preventDefault, onlayout/onscrollchange, GPUI's
                            # scrollbar, the new style keys, elements_at, BGRA pixels, register_font
                            # (font.ts reads the family name) and <anchored fill="window">
+npm run demo:rust          # four ways to message existing Rust code without rebuilding
+                           # @gpuix/native (examples/rust-interop): child process over stdio,
+                           # C ABI over bun:ffi / node:ffi, a napi-rs addon, and wasm; runs
+                           # `cargo build` on the first launch. test:rust-interop is the same
+                           # app headless. Both need a Rust toolchain, so neither is in `test`
+npm run demo:rust-host     # the inversion: an existing Rust app keeps main() and its state and
+                           # spawns the gpuix-svelte UI as its view (examples/rust-host), JSON
+                           # lines over the child's stdio. --bun for the twin. Needs cargo
+npm run demo:rust-embed    # one Rust binary: main() embeds Deno (rustyscript) which runs the
+                           # bundled view and loads @gpuix/native through Node-API; the view
+                           # calls Rust closures directly (examples/rust-embed). Needs cargo
+                           # and Bun (for the bundle); first build compiles V8's bindings
 npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU build — bundles it to
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
@@ -864,6 +876,66 @@ Unknown events are dropped silently.
   only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`). Both forward a `style` prop to the
   tip or panel: `var()` resolves from one global map and a parent's scoped rules cannot reach in, so
   inline style is the only per-instance hook.
+
+### Talking to Rust (examples/rust-interop)
+
+`rust/` is a cargo workspace: `hello-core` is the "existing code" and the other four crates
+are the glue each transport needs; `transports/cargo.ts` builds what is missing or older
+than the sources and finds cargo on PATH or under `~/.cargo/bin` (`CARGO` overrides). What
+each route costs, measured here:
+
+- **Child process** (`hello-stdio`): lines over stdin/stdout, ~5-10 ms a round trip through
+  the event loop and a frame, replies matched in order (a real app adds ids). Rust can write
+  whenever it likes, nothing in-process can crash the window, and it works in a compiled
+  binary if the executable ships beside it.
+- **C ABI** (`hello-ffi`, a cdylib): tens of µs a call, strings as C pointers the host frees
+  with `hello_free`. Bun's `JSCallback({ threadsafe: true })` lets a Rust thread call JS, but
+  it runs *later* on the JS thread, so Rust must hand the string over (`into_raw`) rather than
+  free it on return. `node:ffi`'s `registerCallback` may only be invoked on the thread that
+  made it, so on Node Rust queues events and JS polls every 100 ms; `node:ffi` also needs
+  `--experimental-ffi` (the bin forwards it; `launch()` does not, so pass it in `NODE_OPTIONS`).
+- **Node-API** (`hello-napi`, napi-rs 3): the route `@gpuix/native` itself takes, tens of
+  µs, JS strings in and out, and a `ThreadsafeFunction` a Rust thread calls to run JS on the
+  event loop; Node and Bun both `require()` the cdylib once it is named `.node`. The macOS
+  link needs `-undefined dynamic_lookup` (`rust/.cargo/config.toml`). The ticker thread
+  drops the function when `unsubscribe()` flips its flag, which is what lets the loop exit.
+- **WebAssembly** (`hello-wasm`, wasm32-unknown-unknown, no wasm-bindgen): bytes copied into
+  linear memory and every string back through an imported `emit`; ~0.2-0.6 ms a call, the
+  only sandboxed route and the only one the web build could use, but no threads or clock, so
+  a "push" needs the host to call in. Newer rustc wants `#[link(wasm_import_module = "env")]`
+  on the extern block or the import fails to link.
+
+### Starting from a Rust app (examples/rust-host, examples/rust-embed)
+
+The other direction: the Rust app is the program and gpuix-svelte is its view.
+
+- **`rust-host`** keeps `main`, the state and the loop in Rust and spawns the UI as a child
+  (`scripts/rust-host.ts` runs `rust-host <node> bin/gpuix-svelte.js examples/rust-host/ui/main.ts`).
+  The model is serialized whole on every change (`Message::State`), commands come back as
+  tagged JSON (`Command_`), and the view's `ipc.svelte.ts` holds one `$state` the host
+  overwrites. `ui/main.ts` rebinds `console.log`/`info`/`debug` to stderr before `render()`,
+  because the renderer logs to stdout and that is the wire. The window belongs to the child;
+  EOF on the child's stdout is how the host learns it closed. Nothing about the Rust side
+  changes shape: serde on the messages and a reader thread, ~100 lines.
+- **`rust-embed`** is one process: rustyscript (Deno's runtime as a crate, `node_experimental`
+  for `require`, `process` and Node-API) loads `dist/embed/app.mjs`, which `bundle.ts` builds
+  with `Bun.build` the way `scripts/web.ts` does, except `@gpuix/native` stays external and
+  is copied beside the bundle with its `.node` so its loader's relative `require` finds it
+  with no node_modules resolution. The embedding has `node:` modules but no Node globals and
+  reports an empty, non-configurable `process.platform`/`arch`, so `bundle.ts` also writes
+  `boot.mjs`, which installs `Buffer` and a `process` Proxy carrying the bundling host's
+  platform and arch, then imports the app (ESM imports hoist, hence a separate module). The
+  addon resolves `napi_*` against the executable, so `rust/build.rs` exports them with
+  `deno_napi::print_linker_flags`, as the Deno CLI's own build script does; without it the
+  addon loads and every call logs `Node-API symbol … has not been loaded`. The view calls
+  `rustyscript.functions.*`, closures `register_function` installed, and polls `rust_poll`
+  for what a Rust thread queued (the embedding runs JS only from its event loop). `load_module` runs that loop to completion,
+  so `main` gets control back when the last window closes. rustyscript 0.12.3 (crates.io,
+  Aug 2025) pins a deno_ast whose `swc_common =9.2.0` imports `serde::__private`, which serde
+  1.0.220+ renamed per patch version (`__private229`) and reshaped, so neither a newer serde
+  nor a source patch compiles; the crate's committed `Cargo.lock` holds serde 1.0.219 and
+  the handful of crates that would pull `serde_core` in. Its git master has moved to deno_ast
+  0.52, which would lift the pin.
 
 ### Regenerating the styling reference
 
