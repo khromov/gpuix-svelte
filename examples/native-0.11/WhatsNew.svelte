@@ -17,16 +17,21 @@
 	import { font_family } from './font.ts';
 
 	set_css_vars({
-		bg: '#11111b',
-		card: '#1e1e2e',
-		well: '#181825',
-		raised: '#313244',
-		hover: '#45475a',
-		ink: '#cdd6f4',
-		faint: '#7f849c',
-		accent: '#89b4fa',
-		ok: '#a6e3a1',
-		warn: '#f9e2af'
+		bg: '#000000',
+		panel: '#111111',
+		raised: '#1c1c1c',
+		'raised-hover': '#262626',
+		border: '#242424',
+		'border-strong': '#404040',
+		ink: '#ededed',
+		muted: '#a1a1a1',
+		accent: '#ff3e00',
+		'accent-ink': '#ff8a5c',
+		'accent-wash': '#ff3e0029',
+		success: '#4cc38a',
+		warning: '#f5a524',
+		'scroller-thumb': '#404040',
+		'scroller-thumb-hover': '#5a5a5a'
 	});
 
 	const PLATFORMS: Record<string, string> = { darwin: 'macOS', win32: 'Windows' };
@@ -133,7 +138,7 @@
 						tabindex="0"
 						role="button"
 						aria-label="Inline override"
-						focus-visible="outline-color: #f9e2af; outline-width: 3px"
+						focus-visible="outline-color: #f5a524; outline-width: 3px"
 						onfocus={() => (focused = 'Inline override')}
 					>
 						<text>focus-visible="…"</text>
@@ -142,6 +147,7 @@
 				<div class="row">
 					<div
 						class="switch"
+						class:on={dim}
 						tabindex="0"
 						role="switch"
 						aria-label="Keyboard focus dim"
@@ -284,45 +290,46 @@
 
 <style>
 	.page { display: flex; flex-direction: column; width: 100%; height: 100%; background-color: var(--bg); color: var(--ink); font-size: 14px; }
-	.title { font-size: 26px; font-weight: bold; }
+	.title { font-size: 26px; font-weight: 600; }
 	.heading { font-size: 16px; font-weight: 600; }
-	.faint { color: var(--faint); font-size: 12px; }
-	.mono { font-family: Menlo; font-size: 12px; color: var(--ok); }
+	.faint { color: var(--muted); font-size: 12px; }
+	.mono { font-family: Menlo; font-size: 12px; color: var(--success); }
 	.grid { display: flex; flex-direction: row; flex-wrap: wrap; gap: 16px; }
-	.card { display: flex; flex-direction: column; gap: 10px; flex-basis: 420px; flex-grow: 1; min-width: 0; padding: 16px; border-radius: 12px; background-color: var(--card); }
+	.card { display: flex; flex-direction: column; gap: 10px; flex-basis: 420px; flex-grow: 1; min-width: 0; padding: 16px; border-radius: 10px; border-width: 1px; border-color: var(--border); background-color: var(--panel); }
 	.row { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
-	.btn { padding: 6px 12px; border-radius: 8px; background-color: var(--raised); cursor: pointer; user-select: none; }
-	.btn:hover { background-color: var(--hover); }
-	.btn:focus-visible { outline-width: 2px; outline-color: var(--accent); outline-offset: 2px; }
-	.primary { background-color: var(--accent); color: var(--bg); }
-	.primary:hover { background-color: var(--ink); }
+	.btn { padding: 6px 12px; border-radius: 8px; border-width: 1px; border-color: var(--border); font-weight: 500; cursor: pointer; user-select: none; }
+	.btn:hover { border-color: var(--border-strong); background-color: var(--raised); }
+	.btn:focus-visible { outline-width: 2px; outline-color: var(--ink); outline-offset: 2px; }
+	.btn.primary { border-color: var(--ink); background-color: var(--ink); color: var(--bg); }
+	.btn.primary:hover { border-color: var(--ink); background-color: var(--ink); opacity: 0.88; }
 	.steady { keyboard-focus-dim: false; }
-	.switch { position: relative; width: 44px; height: 24px; border-radius: 12px; background-color: var(--raised); cursor: pointer; }
-	.switch:focus-visible { outline-width: 2px; outline-color: var(--accent); outline-offset: 2px; }
-	.knob { position: absolute; top: 2px; width: 20px; height: 20px; border-radius: 10px; background-color: var(--accent); }
-	.field { padding: 8px; border-radius: 8px; background-color: var(--well); font-size: 13px; }
-	.trap { padding: 6px 12px; border-radius: 8px; border-width: 1px; border-style: dashed; border-color: var(--hover); user-select: none; }
-	.trap.on { border-color: var(--warn); color: var(--warn); }
-	.trap:focus-visible { outline-width: 2px; outline-color: var(--warn); outline-offset: 2px; }
-	.measured { padding: 8px; border-radius: 8px; background-color: var(--well); }
-	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; background-color: var(--well); scrollbar-color: var(--accent); scrollbar-width: 6px; pointer-events: auto; }
-	.item { padding: 4px 10px; color: var(--faint); }
+	.switch { position: relative; width: 44px; height: 24px; border-radius: 12px; background-color: var(--border-strong); cursor: pointer; }
+	.switch.on { background-color: var(--accent); }
+	.switch:focus-visible { outline-width: 2px; outline-color: var(--ink); outline-offset: 2px; }
+	.knob { position: absolute; top: 2px; width: 20px; height: 20px; border-radius: 10px; background-color: #ffffff; }
+	.field { padding: 8px; border-radius: 8px; border-width: 1px; border-color: var(--border-strong); background-color: var(--bg); font-size: 13px; }
+	.trap { padding: 6px 12px; border-radius: 8px; border-width: 1px; border-style: dashed; border-color: var(--border-strong); user-select: none; }
+	.trap.on { border-color: var(--warning); color: var(--warning); }
+	.trap:focus-visible { outline-width: 2px; outline-color: var(--warning); outline-offset: 2px; }
+	.measured { padding: 8px; border-radius: 8px; background-color: var(--raised); }
+	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; border-width: 1px; border-color: var(--border); background-color: var(--bg); scrollbar-color: var(--border-strong); scrollbar-width: 6px; pointer-events: auto; }
+	.item { padding: 4px 10px; color: var(--muted); }
 	.ratio { display: flex; align-items: center; justify-content: center; width: 180px; aspect-ratio: 16 / 9; border-radius: 8px; background-color: var(--raised); font-size: 12px; }
-	.dashed { padding: 12px; border-width: 2px; border-style: dashed; border-color: var(--faint); border-radius: 8px; font-size: 12px; }
-	.outlined { padding: 12px; border-radius: 8px; background-color: var(--raised); outline-width: 2px; outline-color: var(--ok); outline-offset: 4px; font-size: 12px; }
+	.dashed { padding: 12px; border-width: 2px; border-style: dashed; border-color: var(--muted); border-radius: 8px; font-size: 12px; }
+	.outlined { padding: 12px; border-radius: 8px; background-color: var(--raised); outline-width: 2px; outline-color: var(--success); outline-offset: 4px; font-size: 12px; }
 	.baseline { display: flex; flex-direction: row; align-items: baseline; gap: 12px; }
 	.big { font-size: 28px; }
 	.stretch { display: flex; flex-direction: row; align-items: stretch; gap: 8px; }
 	.pill { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 8px; background-color: var(--raised); }
-	.evenly { display: flex; flex-direction: row; justify-content: space-evenly; padding: 8px; border-radius: 8px; background-color: var(--well); }
+	.evenly { display: flex; flex-direction: row; justify-content: space-evenly; padding: 8px; border-radius: 8px; border-width: 1px; border-color: var(--border); background-color: var(--bg); }
 	.dot { width: 16px; height: 16px; border-radius: 8px; background-color: var(--accent); }
-	.stack { position: relative; height: 140px; border-radius: 8px; background-color: var(--well); }
+	.stack { position: relative; height: 140px; border-radius: 8px; border-width: 1px; border-color: var(--border); background-color: var(--bg); }
 	.layer { position: absolute; border-radius: 8px; }
 	.back { left: 16px; top: 16px; width: 180px; height: 100px; background-color: var(--raised); }
 	.middle { left: 110px; top: 40px; width: 180px; height: 80px; background-color: var(--accent); opacity: 0.8; }
-	.ghost { left: 220px; top: 24px; width: 160px; height: 90px; border-width: 2px; border-style: dashed; border-color: var(--ok); pointer-events: none; }
+	.ghost { left: 220px; top: 24px; width: 160px; height: 90px; border-width: 2px; border-style: dashed; border-color: var(--success); pointer-events: none; }
 	.plasma { width: 320px; height: 160px; border-radius: 8px; }
 	.sample { font-size: 22px; }
 	.backdrop { display: flex; align-items: center; justify-content: center; background-color: #00000099; }
-	.dialog { display: flex; flex-direction: column; gap: 12px; width: 360px; padding: 20px; border-radius: 12px; background-color: var(--card); }
+	.dialog { display: flex; flex-direction: column; gap: 12px; width: 360px; padding: 20px; border-radius: 12px; border-width: 1px; border-color: var(--border-strong); background-color: var(--panel); }
 </style>

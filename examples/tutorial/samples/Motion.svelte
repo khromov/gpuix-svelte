@@ -6,7 +6,7 @@
 	<div
 		style="position: relative; width: 52px; height: 30px; border-radius: 15px;
 		       cursor: pointer"
-		style:background-color={on ? '#a6e3a1' : '#585b70'}
+		style:background-color={on ? '#ff3e00' : '#404040'}
 		onclick={() => (on = !on)}
 	>
 		<div
@@ -20,10 +20,10 @@
 		></div>
 	</div>
 
-	<div style="font-size: 13px; color: #cdd6f4">{on ? 'on' : 'off'} — click the toggle</div>
+	<div style="font-size: 13px; color: #ededed">{on ? 'on' : 'off'} — click the toggle</div>
 
 	<div
-		style="width: 40px; height: 40px; background-color: #cba6f7"
+		style="width: 40px; height: 40px; background-color: #ededed"
 		motion={{
 			initial: false,
 			animate: { opacity: on ? 1 : 0.3, borderRadius: on ? 20 : 6 },

@@ -17,11 +17,11 @@
 </script>
 
 <div
-	style="display: flex; flex-direction: column; gap: 10px; padding: 12px; background-color: #181825;
-	       border-radius: 8px; user-select: none"
+	style="display: flex; flex-direction: column; gap: 10px; padding: 12px; background-color: #111111;
+	       border-width: 1px; border-color: #242424; border-radius: 10px; user-select: none"
 >
 	{#if spec.title}
-		<div style="font-size: 11px; font-weight: bold; color: #89b4fa">{spec.title}</div>
+		<div style="font-size: 11px; font-weight: 600; color: #ededed">{spec.title}</div>
 	{/if}
 
 	{#if spec.kind === 'pipeline'}
@@ -33,14 +33,14 @@
 		>
 			{#each spec.nodes as node, i (node)}
 				{#if i > 0}
-					<div style="color: #6c7086; font-size: 16px; pointer-events: none" style:padding-left={column ? '14px' : '0px'}>
+					<div style="color: #8f8f8f; font-size: 16px; pointer-events: none" style:padding-left={column ? '14px' : '0px'}>
 						{column ? '↓' : '→'}
 					</div>
 				{/if}
 				<div style="display: flex; flex-direction: column; gap: 3px; pointer-events: none" style:align-items={column ? 'flex-start' : 'center'}>
-					<div style="{BOX}; color: #cdd6f4" style:border-color={node.color ?? '#89b4fa'}>{node.label}</div>
+					<div style="{BOX}; background-color: #1c1c1c; color: #ededed" style:border-color={node.color ?? '#404040'}>{node.label}</div>
 					{#if node.caption}
-						<div style="font-size: 11px; color: #6c7086">{node.caption}</div>
+						<div style="font-size: 11px; color: #a1a1a1">{node.caption}</div>
 					{/if}
 				</div>
 			{/each}
@@ -49,7 +49,7 @@
 		<div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 16px">
 			{#each [spec.left, spec.right] as side (side)}
 				<div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1; flex-basis: 200px; min-width: 0">
-					<div style="font-size: 12px; font-weight: bold; margin-bottom: 2px" style:color={side.color ?? '#a6adc8'}>
+					<div style="font-size: 12px; font-weight: 600; margin-bottom: 2px" style:color={side.color ?? '#a1a1a1'}>
 						{side.title}
 					</div>
 					{#each flatten(side.tree) as row (row)}
@@ -60,14 +60,15 @@
 							<div style="display: flex; flex-direction: row">
 								<div
 									style="{BOX}; min-width: 0"
-									style:border-color={row.virtual ? '#585b70' : '#89b4fa'}
-									style:color={row.virtual ? '#7f849c' : '#cdd6f4'}
+									style:background-color={row.virtual ? '#111111' : '#1c1c1c'}
+									style:border-color={row.virtual ? '#242424' : '#404040'}
+									style:color={row.virtual ? '#8f8f8f' : '#ededed'}
 								>
 									{row.label}
 								</div>
 							</div>
 							{#if row.note}
-								<div style="font-size: 11px; color: #6c7086; padding-left: 4px">{row.note}</div>
+								<div style="font-size: 11px; color: #a1a1a1; padding-left: 4px">{row.note}</div>
 							{/if}
 						</div>
 					{/each}
@@ -77,6 +78,6 @@
 	{/if}
 
 	{#if spec.legend}
-		<div style="font-size: 11px; color: #6c7086">{spec.legend}</div>
+		<div style="font-size: 11px; color: #a1a1a1">{spec.legend}</div>
 	{/if}
 </div>

@@ -64,7 +64,7 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
 
 ## Writing components
 
-- Elements are GPUI's: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
+- HTML elements are mapped to GPUI primitives: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list`, `anchored`. Any other tag (`span`, `button`, `p`) fails the
   typecheck and renders as a `div`. `<img src>` takes a file path, a `data:` URL or an http(s) URL;
   give it a `width` and `height` in its style, or it takes the image's size once loaded and the

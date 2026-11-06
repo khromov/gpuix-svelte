@@ -12,10 +12,10 @@ const CONTENT: GpuiStyle = { display: 'flex', flexGrow: 1, minHeight: 0, width: 
 const CONTENT_CLASS = 'gpuix-titlebar-content';
 const BAR =
 	'display: flex; flex-direction: row; align-items: center; gap: 2px; flex-shrink: 0; height: 34px; padding-left: 14px; padding-right: 4px; ' +
-	'background-color: var(--titlebar-bg, #181825); color: var(--titlebar-fg, #cdd6f4); user-select: none';
+	'background-color: var(--titlebar-bg, #0a0a0a); color: var(--titlebar-fg, #ededed); user-select: none';
 const TITLE = 'flex-grow: 1; min-width: 0; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden';
 const BUTTON = 'display: flex; align-items: center; justify-content: center; width: 34px; height: 26px; border-radius: 6px; cursor: pointer';
-const ICON = 'width: 14px; height: 14px; color: var(--titlebar-fg, #cdd6f4)';
+const ICON = 'width: 14px; height: 14px; color: var(--titlebar-fg, #ededed)';
 
 const MINIMIZE = '<svg viewBox="0 0 16 16"><rect x="3" y="7.4" width="10" height="1.3"/></svg>';
 const MAXIMIZE = '<svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" fill="none" stroke="black" stroke-width="1.3"/></svg>';
@@ -73,9 +73,9 @@ export function create_window_root(
 	title_text = renderer.createTextNode(titlebar.title);
 	renderer.insert(element('text', TITLE, bar), title_text, null);
 
-	button(bar, 'Minimize window', MINIMIZE, 'var(--titlebar-hover, #313244)', () => native()?.minimizeWindow?.());
-	button(bar, 'Maximize window', MAXIMIZE, 'var(--titlebar-hover, #313244)', () => native()?.zoomWindow?.());
-	button(bar, 'Close window', CLOSE, 'var(--titlebar-close, #e64553)', titlebar.on_close);
+	button(bar, 'Minimize window', MINIMIZE, 'var(--titlebar-hover, #262626)', () => native()?.minimizeWindow?.());
+	button(bar, 'Maximize window', MAXIMIZE, 'var(--titlebar-hover, #262626)', () => native()?.zoomWindow?.());
+	button(bar, 'Close window', CLOSE, 'var(--titlebar-close, #ff6166)', titlebar.on_close);
 
 	// `rootStyle` styles the box the app mounts into, so its padding or row direction never reaches the bar.
 	define_styles(CONTENT_CLASS, [{ classes: [CONTENT_CLASS], tag: null, pseudo: null, style: { ...CONTENT, ...root_style } }]);

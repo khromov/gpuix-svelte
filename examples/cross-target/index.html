@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Served by Vite (npm run demo:dom). render() mounts the component into <body>. -->
+<!-- The font file is the site's (homepage/assets/fonts), which scripts/dom.ts serves as the public directory. -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" href="data:," />
+		<title>GPUIX + Svelte — Cross-target</title>
+		<style>
+			@font-face {
+				font-family: 'Geist';
+				src: url('/Geist-Variable.woff2') format('woff2');
+				font-weight: 100 900;
+				font-style: normal;
+				font-display: swap;
+			}
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+			body {
+				font: 14px 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+			}
+			::selection {
+				background: #ff3e0059;
+			}
+			:focus-visible {
+				outline: 2px solid var(--ink);
+				outline-offset: 2px;
+			}
+			text {
+				display: inline;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module" src="./dom.ts"></script>
+	</body>
+</html>

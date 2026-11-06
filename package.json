@@ -11,9 +11,13 @@
 	},
 	"exports": {
 		".": {
-			"browser": "./src/web.ts",
-			"default": "./src/index.ts"
+			"custom-renderer": {
+				"browser": "./src/web.ts",
+				"default": "./src/index.ts"
+			},
+			"default": "./src/dom.ts"
 		},
+		"./dom": "./src/dom.ts",
 		"./renderer": "./src/renderer.ts",
 		"./plugin": "./src/plugin.ts",
 		"./build": "./src/build.ts",
@@ -24,7 +28,10 @@
 		"./register": "./src/register.ts",
 		"./test": "./src/test.ts",
 		"./automation": "./src/automation.ts",
-		"./components/*": "./src/components/*",
+		"./components/*": {
+			"custom-renderer": "./src/components/*",
+			"default": "./src/components/dom/*"
+		},
 		"./html": {
 			"types": "./src/html.d.ts"
 		},
@@ -53,7 +60,7 @@
 		"node"
 	],
 	"scripts": {
-		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json --diagnostic-sources js,svelte --fail-on-warnings --output human",
+		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json --diagnostic-sources js,svelte --fail-on-warnings --output human && svelte-check --tsconfig ./tsconfig.dom.json --diagnostic-sources js,svelte --fail-on-warnings --output human",
 		"lint": "eslint .",
 		"check:svelte": "node --use-env-proxy scripts/svelte-mcp.ts",
 		"demo": "node scripts/demo-all.ts",
@@ -66,8 +73,13 @@
 		"demo:desktop": "node bin/gpuix-svelte.js examples/desktop-apis/main.ts",
 		"demo:native-0.11": "node bin/gpuix-svelte.js examples/native-0.11/main.ts",
 		"demo:web": "bun scripts/web.ts",
+		"demo:cross": "node bin/gpuix-svelte.js examples/cross-target/main.ts",
+		"demo:dom": "node scripts/dom.ts",
 		"tutorial": "node bin/gpuix-svelte.js examples/tutorial/main.ts",
-		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:dialog && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:tab && npm run test:titlebar && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window && npm run test:helpers && npm run test:search && npm run test:tooltip && npm run test:automation && npm run test:bundle && npm run test:update",
+		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:dialog && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:tab && npm run test:titlebar && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window && npm run test:helpers && npm run test:search && npm run test:tooltip && npm run test:cross-target && npm run test:dom && npm run test:docs && npm run test:automation && npm run test:bundle && npm run test:update",
+		"test:cross-target": "node bin/gpuix-svelte.js test/cross-target.ts",
+		"test:dom": "node bin/gpuix-svelte.js test/dom.ts",
+		"test:docs": "node bin/gpuix-svelte.js test/docs.ts",
 		"test:bundle": "node bin/gpuix-svelte.js test/bundle.ts",
 		"test:update": "node bin/gpuix-svelte.js test/update.ts",
 		"test:vars": "node bin/gpuix-svelte.js test/vars.ts",
@@ -102,6 +114,7 @@
 		"og": "node scripts/og.ts",
 		"wallpapers": "node scripts/wallpapers.ts",
 		"og:docs": "node scripts/docs.ts && node scripts/og.ts --root dist/docs --path overview.html --out docs/assets/og-docs.png",
+		"shots": "node bin/gpuix-svelte.js scripts/shots.ts",
 		"vendor": "node --use-env-proxy scripts/vendor-svelte.ts",
 		"parity": "node scripts/native-parity.ts",
 		"pack": "node scripts/publish.ts pack",
@@ -121,8 +134,12 @@
 		"bun:demo:styling": "node bin/gpuix-svelte.js --bun examples/styling-playground/main.ts",
 		"bun:demo:desktop": "node bin/gpuix-svelte.js --bun examples/desktop-apis/main.ts",
 		"bun:demo:native-0.11": "node bin/gpuix-svelte.js --bun examples/native-0.11/main.ts",
+		"bun:demo:cross": "node bin/gpuix-svelte.js --bun examples/cross-target/main.ts",
 		"bun:tutorial": "node bin/gpuix-svelte.js --bun examples/tutorial/main.ts",
-		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:dialog && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:tab && npm run bun:test:titlebar && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window && npm run bun:test:helpers && npm run bun:test:search && npm run bun:test:tooltip && npm run bun:test:automation && npm run bun:test:bundle && npm run bun:test:update",
+		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:dialog && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:tab && npm run bun:test:titlebar && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window && npm run bun:test:helpers && npm run bun:test:search && npm run bun:test:tooltip && npm run bun:test:cross-target && npm run bun:test:dom && npm run bun:test:docs && npm run bun:test:automation && npm run bun:test:bundle && npm run bun:test:update",
+		"bun:test:cross-target": "node bin/gpuix-svelte.js --bun test/cross-target.ts",
+		"bun:test:dom": "node bin/gpuix-svelte.js --bun test/dom.ts",
+		"bun:test:docs": "node bin/gpuix-svelte.js --bun test/docs.ts",
 		"bun:test:bundle": "node bin/gpuix-svelte.js --bun test/bundle.ts",
 		"bun:test:update": "node bin/gpuix-svelte.js --bun test/update.ts",
 		"bun:test:vars": "node bin/gpuix-svelte.js --bun test/vars.ts",
@@ -164,6 +181,8 @@
 	],
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
+		"@happy-dom/global-registrator": "^21.0.4",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@types/adm-zip": "^0.5.8",
 		"@types/bun": "^1.4.3",
 		"@types/node": "^26.6.5",
@@ -173,7 +192,8 @@
 		"marked": "^18.1.1",
 		"svelte-check": "^4.7.6",
 		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.71.2"
+		"typescript-eslint": "^8.71.2",
+		"vite": "^8.3.6"
 	},
 	"publishConfig": {
 		"registry": "https://registry.npmjs.org/",

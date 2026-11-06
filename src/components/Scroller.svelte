@@ -226,8 +226,8 @@
 	.inset { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
 	.list { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
 	.gutter { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; pointer-events: none; }
-	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; background-color: var(--scroller-thumb, #585b70); }
-	.thumb:hover { background-color: var(--scroller-thumb-hover, #7f849c); }
-	.thumb.dragging { background-color: var(--scroller-thumb-hover, #7f849c); }
+	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; background-color: var(--scroller-thumb, #404040); }
+	.thumb:hover { background-color: var(--scroller-thumb-hover, #5a5a5a); }
+	.thumb.dragging { background-color: var(--scroller-thumb-hover, #5a5a5a); }
 	.overlay { position: absolute; inset: 0; user-select: none; }
 </style>

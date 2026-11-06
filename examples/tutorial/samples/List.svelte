@@ -20,31 +20,31 @@
 	}
 
 	const BUTTON =
-		'padding: 6px 14px; border-radius: 6px; color: #1e1e2e; ' +
-		'font-size: 13px; font-weight: bold; cursor: pointer';
+		'padding: 6px 14px; border-radius: 8px; border-width: 1px; ' +
+		'font-size: 13px; font-weight: 600; cursor: pointer';
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 8px">
 	{#each items as item (item.id)}
 		<div
 			style="display: flex; flex-direction: row; justify-content: space-between;
-			       padding: 8px 12px; border-radius: 6px; background-color: #313244;
-			       color: #cdd6f4; font-size: 13px; cursor: pointer"
-			hover="background-color: #45475a"
+			       padding: 8px 12px; border-radius: 6px; background-color: #1c1c1c;
+			       color: #ededed; font-size: 13px; cursor: pointer"
+			hover="background-color: #262626"
 			onclick={() => (items = items.filter((i) => i.id !== item.id))}
 		>
 			<div>{item.label}</div>
-			<div style="color: #6c7086">id {item.id}</div>
+			<div style="color: #8f8f8f">id {item.id}</div>
 		</div>
 	{/each}
 
 	{#if items.length === 0}
-		<div style="color: #6c7086; font-size: 13px">empty — add something</div>
+		<div style="color: #a1a1a1; font-size: 13px">empty — add something</div>
 	{/if}
 
 	<div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
-		<div style="{BUTTON}; background-color: #89b4fa" onclick={add}>add</div>
-		<div style="{BUTTON}; background-color: #cba6f7" onclick={shuffle}>shuffle</div>
-		<div style="color: #6c7086; font-size: 12px">click a row to remove it</div>
+		<div style="{BUTTON}; border-color: #ededed; background-color: #ededed; color: #000000" onclick={add}>add</div>
+		<div style="{BUTTON}; border-color: #242424; color: #ededed" onclick={shuffle}>shuffle</div>
+		<div style="color: #a1a1a1; font-size: 12px">click a row to remove it</div>
 	</div>
 </div>

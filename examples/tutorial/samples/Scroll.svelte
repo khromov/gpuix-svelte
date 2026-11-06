@@ -8,8 +8,8 @@
 >
 	{#each rows as row (row)}
 		<div
-			style="padding: 8px 12px; border-radius: 6px; background-color: #313244;
-			       color: #cdd6f4; font-size: 13px"
+			style="padding: 8px 12px; border-radius: 6px; background-color: #1c1c1c;
+			       color: #ededed; font-size: 13px"
 		>
 			{row}
 		</div>

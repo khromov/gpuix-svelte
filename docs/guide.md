@@ -32,7 +32,7 @@ the match count through `onhighlight`. `TextSearch` keeps that state for a find 
 ```svelte
 <script lang="ts">
   import { TextSearch } from 'gpuix-svelte';
-  const search = new TextSearch({ color: '#f9e2af55', active_color: '#f9e2af' });
+  const search = new TextSearch({ color: '#f5a52455', active_color: '#f5a524' });
 </script>
 
 <input value={search.query} onchange={(e) => (search.query = e.value)} onsubmit={search.next} />
@@ -89,11 +89,14 @@ Ctrl, Alt and Cmd combinations are left alone. The move happens after every key 
 keystroke has run, so any of them can keep it:
 
 ```svelte
-<div tabindex="0" onkeydown={(e) => {
-  if (e.key !== 'tab') return;
-  e.preventDefault(); // keep this Tab, say to indent
-  indent();
-}}></div>
+<div
+  tabindex="0"
+  onkeydown={(e) => {
+    if (e.key !== 'tab') return;
+    e.preventDefault(); // keep this Tab, say to indent
+    indent();
+  }}
+></div>
 ```
 
 A key goes to the focused element, then to each focusable ancestor that listens, then to the
@@ -161,7 +164,9 @@ bar.
 
 All of these come from `gpuix-svelte`, and wherever they take an element they take the node an
 `{@attach}` gives you. Where the platform has no such call, they quietly do nothing: the window
-controls and `blur` do nothing headlessly, and the browser build has no file system. The
+controls and `blur` do nothing headlessly, and the browser build has no file system. In a browser
+DOM build each one becomes its DOM counterpart or a no-op; [Rendering Svelte components in both
+gpuix-svelte and normal DOM](dom.md#what-the-helpers-do-in-the-dom) lists them. The
 repository's [desktop-apis example](../examples/desktop-apis) puts most of them to work in one
 component (in a clone, `npm run demo:desktop`), and [native-0.11](../examples/native-0.11) shows
 what `@gpuix/native` 0.11 added (`npm run demo:native-0.11`).

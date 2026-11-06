@@ -34,38 +34,45 @@ current and otherwise to an `Update`:
 
 ```svelte
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { check_for_update, type Update } from 'gpuix-svelte/update';
+  import { onMount } from 'svelte';
+  import { check_for_update, type Update } from 'gpuix-svelte/update';
 
-	let update = $state<Update | null>(null);
-	let progress = $state<number | null>(null);
-	let error = $state('');
+  let update = $state<Update | null>(null);
+  let progress = $state<number | null>(null);
+  let error = $state('');
 
-	onMount(() => {
-		check_for_update().then((found) => (update = found), (e) => console.warn('update check failed:', e));
-	});
+  onMount(() => {
+    check_for_update().then(
+      (found) => (update = found),
+      (e) => console.warn('update check failed:', e)
+    );
+  });
 
-	async function install() {
-		try {
-			await update!.download({ onProgress: (received, total) => (progress = total ? received / total : null) });
-			await update!.install(); // swaps the app and restarts it
-		} catch (e) {
-			error = (e as Error).message;
-		}
-	}
+  async function install() {
+    try {
+      await update!.download({
+        onProgress: (received, total) => (progress = total ? received / total : null)
+      });
+      await update!.install(); // swaps the app and restarts it
+    } catch (e) {
+      error = (e as Error).message;
+    }
+  }
 </script>
 
 {#if update}
-	<div class="banner">
-		<div>Version {update.version} is available</div>
-		{#if error}
-			<div class="error">{error}</div>
-		{:else if update.installable}
-			<div class="btn" onclick={install}>{progress === null ? 'Install and restart' : `${Math.round(progress * 100)}%`}</div>
-		{:else if update.url}
-			<div>Get it at {update.url}</div>
-		{/if}
-	</div>
+  <div class="banner">
+    <div>Version {update.version} is available</div>
+    {#if error}
+      <div class="error">{error}</div>
+    {:else if update.installable}
+      <div class="btn" onclick={install}>
+        {progress === null ? 'Install and restart' : `${Math.round(progress * 100)}%`}
+      </div>
+    {:else if update.url}
+      <div>Get it at {update.url}</div>
+    {/if}
+  </div>
 {/if}
 ```
 

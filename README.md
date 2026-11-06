@@ -23,6 +23,8 @@ npm start
 
 A counter opens in its own window. Edit `App.svelte`, save, and the window hot-reloads.
 
+![The starter app's window: a dark card with the count 2, a minus button, a plus button and the hint "Edit App.svelte and save — the window hot-reloads."](https://raw.githubusercontent.com/khromov/gpuix-svelte/main/homepage/assets/shots/hot-before.png)
+
 You need **Node.js 24 or later** or **Bun 1.4 or later**, on macOS (Apple Silicon), Windows (x64
 or arm64) or Linux (x64). The GPUI binary comes prebuilt from npm, so `npm install` is all the
 setup there is. On Bun, run `bun create gpuix-svelte my-app`, then `cd my-app`, `bun install` and
@@ -36,7 +38,7 @@ machine without a GPU also needs a software Vulkan driver such as `mesa-vulkan-d
 and X11 both work. GNOME under Wayland gives the window no title bar, so there `render()` draws a
 simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
 
-## What it looks like
+## Writing Svelte with gpuix-svelte
 
 ```svelte
 <!-- App.svelte -->
@@ -50,11 +52,33 @@ simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
 </div>
 
 <style>
-  .app { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 32px;
-         width: 100%; height: 100%; background-color: #1e1e2e; }
-  .count { font-size: 48px; color: #cdd6f4; }
-  .btn { padding: 12px 24px; border-radius: 8px; background-color: #313244; color: #cdd6f4; }
-  .btn:hover { background-color: #45475a; }
+  .app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+  }
+  .count {
+    font-size: 48px;
+    color: #ededed;
+  }
+  .btn {
+    padding: 12px 24px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #242424;
+    background-color: #111111;
+    color: #ededed;
+  }
+  .btn:hover {
+    border-color: #404040;
+    background-color: #1c1c1c;
+  }
 </style>
 ```
 
@@ -77,7 +101,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 
 ## Coming from Svelte on the web
 
-- **Elements are GPUI's**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
+- **HTML elements are mapped to GPUI primitives**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list` and `anchored`. Any other tag renders as a `div`, with a one-time
   warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
 - **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes
@@ -102,6 +126,12 @@ files, spawn processes, open SQLite databases and load native addons directly.
 - **Window and desktop APIs** cover the title, fullscreen, the file picker, file drops, images
   from raw pixels, focus and accessibility attributes.
   → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
+- **Svelte components render in both gpuix-svelte and a normal DOM.** The same components can be shared
+  between a gpuix-svelte app and a normal Svelte app such as SvelteKit: a Vite or SvelteKit build
+  gets DOM versions of every helper and component under the same imports, and `IS_GPUIX` tells a
+  component which renderer it is on (next release, 0.6.0). → [docs/dom.md](docs/dom.md), and a SvelteKit site and a GPUI window
+  sharing one component library:
+  [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
 
 ## Documentation
 
@@ -112,6 +142,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
+| [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)).
@@ -216,10 +247,16 @@ The scripts below run them in a clone of the repository (`bun install`, then the
 | `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
 | `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
+| `npm run demo:cross` | One component on both renderers: a GPUI window here, a browser DOM through Vite with `npm run demo:dom` |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 
-Each of these, apart from `demo:web` (which always runs on Bun), has a Bun twin under a `bun:`
-prefix, such as `npm run bun:demo:counter`.
+Each of these, apart from `demo:web` (which always runs on Bun) and `demo:dom` (Vite), has a Bun
+twin under a `bun:` prefix, such as `npm run bun:demo:counter`.
+
+Outside this repository,
+[gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
+is a small component library rendered by a SvelteKit site and by a GPUI window at the same time,
+with `npm run dev` opening both.
 
 ## About the Svelte version
 

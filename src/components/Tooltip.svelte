@@ -103,7 +103,7 @@
 		line-height: 16px;
 		white-space: nowrap;
 		user-select: none;
-		background-color: var(--tooltip-surface, #313244);
-		color: var(--tooltip-ink, #cdd6f4);
+		background-color: var(--tooltip-surface, #1c1c1c);
+		color: var(--tooltip-ink, #ededed);
 	}
 </style>

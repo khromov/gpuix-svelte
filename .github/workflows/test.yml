@@ -82,6 +82,13 @@ jobs:
       - run: npm run bun:test:update
       # The browser bundle, which the `browser` condition of every export has to keep buildable.
       - run: npm run demo:web -- --build-only
+      # The DOM side of the package: the happy-dom suite needs no headless renderer, and Vite builds the example on it.
+      - run: npm run test:dom
+      - run: npm run bun:test:dom
+      - run: npm run demo:dom -- --build-only
+      # Builds the docs site, live demos included, and mounts every demo from the built bundle.
+      - run: npm run test:docs
+      - run: npm run bun:test:docs
       - run: npm run test:compile
       - run: npm run bun:test:compile
       # A runner has no display or GPU, so Xvfb and Mesa's software Vulkan stand in for them.

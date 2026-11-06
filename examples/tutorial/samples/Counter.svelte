@@ -4,21 +4,21 @@
 </script>
 
 <div style="display: flex; flex-direction: column; align-items: center; gap: 12px">
-	<div style="font-size: 40px; font-weight: bold; color: #cdd6f4">{count}</div>
+	<div style="font-size: 40px; font-weight: 600; color: #ededed">{count}</div>
 
 	<div style="display: flex; flex-direction: row; gap: 10px">
 		<div
-			style="padding: 8px 20px; border-radius: 8px; background-color: #f38ba8;
-			       color: #1e1e2e; font-weight: bold; cursor: pointer"
-			hover="background-color: #eba0ac"
+			style="padding: 8px 20px; border-radius: 8px; border-width: 1px; border-color: #242424;
+			       color: #ededed; font-weight: 600; cursor: pointer"
+			hover="background-color: #1c1c1c; border-color: #404040"
 			onclick={() => count > 0 && count--}
 		>
 			−
 		</div>
 		<div
-			style="padding: 8px 20px; border-radius: 8px; background-color: #a6e3a1;
-			       color: #1e1e2e; font-weight: bold; cursor: pointer"
-			hover="background-color: #94e2d5"
+			style="padding: 8px 20px; border-radius: 8px; border-width: 1px; border-color: #ededed;
+			       background-color: #ededed; color: #000000; font-weight: 600; cursor: pointer"
+			hover="background-color: #ffffff; border-color: #ffffff"
 			testId="plus"
 			onclick={() => count++}
 		>
@@ -27,6 +27,6 @@
 	</div>
 
 	{#if count > 0}
-		<div style="font-size: 13px; color: #f9e2af">doubled: {doubled}</div>
+		<div style="font-size: 13px; color: #ff8a5c">doubled: {doubled}</div>
 	{/if}
 </div>

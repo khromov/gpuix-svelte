@@ -186,6 +186,10 @@ the plumbing differs:
 - **It's about a 20 MB download** uncompressed, almost all of it the wasm, so serve it with
   compression.
 
+This is GPUI itself in the browser. To have Svelte's regular DOM renderer draw the same component
+instead, with the helpers and components swapped for DOM versions, see
+[Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md).
+
 ## In the repository
 
 `npm run compile` builds the tic-tac-toe example the same way a scaffolded app is built:

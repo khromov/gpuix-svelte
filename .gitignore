@@ -6,6 +6,7 @@ node_modules
 test/.samples-tmp
 test/.hot-tmp
 test/.bundle-tmp
+test/.dom-tmp
 
 # compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib

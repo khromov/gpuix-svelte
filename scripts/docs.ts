@@ -1,11 +1,13 @@
 // Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
-// coloured in the browser by docs/assets/prism.js, a vendored Prism build. Beside each page goes a
-// standalone markdown copy, indexed by llms.txt (https://llmstxt.org) for coding agents. The
-// homepage (homepage/) is copied to the root, so the README renders as overview.html. --serve then
-// serves dist/docs on PORT (default 4321), opens it in the browser (--no-open skips that) and
-// rebuilds whenever README.md, docs/, homepage/ or this script changes: the parent only watches
-// and restarts a child (--serve-child) that builds and serves, so an edit to the template here
-// takes effect too and a failed build just waits for the next save.
+// coloured in the browser by docs/assets/prism.js, a vendored Prism build. A ```svelte demo <name>
+// block is also a live demo: its source is compiled as a component in the DOM and mounted into
+// the page beside the code (see bundle_demos). Beside each page goes a standalone markdown copy,
+// indexed by llms.txt (https://llmstxt.org) for coding agents. The homepage (homepage/) is copied
+// to the root, so the README renders as overview.html. --serve then serves dist/docs on PORT
+// (default 4321), opens it in the browser (--no-open skips that) and rebuilds whenever README.md,
+// docs/, homepage/, the DOM versions of the components or this script changes: the parent only watches and restarts a
+// child (--serve-child) that builds and serves, so an edit to the template here takes effect too
+// and a failed build just waits for the next save.
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { copyFileSync, cpSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
@@ -14,8 +16,11 @@ import type { AddressInfo } from 'node:net';
 import { basename, extname, join, posix, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
+import { build as vite_build } from 'vite';
+import { dom_plugins } from './vite-dom.ts';
 
 const REPO = 'https://github.com/khromov/gpuix-svelte';
+const RAW = REPO.replace('https://github.com/', 'https://raw.githubusercontent.com/');
 const SITE = 'https://gpuix-svelte.stanislav.garden/';
 const NPM = 'https://www.npmjs.com/package/gpuix-svelte';
 
@@ -26,6 +31,7 @@ const PAGES = [
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
+	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },
 	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
@@ -33,7 +39,16 @@ type Page = (typeof PAGES)[number];
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const out_dir = join(root, 'dist/docs');
+const demos_dir = join(root, 'dist/docs-demos');
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
+
+interface Demo {
+	id: string;
+	source: string;
+}
+
+// The info string of a fenced block that is also a live demo; the name is optional and becomes part of its id.
+const DEMO = /^svelte\s+demo(?:\s+([\w-]+))?$/;
 
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -57,6 +72,23 @@ function rewrite(href: string, from: string, as: 'html' | 'md') {
 	const page = PAGES.find((p) => p.source === target);
 	if (page) return as === 'html' ? `${page.name}.html${anchor}` : `${SITE}${page.name}.md${anchor}`;
 	return `${REPO}/blob/main/${target}${anchor}`;
+}
+
+// The README links its image through raw.githubusercontent so npm shows it too, and `rewrite` has
+// already turned a relative path into a blob URL; either names a file in this checkout.
+function local_image(href: string) {
+	for (const prefix of [`${RAW}/`, `${REPO}/blob/`]) {
+		if (href.startsWith(prefix)) return join(root, href.slice(prefix.length).replace(/^[^/]+\//, ''));
+	}
+	return null;
+}
+
+// Width and height from the IHDR chunk, which every PNG starts with.
+function png_size(path: string): [number, number] | null {
+	if (!existsSync(path)) return null;
+	const png = readFileSync(path);
+	if (png.toString('hex', 0, 8) !== '89504e470d0a1a0a') return null;
+	return [png.readUInt32BE(16), png.readUInt32BE(20)];
 }
 
 // Fenced code is left alone, since a `](` inside an example is not a link.
@@ -90,7 +122,8 @@ ${PAGES.filter((p) => p.optional).map(entry).join('\n')}
 `;
 }
 
-function render(source: string) {
+function render({ source, name }: Page, demos: Demo[]) {
+	let unnamed = 0;
 	const marked = new Marked({
 		gfm: true,
 		walkTokens(token) {
@@ -101,6 +134,30 @@ function render(source: string) {
 				const html = this.parser.parseInline(tokens);
 				const id = slug(html);
 				return `<h${depth} id="${id}"><a class="anchor" href="#${id}">${html}</a></h${depth}>\n`;
+			},
+			// A demo block renders as the live result over the code; `false` leaves every other block to marked.
+			code({ text, lang }: Tokens.Code) {
+				const demo = DEMO.exec(lang ?? '');
+				if (!demo) return false;
+				const id = `${name}-${demo[1] ?? ++unnamed}`;
+				if (demos.some((d) => d.id === id)) throw new Error(`[docs] ${source} has two demos named "${id}"`);
+				demos.push({ id, source: text });
+				return `<div class="demo">
+<div class="demo-head"><span class="demo-live">Demo</span><a href="dom.html#the-components-in-the-dom">Renderer: DOM</a></div>
+<div class="demo-result" data-demo="${id}"><noscript>The live result needs JavaScript.</noscript></div>
+<pre><code class="language-svelte">${escape(text)}\n</code></pre>
+</div>\n`;
+			},
+			// A PNG from this checkout is served from the site, so the page shows this commit's image rather
+			// than what GitHub has, and carries its size, so the page does not shift while it loads.
+			image({ href, title, text }: Tokens.Image) {
+				const file = local_image(href);
+				const size = file && png_size(file);
+				if (!file || !size) return false;
+				// Under img/, out of the way of the pages and of the homepage's files at the root.
+				mkdirSync(join(out_dir, 'img'), { recursive: true });
+				copyFileSync(file, join(out_dir, 'img', basename(file)));
+				return `<img src="img/${basename(file)}" alt="${escape(text)}" width="${size[0]}" height="${size[1]}" loading="lazy" decoding="async"${title ? ` title="${escape(title)}"` : ''}>`;
 			}
 		}
 	});
@@ -126,6 +183,7 @@ const CSS = `
 @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 :root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #8f8f8f; --link: #ededed; --accent: #ff3e00; --gut: 32px; --corner: 80px; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
+:root { --paper: #111111; --ink: #ededed; --panel: #1f1f1f; --raised: #2c2c2c; --dim: #a1a1a1; --tooltip-surface: #ededed; --tooltip-ink: #000; --popover-surface: #1f1f1f; --popover-border: #404040; --popover-ink: #ededed; --scroller-thumb: #404040; --scroller-thumb-hover: #5a5a5a; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: 80px; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.7 var(--sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -219,6 +277,16 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .table th { background: var(--surface); color: var(--fg); font-weight: 500; }
 .table tr:last-child td { border-bottom: 0; }
 .table td:first-child { white-space: nowrap; }
+.demo { margin: 0 0 20px; }
+.demo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--surface); font-size: 12px; }
+.demo-live { display: flex; align-items: center; gap: 7px; color: var(--fg); font-weight: 500; }
+.demo-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tip); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tip) 25%, transparent); }
+.prose .demo-head a { color: var(--muted); text-decoration: none; }
+.prose .demo-head a:hover { color: var(--fg); }
+.demo-result { padding: 24px; border: 1px solid var(--line); border-bottom: 0; background: var(--paper); color: var(--ink); font-size: 14px; line-height: 1.5; }
+.demo-result noscript { color: var(--dim); font-size: 13px; }
+.prose .demo .code { margin: 0; }
+.demo .code pre { border-radius: 0 0 10px 10px; }
 .prose blockquote:not(.alert) { padding-left: 16px; border-left: 2px solid var(--line); color: var(--muted); }
 .alert { --accent: var(--note); padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
 .alert.tip { --accent: var(--tip); }
@@ -266,6 +334,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .prose h2 { font-size: 22px; margin-top: 44px; }
   .prose :is(h2, h3, h4) a.anchor::before { display: none; }
   .code pre { padding: 14px 16px; font-size: 13px; }
+  .demo-result { padding: 16px; }
   .table table { font-size: 14px; }
   .table :is(th, td) { padding: 9px 12px; }
   .page-end { margin-top: 56px; }
@@ -317,7 +386,7 @@ const OG_ALT = 'The Overview page of the gpuix-svelte docs: page list, opening p
 const description = (p: Page) =>
 	`${p.name === 'overview' ? 'A Svelte custom renderer for GPUI, the UI framework behind Zed. ' : ''}${p.about[0].toUpperCase()}${p.about.slice(1)}.`;
 
-function page(current: Page, body: string) {
+function page(current: Page, body: string, live: boolean) {
 	const heading = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
 	const title = escape(heading === 'gpuix-svelte' ? heading : `${heading} · gpuix-svelte`);
 	const about = escape(description(current));
@@ -354,7 +423,7 @@ function page(current: Page, body: string) {
 <link rel="alternate" type="text/markdown" href="${current.name}.md">
 <style>${CSS}</style>
 <script src="prism.js" defer></script>
-<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
+${live ? '<script type="module" src="demos.js"></script>\n' : ''}<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
@@ -410,13 +479,73 @@ ${next ? `<a class="next" href="${next.name}.html" rel="next"><span>Next</span>$
 `;
 }
 
-function build() {
+// One bundle for every page, built as a consumer's Vite would build it, so `gpuix-svelte` and its components
+// resolve to the DOM versions of the components; its entry mounts each demo into the `data-demo` element of the same id.
+async function bundle_demos(demos: Demo[]) {
+	rmSync(demos_dir, { recursive: true, force: true });
+	mkdirSync(demos_dir, { recursive: true });
+	for (const d of demos) writeFileSync(join(demos_dir, `${d.id}.svelte`), d.source);
+	const entry = join(demos_dir, 'demos.js');
+	writeFileSync(
+		entry,
+		`import { mount } from 'svelte';
+${demos.map((d, i) => `import demo_${i} from './${d.id}.svelte';`).join('\n')}
+
+const DEMOS = {
+${demos.map((d, i) => `\t${JSON.stringify(d.id)}: demo_${i}`).join(',\n')}
+};
+
+export function mount_demos(root = document) {
+	const mounted = [];
+	const failed = [];
+	for (const target of root.querySelectorAll('[data-demo]')) {
+		const id = target.dataset.demo;
+		try {
+			if (!Object.hasOwn(DEMOS, id)) throw new Error('not in this bundle');
+			target.replaceChildren();
+			mount(DEMOS[id], { target });
+			mounted.push(id);
+		} catch (error) {
+			console.error(\`[docs] the demo "\${id}" failed to mount:\`, error);
+			failed.push(id);
+		}
+	}
+	return { mounted, failed };
+}
+
+mount_demos();
+`
+	);
+	await vite_build({
+		root: demos_dir,
+		configFile: false,
+		logLevel: 'warn',
+		plugins: dom_plugins({ emitCss: false }),
+		build: {
+			outDir: out_dir,
+			emptyOutDir: false,
+			copyPublicDir: false,
+			rolldownOptions: {
+				input: entry,
+				// An app build drops its entry's exports, and the test imports mount_demos from the built file.
+				preserveEntrySignatures: 'strict',
+				output: { entryFileNames: 'demos.js', chunkFileNames: 'demos-[name].js', assetFileNames: 'demos-[name][extname]' }
+			}
+		}
+	});
+}
+
+async function build() {
 	rmSync(out_dir, { recursive: true, force: true });
 	mkdirSync(out_dir, { recursive: true });
+	const demos: Demo[] = [];
 	for (const p of PAGES) {
-		writeFileSync(join(out_dir, `${p.name}.html`), page(p, render(p.source)));
+		const before = demos.length;
+		const body = render(p, demos);
+		writeFileSync(join(out_dir, `${p.name}.html`), page(p, body, demos.length > before));
 		writeFileSync(join(out_dir, `${p.name}.md`), markdown(p.source));
 	}
+	if (demos.length) await bundle_demos(demos);
 	writeFileSync(join(out_dir, 'llms.txt'), llms_txt());
 	writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source).trim()).join('\n\n---\n\n') + '\n');
 	copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
@@ -426,13 +555,13 @@ function build() {
 		if (existsSync(join(out_dir, entry))) throw new Error(`[docs] homepage/${entry} collides with the docs output`);
 		cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
 	}
-	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, with homepage/ at the root → ${out_dir}`);
+	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, ${demos.length} live demos in demos.js, with homepage/ at the root → ${out_dir}`);
 }
 
 if (process.argv.includes('--serve')) {
 	supervise();
 } else {
-	build();
+	await build();
 	if (process.argv.includes('--serve-child')) serve(process.argv.includes('--open'));
 }
 
@@ -470,7 +599,7 @@ function supervise() {
 		clearTimeout(timer);
 		timer = setTimeout(cycle, 300);
 	};
-	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts']) {
+	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts', 'scripts/vite-dom.ts', 'src/dom.ts', 'src/components/dom']) {
 		const target = join(root, path);
 		watch(target, { recursive: statSync(target).isDirectory() }, (_, file) => {
 			if (!file || !basename(file).startsWith('.')) restart();

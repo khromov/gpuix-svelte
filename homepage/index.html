@@ -19,12 +19,12 @@
 <meta property="og:image" content="https://gpuix-svelte.stanislav.garden/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, a minus button and a teal plus button.">
+<meta property="og:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, an outlined minus button and a white plus button.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="gpuix-svelte: Build native desktop apps with Svelte">
 <meta name="twitter:description" content="A Svelte renderer for native desktop apps on macOS, Windows and Linux. GPUI, the UI framework behind the Zed editor, draws them, with no DOM or webview.">
 <meta name="twitter:image" content="https://gpuix-svelte.stanislav.garden/og.png">
-<meta name="twitter:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, a minus button and a teal plus button.">
+<meta name="twitter:image:alt" content="The headline “Build native desktop apps with Svelte”, a sentence naming macOS, Windows and Linux, and the command npm create gpuix-svelte@latest my-app. Beside them, a laptop showing the starter app’s window on a macOS desktop: a dark card with the count 0, an outlined minus button and a white plus button.">
 <style>
 @font-face{font-family:Geist;src:url(assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
 @font-face{font-family:"Geist Mono";src:url(assets/fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
@@ -36,7 +36,7 @@
 --sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
 --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 --max:1200px;--gut:32px;--corner:80px;
---c-p:#8c8c8c;--c-t:#88b4e2;--c-a:#d3b98e;--c-s:#97c69c;--c-k:#e09cbc;--c-n:#e6b07e;--c-id:#d4d4d4;--c-ln:#5e5e5e;
+--c-p:#a1a1a1;--c-t:#97cdd8;--c-a:#e1c398;--c-s:#abd09f;--c-k:#e9a5c7;--c-n:#94bff0;--c-id:#d4d4d4;--c-ln:#5e5e5e;
 }
 *,*::before,*::after{box-sizing:border-box}
 html{background:var(--bg);-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:80px}
@@ -275,7 +275,7 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .win{position:absolute;left:50%;top:calc(50% - 20 * var(--vp));width:calc(640 * var(--vp));transform:translate(-50%,-50%);box-shadow:0 calc(24 * var(--vp)) calc(60 * var(--vp)) rgba(0,0,0,.6),0 0 0 .5px rgba(0,0,0,.6);transition:top var(--osw-t) ease}
 .lap:has([value=win]:checked) .win{top:calc(50% - 24 * var(--vp))}
 .lap:has([value=linux]:checked) .win{top:calc(50% + 16 * var(--vp))}
-.osw-win{position:relative;overflow:hidden;border:1px solid var(--osw-line);border-radius:calc(12 * var(--vp));background:#11111b;transition:border-radius var(--osw-t) ease}
+.osw-win{position:relative;overflow:hidden;border:1px solid var(--osw-line);border-radius:calc(12 * var(--vp));background:#000;transition:border-radius var(--osw-t) ease}
 .scr .osw-win{border:0}
 .osw-bars{position:relative;height:calc(28 * var(--vp));overflow:hidden;background:#2a2a2a;box-shadow:inset 0 -1px rgba(0,0,0,.55);transition:height var(--osw-t) ease,background-color var(--osw-t) ease,box-shadow var(--osw-t) ease}
 .osw-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;opacity:0;visibility:hidden;user-select:none;-webkit-user-select:none;transition:opacity var(--osw-h) ease,visibility 0s linear var(--osw-h)}
@@ -310,16 +310,16 @@ h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;tex
 .osw-gx:active{background:rgba(255,255,255,.3)}
 .osw-gx svg{display:block;width:calc(16 * var(--vp));height:calc(16 * var(--vp));fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
 
-.mk{display:flex;align-items:center;justify-content:center;height:calc(480 * var(--vp));background:#11111b;font:400 calc(16 * var(--vp))/1.6 var(--sys);color:#cdd6f4}
-.mk-card{display:flex;flex-direction:column;align-items:center;gap:calc(24 * var(--vp));padding:calc(44 * var(--vp)) calc(56 * var(--vp));border-radius:calc(18 * var(--vp));background:#1e1e2e}
-.mk-count{font-size:calc(104 * var(--vp));line-height:1.2;font-weight:700;color:#cdd6f4;font-variant-numeric:tabular-nums}
+.mk{display:flex;align-items:center;justify-content:center;height:calc(480 * var(--vp));background:#000;font:400 calc(16 * var(--vp))/1.6 var(--sys);color:#ededed}
+.mk-card{display:flex;flex-direction:column;align-items:center;gap:calc(24 * var(--vp));padding:calc(44 * var(--vp)) calc(56 * var(--vp));border:1px solid #242424;border-radius:calc(10 * var(--vp));background:#111}
+.mk-count{font-size:calc(104 * var(--vp));line-height:1.2;font-weight:600;color:#ededed;font-variant-numeric:tabular-nums}
 .mk-row{display:flex;gap:calc(20 * var(--vp))}
-.mk-btn{appearance:none;margin:0;border:0;padding:calc(16 * var(--vp)) calc(48 * var(--vp));border-radius:calc(14 * var(--vp));background:#313244;color:#cdd6f4;font:700 calc(34 * var(--vp))/1.4 var(--sys);cursor:pointer;transition:background-color var(--osw-q) ease}
-.mk-btn:hover{background:#45475a}
-.mk-btn:focus-visible{outline:2px solid #cdd6f4;outline-offset:2px;border-radius:calc(8 * var(--vp))}
-.mk-btn.primary{background:#a6e3a1;color:#1e1e2e}
-.mk-btn.primary:hover{background:#94e2d5}
-.mk-hint{font-size:calc(19 * var(--vp));color:#a6adc8;white-space:nowrap}
+.mk-btn{appearance:none;margin:0;border:1px solid #242424;padding:calc(16 * var(--vp)) calc(48 * var(--vp));border-radius:calc(8 * var(--vp));background:transparent;color:#ededed;font:600 calc(34 * var(--vp))/1.4 var(--sys);cursor:pointer;transition:background-color var(--osw-q) ease,border-color var(--osw-q) ease}
+.mk-btn:hover{border-color:#404040;background:#1c1c1c}
+.mk-btn:focus-visible{outline:2px solid #ededed;outline-offset:2px;border-radius:calc(8 * var(--vp))}
+.mk-btn.primary{border-color:#ededed;background:#ededed;color:#000}
+.mk-btn.primary:hover{border-color:#fff;background:#fff}
+.mk-hint{font-size:calc(19 * var(--vp));color:#a1a1a1;white-space:nowrap}
 
 .osw-mac{opacity:1;visibility:visible;transition:opacity var(--osw-h) ease var(--osw-h)}
 .lap:has([value=win]:checked) .osw-win{border-radius:calc(8 * var(--vp))}
@@ -917,7 +917,7 @@ Created my-app. Next:
 <div class="osw-bars" aria-hidden="true">
 <div class="osw-bar osw-mac"><span class="osw-lights"><i><svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5m0-5l-5 5"/></svg></i><i><svg viewBox="0 0 12 12"><path d="M3.2 6h5.6"/></svg></i><i><svg viewBox="0 0 12 12"><path d="M3.5 3.5h4.25L3.5 7.75zM8.5 8.5H4.25L8.5 4.25z" fill="currentColor" stroke="none"/></svg></i></span><span class="osw-title">gpuix-svelte starter</span></div>
 </div>
-<div class="osw-body"><img src="assets/shots/hot-before.png" width="640" height="480" loading="lazy" decoding="async" alt="The starter app’s window, captured on macOS: a dark card with the count 2, a minus button, a teal plus button and the hint “Edit App.svelte and save — the window hot-reloads.”">
+<div class="osw-body"><img src="assets/shots/hot-before.png" width="640" height="480" loading="lazy" decoding="async" alt="The starter app’s window, captured on macOS: a dark card with the count 2, an outlined minus button, a white plus button and the hint “Edit App.svelte and save — the window hot-reloads.”">
 <span class="box b-app in" data-t="app" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex().w_full().h_full()</code></span></span>
 <span class="box b-card" data-t="card" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex_col().gap(px(16.))</code></span></span>
 <span class="box b-row r" data-t="row" aria-hidden="true"><span class="tag"><span class="tag-k">Native GPUI <code>div</code> element</span><code class="tag-c">.flex_row().gap(px(12.))</code></span></span>
@@ -941,9 +941,11 @@ Created my-app. Next:
 <div class="editor">
 <div class="bar"><span><span class="dim">starter/</span>App.svelte</span></div>
 <pre class="code diff"><code>
-<span class="ln" data-n=" ">	<span class="a">.primary</span> <span class="p">{</span></span>
-<span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#a6e3a1" aria-hidden="true"></span><span class="n">#a6e3a1</span><span class="p">;</span></span>
-<span class="ln del" data-n="-">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#1e1e2e" aria-hidden="true"></span><span class="n">#1e1e2e</span><span class="p">;</span></span>
+<span class="ln" data-n=" ">	<span class="a">.btn.primary</span> <span class="p">{</span></span>
+<span class="ln del" data-n="-">		<span class="t">border-color</span><span class="p">:</span> <span class="sw" style="--c:#ededed" aria-hidden="true"></span><span class="n">#ededed</span><span class="p">;</span></span>
+<span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#ededed" aria-hidden="true"></span><span class="n">#ededed</span><span class="p">;</span></span>
+<span class="ln del" data-n="-">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#000000" aria-hidden="true"></span><span class="n">#000000</span><span class="p">;</span></span>
+<span class="ln add" data-n="+">		<span class="t">border-color</span><span class="p">:</span> <span class="sw" style="--c:#ff3e00" aria-hidden="true"></span><span class="n">#ff3e00</span><span class="p">;</span></span>
 <span class="ln add" data-n="+">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#ff3e00" aria-hidden="true"></span><span class="n">#ff3e00</span><span class="p">;</span></span>
 <span class="ln add" data-n="+">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#ffffff" aria-hidden="true"></span><span class="n">#ffffff</span><span class="p">;</span></span>
 <span class="ln" data-n=" ">	<span class="p">}</span></span>
@@ -960,9 +962,9 @@ Created my-app. Next:
 <pre class="code soft sm"><code>
 <span class="ln" data-n="11"><span class="p">&lt;</span><span class="t">style</span><span class="p">&gt;</span></span>
 <span class="ln gap" data-n="" style="--in:2">…</span>
-<span class="ln" data-n="15" style="--in:2"><span class="nw"><span class="a">.btn</span> <span class="p">{</span></span> <span class="nw"><span class="t">padding</span><span class="p">:</span> <span class="n">12px 24px</span><span class="p">;</span></span> <span class="nw"><span class="t">border-radius</span><span class="p">:</span> <span class="n">8px</span><span class="p">;</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#313244" aria-hidden="true"></span><span class="n">#313244</span><span class="p">;</span></span> <span class="nw"><span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#cdd6f4" aria-hidden="true"></span><span class="n">#cdd6f4</span><span class="p">; }</span></span></span>
-<span class="ln" data-n="16" style="--in:2"><span class="nw"><span class="a">.btn:hover</span> <span class="p">{</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#45475a" aria-hidden="true"></span><span class="n">#45475a</span><span class="p">; }</span></span></span>
-<span class="ln" data-n="17"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="26" style="--in:2"><span class="nw"><span class="a">.btn</span> <span class="p">{</span></span> <span class="nw"><span class="t">padding</span><span class="p">:</span> <span class="n">12px 24px</span><span class="p">;</span></span> <span class="nw"><span class="t">border-radius</span><span class="p">:</span> <span class="n">8px</span><span class="p">;</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#111111" aria-hidden="true"></span><span class="n">#111111</span><span class="p">;</span></span> <span class="nw"><span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#ededed" aria-hidden="true"></span><span class="n">#ededed</span><span class="p">; }</span></span></span>
+<span class="ln" data-n="35" style="--in:2"><span class="nw"><span class="a">.btn:hover</span> <span class="p">{</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#1c1c1c" aria-hidden="true"></span><span class="n">#1c1c1c</span><span class="p">; }</span></span></span>
+<span class="ln" data-n="39"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
 </code></pre>
 </div>
 <a class="more" href="styling.html">Styling docs</a>

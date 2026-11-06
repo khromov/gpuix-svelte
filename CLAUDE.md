@@ -28,7 +28,8 @@ that way).
 
 ```bash
 bun install                # entire setup (bun.lock is the lockfile); @gpuix/native ships prebuilt
-npm run typecheck          # tsc --noEmit + svelte-check --fail-on-warnings; the first step of `test`
+npm run typecheck          # tsc --noEmit + svelte-check --fail-on-warnings twice (tsconfig.json for the
+                           # GPUI markup, tsconfig.dom.json for the DOM components); the first step of `test`
 npm run lint               # eslint . (eslint.config.js); NOT part of `test` — only CI's linux job
                            # runs it, so run it before pushing
 npm run demo               # counter, tic-tac-toe, hacker-news and liquid-glass at once
@@ -54,6 +55,12 @@ npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU bui
                            # dist/web and serves it at http://localhost:4173 (PORT overrides).
                            # --production for the minified/production-Svelte bundle, --build-only
                            # to skip serving. BUN ONLY. See "Rendering to the web"
+npm run demo:cross         # one component on both renderers (examples/cross-target): a GPUI window
+                           # here, a browser DOM through demo:dom. See "Rendering in the DOM"
+npm run demo:dom           # Vite dev server for examples/cross-target in the DOM (scripts/dom.ts
+                           # holds the Vite config and serves homepage/assets/fonts as the public dir
+                           # for the page's Geist; -- --build-only writes dist/dom, -- --no-open skips
+                           # the browser). Runs Vite on Node; no bun: twin
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram beside highlighted source and the same component
                            # running live, with a quiz. Prose is examples/tutorial/content/*.md, the
@@ -98,6 +105,14 @@ npm run test:helpers       # every gpuix-svelte/test input helper through real h
 npm run test:search        # TextSearch: native match count, next/prev wrap, flags, find_ranges
 npm run test:tooltip       # native <anchored> placement and its center quirk; Tooltip hover
                            # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
+npm run test:cross-target  # the cross-target example on GPUI: the palette through set_css_vars and the
+                           # T shortcut, Scroller, Tooltip, Popover and Portal, all by test id
+npm run test:dom           # the same example in the DOM in happy-dom, the stubs of dom.ts and a
+                           # name-by-name parity check against web.ts; needs no headless renderer, so it
+                           # runs on Linux too
+npm run test:docs          # builds the docs site (always on Node, since Vite runs there) and mounts
+                           # every ```svelte demo``` from the built dist/docs/demos.js into each built
+                           # page under happy-dom, clicking through a few; runs on Linux too
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
@@ -130,15 +145,28 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # each page links its copy (llms.txt) and copies it (Copy page);
                            # homepage/ is copied to the root, so README becomes overview.html;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
-                           # A new docs page also needs an entry in scripts/docs.ts's PAGES
+                           # A new docs page also needs an entry in scripts/docs.ts's PAGES.
+                           # A ```svelte demo <name>``` block is a live demo: written to
+                           # dist/docs-demos/<page>-<name>.svelte and bundled by Vite for the DOM
+                           # into dist/docs/demos.js, which only pages with a demo load;
+                           # one that does not compile fails the build. See "The docs' live demos"
 npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
                            # (PORT overrides) and opens it in the browser (-- --no-open skips
-                           # that); rebuilds on any change to README.md, docs/, homepage/ or
-                           # scripts/docs.ts by restarting a child that builds and serves
+                           # that); rebuilds on any change to README.md, docs/, homepage/,
+                           # scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts or src/components/dom
+                           # by restarting a child that builds and serves
 npm run og                 # retakes homepage/og.png: headless Chrome over CDP (scripts/og.ts,
                            # $CHROME overrides the path) on index.html#og at 1200x630, device
                            # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
                            # Rerun after changing the hero; keep og:image:alt in step
+npm run shots              # retakes every other screenshot the homepage, README and docs carry
+                           # (scripts/shots.ts, through the bin): the example windows in
+                           # homepage/assets/shots through gpuix-svelte/automation, each driven
+                           # to the state its image shows; tic-tac-toe on the wasm build and the
+                           # README's demos.png (four captures with CSS window chrome) through
+                           # headless Chrome; then og and og:docs. macOS or Windows, Bun and
+                           # Chrome; -- --only hn,demos for a subset. glass.png, app-icon.png and
+                           # the hero's wallpapers are not touched
 npm run wallpapers         # macOS only: Apple's wallpapers for the share cards, gitignored since
                            # they may not be republished. Every one in Apple's desktop-picture
                            # catalog (SHA-1 checked) plus those only on disk (Tahoe, Sonoma
@@ -175,14 +203,14 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
 `npm run bun:demo:counter`, ...) running the same entry through Bun (`node bin/gpuix-svelte.js
 --bun ...`), which takes the loader as a `--preload` rather than an `--import`; `bunfig.toml`
-carries the same preload, but an ad-hoc `bun file.ts` still lacks the two `--conditions` flags and
-resolves `svelte` to its server build (`custom_renderer_unavailable_on_server`), so go through the
-bin. Deps come from `bun install` either way,
+carries the same preload, but an ad-hoc `bun file.ts` (or `node file.ts`) still lacks the two
+`--conditions` flags, so `gpuix-svelte` resolves to its DOM version, whose `render_hot` rejects and
+whose `render()` throws, both naming the bin — so go through the bin. Deps come from `bun install` either way,
 but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin picks its runtime
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
-both into `test` / `bun:test`. `compile` and `demo:web` are Bun-only, `bun:typecheck`
-is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
+both into `test` / `bun:test`. `compile` and `demo:web` are Bun-only, `demo:dom` runs Vite on
+Node and has no twin, `bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
 (`lint`, `check:svelte`, `docs`, `vendor`, `parity`, `pack`, `publish:npm`) has none. Repo-local
 scripts that need no loader run on plain `node`, which strips their types itself.
 
@@ -268,9 +296,11 @@ CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows 
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
 launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
-a check that the binding loads (see the `@gpuix/native` constraint), the three suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`) and `test:automation-live` under `xvfb-run`, all
-on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
+a check that the binding loads (see the `@gpuix/native` constraint), the five suites that need no
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:docs`), the Vite
+build of the cross-target example (`demo:dom -- --build-only`) and `test:automation-live` under
+`xvfb-run`, all on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and
+DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -331,7 +361,9 @@ the normal app path loads it, and a compiled binary cannot serve. The server is 
 window is created, so `render_hot` remounts reuse it. It owns its stdio loop (upstream's
 `createSseDecoder` + `handleAutomationRequest`) to answer an unparseable request that has an id
 with a `Protocol` error (upstream drops it, and the driver waits forever) and to answer what is in
-flight before stdin's end exits the process. Upstream's `liveRendererAsTest` ticks synchronously
+flight before stdin's end exits the process. In a live window a native `:hover` outlives the move
+that left the element: moves alone never restyle it, however many, but a move after a read does, so a
+capture after a click goes move, read, move (`scripts/shots.ts`). Upstream's `liveRendererAsTest` ticks synchronously
 after each input, which is not enough here — the napi callback carrying the event runs on a later
 loop turn, so a `getTree` right after a `click` could miss a just-shown `{#if}` node. So the
 server hides `tick` from it and wraps the backend (`frame_synced`): requests run one at a time and
@@ -579,6 +611,109 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
 --remote-debugging-port=9222`, then navigate and read `Runtime.consoleAPICalled`. Avoid
 `--virtual-time-budget`: GPUI never goes idle, so Chrome fast-forwards frames forever and hangs.
 
+### Rendering in the DOM
+
+The other browser target is Svelte's own DOM renderer: `src/dom.ts` is what `gpuix-svelte`
+resolves to when the `custom-renderer` condition is absent, which is every browser toolchain
+(Vite, SvelteKit) and never the desktop path. `exports["."]` nests the conditions —
+`custom-renderer` → (`browser` → `web.ts`, else `index.ts`), `default` → `dom.ts` — and
+`./components/*` likewise falls back to `src/components/dom/*`; `./dom` names the DOM build for a
+bundler without conditions. `docs/dom.md` is the user-facing page, and
+`github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo` is a companion repository: a
+SvelteKit site and a GPUI window sharing one component library on this package, linked as
+`file:../gpuix-svelte` until a release carries the DOM build, with the two typechecks (DOM markup and
+GPUI markup) a hybrid app needs. A change to the DOM build's API or the components' props should keep it
+building. The design:
+
+- **`IS_GPUIX` is a constant per entry** (`true` in `web.ts`, hence in `index.ts`; `false` in
+  `dom.ts`), not `get_native() !== null`, so a `.svelte.ts` module can read it before `render()`.
+- **`dom.ts` mirrors `web.ts`'s export list** with the browser's version of each call
+  (`set_css_vars` → custom properties on `:root`; `on_window_key` → a `window` listener handing
+  over a GPUI-shaped event, keys renamed the GPUI way; `window_size` → `innerWidth`/`innerHeight`
+  through `createSubscriber` on `resize`; `render` → `mount` into `document.body`) and a typed
+  no-op where only GPUI has the feature. `style.ts`, `events.ts` and `search.ts` are re-exported
+  as they are, since none of them touches native (`@gpuix/native/host` is pure JS). The host
+  plumbing (`renderer`, `set_native`, `create_root`, `commit`, `dispatch`, …) is deliberately
+  absent; `render_hot` is there only to reject with a message naming the bin, because an entry
+  run as plain `node app.ts` lands here and would otherwise die on a missing-export SyntaxError.
+  `render()` gives `<body>` `create_root`'s box (flex, `100%` × viewport, relative, no margin), or
+  `rootStyle` in its place as on GPUI, and clears what the previous call set. Key names follow
+  GPUI's `press()` spelling, with the physical key (`e.code`) standing in under Alt or Shift once
+  the layout has turned the key into a symbol (⌥T is `†`), and `editing` means a text field, not a
+  checkbox. Every `document`/`window` read goes through `doc()`/`win()`, so SvelteKit's server pass
+  gets no-ops. The types are the same re-exports: `focused_element()` and `elements_at()` return
+  DOM elements typed as `ShadowNode`, because a shared component is typed by the GPUI project, not
+  the DOM one.
+- **The DOM components** keep the GPUI props, with `testid` as `data-testid`. `Anchored.svelte`
+  stands in for the native element: `Tooltip` and `Popover` hang a `position: fixed` layer off
+  `<body>`, placed from `getBoundingClientRect` by `side`/`align`/`gap` and snapped 8 px inside
+  the viewport, on every animation frame while shown (as GPUI places its layers, so a trigger that
+  moves through layout alone is followed; the first placement runs `untrack`ed, or a prop change
+  would re-run the attachment, re-hang the layer and blur what has focus in it). Its `occlude`
+  prop is GPUI's: `Tooltip` passes `false`, which is inline `pointer-events: none`, because a tip
+  snapped over its own trigger must not take the trigger's clicks; that also means the DOM tip
+  can't hear hover, so leaving the trigger onto it hides it after the grace. `Portal` moves its
+  layer to `<body>` too. Both render a `display: contents` slot that stays in place and move only
+  the inner element: the slot is the node Svelte keeps hold of, so a keyed `{#each}` that
+  reorders the component moves the slot and leaves the layer in `<body>` (without it, a reorder
+  pulled a layer back into the list; a block's teardown is safe either way, since it starts at
+  the block's own comment anchor).
+  `pointer-events: none` is inherited in the DOM, unlike on GPUI, so the portal's direct children
+  get `pointer-events: auto` from a `:where()` rule at zero specificity, under any rule of their own.
+- **Typechecking is split.** The root tsconfig carries `lib: dom` (for `dom.ts`; svelte-check
+  loaded it anyway, but tsc no longer catches a stray `document` in Node-only code) and excludes
+  `src/components/dom`, which
+  `tsconfig.dom.json` covers with no `customConditions` (so `gpuix-svelte` resolves to the DOM build)
+  and the default `svelteHTML` namespace; `typecheck` runs svelte-check once per tsconfig. Never
+  put a `vite.config.*` beside a component: svelte-check's config loader reads it as that
+  component's Svelte config and drops the a11y `warningFilter`, so `scripts/vite-dom.ts` holds the
+  Vite plugins every DOM build here shares (`configFile: false` on Vite and on the svelte plugin,
+  since the repo's `svelte.config.js` would turn the custom renderer on, the a11y `onwarn` filter,
+  and a `resolveId` that sends the bare `gpuix-svelte` through `import.meta.resolve`, i.e. the
+  package's own `exports` under Node's default conditions), and `scripts/dom.ts` (`demo:dom`, for
+  `examples/cross-target`) and `scripts/docs.ts` (the docs' live demos) build on them.
+- **The docs' live demos.** A fenced block in `docs/*.md` with the info string
+  `svelte demo <name>` is both the code sample (GitHub and the markdown copies read the first word)
+  and a component's source: `scripts/docs.ts`'s `code` renderer collects it and emits the sample
+  under a `.demo-result[data-demo="<page>-<name>"]` (a `<noscript>` note inside; two of one name on
+  a page throw), and `bundle_demos` writes the demos to `dist/docs-demos/` (under `dist`, which
+  tsc, svelte-check and eslint all skip) with a generated entry that Vite builds through
+  `dom_plugins({ emitCss: false })` into the single file `dist/docs/demos.js`, which only pages
+  with a demo load. The entry mounts each demo with Svelte's `mount` (the DOM build's `render` takes
+  `<body>`), catching per demo so one failure costs one demo and a `console.error`, and exports
+  `mount_demos()` for `test/docs.ts`, which needs `preserveEntrySignatures: 'strict'` or an app
+  build drops it. The bundle lands before `homepage/` is copied, so a `demos.js` there hits the
+  collision check; a Vite error rejects `build()` and fails `npm run docs`. The tokens a demo may
+  use (`--paper`, `--ink`, `--panel`, `--raised`, `--dim`, the components' `--tooltip-*` /
+  `--popover-*` / `--scroller-*`) sit on `:root`, not on the frame, because `Tooltip` and `Popover`
+  hang their layer off `<body>`, and because the `dom.md` theme demo's `set_css_vars` writes
+  `<html>`'s inline style, which outranks the `:root` rule: the frame (`.demo-result` reads
+  `--paper`/`--ink`) follows the theme and the site's own tokens (`--bg`, `--fg`, `--accent`, …),
+  which no demo may name, do not. `test/docs.ts` runs the build on Node whatever runtime runs it
+  (`node` from PATH under Bun), imports the bundle under happy-dom with an empty body, then calls
+  `mount_demos()` per built page with the page's inline script stripped.
+- **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the
+  DOM components and the example with `svelte/compiler` (no `customRenderer`, `css: 'injected'`)
+  into `test/.dom-tmp/`, and rewrites their `'gpuix-svelte'` and component specifiers to
+  `src/dom.ts` and the compiled DOM components, because the process itself runs under the custom-renderer
+  condition. It also checks `dom.ts`'s export names against `web.ts`'s (minus the host plumbing,
+  plus `render_hot`), stubs `getBoundingClientRect` on a trigger to cover placement and the snap,
+  since happy-dom lays nothing out, re-stubs it to prove a shown layer follows its trigger, reverses
+  a keyed `{#each}` of portals to prove every layer stays in `<body>` (what the `display: contents`
+  slot guards), and counts `keydown` listeners around the second `render()` to prove the first
+  instance's window key handler went with it. `test/cross-target.ts` mounts the same example on GPUI. `check` compares JSON,
+  under which every DOM element is `{}`, so element identity is asserted as `a === b`.
+- **Publishing**: `scripts/publish.ts` rewrites nested condition objects recursively and leaves
+  `.svelte` pattern targets alone; `src/components/dom` ships under `src/components`.
+  `scripts/consume.ts` checks that the installed package resolves `gpuix-svelte` and a component to
+  the DOM build without the condition and to the GPUI entry with it, then installs `vite`, the
+  svelte plugin and the registry's `svelte` into the consumer and builds a page that imports the
+  starter's `App.svelte` and a shipped component, with a plugin that fails the build if any
+  `svelte` import made from inside the package resolves to the bundled copy instead of the app's
+  (vite-plugin-svelte's `resolve.dedupe` is what keeps the two runtimes apart). The consumer's
+  GPUI test runs once more afterwards, because an app that ships to both targets has that registry
+  svelte in its root `node_modules` and the loaders have to keep pinning the bundled one.
+
 ## Hard constraints
 
 - **TypeScript sources run as-is; no build step in the repo.** `exports` points straight at
@@ -668,6 +803,13 @@ Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe
   `docs/styling.md`'s lists if `style.rs` moved (see "Regenerating the styling reference").
   0.11's terminal mode is untested here: native `init()` honours `GPUIX_TERMINAL=1` on its own, and
   `render()` logs to the stdout that mode draws on.
+- **The `custom-renderer` export condition is the renderer switch.** Every desktop path sets it
+  (the bin, `Bun.build` in `build.ts` and `scripts/web.ts`, every tsconfig but `tsconfig.dom.json`)
+  and no browser toolchain does, so `exports["."]` and `./components/*` nest a `custom-renderer`
+  object over a `default` that points at `src/dom.ts` / `src/components/dom/*`. A new export that a
+  component may import needs the same split, or a DOM build fails to resolve it; a new helper in
+  `web.ts`'s list needs its counterpart in `dom.ts`, which `test/dom.ts` is the place to cover. See
+  "Rendering in the DOM".
 
 ## Architecture
 
@@ -679,7 +821,8 @@ renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are i
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
   hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
-  web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot
+  web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
+  dom.ts       the entry without `custom-renderer`  ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
@@ -692,6 +835,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   window.ts    window, picker, focus, image, overlay helpers  ─ no-op where native lacks the method; window_size / window_insets poll
   search.ts    TextSearch, find_ranges                  ─ createSubscriber, so no runes in src/
   components/  Scroller, Portal, Tooltip, Popover .svelte  ─ `gpuix-svelte/components/*`
+  components/dom/  their DOM versions, plus Anchored.svelte  ─ the same specifier without `custom-renderer`
 ```
 
 **`compile.ts`** compiles `.svelte` with `runes: true` (legacy `export let` / `$:` never compiles
@@ -839,7 +983,11 @@ Unknown events are dropped silently.
 
 `src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
-`docs/components.md` documents their props and the native `<anchored>`.
+`docs/components.md` documents their props and the native `<anchored>`, and runs each one live on
+the docs site through its DOM version (a `svelte demo` block per component; see "The docs' live
+demos"). Each has a DOM version under
+`src/components/dom/` with the same props, which the same specifier reaches without the
+`custom-renderer` condition (see "Rendering in the DOM"); a prop added here needs adding there.
 
 - **`Scroller`** is the scroll column with a drawn thumb (the tutorial and the styling playground
   use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
@@ -1052,6 +1200,24 @@ writes `^<its own version>` into the app it creates (so `starter/package.json`'s
 make the title the commit, and release-please ignores anything else. With the default
 `GITHUB_TOKEN` the release PR does not trigger `test.yml`; a `RELEASE_PLEASE_TOKEN` PAT secret
 fixes that.
+
+**Write the title and description like a note to a colleague, and keep them short.** The title is
+the prefix plus one plain sentence about what changes for the person using the package, not the
+mechanism: `feat: render gpuix-svelte components in a browser DOM too`, not `feat: a DOM build of
+the package for Vite and SvelteKit, and IS_GPUIX`. The description fits on one screen, roughly ten
+lines, no headers:
+
+1. One sentence on what someone can now do (or what no longer breaks).
+2. One paragraph on how it works, only as much as a reviewer needs to read the diff.
+3. A bullet per area touched (code, example, docs, tests), one line each, naming the files or
+   scripts a reader would go to.
+4. New dependencies, called out as runtime or dev, and a link to any companion repository.
+
+Leave out what the diff already says, test logs, screenshots of the terminal, "Verified" and
+"Not done" sections (a real caveat goes in one sentence where it belongs), and anything that reads
+like marketing. Commit messages follow the same shape: a conventional title line, then a short
+paragraph of the why. When the scope changes while the PR is open, edit the description rather than
+appending to it; the final text is what the squash commit and the release notes carry.
 
 `homepage/share/index.html` (`/share/`, `noindex`) draws a release's 16:9 share cards: eight layouts
 at 1600×900 from one entry of the `RELEASES` array at the top of its script, newest first, which the

@@ -1,0 +1,10 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"customConditions": [],
+		"types": ["node"]
+	},
+	"svelteOptions": { "namespace": "svelteHTML" },
+	"include": ["src/dom.ts", "src/components/dom"],
+	"exclude": []
+}
