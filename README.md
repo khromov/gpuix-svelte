@@ -23,6 +23,8 @@ npm start
 
 A counter opens in its own window. Edit `App.svelte`, save, and the window hot-reloads.
 
+![The starter app's window: a dark card with the count 2, a minus button, a plus button and the hint "Edit App.svelte and save — the window hot-reloads."](https://raw.githubusercontent.com/khromov/gpuix-svelte/main/homepage/assets/shots/hot-before.png)
+
 You need **Node.js 24 or later** or **Bun 1.4 or later**, on macOS (Apple Silicon), Windows (x64
 or arm64) or Linux (x64). The GPUI binary comes prebuilt from npm, so `npm install` is all the
 setup there is. On Bun, run `bun create gpuix-svelte my-app`, then `cd my-app`, `bun install` and
@@ -36,7 +38,7 @@ machine without a GPU also needs a software Vulkan driver such as `mesa-vulkan-d
 and X11 both work. GNOME under Wayland gives the window no title bar, so there `render()` draws a
 simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
 
-## What it looks like
+## Writing Svelte with gpuix-svelte
 
 ```svelte
 <!-- App.svelte -->
@@ -50,11 +52,33 @@ simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
 </div>
 
 <style>
-  .app { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 32px;
-         width: 100%; height: 100%; background-color: #1e1e2e; }
-  .count { font-size: 48px; color: #cdd6f4; }
-  .btn { padding: 12px 24px; border-radius: 8px; background-color: #313244; color: #cdd6f4; }
-  .btn:hover { background-color: #45475a; }
+  .app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+  }
+  .count {
+    font-size: 48px;
+    color: #ededed;
+  }
+  .btn {
+    padding: 12px 24px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #242424;
+    background-color: #111111;
+    color: #ededed;
+  }
+  .btn:hover {
+    border-color: #404040;
+    background-color: #1c1c1c;
+  }
 </style>
 ```
 
@@ -77,7 +101,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 
 ## Coming from Svelte on the web
 
-- **Elements are GPUI's**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
+- **HTML elements are mapped to GPUI primitives**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list` and `anchored`. Any other tag renders as a `div`, with a one-time
   warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
 - **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes

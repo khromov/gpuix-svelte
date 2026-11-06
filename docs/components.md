@@ -58,12 +58,41 @@ fallbacks.
 </div>
 
 <style>
-  .row { display: flex; gap: 8px; margin-bottom: 12px; }
-  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
-  .chip { padding: 6px 12px; border-radius: 6px; cursor: pointer; user-select: none; background-color: var(--panel); }
-  .chip:hover { background-color: var(--raised); }
-  .pane { display: flex; height: 180px; border-radius: 8px; background-color: var(--panel); }
-  .line { padding: 6px 10px; border-radius: 4px; background-color: var(--raised); }
+  .row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+  .chip {
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--panel);
+  }
+  .chip:hover {
+    background-color: var(--raised);
+  }
+  .pane {
+    display: flex;
+    height: 180px;
+    border-radius: 8px;
+    background-color: var(--panel);
+  }
+  .line {
+    padding: 6px 10px;
+    border-radius: 4px;
+    background-color: var(--raised);
+  }
 </style>
 ```
 
@@ -121,7 +150,9 @@ a deferred layer.
     <div class="scrim" onclick={() => (open = false)}>
       <div class="dialog" onclick={(e) => e.stopPropagation()}>
         <div class="heading">Rendered here, painted on top</div>
-        <div>The dialog is a child of this demo and still covers the whole window. A click outside closes it.</div>
+        <div>
+          The dialog is a child of this demo and still covers the whole window. A click outside closes it.
+        </div>
         <div class="btn" onclick={() => (open = false)}>Close</div>
       </div>
     </div>
@@ -129,11 +160,41 @@ a deferred layer.
 {/if}
 
 <style>
-  .row { display: flex; }
-  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
-  .scrim { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background-color: #00000099; }
-  .dialog { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 360px; padding: 20px; border-radius: 12px; background-color: var(--panel); color: var(--ink); }
-  .heading { font-size: 16px; font-weight: 600; }
+  .row {
+    display: flex;
+  }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+  .scrim {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background-color: #00000099;
+  }
+  .dialog {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    max-width: 360px;
+    padding: 20px;
+    border-radius: 12px;
+    background-color: var(--panel);
+    color: var(--ink);
+  }
+  .heading {
+    font-size: 16px;
+    font-weight: 600;
+  }
 </style>
 ```
 
@@ -195,9 +256,28 @@ receives onto it:
 </div>
 
 <style>
-  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .chip { padding: 6px 12px; border-radius: 6px; cursor: default; user-select: none; background-color: var(--panel); }
-  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .chip {
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: default;
+    user-select: none;
+    background-color: var(--panel);
+  }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--ink);
+    color: var(--paper);
+  }
 </style>
 ```
 
@@ -270,12 +350,42 @@ renderers the pointer's `e.x` / `e.y`; on GPUI a right click would come through 
 <div class="dim">Picked: {picked}</div>
 
 <style>
-  .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
-  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
-  .pad { padding: 24px; border-radius: 8px; cursor: pointer; user-select: none; background-color: var(--panel); color: var(--dim); }
-  .item { padding: 6px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
-  .item:hover { background-color: var(--raised); }
-  .dim { color: var(--dim); }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+  .pad {
+    padding: 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--panel);
+    color: var(--dim);
+  }
+  .item {
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .item:hover {
+    background-color: var(--raised);
+  }
+  .dim {
+    color: var(--dim);
+  }
 </style>
 ```
 

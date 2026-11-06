@@ -89,11 +89,14 @@ Ctrl, Alt and Cmd combinations are left alone. The move happens after every key 
 keystroke has run, so any of them can keep it:
 
 ```svelte
-<div tabindex="0" onkeydown={(e) => {
-  if (e.key !== 'tab') return;
-  e.preventDefault(); // keep this Tab, say to indent
-  indent();
-}}></div>
+<div
+  tabindex="0"
+  onkeydown={(e) => {
+    if (e.key !== 'tab') return;
+    e.preventDefault(); // keep this Tab, say to indent
+    indent();
+  }}
+></div>
 ```
 
 A key goes to the focused element, then to each focusable ancestor that listens, then to the

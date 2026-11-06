@@ -10,8 +10,13 @@ work for class rules, which are translated the same way.
 <div class="btn" style="padding: 8px 16px; border-radius: 8px">Click</div>
 
 <style>
-  .btn { background-color: #313244; color: #cdd6f4; }
-  .btn:hover { background-color: #45475a; }
+  .btn {
+    background-color: #111111;
+    color: #ededed;
+  }
+  .btn:hover {
+    background-color: #1c1c1c;
+  }
 </style>
 ```
 
@@ -178,9 +183,17 @@ control. A palette is one object, and a theme switch is one call:
 </div>
 
 <style>
-  .card { background-color: var(--surface); color: var(--ink); border-color: var(--border); }
-  .card:hover { border-color: var(--ink); }
-  .badge { padding: var(--badge-pad, 2px 6px); }
+  .card {
+    background-color: var(--surface);
+    color: var(--ink);
+    border-color: var(--border);
+  }
+  .card:hover {
+    border-color: var(--ink);
+  }
+  .badge {
+    padding: var(--badge-pad, 2px 6px);
+  }
 </style>
 ```
 

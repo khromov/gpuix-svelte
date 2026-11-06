@@ -99,9 +99,31 @@ source reads GPUI. Its theme button calls `set_css_vars`, which here writes cust
 </div>
 
 <style>
-  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border-radius: 10px; background-color: var(--paper); color: var(--ink); }
-  .badge { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background-color: var(--ink); color: var(--paper); }
-  .btn { padding: 6px 12px; border-radius: 6px; cursor: pointer; user-select: none; background-color: var(--panel); }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 10px;
+    background-color: var(--paper);
+    color: var(--ink);
+  }
+  .badge {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--panel);
+  }
 </style>
 ```
 
