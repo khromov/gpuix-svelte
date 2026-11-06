@@ -26,7 +26,7 @@ const PAGES = [
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
-	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does per platform' },
+	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
 type Page = (typeof PAGES)[number];
@@ -42,6 +42,7 @@ const slug = (text: string) =>
 	text
 		.toLowerCase()
 		.replace(/<[^>]+>/g, '')
+		.replace(/&#?\w+;/g, '')
 		.replace(/[^\p{L}\p{N}\s_-]/gu, '')
 		.trim()
 		.replace(/\s/g, '-');
@@ -234,6 +235,10 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .prose details[open] > summary { margin-bottom: 16px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; }
 .prose details[open] > summary::before { transform: rotate(45deg); margin-top: -5px; }
 .prose details > :last-child { margin-bottom: 16px; }
+.page-tools { position: relative; z-index: 1; float: right; display: flex; gap: 8px; margin: 10px 0 12px 24px; }
+.tool { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font: 500 12px/1 var(--mono); text-decoration: none; white-space: nowrap; cursor: pointer; }
+.tool:hover { color: var(--fg); border-color: var(--line-strong); }
+.tool[hidden] { display: none; }
 .page-end { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--line); }
 .edit { color: var(--muted); font-size: 14px; text-decoration: none; }
 .edit:hover { color: var(--fg); }
@@ -255,6 +260,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .sidebar a { margin: 0; padding: 12px 0; border: 0; white-space: nowrap; }
   .sidebar a[aria-current] { box-shadow: inset 0 -2px 0 var(--accent); }
   main { padding: 32px 0 64px; }
+  .page-tools { float: none; margin: 0 0 20px; }
   .prose h1 { font-size: 32px; }
   .prose h1 + p { font-size: 17px; }
   .prose h2 { font-size: 22px; margin-top: 44px; }
@@ -278,6 +284,20 @@ if (navigator.clipboard) for (const pre of document.querySelectorAll('.code pre'
 		setTimeout(() => (button.textContent = 'Copy'), 1500);
 	}));
 	pre.after(button);
+}
+const copy_page = document.querySelector('.page-tools button');
+if (navigator.clipboard) {
+	copy_page.hidden = false;
+	const say = (text) => {
+		copy_page.textContent = text;
+		setTimeout(() => (copy_page.textContent = 'Copy page'), 1500);
+	};
+	const source = () => fetch(copy_page.dataset.src).then((response) => (response.ok ? response.text() : Promise.reject(new Error(response.statusText))));
+	copy_page.addEventListener('click', () => {
+		// Safari forgets the click across an await, so the fetch has to happen inside the clipboard write.
+		const written = typeof ClipboardItem === 'function' ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': source().then((text) => new Blob([text], { type: 'text/plain' })) })]) : Promise.reject();
+		written.catch(() => source().then((text) => navigator.clipboard.writeText(text))).then(() => say('Copied'), () => say('Copy failed'));
+	});
 }
 const strip = document.querySelector('.sidebar');
 const current = strip.querySelector('[aria-current]');
@@ -356,6 +376,10 @@ ${nav}
 </ul>
 </nav>
 <main id="content">
+<div class="page-tools">
+<a class="tool" href="${current.name}.md" title="This page as Markdown, the copy llms.txt lists">llms.txt</a>
+<button class="tool" type="button" data-src="${current.name}.md" title="Copy this page as Markdown" hidden>Copy page</button>
+</div>
 <article class="prose">
 ${body}
 </article>
@@ -471,6 +495,9 @@ function serve(open: boolean) {
 		'.js': 'text/javascript',
 		'.css': 'text/css',
 		'.png': 'image/png',
+		'.jpg': 'image/jpeg',
+		'.webp': 'image/webp',
+		'.json': 'application/json',
 		'.svg': 'image/svg+xml',
 		'.woff2': 'font/woff2'
 	};
