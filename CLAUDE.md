@@ -1189,6 +1189,24 @@ make the title the commit, and release-please ignores anything else. With the de
 `GITHUB_TOKEN` the release PR does not trigger `test.yml`; a `RELEASE_PLEASE_TOKEN` PAT secret
 fixes that.
 
+**Write the title and description like a note to a colleague, and keep them short.** The title is
+the prefix plus one plain sentence about what changes for the person using the package, not the
+mechanism: `feat: render gpuix-svelte components in a browser DOM too`, not `feat: a DOM build of
+the package for Vite and SvelteKit, and IS_GPUIX`. The description fits on one screen, roughly ten
+lines, no headers:
+
+1. One sentence on what someone can now do (or what no longer breaks).
+2. One paragraph on how it works, only as much as a reviewer needs to read the diff.
+3. A bullet per area touched (code, example, docs, tests), one line each, naming the files or
+   scripts a reader would go to.
+4. New dependencies, called out as runtime or dev, and a link to any companion repository.
+
+Leave out what the diff already says, test logs, screenshots of the terminal, "Verified" and
+"Not done" sections (a real caveat goes in one sentence where it belongs), and anything that reads
+like marketing. Commit messages follow the same shape: a conventional title line, then a short
+paragraph of the why. When the scope changes while the PR is open, edit the description rather than
+appending to it; the final text is what the squash commit and the release notes carry.
+
 `homepage/share/index.html` (`/share/`, `noindex`) draws a release's 16:9 share cards: eight layouts
 at 1600×900 from one `release` object at the top of its script. A new release means editing that
 object and redrawing what is specific to it, Bento's tiles and Showcase's desktop. Fill it from
