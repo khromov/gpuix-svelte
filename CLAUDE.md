@@ -58,7 +58,8 @@ npm run demo:web           # tic-tac-toe in a browser, on GPUI's wasm/WebGPU bui
 npm run demo:cross         # one component on both renderers (examples/cross-target): a GPUI window
                            # here, a browser DOM through demo:dom. See "Rendering in the DOM"
 npm run demo:dom           # Vite dev server for examples/cross-target on the DOM twin (scripts/dom.ts
-                           # holds the Vite config; -- --build-only writes dist/dom, -- --no-open skips
+                           # holds the Vite config and serves homepage/assets/fonts as the public dir
+                           # for the page's Geist; -- --build-only writes dist/dom, -- --no-open skips
                            # the browser). Runs Vite on Node; no bun: twin
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram beside highlighted source and the same component

@@ -260,11 +260,11 @@ window.dispatchEvent(new Event('resize'));
 flushSync();
 check('and follows a resize', text('size'), '800 × 600');
 
-check('the palette landed through set_css_vars', css_var('bg'), '#1e1e2e');
+check('the palette landed through set_css_vars', css_var('bg'), '#000000');
 click(by_id('theme'));
-check('the theme button flips it', css_var('bg'), '#eff1f5');
+check('the theme button flips it', css_var('bg'), '#fafafa');
 key('t');
-check('and so does the T shortcut', css_var('bg'), '#1e1e2e');
+check('and so does the T shortcut', css_var('bg'), '#000000');
 
 const rows = () => by_id('list')!.querySelectorAll('[class~="row"]').length;
 check('the Scroller holds every row', rows(), 60);
@@ -341,7 +341,7 @@ check(
 	[1, 'again', '', '4px']
 );
 key('t');
-check("the first instance's shortcut is gone with it", css_var('bg'), '#eff1f5');
+check("the first instance's shortcut is gone with it", css_var('bg'), '#fafafa');
 
 rmSync(tmp, { recursive: true, force: true });
 finish('dom', 65);

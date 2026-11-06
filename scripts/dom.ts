@@ -10,8 +10,10 @@ import { dom_plugins } from './vite-dom.ts';
 
 const root = fileURLToPath(new URL('../examples/cross-target', import.meta.url));
 const out = fileURLToPath(new URL('../dist/dom', import.meta.url));
+// The page's @font-face reads the site's Geist from here, so the example ships no font of its own.
+const fonts = fileURLToPath(new URL('../homepage/assets/fonts', import.meta.url));
 
-const config: InlineConfig = { root, configFile: false, plugins: dom_plugins() };
+const config: InlineConfig = { root, configFile: false, publicDir: fonts, plugins: dom_plugins() };
 
 if (process.argv.includes('--build-only')) {
 	await build({ ...config, build: { outDir: out, emptyOutDir: true } });

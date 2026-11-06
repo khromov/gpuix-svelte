@@ -16,11 +16,11 @@ check('the badge says GPUI', text_of('target'), 'GPUI');
 const size = native.getWindowSize();
 check('window_size renders the viewport', text_of('size'), `${size.width} × ${size.height}`);
 
-check('the palette landed through set_css_vars', bg(), '#1e1e2e');
+check('the palette landed through set_css_vars', bg(), '#000000');
 click_test_id('theme');
-check('the theme button flips it', bg(), '#eff1f5');
+check('the theme button flips it', bg(), '#fafafa');
 press('t');
-check('and so does the T shortcut', bg(), '#1e1e2e');
+check('and so does the T shortcut', bg(), '#000000');
 
 check('the Scroller holds every row', rows(), 60);
 click_text('Row 1');

@@ -8,36 +8,44 @@
 	// One component for two renderers. Nothing below asks which one it is on, apart from the badge:
 	// `render_hot` opens it in a GPUI window (demo:cross) and Vite serves it as a page (demo:dom).
 	const DARK = {
-		bg: '#1e1e2e',
-		panel: '#313244',
-		raised: '#45475a',
-		ink: '#cdd6f4',
-		muted: '#a6adc8',
-		accent: '#89b4fa',
-		'on-accent': '#1e1e2e',
-		'tooltip-surface': '#45475a',
-		'tooltip-ink': '#cdd6f4',
-		'popover-surface': '#313244',
-		'popover-border': '#45475a',
-		'popover-ink': '#cdd6f4',
-		'scroller-thumb': '#585b70',
-		'scroller-thumb-hover': '#7f849c'
+		bg: '#000000',
+		panel: '#0a0a0a',
+		raised: '#1a1a1a',
+		'raised-hover': '#262626',
+		border: '#242424',
+		'border-strong': '#404040',
+		ink: '#ededed',
+		muted: '#a1a1a1',
+		accent: '#ff3e00',
+		'accent-ink': '#ff8a5c',
+		'accent-wash': '#ff3e0029',
+		'tooltip-surface': '#ededed',
+		'tooltip-ink': '#000000',
+		'popover-surface': '#1a1a1a',
+		'popover-border': '#404040',
+		'popover-ink': '#ededed',
+		'scroller-thumb': '#404040',
+		'scroller-thumb-hover': '#5a5a5a'
 	};
 	const LIGHT = {
-		bg: '#eff1f5',
+		bg: '#fafafa',
 		panel: '#ffffff',
-		raised: '#dce0e8',
-		ink: '#4c4f69',
-		muted: '#6c6f85',
-		accent: '#1e66f5',
-		'on-accent': '#ffffff',
-		'tooltip-surface': '#4c4f69',
-		'tooltip-ink': '#eff1f5',
+		raised: '#f0f0f0',
+		'raised-hover': '#e4e4e4',
+		border: '#e5e5e5',
+		'border-strong': '#bdbdbd',
+		ink: '#171717',
+		muted: '#6b6b6b',
+		accent: '#ff3e00',
+		'accent-ink': '#c93400',
+		'accent-wash': '#ff3e001f',
+		'tooltip-surface': '#171717',
+		'tooltip-ink': '#ffffff',
 		'popover-surface': '#ffffff',
-		'popover-border': '#ccd0da',
-		'popover-ink': '#4c4f69',
-		'scroller-thumb': '#bcc0cc',
-		'scroller-thumb-hover': '#9ca0b0'
+		'popover-border': '#d4d4d4',
+		'popover-ink': '#171717',
+		'scroller-thumb': '#c9c9c9',
+		'scroller-thumb-hover': '#a8a8a8'
 	};
 
 	let dark = $state(true);
@@ -66,7 +74,7 @@
 	<div class="bar">
 		<div class="title">Cross-target</div>
 		<div class="badge" testid="target">{IS_GPUIX ? 'GPUI' : 'DOM'}</div>
-		<div class="muted" testid="size">{window_size.width} × {window_size.height}</div>
+		<div class="size" testid="size">{window_size.width} × {window_size.height}</div>
 		<div class="spacer"></div>
 		<Tooltip content="Toggle the theme (T)">
 			{#snippet children(hover)}
@@ -112,17 +120,19 @@
 <style>
 	.app { display: flex; flex-direction: column; gap: 12px; width: 100%; height: 100%; padding: 16px; font-size: 14px; background-color: var(--bg); color: var(--ink); }
 	.bar { display: flex; flex-direction: row; align-items: center; gap: 10px; }
-	.title { font-size: 16px; font-weight: bold; }
-	.badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; background-color: var(--accent); color: var(--on-accent); }
+	.title { font-size: 16px; font-weight: 600; }
+	.badge { padding: 2px 8px; border-radius: 999px; border-width: 1px; border-style: solid; border-color: var(--accent-wash); font-size: 12px; font-weight: 500; line-height: 16px; background-color: var(--accent-wash); color: var(--accent-ink); }
+	.size { padding: 0 8px; border-radius: 999px; border-width: 1px; border-style: solid; border-color: var(--border); font-size: 12px; line-height: 20px; color: var(--muted); }
 	.muted { color: var(--muted); font-size: 13px; }
 	.spacer { flex-grow: 1; }
-	.btn { padding: 6px 14px; border-radius: 6px; cursor: pointer; user-select: none; background-color: var(--panel); }
-	.btn:hover { background-color: var(--raised); }
-	.btn.primary { background-color: var(--accent); color: var(--on-accent); }
-	.item { padding: 6px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
-	.item:hover { background-color: var(--raised); }
-	.row { display: flex; flex-direction: row; justify-content: space-between; padding: 8px 12px; border-radius: 6px; cursor: pointer; background-color: var(--panel); }
-	.row:hover { background-color: var(--raised); }
-	.scrim { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background-color: #00000088; }
-	.dialog { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; border-radius: 12px; background-color: var(--panel); color: var(--ink); }
+	.btn { display: flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 8px; border-width: 1px; border-style: solid; border-color: var(--border); font-weight: 500; cursor: pointer; user-select: none; color: var(--ink); }
+	.btn:hover { border-color: var(--border-strong); background-color: var(--raised); }
+	.btn.primary { border-color: var(--ink); background-color: var(--ink); color: var(--bg); }
+	.btn.primary:hover { border-color: var(--ink); background-color: var(--ink); opacity: 0.88; }
+	.item { padding: 6px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+	.item:hover { background-color: var(--raised-hover); }
+	.row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; border-width: 1px; border-style: solid; border-color: var(--border); cursor: pointer; background-color: var(--panel); }
+	.row:hover { border-color: var(--border-strong); background-color: var(--raised); }
+	.scrim { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background-color: #00000099; }
+	.dialog { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 380px; padding: 20px; border-radius: 12px; border-width: 1px; border-style: solid; border-color: var(--border-strong); background-color: var(--panel); color: var(--ink); }
 </style>
