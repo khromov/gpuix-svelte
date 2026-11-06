@@ -70,22 +70,23 @@
 
 <div
 	style="display: flex; flex-direction: column; width: 100%; height: 100%;
-	       background-color: #11111b"
+	       background-color: #000000"
 >
 	<div
 		style="display: flex; flex-direction: row; align-items: center; gap: 16px;
-		       padding: 14px; padding-left: 20px; padding-right: 20px; background-color: #1e1e2e"
+		       padding: 14px; padding-left: 20px; padding-right: 20px; background-color: #0a0a0a;
+		       border-bottom-width: 1px; border-color: #242424"
 	>
-		<div style="color: #fab387; font-size: 18px; font-weight: bold">Hacker News</div>
+		<div style="color: #ff8a5c; font-size: 18px; font-weight: 600">Hacker News</div>
 
 		<div style="display: flex; flex-direction: row; gap: 6px; flex-grow: 1">
 			{#each FEEDS as name (name)}
 				<div
-					style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 6px;
+					style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 999px;
 					       font-size: 13px; cursor: pointer"
-					style:background-color={feed === name ? '#fab387' : '#313244'}
-					style:color={feed === name ? '#1e1e2e' : '#a6adc8'}
-					style:font-weight={feed === name ? 'bold' : 'normal'}
+					style:background-color={feed === name ? '#ededed' : '#1a1a1a'}
+					style:color={feed === name ? '#000000' : '#a1a1a1'}
+					style:font-weight={feed === name ? '600' : 'normal'}
 					hover="opacity: 0.85"
 					onclick={() => setFeed(name)}
 				>
@@ -95,9 +96,9 @@
 		</div>
 
 		<div
-			style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 6px;
-			       background-color: #313244; color: #bac2de; font-size: 13px; cursor: pointer"
-			hover="background-color: #45475a"
+			style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 8px;
+			       border-width: 1px; border-color: #242424; color: #ededed; font-size: 13px; cursor: pointer"
+			hover="background-color: #1a1a1a; border-color: #404040"
 			onclick={load}
 		>
 			refresh
@@ -106,18 +107,18 @@
 
 	{#if loading}
 		<div style="display: flex; align-items: center; justify-content: center; flex-grow: 1">
-			<div style="color: #6c7086; font-size: 14px">loading {feed} stories…</div>
+			<div style="color: #a1a1a1; font-size: 14px">loading {feed} stories…</div>
 		</div>
 	{:else if error}
 		<div
 			style="display: flex; flex-direction: column; align-items: center; justify-content: center;
 			       gap: 12px; flex-grow: 1"
 		>
-			<div style="color: #f38ba8; font-size: 14px">failed to load: {error}</div>
+			<div style="color: #ff6166; font-size: 14px">failed to load: {error}</div>
 			<div
-				style="padding: 8px; padding-left: 16px; padding-right: 16px; border-radius: 6px;
-				       background-color: #313244; color: #bac2de; font-size: 13px; cursor: pointer"
-				hover="background-color: #45475a"
+				style="padding: 8px; padding-left: 16px; padding-right: 16px; border-radius: 8px;
+				       border-width: 1px; border-color: #242424; color: #ededed; font-size: 13px; cursor: pointer"
+				hover="background-color: #1a1a1a; border-color: #404040"
 				onclick={load}
 			>
 				retry
@@ -131,21 +132,22 @@
 			{#each stories as story, rank (story.id)}
 				<div
 					style="display: flex; flex-direction: row; gap: 12px; padding: 12px;
-					       background-color: #1e1e2e; border-radius: 8px; cursor: pointer"
-					hover="background-color: #313244"
+					       background-color: #0a0a0a; border-width: 1px; border-color: #242424;
+					       border-radius: 8px; cursor: pointer"
+					hover="background-color: #1a1a1a; border-color: #404040"
 					onclick={() => open(story)}
 				>
-					<div style="color: #6c7086; font-size: 14px; min-width: 24px; text-align: right">
+					<div style="color: #8f8f8f; font-size: 14px; min-width: 24px; text-align: right">
 						{rank + 1}
 					</div>
 					<div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1">
-						<div style="color: #cdd6f4; font-size: 14px">{story.title}</div>
+						<div style="color: #ededed; font-size: 14px">{story.title}</div>
 						<div style="display: flex; flex-direction: row; gap: 10px; font-size: 12px">
-							<div style="color: #fab387">{story.score ?? 0} points</div>
-							<div style="color: #6c7086">by {story.by}</div>
-							<div style="color: #6c7086">{age(story)}</div>
-							<div style="color: #6c7086">{story.descendants ?? 0} comments</div>
-							<div style="color: #45475a">{domain(story)}</div>
+							<div style="color: #ff8a5c">{story.score ?? 0} points</div>
+							<div style="color: #a1a1a1">by {story.by}</div>
+							<div style="color: #a1a1a1">{age(story)}</div>
+							<div style="color: #a1a1a1">{story.descendants ?? 0} comments</div>
+							<div style="color: #8f8f8f">{domain(story)}</div>
 						</div>
 					</div>
 				</div>

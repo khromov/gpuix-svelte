@@ -8,8 +8,8 @@
 >
 	<div
 		style="padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer"
-		style:background-color={on ? '#89b4fa' : '#313244'}
-		style:color={on ? '#1e1e2e' : '#cdd6f4'}
+		style:background-color={on ? '#ededed' : '#1a1a1a'}
+		style:color={on ? '#000000' : '#ededed'}
 		hover="opacity: 0.85"
 		active="opacity: 0.6"
 		onclick={() => (on = !on)}
@@ -20,13 +20,13 @@
 	<div class="chip">class rule — hover me</div>
 
 	<div
-		style="padding: 8px 16px; border-width: 2px; border-color: #f9e2af;
-		       border-radius: 8px; color: #f9e2af; font-size: 13px"
+		style="padding: 8px 16px; border-width: 2px; border-color: #f5a524;
+		       border-radius: 8px; color: #f5a524; font-size: 13px"
 	>
 		border-width + border-color
 	</div>
 
-	<div style="padding: 8px 16px; border: 1px solid #f38ba8; color: #f38ba8; font-size: 13px">
+	<div style="padding: 8px 16px; border: 1px solid #ff6166; color: #ff6166; font-size: 13px">
 		border: 1px solid — dropped, see the terminal
 	</div>
 </div>
@@ -35,12 +35,12 @@
 	.chip {
 		padding: 8px 16px;
 		border-radius: 999px;
-		background-color: #cba6f7;
-		color: #1e1e2e;
+		background-color: #ff3e00;
+		color: #ffffff;
 		font-size: 13px;
-		font-weight: bold;
+		font-weight: 600;
 	}
 	.chip:hover {
-		background-color: #f5c2e7;
+		background-color: #ff6a33;
 	}
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
-	import { blur, on_window_key, type AnyComponent, type GpuixEvent } from 'gpuix-svelte';
+	import { blur, on_window_key, set_css_vars, type AnyComponent, type GpuixEvent } from 'gpuix-svelte';
 	import { CHAPTERS, STEPS as RAW_STEPS, type CodeSample, type LiveKey, type Step } from './steps.ts';
 	import { THEME } from './theme.ts';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
@@ -18,6 +18,8 @@
 	import Motion from './samples/Motion.svelte';
 
 	const LIVE: Record<LiveKey, AnyComponent> = { hello: Hello, counter: Counter, styled: Styled, scroll: Scroll, list: List, hittest: HitTest, native: Native, motion: Motion };
+
+	set_css_vars({ 'scroller-thumb': '#404040', 'scroller-thumb-hover': '#5a5a5a' });
 
 	// Read here rather than in steps.ts: a hot reload re-evaluates this module but
 	// not plain JS, so a saved sample shows its new source.
@@ -50,8 +52,9 @@
 	const answered = $derived(Object.keys(answers).length);
 	const correct = $derived(STEPS.filter((s) => answers[s.id] === s.quiz.answer).length);
 
-	const CHAPTER_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#cba6f7'];
-	const BUTTON = 'padding: 8px 16px; border-radius: 6px; background-color: #313244; color: #cdd6f4; font-size: 13px';
+	const CHAPTER_COLORS = ['#52a8ff', '#4cc38a', '#f5a524', '#a78bfa'];
+	const BUTTON =
+		'padding: 8px 16px; border-radius: 8px; border-width: 1px; border-color: #242424; color: #ededed; font-size: 13px; font-weight: 500';
 
 	function go(to: number) {
 		index = Math.max(0, Math.min(STEPS.length - 1, to));
@@ -69,9 +72,9 @@
 	$effect(() => on_window_key('keydown', onkey));
 
 	function dot_color(s: Step, i: number) {
-		if (i === index) return '#89b4fa';
-		if (answers[s.id] === undefined) return '#45475a';
-		return answers[s.id] === s.quiz.answer ? '#a6e3a1' : '#f38ba8';
+		if (i === index) return '#ff3e00';
+		if (answers[s.id] === undefined) return '#404040';
+		return answers[s.id] === s.quiz.answer ? '#4cc38a' : '#ff6166';
 	}
 
 	function open(url: string) {
@@ -85,13 +88,13 @@
 	}
 </script>
 
-<div style="display: flex; flex-direction: column; width: 100%; height: 100%; background-color: #11111b">
+<div style="display: flex; flex-direction: column; width: 100%; height: 100%; background-color: #000000">
 	<div
 		style="display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 12px 16px;
-		       background-color: #1e1e2e; user-select: none"
+		       background-color: #0a0a0a; border-bottom-width: 1px; border-color: #242424; user-select: none"
 	>
-		<div style="color: #cdd6f4; font-size: 15px; font-weight: bold">gpuix-svelte tutorial</div>
-		<div style="font-size: 12px; font-weight: bold" style:color={CHAPTER_COLORS[step.chapter]}>
+		<div style="color: #ededed; font-size: 15px; font-weight: 600">gpuix-svelte tutorial</div>
+		<div style="font-size: 12px; font-weight: 600" style:color={CHAPTER_COLORS[step.chapter]}>
 			{CHAPTERS[step.chapter]}
 		</div>
 
@@ -106,13 +109,13 @@
 			{/each}
 		</div>
 
-		<div style="color: #6c7086; font-size: 12px">step {index + 1} of {STEPS.length}</div>
+		<div style="color: #a1a1a1; font-size: 12px">step {index + 1} of {STEPS.length}</div>
 	</div>
 
 	<div style="display: flex; flex-direction: row; flex-grow: 1; min-height: 0; gap: 12px; padding: 12px">
 		{#key step.id}
 			<Scroller gap={12} testid="left-panel">
-				<div style="color: #cdd6f4; font-size: 22px; font-weight: bold">{step.title}</div>
+				<div style="color: #ededed; font-size: 22px; font-weight: 600">{step.title}</div>
 				<markdown source={step.prose} theme={THEME} onlinkclick={(e) => open(e.value)}></markdown>
 				{#if step.diagram}
 					<Diagram spec={step.diagram} />
@@ -128,10 +131,10 @@
 				{#if Live}
 					<div
 						style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border-width: 1px;
-						       border-color: #313244; border-radius: 8px; background-color: #1e1e2e
+						       border-color: #242424; border-radius: 10px; background-color: #0a0a0a
 						       {step.previewFill ? '; flex-grow: 1; min-height: 200px' : ''}"
 					>
-						<div style="font-size: 11px; font-weight: bold; color: #a6e3a1">
+						<div style="font-size: 11px; font-weight: 600; color: #4cc38a">
 							LIVE — the component above, running natively
 						</div>
 						<Live />
@@ -143,19 +146,19 @@
 
 	<div
 		style="display: flex; flex-direction: row; align-items: center; justify-content: space-between;
-		       padding: 10px 16px; background-color: #1e1e2e; user-select: none"
+		       padding: 10px 16px; background-color: #0a0a0a; border-top-width: 1px; border-color: #242424; user-select: none"
 	>
 		<div
 			style={BUTTON}
 			style:cursor={index > 0 ? 'pointer' : 'default'}
 			style:opacity={index > 0 ? 1 : 0.4}
-			hover={index > 0 ? 'background-color: #45475a' : null}
+			hover={index > 0 ? 'background-color: #1a1a1a; border-color: #404040' : null}
 			onclick={() => go(index - 1)}
 		>
 			← Previous
 		</div>
 
-		<div style="color: #6c7086; font-size: 12px">
+		<div style="color: #a1a1a1; font-size: 12px">
 			{answered ? `quiz: ${correct} of ${answered} correct` : '← → keys also navigate'}
 		</div>
 
@@ -163,7 +166,7 @@
 			style={BUTTON}
 			style:cursor={index < STEPS.length - 1 ? 'pointer' : 'default'}
 			style:opacity={index < STEPS.length - 1 ? 1 : 0.4}
-			hover={index < STEPS.length - 1 ? 'background-color: #45475a' : null}
+			hover={index < STEPS.length - 1 ? 'background-color: #1a1a1a; border-color: #404040' : null}
 			onclick={() => go(index + 1)}
 		>
 			Next →

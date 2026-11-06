@@ -19,15 +19,20 @@
 	import { onDestroy } from 'svelte';
 
 	set_css_vars({
-		bg: '#11111b',
-		card: '#1e1e2e',
-		well: '#181825',
-		raised: '#313244',
-		hover: '#45475a',
-		ink: '#cdd6f4',
-		faint: '#7f849c',
-		accent: '#89b4fa',
-		ok: '#a6e3a1'
+		bg: '#000000',
+		panel: '#0a0a0a',
+		raised: '#1a1a1a',
+		'raised-hover': '#262626',
+		border: '#242424',
+		'border-strong': '#404040',
+		ink: '#ededed',
+		muted: '#a1a1a1',
+		accent: '#ff3e00',
+		'accent-ink': '#ff8a5c',
+		'accent-wash': '#ff3e0029',
+		success: '#4cc38a',
+		'scroller-thumb': '#404040',
+		'scroller-thumb-hover': '#5a5a5a'
 	});
 
 	const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg|tiff?|ico)$/i;
@@ -72,9 +77,10 @@
 			const bottom = Math.round(WAVE_H / 2 + amp);
 			for (let y = top; y <= bottom; y++) {
 				const i = (y * WAVE_W + x) * 4;
-				pixels[i] = 137;
-				pixels[i + 1] = 180 - Math.round((60 * Math.abs(y - WAVE_H / 2)) / (WAVE_H / 2));
-				pixels[i + 2] = 250;
+				const edge = Math.abs(y - WAVE_H / 2) / (WAVE_H / 2);
+				pixels[i] = 255;
+				pixels[i + 1] = 138 - Math.round(76 * edge);
+				pixels[i + 2] = 92 - Math.round(92 * edge);
 				pixels[i + 3] = 255;
 			}
 		}
@@ -131,6 +137,7 @@
 				<div class="row">
 					<div
 						class="toggle"
+						class:on={open}
 						role="switch"
 						aria-label="Show details"
 						aria-expanded={open}
@@ -236,31 +243,33 @@
 
 <style>
 	.page { display: flex; flex-direction: column; width: 100%; height: 100%; background-color: var(--bg); color: var(--ink); font-size: 14px; }
-	.title { font-size: 26px; font-weight: bold; }
+	.title { font-size: 26px; font-weight: 600; }
 	.heading { font-size: 16px; font-weight: 600; }
-	.faint { color: var(--faint); font-size: 12px; }
-	.mono { font-family: Menlo; font-size: 12px; color: var(--ok); }
+	.faint { color: var(--muted); font-size: 12px; }
+	.mono { font-family: Menlo; font-size: 12px; color: var(--success); }
 	.para { line-height: 20px; }
 	.grid { display: flex; flex-direction: row; flex-wrap: wrap; gap: 16px; }
-	.card { display: flex; flex-direction: column; gap: 10px; flex-basis: 400px; flex-grow: 1; padding: 16px; border-radius: 12px; background-color: var(--card); }
+	.card { display: flex; flex-direction: column; gap: 10px; flex-basis: 400px; flex-grow: 1; padding: 16px; border-radius: 10px; border-width: 1px; border-color: var(--border); background-color: var(--panel); }
 	.wide { width: 100%; }
 	.row { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
-	.btn { padding: 6px 12px; border-radius: 8px; background-color: var(--raised); cursor: pointer; user-select: none; }
-	.btn:hover { background-color: var(--hover); }
-	.primary { background-color: var(--accent); color: var(--bg); }
-	.primary:hover { background-color: var(--ink); }
-	.chip { padding: 4px 10px; border-radius: 12px; border-width: 1px; border-color: var(--hover); user-select: none; }
-	.drop { display: flex; align-items: center; justify-content: center; height: 70px; border-radius: 10px; border-width: 2px; border-color: var(--hover); background-color: var(--well); color: var(--faint); }
+	.btn { padding: 6px 12px; border-radius: 8px; border-width: 1px; border-color: var(--border); font-weight: 500; cursor: pointer; user-select: none; }
+	.btn:hover { border-color: var(--border-strong); background-color: var(--raised); }
+	.btn.primary { border-color: var(--ink); background-color: var(--ink); color: var(--bg); }
+	.btn.primary:hover { border-color: var(--ink); background-color: var(--ink); opacity: 0.88; }
+	.chip { padding: 2px 10px; border-radius: 999px; border-width: 1px; border-color: var(--border); background-color: var(--raised); font-size: 13px; user-select: none; }
+	.chip:focus-visible { border-color: var(--ink); }
+	.drop { display: flex; align-items: center; justify-content: center; height: 70px; border-radius: 10px; border-width: 1px; border-style: dashed; border-color: var(--border-strong); background-color: var(--bg); color: var(--muted); }
 	.preview { width: 240px; height: 160px; border-radius: 8px; }
-	.wave { width: 380px; height: 70px; border-radius: 8px; background-color: var(--well); }
-	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; background-color: var(--well); pointer-events: auto; }
-	.item { padding: 4px 10px; color: var(--faint); }
-	.hit { color: var(--bg); background-color: var(--accent); }
-	.toggle { position: relative; width: 44px; height: 24px; border-radius: 12px; background-color: var(--raised); cursor: pointer; }
-	.knob { position: absolute; top: 2px; width: 20px; height: 20px; border-radius: 10px; background-color: var(--accent); }
-	.underline { text-decoration: underline; color: var(--accent); }
-	.struck { text-decoration: line-through; color: var(--faint); }
+	.wave { width: 380px; height: 70px; border-radius: 8px; background-color: var(--bg); }
+	.list { display: flex; flex-direction: column; height: 140px; overflow: scroll; border-radius: 8px; border-width: 1px; border-color: var(--border); background-color: var(--bg); pointer-events: auto; }
+	.item { padding: 4px 10px; color: var(--muted); }
+	.hit { color: var(--accent-ink); background-color: var(--accent-wash); }
+	.toggle { position: relative; width: 44px; height: 24px; border-radius: 12px; background-color: var(--border-strong); cursor: pointer; }
+	.toggle.on { background-color: var(--accent); }
+	.knob { position: absolute; top: 2px; width: 20px; height: 20px; border-radius: 10px; background-color: #ffffff; }
+	.underline { text-decoration: underline; color: var(--accent-ink); }
+	.struck { text-decoration: line-through; color: var(--muted); }
 	.tag { padding: 2px 8px; border-radius: 6px; background-color: var(--raised); }
 	.avatar { width: 40px; height: 40px; border-radius: 8px; }
-	.field { padding: 8px; border-radius: 8px; background-color: var(--well); font-size: 13px; line-height: 18px; }
+	.field { padding: 8px; border-radius: 8px; border-width: 1px; border-color: var(--border-strong); background-color: var(--bg); font-size: 13px; line-height: 18px; }
 </style>

@@ -53,7 +53,7 @@
 		justify-content: center;
 		width: 100%;
 		height: 100%;
-		background-color: #11111b;
+		background-color: #000000;
 	}
 	.card {
 		display: flex;
@@ -61,8 +61,10 @@
 		align-items: center;
 		gap: 16px;
 		padding: 32px;
-		background-color: #1e1e2e;
-		border-radius: 12px;
+		border-radius: 10px;
+		border-width: 1px;
+		border-color: #242424;
+		background-color: #0a0a0a;
 	}
 	.update {
 		display: flex;
@@ -72,13 +74,13 @@
 		padding-bottom: 8px;
 	}
 	.count-label {
-		color: #cdd6f4;
+		color: #ededed;
 		font-size: 14px;
 	}
 	.count {
 		font-size: 48px;
-		font-weight: bold;
-		color: #cdd6f4;
+		font-weight: 600;
+		color: #ededed;
 	}
 	.row {
 		display: flex;
@@ -88,23 +90,27 @@
 	.btn {
 		padding: 12px 24px;
 		border-radius: 8px;
-		background-color: #313244;
-		color: #cdd6f4;
-		font-weight: bold;
+		border-width: 1px;
+		border-color: #242424;
+		color: #ededed;
+		font-weight: 600;
 		cursor: pointer;
 	}
 	.btn:hover {
-		background-color: #45475a;
+		border-color: #404040;
+		background-color: #1a1a1a;
 	}
-	.primary {
-		background-color: #a6e3a1;
-		color: #1e1e2e;
+	.btn.primary {
+		border-color: #ededed;
+		background-color: #ededed;
+		color: #000000;
 	}
-	.primary:hover {
-		background-color: #94e2d5;
+	.btn.primary:hover {
+		border-color: #ffffff;
+		background-color: #ffffff;
 	}
 	.hint {
-		color: #a6adc8;
+		color: #a1a1a1;
 		font-size: 13px;
 	}
 </style>

@@ -61,47 +61,47 @@
 	}
 
 	function cellColor(i: number) {
-		if (winningLine?.includes(i)) return '#a6e3a1';
-		return board[i] === 'X' ? '#89b4fa' : '#f38ba8';
+		if (winningLine?.includes(i)) return '#4cc38a';
+		return board[i] === 'X' ? '#ededed' : '#ff8a5c';
 	}
 </script>
 
 <div
 	style="display: flex; flex-direction: column; align-items: center; justify-content: center;
-	       gap: 20px; width: 100%; height: 100%; background-color: #11111b; padding: 24px"
+	       gap: 20px; width: 100%; height: 100%; background-color: #000000; padding: 24px"
 >
-	<div style="color: #cdd6f4; font-size: 24px; font-weight: bold">Tic-tac-toe</div>
+	<div style="color: #ededed; font-size: 24px; font-weight: 600">Tic-tac-toe</div>
 
 	{#if update}
-		<div style="display: flex; flex-direction: row; align-items: center; gap: 12px; color: #cdd6f4; font-size: 14px">
+		<div style="display: flex; flex-direction: row; align-items: center; gap: 12px; color: #ededed; font-size: 14px">
 			<div>Version {update.version} is available</div>
 			{#if updateError}
-				<div style="color: #f38ba8">{updateError}</div>
+				<div style="color: #ff6166">{updateError}</div>
 			{:else if update.installable}
 				<div
 					style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 8px;
-					       background-color: #a6e3a1; color: #1e1e2e; font-weight: bold; cursor: pointer"
-					hover="background-color: #94e2d5"
+					       background-color: #ededed; color: #000000; font-weight: 600; cursor: pointer"
+					hover="background-color: #ffffff"
 					onclick={install}
 				>
 					{progress === null ? 'Install and restart' : `${Math.round(progress * 100)}%`}
 				</div>
 			{:else if update.url}
-				<div style="color: #a6adc8">Get it at {update.url}</div>
+				<div style="color: #a1a1a1">Get it at {update.url}</div>
 			{/if}
 		</div>
 	{/if}
 
 	<div
 		style="font-size: 16px"
-		style:color={winner ? '#a6e3a1' : isDraw ? '#f9e2af' : '#a6adc8'}
+		style:color={winner ? '#4cc38a' : isDraw ? '#f5a524' : '#a1a1a1'}
 	>
 		{status}
 	</div>
 
 	<div
 		style="display: flex; flex-direction: column; gap: 8px; padding: 16px;
-		       background-color: #1e1e2e; border-radius: 12px"
+		       background-color: #0a0a0a; border-width: 1px; border-color: #242424; border-radius: 12px"
 	>
 		{#each [0, 1, 2] as row (row)}
 			<div style="display: flex; flex-direction: row; gap: 8px">
@@ -109,13 +109,13 @@
 					{@const i = row * 3 + col}
 					<div
 						style="display: flex; align-items: center; justify-content: center;
-						       width: 80px; height: 80px; border-radius: 8px; background-color: #313244"
+						       width: 80px; height: 80px; border-radius: 8px; background-color: #1a1a1a"
 						style:cursor={board[i] || winner ? 'default' : 'pointer'}
-						hover="background-color: #45475a"
+						hover="background-color: #262626"
 						onclick={() => play(i)}
 					>
 						{#if board[i]}
-							<div style="font-size: 40px; font-weight: bold" style:color={cellColor(i)}>
+							<div style="font-size: 40px; font-weight: 600" style:color={cellColor(i)}>
 								{board[i]}
 							</div>
 						{/if}
@@ -125,26 +125,27 @@
 		{/each}
 	</div>
 
-	<div style="display: flex; flex-direction: row; gap: 24px; color: #a6adc8; font-size: 14px">
-		<div style="color: #89b4fa">X: {scores.X}</div>
-		<div style="color: #f38ba8">O: {scores.O}</div>
+	<div style="display: flex; flex-direction: row; gap: 24px; color: #a1a1a1; font-size: 14px">
+		<div style="color: #ededed">X: {scores.X}</div>
+		<div style="color: #ff8a5c">O: {scores.O}</div>
 		<div>draws: {scores.draws}</div>
 	</div>
 
 	<div style="display: flex; flex-direction: row; gap: 12px">
 		<div
 			style="padding: 10px; padding-left: 20px; padding-right: 20px; border-radius: 8px;
-			       background-color: #89b4fa; color: #1e1e2e; font-size: 14px; font-weight: bold;
-			       cursor: pointer"
-			hover="background-color: #b4befe"
+			       border-width: 1px; border-color: #ededed; background-color: #ededed; color: #000000;
+			       font-size: 14px; font-weight: 600; cursor: pointer"
+			hover="background-color: #ffffff; border-color: #ffffff"
 			onclick={newRound}
 		>
 			New round
 		</div>
 		<div
 			style="padding: 10px; padding-left: 20px; padding-right: 20px; border-radius: 8px;
-			       background-color: #313244; color: #bac2de; font-size: 14px; cursor: pointer"
-			hover="background-color: #45475a"
+			       border-width: 1px; border-color: #242424; color: #ededed; font-size: 14px;
+			       font-weight: 500; cursor: pointer"
+			hover="background-color: #1a1a1a; border-color: #404040"
 			onclick={resetScores}
 		>
 			Reset scores

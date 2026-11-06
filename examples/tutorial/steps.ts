@@ -74,7 +74,7 @@ export const STEPS: Step[] = [
 				{ label: 'svelte/compiler', caption: 'customRenderer option' },
 				{ label: 'renderer.ts', caption: 'JS shadow tree' },
 				{ label: '@gpuix/native', caption: 'one applyBatch per frame' },
-				{ label: 'GPUI window', caption: 'Metal / DirectX / Vulkan', color: '#a6e3a1' }
+				{ label: 'GPUI window', caption: 'Metal / DirectX / Vulkan', color: '#4cc38a' }
 			]
 		},
 		code: [{ label: 'examples/tutorial/main.ts — what opened this window', language: 'typescript', file: 'main.ts' }],
@@ -104,7 +104,7 @@ export const STEPS: Step[] = [
 				{ label: 'module.registerHooks', caption: 'intercepts *.svelte' },
 				{ label: 'compile_svelte()', caption: 'svelte/compiler, customRenderer' },
 				{ label: 'ES module', caption: 'imports gpuix-svelte/renderer' },
-				{ label: 'render_hot()', caption: 'opens the window', color: '#a6e3a1' }
+				{ label: 'render_hot()', caption: 'opens the window', color: '#4cc38a' }
 			]
 		},
 		code: [
@@ -174,7 +174,7 @@ export const STEPS: Step[] = [
 			},
 			right: {
 				title: "GPUI's tree",
-				color: '#a6e3a1',
+				color: '#4cc38a',
 				tree: {
 					label: 'div #12',
 					note: 'setStyle {…}',
@@ -215,7 +215,7 @@ export const STEPS: Step[] = [
 				{ label: 'dispatch(event)', caption: 'handlers on that element only — no bubbling' },
 				{ label: 'count++', caption: 'your handler' },
 				{ label: 'flushSync()', caption: "Svelte's effects run now, not on a microtask" },
-				{ label: 'commit()', caption: 'every queued mutation in one applyBatch', color: '#a6e3a1' }
+				{ label: 'commit()', caption: 'every queued mutation in one applyBatch', color: '#4cc38a' }
 			]
 		},
 		code: [{ label: 'samples/Counter.svelte', language: 'html', file: 'samples/Counter.svelte' }],
@@ -243,9 +243,9 @@ export const STEPS: Step[] = [
 			nodes: [
 				{ label: 'parse_css_text', caption: 'camelCase keys, 8px → 8' },
 				{ label: 'expand shorthands', caption: 'paddingTop/Right/Bottom/Left' },
-				{ label: 'type gate', caption: 'fontSize: 1em → warned, dropped', color: '#f38ba8' },
+				{ label: 'type gate', caption: 'fontSize: 1em → warned, dropped', color: '#ff6166' },
 				{ label: 'setStyle {…}', caption: 'flex: 1 → serde ignores the key' },
-				{ label: 'GPUI Style', caption: 'what actually paints', color: '#a6e3a1' }
+				{ label: 'GPUI Style', caption: 'what actually paints', color: '#4cc38a' }
 			]
 		},
 		code: [{ label: 'samples/Styled.svelte', language: 'html', file: 'samples/Styled.svelte' }],
@@ -268,7 +268,7 @@ export const STEPS: Step[] = [
 			title: 'Where a scroller may live',
 			left: {
 				title: 'Supported',
-				color: '#a6e3a1',
+				color: '#4cc38a',
 				tree: {
 					label: 'div  height: 100%',
 					children: [
@@ -282,7 +282,7 @@ export const STEPS: Step[] = [
 			},
 			right: {
 				title: 'Not supported',
-				color: '#f38ba8',
+				color: '#ff6166',
 				tree: {
 					label: 'div  overflow-y: scroll',
 					children: [
@@ -335,7 +335,7 @@ export const STEPS: Step[] = [
 			},
 			right: {
 				title: "GPUI's tree",
-				color: '#a6e3a1',
+				color: '#4cc38a',
 				tree: {
 					label: 'div #20',
 					children: [
@@ -371,7 +371,7 @@ export const STEPS: Step[] = [
 			title: 'Why the badge steals the click',
 			left: {
 				title: 'Broken',
-				color: '#f38ba8',
+				color: '#ff6166',
 				tree: {
 					label: 'div  onclick  background-color',
 					children: [
@@ -382,7 +382,7 @@ export const STEPS: Step[] = [
 			},
 			right: {
 				title: 'Fixed',
-				color: '#a6e3a1',
+				color: '#4cc38a',
 				tree: {
 					label: 'div  onclick  hitbox="self"  background-color',
 					children: [
@@ -417,7 +417,7 @@ export const STEPS: Step[] = [
 			nodes: [
 				{ label: 'setAttribute("minRows", 3)', caption: "Svelte's renderer contract" },
 				{ label: '["setCustomProp", id, "minRows", 3]', caption: 'name, case and value untouched' },
-				{ label: 'native editor', caption: 'caret, selection, IME, undo', color: '#a6e3a1' },
+				{ label: 'native editor', caption: 'caret, selection, IME, undo', color: '#4cc38a' },
 				{ label: 'change event', caption: 'event.value is the new text' },
 				{ label: 'notes = e.value', caption: 'your handler' }
 			]
@@ -451,7 +451,7 @@ export const STEPS: Step[] = [
 				{ label: 'on = !on', caption: '$state' },
 				{ label: 'animate: { left: on ? 25 : 3 }', caption: 'a new target' },
 				{ label: 'setCustomProp motion', caption: 'one mutation' },
-				{ label: 'GPUI tweens per frame', caption: '0.25 s, easeOut — no JavaScript involved', color: '#a6e3a1' }
+				{ label: 'GPUI tweens per frame', caption: '0.25 s, easeOut — no JavaScript involved', color: '#4cc38a' }
 			]
 		},
 		code: [{ label: 'samples/Motion.svelte', language: 'html', file: 'samples/Motion.svelte' }],
@@ -476,7 +476,7 @@ export const STEPS: Step[] = [
 				{ label: 'fs.watch', caption: "the entry's directory, 60 ms debounce" },
 				{ label: 'import(entry?v=N)', caption: 'child .svelte imports busted too' },
 				{ label: 'unmount(old)', caption: 'the old subtree is destroyed at commit' },
-				{ label: 'mount(new)', caption: 'same window, same native handle', color: '#a6e3a1' }
+				{ label: 'mount(new)', caption: 'same window, same native handle', color: '#4cc38a' }
 			]
 		},
 		code: [
@@ -534,7 +534,7 @@ export const STEPS: Step[] = [
 				{ label: 'commit()', caption: 'applyBatch' },
 				{ label: 'native.flush()', caption: 'layout + paint, no window' },
 				{ label: 'simulateClick(x, y)', caption: 'real hit testing' },
-				{ label: 'drainEvents() → dispatch()', caption: 'then back to flushSync', color: '#a6e3a1' }
+				{ label: 'drainEvents() → dispatch()', caption: 'then back to flushSync', color: '#4cc38a' }
 			]
 		},
 		code: [
