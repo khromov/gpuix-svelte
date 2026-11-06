@@ -63,6 +63,7 @@
 		padding: 32px;
 		border-radius: 10px;
 		border-width: 1px;
+		border-style: solid;
 		border-color: #242424;
 		background-color: #111111;
 	}
@@ -91,6 +92,7 @@
 		padding: 12px 24px;
 		border-radius: 8px;
 		border-width: 1px;
+		border-style: solid;
 		border-color: #242424;
 		color: #ededed;
 		font-weight: 600;

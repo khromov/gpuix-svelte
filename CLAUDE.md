@@ -645,8 +645,10 @@ building. The design:
   snapped over its own trigger must not take the trigger's clicks; that also means the DOM tip
   can't hear hover, so leaving the trigger onto it hides it after the grace. `Portal` moves its
   layer to `<body>` too. Both render a `display: contents` slot that stays in place and move only
-  the inner element, because Svelte's block teardown walks `nextSibling` from the block's first
-  node to its last, and a moved first node would have it remove `<body>`'s other children.
+  the inner element: the slot is the node Svelte keeps hold of, so a keyed `{#each}` that
+  reorders the component moves the slot and leaves the layer in `<body>` (without it, a reorder
+  pulled a layer back into the list; a block's teardown is safe either way, since it starts at
+  the block's own comment anchor).
   `pointer-events: none` is inherited in the DOM, unlike on GPUI, so the portal's direct children
   get `pointer-events: auto` from a `:where()` rule at zero specificity, under any rule of their own.
 - **Typechecking is split.** The root tsconfig carries `lib: dom` (for `dom.ts`; svelte-check
@@ -687,9 +689,10 @@ building. The design:
   `src/dom.ts` and the compiled DOM components, because the process itself runs under the custom-renderer
   condition. It also checks `dom.ts`'s export names against `web.ts`'s (minus the host plumbing,
   plus `render_hot`), stubs `getBoundingClientRect` on a trigger to cover placement and the snap,
-  since happy-dom lays nothing out, and tears down the example's dialog beside a sibling in the
-  same `{#if}` with a tooltip layer after it in `<body>`, which is what the `display: contents`
-  slot guards. `test/cross-target.ts` mounts the same example on GPUI. `check` compares JSON,
+  since happy-dom lays nothing out, re-stubs it to prove a shown layer follows its trigger, reverses
+  a keyed `{#each}` of portals to prove every layer stays in `<body>` (what the `display: contents`
+  slot guards), and counts `keydown` listeners around the second `render()` to prove the first
+  instance's window key handler went with it. `test/cross-target.ts` mounts the same example on GPUI. `check` compares JSON,
   under which every DOM element is `{}`, so element identity is asserted as `a === b`.
 - **Publishing**: `scripts/publish.ts` rewrites nested condition objects recursively and leaves
   `.svelte` pattern targets alone; `src/components/dom` ships under `src/components`.

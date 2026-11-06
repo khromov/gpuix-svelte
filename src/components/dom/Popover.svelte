@@ -78,8 +78,8 @@
 		flex-direction: column;
 		padding: 4px;
 		border-radius: 8px;
-		border: 1px solid var(--popover-border, #45475a);
-		background-color: var(--popover-surface, #1e1e2e);
-		color: var(--popover-ink, #cdd6f4);
+		border: 1px solid var(--popover-border, #404040);
+		background-color: var(--popover-surface, #111111);
+		color: var(--popover-ink, #ededed);
 	}
 </style>

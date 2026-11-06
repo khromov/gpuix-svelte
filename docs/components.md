@@ -211,7 +211,7 @@ Props:
   `300`).
 - `open` forces the tip shown or hidden. `null`, the default, leaves it to hover.
 - `style`: inline CSS for one tip, which wins over the tip's own rules
-  (`style="padding: 8px 12px; border-radius: 0; background-color: #1e66f5"`).
+  (`style="padding: 8px 12px; border-radius: 0; background-color: #ff3e00"`).
 - `testid` goes on the wrapper around the trigger. The tip gets `<testid>-tip`.
 
 Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you set for the whole

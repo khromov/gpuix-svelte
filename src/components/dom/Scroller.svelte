@@ -51,8 +51,8 @@
 
 <style>
 	.wrap { position: relative; display: flex; flex-direction: column; flex-basis: 0; min-height: 0; min-width: 0; width: 100%; height: 100%; }
-	.column { display: flex; flex-direction: column; height: 100%; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroller-thumb, #585b70) transparent; }
-	.column:hover { scrollbar-color: var(--scroller-thumb-hover, #7f849c) transparent; }
+	.column { display: flex; flex-direction: column; height: 100%; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroller-thumb, #404040) transparent; }
+	.column:hover { scrollbar-color: var(--scroller-thumb-hover, #5a5a5a) transparent; }
 	.column.fixed { overflow-y: hidden; }
 	.content { display: flex; flex-direction: column; }
 	.content.fixed { flex-grow: 1; min-height: 0; }

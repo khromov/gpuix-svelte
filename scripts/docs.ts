@@ -153,8 +153,10 @@ function render({ source, name }: Page, demos: Demo[]) {
 				const file = local_image(href);
 				const size = file && png_size(file);
 				if (!file || !size) return false;
-				copyFileSync(file, join(out_dir, basename(file)));
-				return `<img src="${basename(file)}" alt="${escape(text)}" width="${size[0]}" height="${size[1]}" loading="lazy" decoding="async"${title ? ` title="${escape(title)}"` : ''}>`;
+				// Under img/, out of the way of the pages and of the homepage's files at the root.
+				mkdirSync(join(out_dir, 'img'), { recursive: true });
+				copyFileSync(file, join(out_dir, 'img', basename(file)));
+				return `<img src="img/${basename(file)}" alt="${escape(text)}" width="${size[0]}" height="${size[1]}" loading="lazy" decoding="async"${title ? ` title="${escape(title)}"` : ''}>`;
 			}
 		}
 	});

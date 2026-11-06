@@ -32,7 +32,7 @@ the match count through `onhighlight`. `TextSearch` keeps that state for a find 
 ```svelte
 <script lang="ts">
   import { TextSearch } from 'gpuix-svelte';
-  const search = new TextSearch({ color: '#f9e2af55', active_color: '#f9e2af' });
+  const search = new TextSearch({ color: '#f5a52455', active_color: '#f5a524' });
 </script>
 
 <input value={search.query} onchange={(e) => (search.query = e.value)} onsubmit={search.next} />

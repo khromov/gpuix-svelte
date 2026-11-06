@@ -50,6 +50,8 @@ function find_chrome(): string {
 		'/Applications/Chromium.app/Contents/MacOS/Chromium',
 		'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
 		'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+		// The per-user install, which is where Chrome goes without admin rights.
+		process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
 		...['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].flatMap((name) =>
 			(process.env.PATH ?? '').split(delimiter).map((dir) => join(dir, name))
 		)

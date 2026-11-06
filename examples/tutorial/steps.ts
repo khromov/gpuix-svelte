@@ -344,7 +344,7 @@ export const STEPS: Step[] = [
 					]
 				}
 			},
-			legend: 'Grey nodes exist only in JavaScript: they keep order for Svelte but never take a slot in a flex row or a gap.'
+			legend: 'Dimmed nodes exist only in JavaScript: they keep order for Svelte but never take a slot in a flex row or a gap.'
 		},
 		code: [{ label: 'samples/List.svelte', language: 'html', file: 'samples/List.svelte' }],
 		live: 'list',

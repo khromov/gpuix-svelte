@@ -83,7 +83,7 @@ function move(x: number, y: number) {
 	const tip = box(layer_of_id('deco-tip'));
 	check('centred above the trigger, 6 px clear of it', [near(mid_x(tip), mid_x(trigger)), tip.y + tip.height], [true, trigger.y - 6]);
 	check('with a near-transparent fill on the layer, so GPUI paints no #1a1a1a slab behind it', layer_of_id('deco-tip')!.style?.backgroundColor, '#00000001');
-	check('a tip without style keeps its theme colour', find_test_id('deco-tip')!.style?.backgroundColor, '#313244');
+	check('a tip without style keeps its theme colour', find_test_id('deco-tip')!.style?.backgroundColor, '#1c1c1c');
 
 	move(mid_x(tip), mid_y(tip));
 	await wait(120);

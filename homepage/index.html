@@ -36,7 +36,7 @@
 --sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
 --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 --max:1200px;--gut:32px;--corner:80px;
---c-p:#8c8c8c;--c-t:#88b4e2;--c-a:#d3b98e;--c-s:#97c69c;--c-k:#e09cbc;--c-n:#e6b07e;--c-id:#d4d4d4;--c-ln:#5e5e5e;
+--c-p:#a1a1a1;--c-t:#97cdd8;--c-a:#e1c398;--c-s:#abd09f;--c-k:#e9a5c7;--c-n:#94bff0;--c-id:#d4d4d4;--c-ln:#5e5e5e;
 }
 *,*::before,*::after{box-sizing:border-box}
 html{background:var(--bg);-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:80px}
@@ -941,9 +941,11 @@ Created my-app. Next:
 <div class="editor">
 <div class="bar"><span><span class="dim">starter/</span>App.svelte</span></div>
 <pre class="code diff"><code>
-<span class="ln" data-n=" ">	<span class="a">.primary</span> <span class="p">{</span></span>
-<span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#a6e3a1" aria-hidden="true"></span><span class="n">#a6e3a1</span><span class="p">;</span></span>
-<span class="ln del" data-n="-">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#1e1e2e" aria-hidden="true"></span><span class="n">#1e1e2e</span><span class="p">;</span></span>
+<span class="ln" data-n=" ">	<span class="a">.btn.primary</span> <span class="p">{</span></span>
+<span class="ln del" data-n="-">		<span class="t">border-color</span><span class="p">:</span> <span class="sw" style="--c:#ededed" aria-hidden="true"></span><span class="n">#ededed</span><span class="p">;</span></span>
+<span class="ln del" data-n="-">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#ededed" aria-hidden="true"></span><span class="n">#ededed</span><span class="p">;</span></span>
+<span class="ln del" data-n="-">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#000000" aria-hidden="true"></span><span class="n">#000000</span><span class="p">;</span></span>
+<span class="ln add" data-n="+">		<span class="t">border-color</span><span class="p">:</span> <span class="sw" style="--c:#ff3e00" aria-hidden="true"></span><span class="n">#ff3e00</span><span class="p">;</span></span>
 <span class="ln add" data-n="+">		<span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#ff3e00" aria-hidden="true"></span><span class="n">#ff3e00</span><span class="p">;</span></span>
 <span class="ln add" data-n="+">		<span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#ffffff" aria-hidden="true"></span><span class="n">#ffffff</span><span class="p">;</span></span>
 <span class="ln" data-n=" ">	<span class="p">}</span></span>
@@ -960,9 +962,9 @@ Created my-app. Next:
 <pre class="code soft sm"><code>
 <span class="ln" data-n="11"><span class="p">&lt;</span><span class="t">style</span><span class="p">&gt;</span></span>
 <span class="ln gap" data-n="" style="--in:2">…</span>
-<span class="ln" data-n="15" style="--in:2"><span class="nw"><span class="a">.btn</span> <span class="p">{</span></span> <span class="nw"><span class="t">padding</span><span class="p">:</span> <span class="n">12px 24px</span><span class="p">;</span></span> <span class="nw"><span class="t">border-radius</span><span class="p">:</span> <span class="n">8px</span><span class="p">;</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#313244" aria-hidden="true"></span><span class="n">#313244</span><span class="p">;</span></span> <span class="nw"><span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#cdd6f4" aria-hidden="true"></span><span class="n">#cdd6f4</span><span class="p">; }</span></span></span>
-<span class="ln" data-n="16" style="--in:2"><span class="nw"><span class="a">.btn:hover</span> <span class="p">{</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#45475a" aria-hidden="true"></span><span class="n">#45475a</span><span class="p">; }</span></span></span>
-<span class="ln" data-n="17"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
+<span class="ln" data-n="26" style="--in:2"><span class="nw"><span class="a">.btn</span> <span class="p">{</span></span> <span class="nw"><span class="t">padding</span><span class="p">:</span> <span class="n">12px 24px</span><span class="p">;</span></span> <span class="nw"><span class="t">border-radius</span><span class="p">:</span> <span class="n">8px</span><span class="p">;</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#111111" aria-hidden="true"></span><span class="n">#111111</span><span class="p">;</span></span> <span class="nw"><span class="t">color</span><span class="p">:</span> <span class="sw" style="--c:#ededed" aria-hidden="true"></span><span class="n">#ededed</span><span class="p">; }</span></span></span>
+<span class="ln" data-n="35" style="--in:2"><span class="nw"><span class="a">.btn:hover</span> <span class="p">{</span></span> <span class="nw"><span class="t">background-color</span><span class="p">:</span> <span class="sw" style="--c:#1c1c1c" aria-hidden="true"></span><span class="n">#1c1c1c</span><span class="p">; }</span></span></span>
+<span class="ln" data-n="39"><span class="p">&lt;/</span><span class="t">style</span><span class="p">&gt;</span></span>
 </code></pre>
 </div>
 <a class="more" href="styling.html">Styling docs</a>

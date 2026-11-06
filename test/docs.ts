@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
@@ -56,7 +56,7 @@ const demos = /<img [^>]*demos\.png[^>]*>/.exec(page('overview'))?.[0] ?? '';
 const png = readFileSync(join(root, '.github/resources/demos.png'));
 check(
 	'the README image is served from the site and carries its PNG size, so the overview does not shift while it loads',
-	[demos.includes('src="demos.png"'), existsSync(join(out, 'demos.png')), / width="(\d+)"/.exec(demos)?.[1], / height="(\d+)"/.exec(demos)?.[1], demos.includes('loading="lazy"')],
+	[demos.includes('src="img/demos.png"'), existsSync(join(out, 'img', 'demos.png')), / width="(\d+)"/.exec(demos)?.[1], / height="(\d+)"/.exec(demos)?.[1], demos.includes('loading="lazy"')],
 	[true, true, String(png.readUInt32BE(16)), String(png.readUInt32BE(20)), true]
 );
 check('a page with demos does, as a module', page('components').includes('<script type="module" src="demos.js"></script>'), true);
@@ -108,11 +108,29 @@ const paper = () => document.documentElement.style.getPropertyValue('--paper');
 check('its effect put the theme on :root through set_css_vars', paper(), '#111111');
 click(leaf('Light theme'));
 await sleep(0);
-check('and the button flips it', [paper(), leaf('Dark theme') !== null], ['#eeeeee', true]);
+check('and the button flips it', [paper(), leaf('Dark theme') !== null], ['#fafafa', true]);
+
+// Every page that loads the bundle, not only the two above: a demo added to another page has to mount there too.
+const with_demos = readdirSync(out)
+	.filter((name) => name.endsWith('.html') && readFileSync(join(out, name), 'utf8').includes('src="demos.js"'))
+	.sort();
+const everywhere = with_demos.map((name) => {
+	show(name.slice(0, -'.html'.length));
+	const { mounted, failed } = bundle.mount_demos();
+	return [name, failed, mounted.length === document.querySelectorAll('[data-demo]').length];
+});
+check(
+	'every page that loads the bundle mounts all of its demos',
+	[with_demos, everywhere],
+	[
+		['components.html', 'dom.html'],
+		with_demos.map((name) => [name, [], true])
+	]
+);
 
 check('nothing reached console.error', errors, []);
 document.body.innerHTML = '<div data-demo="nope"></div>';
 check('an id the bundle lacks is reported, not thrown', bundle.mount_demos(), { mounted: [], failed: ['nope'] });
 check('with the id in the error', errors.length === 1 && errors[0].includes('"nope"'), true);
 
-finish('docs', 22);
+finish('docs', 23);

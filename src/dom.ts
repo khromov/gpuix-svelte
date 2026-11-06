@@ -131,8 +131,10 @@ function apply_style(target: HTMLElement, style: GpuiStyle) {
 	}
 }
 
-/** GPUI's default root (`create_root`), plus the margin a `<body>` has and a window does not. */
-const ROOT_BOX: GpuiStyle = { display: 'flex', position: 'relative', margin: 0, width: '100%', height: '100vh' };
+/** GPUI's default root (`create_root`). */
+const ROOT_BOX: GpuiStyle = { display: 'flex', position: 'relative', width: '100%', height: '100%' };
+/** What a `<body>` needs on top to be the window, whatever the root box: no margin, and the viewport for its height. */
+const PAGE: GpuiStyle = { margin: 0, height: '100vh' };
 
 let mounted: Record<string, unknown> | null = null;
 let kept: Array<() => void> = [];
@@ -155,13 +157,15 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	const name = title ?? app?.name;
 	if (name != null) document.title = name;
 
-	// As on GPUI, `rootStyle` replaces the default box rather than adding to it, and so does the next render()'s.
+	// As on GPUI, `rootStyle` replaces the default box rather than adding to it, and so does the next render()'s;
+	// the page's own needs sit under either. A box as tall as the window is, here, as tall as the viewport.
 	const body = document.body;
 	for (const key of root_keys) (body.style as unknown as Record<string, string>)[key] = '';
-	const root = rootStyle ?? ROOT_BOX;
+	const root: GpuiStyle = { ...PAGE, ...(rootStyle ?? ROOT_BOX) };
+	if (root.height === '100%') root.height = '100vh';
 	apply_style(body, root);
 	// Dynamic viewport units leave out a mobile browser's chrome; where they are unknown the assignment is dropped and `vh` stays.
-	if (root === ROOT_BOX) body.style.height = '100dvh';
+	if (root.height === '100vh') body.style.height = '100dvh';
 	root_keys = Object.keys(root);
 
 	mounted = mount(Component, { target: body, props }) as Record<string, unknown>;

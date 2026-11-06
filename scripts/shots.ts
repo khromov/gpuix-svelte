@@ -147,6 +147,15 @@ interface Page {
 
 const browsers = new Set<{ child: ChildProcess; profile: string }>();
 
+// Chrome's helpers can still hold the profile after the kill; a leftover temp directory is not worth failing a step whose PNG is written.
+function remove_profile(profile: string) {
+	try {
+		rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+	} catch (error) {
+		console.warn(`[shots] could not remove ${profile}: ${(error as Error).message}`);
+	}
+}
+
 function find_chrome(): string {
 	const candidates = [
 		process.env.CHROME,
@@ -243,7 +252,7 @@ async function with_page<T>(
 		browsers.delete(browser);
 		// Chrome's helper processes outlive the kill by a moment and still write to the profile.
 		if (child.exitCode === null && child.signalCode === null) await new Promise((exited) => child.once('exit', exited));
-		rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+		remove_profile(profile);
 	}
 }
 
@@ -383,9 +392,11 @@ function server_close() {
 
 function run(command: string, args: string[]) {
 	log(`${command} ${args.map((a) => a.replace(root, '')).join(' ')}`);
-	// bun is a .cmd shim on Windows, which only a shell can run; process.execPath is a real path.
+	// bun is a .cmd shim on Windows, which only a shell can run; process.execPath is a real path. A shell
+	// splits on spaces, so a path with one is quoted for it, as the bin does.
 	const shell = process.platform === 'win32' && command !== process.execPath;
-	const { status } = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell });
+	const argv = shell ? args.map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : args;
+	const { status } = spawnSync(command, argv, { cwd: root, stdio: 'inherit', shell });
 	if (status !== 0) throw new Error(`${command} ${args[0]} failed (${status})`);
 }
 
@@ -415,7 +426,7 @@ function cleanup() {
 	for (const app of apps) app.process.kill();
 	for (const { child, profile } of browsers) {
 		child.kill('SIGKILL');
-		rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+		remove_profile(profile);
 	}
 	server_close();
 	rmSync(WORK, { recursive: true, force: true });

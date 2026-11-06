@@ -86,7 +86,7 @@ source reads GPUI. Its theme button calls `set_css_vars`, which here writes cust
   import { IS_GPUIX, set_css_vars, window_size } from 'gpuix-svelte';
 
   const DARK = { paper: '#111111', ink: '#ededed', panel: '#1f1f1f' };
-  const LIGHT = { paper: '#eeeeee', ink: '#171717', panel: '#ffffff' };
+  const LIGHT = { paper: '#fafafa', ink: '#171717', panel: '#ffffff' };
   let dark = $state(true);
 
   $effect(() => set_css_vars(dark ? DARK : LIGHT));
@@ -163,8 +163,9 @@ is the DOM element.
 - `TextSearch` and `find_ranges` are the same code. `find_ranges` works; the `highlight`
   attribute is GPUI's, so a DOM `TextSearch` counts no matches.
 - `parse_css_text`, `build_style`, `to_gpui_event` and `GPUI_EVENTS` are the same code too.
-- The host plumbing (`renderer`, `set_native`, `create_root`, `commit`, `dispatch`, …) and
-  `render_hot` are not exported: nothing in a browser can use them.
+- The host plumbing (`renderer`, `set_native`, `create_root`, `commit`, `dispatch`, …) is not
+  exported: nothing in a browser can use it. `render_hot` is exported only to reject with a
+  message naming the bin.
 
 ## The components in the DOM
 
@@ -196,11 +197,13 @@ is a whole library written this way, typechecked as DOM markup and as GPUI marku
 
 - Use `div` for boxes and text, `display: flex` where you need it, and `<style>` blocks with
   class rules and `:hover`. Colours as `var(--token)` with one `set_css_vars` call give both the
-  same theme. Both read the same CSS text, with three differences to keep in mind: GPUI takes a
+  same theme. Both read the same CSS text, with four differences to keep in mind: GPUI takes a
   bare number as pixels (`gap: 8`, `set_css_vars({ gap: 8 })`) and the browser does not, so give
-  lengths a unit; `pointer-events: none` is inherited in the DOM and per element on GPUI, so a
-  pass-through wrapper's interactive descendants need `pointer-events: auto` of their own there;
-  and GPUI's root is a flex row, which `render()` gives `<body>` too.
+  lengths a unit; GPUI draws a border from `border-width` and `border-color` alone while the
+  browser also needs `border-style: solid`, so write all three; `pointer-events: none` is
+  inherited in the DOM and per element on GPUI, so a pass-through wrapper's interactive
+  descendants need `pointer-events: auto` of their own there; and GPUI's root is a flex row,
+  which `render()` gives `<body>` too.
 - Avoid what only one side has, or branch on `IS_GPUIX`: the `hover=` / `active=` attributes
   and `hitbox="self"` (plain attributes in the DOM), `onauxclick` and `e.isRightClick`
   (`oncontextmenu` in the DOM), `e.value` on inputs (`e.target.value` in the DOM),

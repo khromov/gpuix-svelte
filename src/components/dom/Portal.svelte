@@ -1,7 +1,8 @@
 <script lang="ts">
-	// Paint order is document order, so the layer moves to the end of <body> from wherever it is rendered;
-	// the slot stays put so Svelte's teardown walk never leaves the component. `pointer-events: none` is
-	// inherited here, unlike on GPUI, so the children get it back at zero specificity, under their own rules.
+	// Paint order is document order, so the layer moves to the end of <body> from wherever it is rendered.
+	// The slot stays behind as the node Svelte holds on to: a keyed {#each} that reorders this component
+	// moves the slot and leaves the layer where it is. `pointer-events: none` is inherited here, unlike on
+	// GPUI, so the children get it back at zero specificity, under their own rules.
 	import type { Snippet } from 'svelte';
 
 	let { children }: { children: Snippet } = $props();

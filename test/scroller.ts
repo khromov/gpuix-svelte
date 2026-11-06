@@ -39,7 +39,7 @@ check('the column clips to its viewport', Math.round(ch), 200);
 const t0 = bounds(thumb())!;
 check('the thumb is the viewport’s share of the content', Math.round(t0.height), Math.round((200 / (30 * 40)) * 200));
 check('and starts at the top', Math.round(t0.y - cy), 0);
-check('with the package colour, nothing having set --scroller-thumb', thumb().style!.backgroundColor, '#585b70');
+check('with the package colour, nothing having set --scroller-thumb', thumb().style!.backgroundColor, '#404040');
 
 // A scroll container's bounds move with its own offset, so every wheel aims at the point measured unscrolled.
 const column_at = center(column());

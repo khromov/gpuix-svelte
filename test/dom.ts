@@ -15,7 +15,7 @@ GlobalRegistrator.register({ width: 1024, height: 768 });
 
 // After the registration, or Svelte's client runtime would be evaluated with no `document`.
 const { compile } = await import('svelte/compiler');
-const { flushSync } = await import('svelte');
+const { flushSync, mount, unmount } = await import('svelte');
 const { check, finish } = await import('gpuix-svelte/test');
 const dom = await import('../src/dom.ts');
 const gpui = await import('../src/web.ts');
@@ -250,7 +250,21 @@ check(
 }
 
 // --- the cross-target example -----------------------------------------------
+// Counted around both renders: the second render() has to take the first instance's window key handler with it.
+let keydown_listeners = 0;
+const add_listener = window.addEventListener.bind(window) as (...args: unknown[]) => void;
+const remove_listener = window.removeEventListener.bind(window) as (...args: unknown[]) => void;
+window.addEventListener = ((type: string, ...rest: unknown[]) => {
+	if (type === 'keydown') keydown_listeners++;
+	return add_listener(type, ...rest);
+}) as typeof window.addEventListener;
+window.removeEventListener = ((type: string, ...rest: unknown[]) => {
+	if (type === 'keydown') keydown_listeners--;
+	return remove_listener(type, ...rest);
+}) as typeof window.removeEventListener;
+
 dom.render(CrossTarget, { title: 'Cross-target test' });
+const live_keydown = keydown_listeners;
 check('render() mounts into <body> and titles the page', [document.title, by_id('app') !== null], ['Cross-target test', true]);
 check("<body> gets GPUI's root box", [document.body.style.display, document.body.style.position, document.body.style.margin], ['flex', 'relative', '0px']);
 check('the badge says DOM', text('target'), 'DOM');
@@ -290,6 +304,9 @@ click(by_id('menu-trigger'));
 const panel_layer = () => by_id('menu-panel')?.parentElement ?? null;
 check('the Popover opens its panel off <body>', [by_id('item-rename') !== null, panel_layer()?.parentElement === document.body], [true, true]);
 check("placed below the trigger's box, gap included", [panel_layer()?.style.left, panel_layer()?.style.top], ['100px', '84px']);
+box_of(by_id('menu')!, 300, 50, 80, 30);
+await sleep(60);
+check('and follows the trigger when it moves, frame by frame', panel_layer()?.style.left, '300px');
 click(by_id('item-rename'));
 check('an item click reports and closes', [text('picked')?.startsWith('Picked: Rename'), by_id('menu-panel')], [true, null]);
 click(by_id('menu-trigger'));
@@ -334,6 +351,32 @@ mouse(by_id('theme'), 'mouseleave');
 await sleep(120);
 flushSync();
 
+// A keyed {#each} reorder moves the node Svelte holds on to. Behind a slot that is the slot, and every portal stays
+// in <body>; without the slot, the reorder pulled the first layer back into the list.
+writeFileSync(
+	join(tmp, 'Toasts.svelte'),
+	`<script>
+	import Portal from 'gpuix-svelte/components/Portal.svelte';
+	let ids = $state(['a', 'b', 'c']);
+	export function reverse() {
+		ids = ids.toReversed();
+	}
+</script>
+{#each ids as id (id)}<Portal><div class="toast" testid="toast-{id}">{id}</div></Portal>{/each}
+`
+);
+const Toasts = (await import(compile_for_dom(join(tmp, 'Toasts.svelte')))).default;
+const toasts_host = document.createElement('div');
+document.body.append(toasts_host);
+const toasts = mount(Toasts, { target: toasts_host }) as { reverse(): void };
+flushSync();
+toasts.reverse();
+flushSync();
+const toasts_in_body = [...document.querySelectorAll<HTMLElement>('[testid^="toast-"]')].map((t) => t.closest('[class~="portal"]')?.parentElement === document.body);
+check('reversing a keyed {#each} of portals leaves every layer in <body>', toasts_in_body, [true, true, true]);
+unmount(toasts as never);
+toasts_host.remove();
+
 dom.render(CrossTarget, { title: 'again', rootStyle: { padding: 4 } });
 check(
 	'a second render() replaces the first, rootStyle replacing the root box',
@@ -341,7 +384,7 @@ check(
 	[1, 'again', '', '4px']
 );
 key('t');
-check("the first instance's shortcut is gone with it", css_var('bg'), '#fafafa');
+check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 65);
+finish('dom', 67);

@@ -53,9 +53,10 @@
 		if (layer.style.top !== top) layer.style.top = top;
 	}
 
-	// Off <body>, out of every ancestor's overflow and stacking context like a deferred GPUI layer, while the slot stays put
-	// so Svelte's teardown walk never leaves the component. Placed every frame, as GPUI places its layers, so it follows a
-	// trigger that moves through layout alone; the props are read untracked, or a change would re-hang the layer and blur it.
+	// Off <body>, out of every ancestor's overflow and stacking context like a deferred GPUI layer, while the slot stays
+	// behind as the node Svelte holds on to, so a keyed {#each} reordering the parent moves the slot and not the layer.
+	// Placed every frame, as GPUI places its layers, so it follows a trigger that moves through layout alone; the props
+	// are read untracked, or a change would re-hang the layer and blur it.
 	function hang(layer: HTMLElement) {
 		document.body.appendChild(layer);
 		untrack(() => place(layer));

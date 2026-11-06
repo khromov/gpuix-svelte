@@ -14,7 +14,7 @@
 			color: '#4cc38a',
 			cases: [
 				{
-					css: 'padding: 6px 18px; border-radius: 10px; background-color: #89b4fa; color: #1e1e2e',
+					css: 'padding: 6px 18px; border-radius: 10px; background-color: #ff3e00; color: #ffffff',
 					note: 'box shorthands expand to the four GPUI longhands'
 				},
 				{
@@ -23,7 +23,7 @@
 					note: 'class rules are compiled into a GPUI style; hover the chip'
 				},
 				{
-					css: 'padding: 6px 18px; border-radius: 10px; background-color: var(--accent); color: var(--ink, #1e1e2e)',
+					css: 'padding: 6px 18px; border-radius: 10px; background-color: var(--accent); color: var(--ink, #ffffff)',
 					note: 'var() resolves against set_css_vars({ accent }) at runtime; --ink is unset, so its fallback paints'
 				},
 				{
@@ -35,8 +35,8 @@
 					note: 'flex-grow fills the row; font-weight takes numbers or names'
 				},
 				{
-					css: 'border-width: 2px; border-color: #f9e2af; border-radius: 6px',
-					note: 'longhands only — there is no border-style'
+					css: 'border-width: 2px; border-style: dashed; border-color: #f5a524; border-radius: 6px',
+					note: 'longhands; border-style takes solid or dashed'
 				},
 				{
 					css: 'width: 50%; opacity: 0.4',
@@ -70,7 +70,7 @@
 					note: 'unknown key, dropped silently — the box never grows'
 				},
 				{
-					css: 'border: 1px solid #f9e2af',
+					css: 'border: 1px solid #f5a524',
 					note: 'shorthand dropped with a warning; nothing is drawn'
 				},
 				{
@@ -97,7 +97,7 @@
 				},
 				{
 					bare: true,
-					css: 'background: linear-gradient(90deg, #89b4fa, #f38ba8)',
+					css: 'background: linear-gradient(90deg, #ff3e00, #ff6166)',
 					note: 'parsed as a colour and fails; gradients are object-only'
 				},
 				{
@@ -140,7 +140,7 @@
 					note: 'hover= and active= are attributes, not :pseudo-classes'
 				},
 				{
-					css: 'cursor: grab; selection-color: #f38ba8',
+					css: 'cursor: grab; selection-color: #ff3e00',
 					note: 'drag-select the text: the wash colour has no CSS equivalent'
 				}
 			]

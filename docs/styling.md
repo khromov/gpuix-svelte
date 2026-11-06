@@ -126,8 +126,8 @@ These are accepted, but they mean something different from what CSS would.
   such as `bolder`, falls back to 400.
 - `hover="..."` and `active="..."` are attributes that take the same CSS text as `style` and apply
   while the pointer is over, or pressing, the element. They're an inline form of `:hover` and
-  `:active`: `<div style="color: #ccc" hover="color: #fff">` equals `.x { color: #ccc }` plus
-  `.x:hover { color: #fff }`. When both exist, the attribute wins. `focus-visible="..."` is the
+  `:active`: `<div style="color: #a1a1a1" hover="color: #ededed">` equals `.x { color: #a1a1a1 }`
+  plus `.x:hover { color: #ededed }`. When both exist, the attribute wins. `focus-visible="..."` is the
   same for `:focus-visible`.
 - `scrollbar-color` makes GPUI paint a thumb on an `overflow: scroll` container or a
   `<virtual-list>`, and `scrollbar-width` (in px, default 6) sizes it. There is no track, so of the
@@ -171,8 +171,8 @@ control. A palette is one object, and a theme switch is one call:
 <script>
   import { set_css_vars } from 'gpuix-svelte';
 
-  const LIGHT = { surface: '#fbf7ef', ink: '#2a251f', border: '#e2d8c4' };
-  const DARK = { surface: '#231f1b', ink: '#ece3d3', border: '#36302a' };
+  const LIGHT = { surface: '#ffffff', ink: '#171717', border: '#e5e5e5' };
+  const DARK = { surface: '#111111', ink: '#ededed', border: '#242424' };
   let { dark } = $props();
 
   $effect(() => set_css_vars(dark ? DARK : LIGHT));
@@ -186,6 +186,7 @@ control. A palette is one object, and a theme switch is one call:
   .card {
     background-color: var(--surface);
     color: var(--ink);
+    border-width: 1px;
     border-color: var(--border);
   }
   .card:hover {
