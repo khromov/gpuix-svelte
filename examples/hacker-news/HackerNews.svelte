@@ -74,7 +74,7 @@
 >
 	<div
 		style="display: flex; flex-direction: row; align-items: center; gap: 16px;
-		       padding: 14px; padding-left: 20px; padding-right: 20px; background-color: #0a0a0a;
+		       padding: 14px; padding-left: 20px; padding-right: 20px; background-color: #111111;
 		       border-bottom-width: 1px; border-color: #242424"
 	>
 		<div style="color: #ff8a5c; font-size: 18px; font-weight: 600">Hacker News</div>
@@ -84,7 +84,7 @@
 				<div
 					style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 999px;
 					       font-size: 13px; cursor: pointer"
-					style:background-color={feed === name ? '#ededed' : '#1a1a1a'}
+					style:background-color={feed === name ? '#ededed' : '#1c1c1c'}
 					style:color={feed === name ? '#000000' : '#a1a1a1'}
 					style:font-weight={feed === name ? '600' : 'normal'}
 					hover="opacity: 0.85"
@@ -98,7 +98,7 @@
 		<div
 			style="padding: 6px; padding-left: 14px; padding-right: 14px; border-radius: 8px;
 			       border-width: 1px; border-color: #242424; color: #ededed; font-size: 13px; cursor: pointer"
-			hover="background-color: #1a1a1a; border-color: #404040"
+			hover="background-color: #1c1c1c; border-color: #404040"
 			onclick={load}
 		>
 			refresh
@@ -118,7 +118,7 @@
 			<div
 				style="padding: 8px; padding-left: 16px; padding-right: 16px; border-radius: 8px;
 				       border-width: 1px; border-color: #242424; color: #ededed; font-size: 13px; cursor: pointer"
-				hover="background-color: #1a1a1a; border-color: #404040"
+				hover="background-color: #1c1c1c; border-color: #404040"
 				onclick={load}
 			>
 				retry
@@ -132,9 +132,9 @@
 			{#each stories as story, rank (story.id)}
 				<div
 					style="display: flex; flex-direction: row; gap: 12px; padding: 12px;
-					       background-color: #0a0a0a; border-width: 1px; border-color: #242424;
+					       background-color: #111111; border-width: 1px; border-color: #242424;
 					       border-radius: 8px; cursor: pointer"
-					hover="background-color: #1a1a1a; border-color: #404040"
+					hover="background-color: #1c1c1c; border-color: #404040"
 					onclick={() => open(story)}
 				>
 					<div style="color: #8f8f8f; font-size: 14px; min-width: 24px; text-align: right">

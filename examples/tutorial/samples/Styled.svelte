@@ -8,7 +8,7 @@
 >
 	<div
 		style="padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer"
-		style:background-color={on ? '#ededed' : '#1a1a1a'}
+		style:background-color={on ? '#ededed' : '#1c1c1c'}
 		style:color={on ? '#000000' : '#ededed'}
 		hover="opacity: 0.85"
 		active="opacity: 0.6"

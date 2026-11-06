@@ -10,7 +10,7 @@
 		<div
 			style="padding: 8px 20px; border-radius: 8px; border-width: 1px; border-color: #242424;
 			       color: #ededed; font-weight: 600; cursor: pointer"
-			hover="background-color: #1a1a1a; border-color: #404040"
+			hover="background-color: #1c1c1c; border-color: #404040"
 			onclick={() => count > 0 && count--}
 		>
 			−

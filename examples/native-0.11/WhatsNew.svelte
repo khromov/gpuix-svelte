@@ -18,8 +18,8 @@
 
 	set_css_vars({
 		bg: '#000000',
-		panel: '#0a0a0a',
-		raised: '#1a1a1a',
+		panel: '#111111',
+		raised: '#1c1c1c',
 		'raised-hover': '#262626',
 		border: '#242424',
 		'border-strong': '#404040',

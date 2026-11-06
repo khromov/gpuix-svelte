@@ -28,7 +28,7 @@
 	{#each items as item (item.id)}
 		<div
 			style="display: flex; flex-direction: row; justify-content: space-between;
-			       padding: 8px 12px; border-radius: 6px; background-color: #1a1a1a;
+			       padding: 8px 12px; border-radius: 6px; background-color: #1c1c1c;
 			       color: #ededed; font-size: 13px; cursor: pointer"
 			hover="background-color: #262626"
 			onclick={() => (items = items.filter((i) => i.id !== item.id))}

@@ -8,7 +8,7 @@
 >
 	{#each rows as row (row)}
 		<div
-			style="padding: 8px 12px; border-radius: 6px; background-color: #1a1a1a;
+			style="padding: 8px 12px; border-radius: 6px; background-color: #1c1c1c;
 			       color: #ededed; font-size: 13px"
 		>
 			{row}

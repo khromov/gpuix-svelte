@@ -91,7 +91,7 @@
 <div style="display: flex; flex-direction: column; width: 100%; height: 100%; background-color: #000000">
 	<div
 		style="display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 12px 16px;
-		       background-color: #0a0a0a; border-bottom-width: 1px; border-color: #242424; user-select: none"
+		       background-color: #111111; border-bottom-width: 1px; border-color: #242424; user-select: none"
 	>
 		<div style="color: #ededed; font-size: 15px; font-weight: 600">gpuix-svelte tutorial</div>
 		<div style="font-size: 12px; font-weight: 600" style:color={CHAPTER_COLORS[step.chapter]}>
@@ -131,7 +131,7 @@
 				{#if Live}
 					<div
 						style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border-width: 1px;
-						       border-color: #242424; border-radius: 10px; background-color: #0a0a0a
+						       border-color: #242424; border-radius: 10px; background-color: #111111
 						       {step.previewFill ? '; flex-grow: 1; min-height: 200px' : ''}"
 					>
 						<div style="font-size: 11px; font-weight: 600; color: #4cc38a">
@@ -146,13 +146,13 @@
 
 	<div
 		style="display: flex; flex-direction: row; align-items: center; justify-content: space-between;
-		       padding: 10px 16px; background-color: #0a0a0a; border-top-width: 1px; border-color: #242424; user-select: none"
+		       padding: 10px 16px; background-color: #111111; border-top-width: 1px; border-color: #242424; user-select: none"
 	>
 		<div
 			style={BUTTON}
 			style:cursor={index > 0 ? 'pointer' : 'default'}
 			style:opacity={index > 0 ? 1 : 0.4}
-			hover={index > 0 ? 'background-color: #1a1a1a; border-color: #404040' : null}
+			hover={index > 0 ? 'background-color: #1c1c1c; border-color: #404040' : null}
 			onclick={() => go(index - 1)}
 		>
 			← Previous
@@ -166,7 +166,7 @@
 			style={BUTTON}
 			style:cursor={index < STEPS.length - 1 ? 'pointer' : 'default'}
 			style:opacity={index < STEPS.length - 1 ? 1 : 0.4}
-			hover={index < STEPS.length - 1 ? 'background-color: #1a1a1a; border-color: #404040' : null}
+			hover={index < STEPS.length - 1 ? 'background-color: #1c1c1c; border-color: #404040' : null}
 			onclick={() => go(index + 1)}
 		>
 			Next →

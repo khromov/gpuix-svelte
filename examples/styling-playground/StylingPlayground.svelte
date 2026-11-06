@@ -148,7 +148,7 @@
 	];
 
 	const BASE = 'padding: 8px 12px; color: #ededed';
-	const FILL = 'background-color: #1a1a1a';
+	const FILL = 'background-color: #1c1c1c';
 	const BLOCKS = ['#ff3e00', '#4cc38a', '#f5a524', '#ff6166', '#52a8ff', '#a78bfa'];
 	const LONG = 'The quick brown fox jumps over the lazy dog and keeps running well past the edge of this box';
 
@@ -170,7 +170,7 @@
 			{#each section.cases as c (c)}
 				<div
 					style="display: flex; flex-direction: column; gap: 6px; padding: 10px;
-					       background-color: #0a0a0a; border-width: 1px; border-color: #242424; border-radius: 10px"
+					       background-color: #111111; border-width: 1px; border-color: #242424; border-radius: 10px"
 				>
 					<div style="font-family: Menlo; font-size: 11px; color: #ededed">{c.label ?? c.css}</div>
 

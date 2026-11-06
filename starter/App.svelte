@@ -64,7 +64,7 @@
 		border-radius: 10px;
 		border-width: 1px;
 		border-color: #242424;
-		background-color: #0a0a0a;
+		background-color: #111111;
 	}
 	.update {
 		display: flex;
@@ -98,7 +98,7 @@
 	}
 	.btn:hover {
 		border-color: #404040;
-		background-color: #1a1a1a;
+		background-color: #1c1c1c;
 	}
 	.btn.primary {
 		border-color: #ededed;

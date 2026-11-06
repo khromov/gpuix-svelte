@@ -32,7 +32,7 @@
 >
 	<div
 		style="display: flex; flex-direction: column; align-items: center; justify-content: center;
-		       gap: 16px; padding: 32px; width: 380px; background-color: #0a0a0a;
+		       gap: 16px; padding: 32px; width: 380px; background-color: #111111;
 		       border-width: 1px; border-color: #242424; border-radius: 10px"
 	>
 		<div
@@ -48,7 +48,7 @@
 			<div
 				style="padding: 12px; padding-left: 24px; padding-right: 24px; border-radius: 8px;
 				       border-width: 1px; border-color: #242424"
-				style:background-color={count > 0 ? '#1a1a1a' : '#0a0a0a'}
+				style:background-color={count > 0 ? '#1c1c1c' : '#111111'}
 				style:cursor={count > 0 ? 'pointer' : 'default'}
 				style:opacity={count > 0 ? 1 : 0.5}
 				onclick={() => count > 0 && count--}
@@ -76,9 +76,9 @@
 		{/if}
 
 		<div
-			style="margin-top: 16px; padding: 16px; background-color: #0a0a0a;
+			style="margin-top: 16px; padding: 16px; background-color: #111111;
 			       border-width: 1px; border-color: #242424; border-radius: 8px; cursor: pointer"
-			hover="background-color: #1a1a1a; border-color: #404040"
+			hover="background-color: #1c1c1c; border-color: #404040"
 			onclick={() => (count = 0)}
 		>
 			<div style="color: #ededed; font-size: 14px">Reset</div>
@@ -87,14 +87,14 @@
 
 	<div
 		style="display: flex; flex-direction: column; gap: 12px; padding: 24px; width: 320px;
-		       background-color: #0a0a0a; border-width: 1px; border-color: #242424; border-radius: 10px"
+		       background-color: #111111; border-width: 1px; border-color: #242424; border-radius: 10px"
 	>
 		<div style="color: #ededed; font-size: 16px; font-weight: 600">Keyed list</div>
 
 		{#each items as item (item.id)}
 			<div
 				style="display: flex; flex-direction: row; justify-content: space-between;
-				       padding: 10px; background-color: #1a1a1a; border-radius: 6px;
+				       padding: 10px; background-color: #1c1c1c; border-radius: 6px;
 				       color: #ededed; font-size: 14px; cursor: pointer"
 				hover="background-color: #262626"
 				onclick={() => (items = items.filter((i) => i.id !== item.id))}
@@ -122,7 +122,7 @@
 				style="padding: 8px; padding-left: 14px; padding-right: 14px; border-radius: 8px;
 				       border-width: 1px; border-color: #242424; color: #ededed; font-size: 13px;
 				       font-weight: 500; cursor: pointer"
-				hover="background-color: #1a1a1a; border-color: #404040"
+				hover="background-color: #1c1c1c; border-color: #404040"
 				onclick={shuffle}
 			>
 				shuffle

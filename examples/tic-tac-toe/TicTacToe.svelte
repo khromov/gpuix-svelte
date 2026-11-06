@@ -101,7 +101,7 @@
 
 	<div
 		style="display: flex; flex-direction: column; gap: 8px; padding: 16px;
-		       background-color: #0a0a0a; border-width: 1px; border-color: #242424; border-radius: 12px"
+		       background-color: #111111; border-width: 1px; border-color: #242424; border-radius: 12px"
 	>
 		{#each [0, 1, 2] as row (row)}
 			<div style="display: flex; flex-direction: row; gap: 8px">
@@ -109,7 +109,7 @@
 					{@const i = row * 3 + col}
 					<div
 						style="display: flex; align-items: center; justify-content: center;
-						       width: 80px; height: 80px; border-radius: 8px; background-color: #1a1a1a"
+						       width: 80px; height: 80px; border-radius: 8px; background-color: #1c1c1c"
 						style:cursor={board[i] || winner ? 'default' : 'pointer'}
 						hover="background-color: #262626"
 						onclick={() => play(i)}
@@ -145,7 +145,7 @@
 			style="padding: 10px; padding-left: 20px; padding-right: 20px; border-radius: 8px;
 			       border-width: 1px; border-color: #242424; color: #ededed; font-size: 14px;
 			       font-weight: 500; cursor: pointer"
-			hover="background-color: #1a1a1a; border-color: #404040"
+			hover="background-color: #1c1c1c; border-color: #404040"
 			onclick={resetScores}
 		>
 			Reset scores

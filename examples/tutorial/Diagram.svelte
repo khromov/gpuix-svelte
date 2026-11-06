@@ -17,7 +17,7 @@
 </script>
 
 <div
-	style="display: flex; flex-direction: column; gap: 10px; padding: 12px; background-color: #0a0a0a;
+	style="display: flex; flex-direction: column; gap: 10px; padding: 12px; background-color: #111111;
 	       border-width: 1px; border-color: #242424; border-radius: 10px; user-select: none"
 >
 	{#if spec.title}
@@ -38,7 +38,7 @@
 					</div>
 				{/if}
 				<div style="display: flex; flex-direction: column; gap: 3px; pointer-events: none" style:align-items={column ? 'flex-start' : 'center'}>
-					<div style="{BOX}; background-color: #1a1a1a; color: #ededed" style:border-color={node.color ?? '#404040'}>{node.label}</div>
+					<div style="{BOX}; background-color: #1c1c1c; color: #ededed" style:border-color={node.color ?? '#404040'}>{node.label}</div>
 					{#if node.caption}
 						<div style="font-size: 11px; color: #a1a1a1">{node.caption}</div>
 					{/if}
@@ -60,7 +60,7 @@
 							<div style="display: flex; flex-direction: row">
 								<div
 									style="{BOX}; min-width: 0"
-									style:background-color={row.virtual ? '#0a0a0a' : '#1a1a1a'}
+									style:background-color={row.virtual ? '#111111' : '#1c1c1c'}
 									style:border-color={row.virtual ? '#242424' : '#404040'}
 									style:color={row.virtual ? '#8f8f8f' : '#ededed'}
 								>

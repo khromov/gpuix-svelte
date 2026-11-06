@@ -3,7 +3,7 @@ import type { GpuixTheme } from 'gpuix-svelte';
 /** The docs site's palette, like the other examples; handed to every `<code>` and `<markdown>`. */
 export const THEME: GpuixTheme = {
 	appearance: 'dark',
-	bg: '#0a0a0a',
+	bg: '#111111',
 	border: '#242424',
 	text: '#d4d4d4',
 	textMuted: '#a1a1a1',
@@ -11,7 +11,7 @@ export const THEME: GpuixTheme = {
 	accent: '#ff8a5c',
 	caret: '#ededed',
 	codeText: '#ededed',
-	codeWash: '#1a1a1a',
+	codeWash: '#1c1c1c',
 	syntax: {
 		comment: '#8f8f8f',
 		keyword: '#e9a5c7',

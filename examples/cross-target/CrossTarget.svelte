@@ -9,8 +9,8 @@
 	// `render_hot` opens it in a GPUI window (demo:cross) and Vite serves it as a page (demo:dom).
 	const DARK = {
 		bg: '#000000',
-		panel: '#0a0a0a',
-		raised: '#1a1a1a',
+		panel: '#111111',
+		raised: '#1c1c1c',
 		'raised-hover': '#262626',
 		border: '#242424',
 		'border-strong': '#404040',
@@ -21,7 +21,7 @@
 		'accent-wash': '#ff3e0029',
 		'tooltip-surface': '#ededed',
 		'tooltip-ink': '#000000',
-		'popover-surface': '#1a1a1a',
+		'popover-surface': '#1c1c1c',
 		'popover-border': '#404040',
 		'popover-ink': '#ededed',
 		'scroller-thumb': '#404040',

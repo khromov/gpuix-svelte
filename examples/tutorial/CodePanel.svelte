@@ -11,6 +11,6 @@
 		{language}
 		showLineNumbers
 		{theme}
-		style="padding: 10px; background-color: #0a0a0a; border-width: 1px; border-color: #242424; border-radius: 10px; width: 100%"
+		style="padding: 10px; background-color: #111111; border-width: 1px; border-color: #242424; border-radius: 10px; width: 100%"
 	></code>
 </div>
