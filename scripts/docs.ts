@@ -1,11 +1,11 @@
 // Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
 // coloured in the browser by docs/assets/prism.js, a vendored Prism build. A ```svelte demo <name>
-// block is also a live demo: its source is compiled as a component on the DOM twin and mounted into
+// block is also a live demo: its source is compiled as a component in the DOM and mounted into
 // the page beside the code (see bundle_demos). Beside each page goes a standalone markdown copy,
 // indexed by llms.txt (https://llmstxt.org) for coding agents. The homepage (homepage/) is copied
 // to the root, so the README renders as overview.html. --serve then serves dist/docs on PORT
 // (default 4321), opens it in the browser (--no-open skips that) and rebuilds whenever README.md,
-// docs/, homepage/, the DOM twins or this script changes: the parent only watches and restarts a
+// docs/, homepage/, the DOM versions of the components or this script changes: the parent only watches and restarts a
 // child (--serve-child) that builds and serves, so an edit to the template here takes effect too
 // and a failed build just waits for the next save.
 
@@ -31,7 +31,7 @@ const PAGES = [
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
-	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM twins of the helpers and components, writing for both renderers' },
+	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },
 	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does per platform' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
@@ -454,7 +454,7 @@ ${next ? `<a class="next" href="${next.name}.html" rel="next"><span>Next</span>$
 }
 
 // One bundle for every page, built as a consumer's Vite would build it, so `gpuix-svelte` and its components
-// resolve to the DOM twins; its entry mounts each demo into the `data-demo` element of the same id.
+// resolve to the DOM versions of the components; its entry mounts each demo into the `data-demo` element of the same id.
 async function bundle_demos(demos: Demo[]) {
 	rmSync(demos_dir, { recursive: true, force: true });
 	mkdirSync(demos_dir, { recursive: true });

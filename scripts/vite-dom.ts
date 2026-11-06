@@ -10,7 +10,7 @@ import type { Plugin, PluginOption } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 // A consumer's Vite finds gpuix-svelte in node_modules. Inside the package there is no such copy, so Node
-// resolves the name through the package's own `exports`, under whose default conditions the DOM twin wins.
+// resolves the name through the package's own `exports`, under whose default conditions the DOM build wins.
 const self_reference: Plugin = {
 	name: 'gpuix-svelte-self-reference',
 	resolveId(id) {

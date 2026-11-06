@@ -12,7 +12,7 @@ plain `.svelte` files and compile like your own components:
 </script>
 ```
 
-Each one runs live on this page, on its [DOM twin](dom.md#the-components-in-the-dom): the
+Each one runs live on this page, in the DOM ([how](dom.md#the-components-in-the-dom)): the
 sample under a demo is the component you see above it, compiled by Svelte's DOM renderer for your
 browser. In a GPUI window the same source draws natively. The samples take their colours from
 tokens this page defines (`--paper`, `--ink`, `--panel`, `--raised`, `--dim`), the way an app's
@@ -315,8 +315,9 @@ string reaches native as a string and reads as `0` or `true`.
 
 ## In a browser DOM
 
-All four ship with a DOM twin that a Vite or SvelteKit build picks up under the same import
-paths, with the same props and CSS variables: the browser scrolls the `Scroller`, `Portal` moves
+All four render in the DOM as well, so the same components can be shared between a gpuix-svelte
+app and a normal Svelte app such as SvelteKit. A Vite or SvelteKit build gets their DOM versions
+under the same import paths, with the same props and CSS variables: the browser scrolls the `Scroller`, `Portal` moves
 its layer to `<body>`, and `Tooltip` and `Popover` place a fixed layer beside the trigger. See
 [Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md#the-components-in-the-dom),
 and for all four inside a library that a SvelteKit site and a GPUI window share,

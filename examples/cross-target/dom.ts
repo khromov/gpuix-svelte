@@ -1,5 +1,5 @@
 /**
- * The entry Vite serves: the same `render()` call as a GPUI app makes, with the DOM twin of
+ * The entry Vite serves: the same `render()` call as a GPUI app makes, with the DOM build of
  * `gpuix-svelte` behind it. `title` becomes the page title; the window size is the page's.
  */
 

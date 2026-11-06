@@ -59,7 +59,7 @@ function lib_for(target: string) {
 	return out;
 }
 
-// Conditions nest (`.` picks the DOM twin under `default`), and `.svelte` pattern targets ship as they are.
+// Conditions nest (`.` picks the DOM build under `default`), and `.svelte` pattern targets ship as they are.
 function published_target(value: unknown): unknown {
 	if (typeof value === 'string') return value.endsWith('.ts') ? lib_for(value) : value;
 	return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([condition, target]) => [condition, published_target(target)]));

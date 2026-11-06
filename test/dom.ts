@@ -1,5 +1,5 @@
 /**
- * The DOM twin, mounted for real: happy-dom stands in for the browser, the components and the
+ * The DOM side of the package, mounted for real: happy-dom stands in for the browser, the components and the
  * cross-target example are compiled without the custom renderer (as Vite would), and every
  * `gpuix-svelte` import in them is pointed at src/dom.ts, because this process runs under the
  * custom-renderer condition and would otherwise hand them the GPUI entry. `test:cross-target`
@@ -26,7 +26,7 @@ rmSync(tmp, { recursive: true, force: true });
 mkdirSync(tmp, { recursive: true });
 const DOM_MODULE = JSON.stringify(pathToFileURL(join(root, 'src/dom.ts')).href);
 
-/** What a bundler does from the package's `exports`: the package name to the DOM entry, a component to its DOM twin. */
+/** What a bundler does from the package's `exports`: the package name to the DOM entry, a component to its DOM version. */
 function compile_for_dom(path: string): string {
 	const { js } = compile(readFileSync(path, 'utf8'), { filename: path, generate: 'client', runes: true, css: 'injected' });
 	const code = js.code

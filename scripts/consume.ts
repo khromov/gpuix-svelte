@@ -81,7 +81,7 @@ const typescript = (readdirSync(installed, { recursive: true }) as string[]).fil
 );
 if (typescript.length) throw new Error(`the package ships TypeScript Node cannot run: ${typescript.join(', ')}`);
 
-// The published `exports` have to pick the DOM twin without the custom-renderer condition and the GPUI entry with it.
+// The published `exports` have to pick the DOM build without the custom-renderer condition and the GPUI entry with it.
 function resolved(specifier: string, conditions: string[]): string {
 	const flags = conditions.flatMap((c) => ['--conditions', c]);
 	const { stdout } = spawnSync(process.execPath, [...flags, '--input-type=module', '-e', `console.log(import.meta.resolve(${JSON.stringify(specifier)}))`], { cwd: consumer, encoding: 'utf8' });
@@ -129,7 +129,7 @@ export default defineConfig({
 });
 `;
 
-// The DOM twin through a consumer's own Vite: the packed package's lib/dom.js, the shipped components compiled by
+// The DOM build through a consumer's own Vite: the packed package's lib/dom.js, the shipped components compiled by
 // the consumer's plugin against the registry's svelte, and that svelte deduped over the bundled one. The GPUI test
 // runs again afterwards, because an app that ships to both targets has that svelte in its root node_modules.
 if (!open) {

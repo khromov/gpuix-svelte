@@ -102,9 +102,10 @@ files, spawn processes, open SQLite databases and load native addons directly.
 - **Window and desktop APIs** cover the title, fullscreen, the file picker, file drops, images
   from raw pixels, focus and accessibility attributes.
   → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
-- **Svelte components render in both gpuix-svelte and a normal DOM.** A Vite or SvelteKit build gets a DOM
-  twin of every helper and component under the same imports, and `IS_GPUIX` tells a component
-  which renderer it is on. → [docs/dom.md](docs/dom.md), and a SvelteKit site and a GPUI window
+- **Svelte components render in both gpuix-svelte and a normal DOM.** The same components can be shared
+  between a gpuix-svelte app and a normal Svelte app such as SvelteKit: a Vite or SvelteKit build
+  gets DOM versions of every helper and component under the same imports, and `IS_GPUIX` tells a
+  component which renderer it is on. → [docs/dom.md](docs/dom.md), and a SvelteKit site and a GPUI window
   sharing one component library:
   [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
 

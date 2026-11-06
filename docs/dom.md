@@ -1,9 +1,9 @@
 # Rendering Svelte components in both gpuix-svelte and normal DOM
 
-A component written for gpuix-svelte can also be rendered by Svelte's ordinary DOM renderer, in a
-Vite or SvelteKit app, without changes to its code. The package ships a DOM twin of its exports
-and of its components, and a build that does not set the `custom-renderer` export condition gets
-the twin. `IS_GPUIX` tells a component which renderer it is on.
+gpuix-svelte's helpers and built-in components render in the DOM as well as in a GPUI window, so
+the same components can be shared between a gpuix-svelte app and a normal Svelte app such as
+SvelteKit, without changes to their code. A build that does not set the `custom-renderer` export
+condition gets the DOM versions. `IS_GPUIX` tells a component which renderer it is on.
 
 This is not the [WebAssembly build](shipping.md#run-it-in-a-browser), which is GPUI itself
 painting a canvas in the page. Here the browser lays out and paints real DOM elements, your
@@ -27,10 +27,10 @@ export default defineConfig({ plugins: [svelte()] });
 ```
 
 That is all. Vite, SvelteKit and every other browser toolchain resolve without the
-`custom-renderer` condition, so `import { … } from 'gpuix-svelte'` lands on the DOM twin and
+`custom-renderer` condition, so `import { … } from 'gpuix-svelte'` lands on the DOM build and
 `gpuix-svelte/components/Scroller.svelte` on the DOM `Scroller`. (The desktop side always sets
 the condition: the bin, `gpuix-svelte/build` and the tsconfig a scaffolded app comes with.)
-`gpuix-svelte/dom` names the twin outright, for a tool that sets the `custom-renderer` condition
+`gpuix-svelte/dom` names the DOM build outright, for a tool that sets the `custom-renderer` condition
 anyway, such as the tsconfig of an app that ships to both targets.
 
 The DOM `Scroller`, `Portal`, `Tooltip` and `Popover` are compiled by your app's Svelte, so they
@@ -73,11 +73,11 @@ page.
 {/if}
 ```
 
-It is `true` on GPUI (a native window or the WebAssembly canvas) and `false` on the DOM twin,
+It is `true` on GPUI (a native window or the WebAssembly canvas) and `false` in the DOM,
 decided by which module the build resolved, so it can be read at module level, before anything
 is mounted.
 
-This page runs the component below on the DOM twin, so its badge reads DOM; in a window the same
+This page runs the component below in the DOM, so its badge reads DOM; in a window the same
 source reads GPUI. Its theme button calls `set_css_vars`, which here writes custom properties on
 `:root`, so the area around it follows, and `window_size` is the viewport:
 
@@ -164,7 +164,7 @@ Same props, same slots, same CSS variables; `testid` becomes a `data-testid` att
 
 ## Writing a component for both
 
-The DOM twin makes the imports resolve and the components exist; the component itself has to
+The DOM build makes the imports resolve and the components exist; the component itself has to
 stay inside what both renderers draw the same way. The repository's
 [`examples/cross-target`](../examples/cross-target) is one such component, opened in a window by
 `npm run demo:cross` and served by Vite with `npm run demo:dom`; `test:cross-target` and

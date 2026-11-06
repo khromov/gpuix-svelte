@@ -1,5 +1,5 @@
 /**
- * The DOM twin of `web.ts`: what `gpuix-svelte` resolves to when the `custom-renderer`
+ * The DOM side of the package, mirroring `web.ts`: what `gpuix-svelte` resolves to when the `custom-renderer`
  * condition is absent, i.e. under Vite, SvelteKit or any other browser toolchain. Same
  * names, same signatures; each does the DOM's equivalent where one is cheap and nothing
  * where only GPUI has the feature, so a component renders on both targets as written.
@@ -169,9 +169,9 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	return mounted;
 }
 
-/** Hot reload belongs to the GPUI window; an entry that calls this landed on the DOM twin, usually by skipping the bin. */
+/** Hot reload belongs to the GPUI window; an entry that calls this landed in a DOM build, usually by skipping the bin. */
 export const render_hot: (entry: string | URL, options?: RenderOptions) => Promise<void> = () =>
-	Promise.reject(new Error(`[gpuix-svelte] render_hot() opens a GPUI window and this build resolved gpuix-svelte to its DOM twin: ${BIN_HINT}; a browser entry calls render() with an imported component`));
+	Promise.reject(new Error(`[gpuix-svelte] render_hot() opens a GPUI window and this build resolved gpuix-svelte to its DOM build: ${BIN_HINT}; a browser entry calls render() with an imported component`));
 
 // Window and desktop helpers: the browser's version where it has one.
 

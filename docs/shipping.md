@@ -193,7 +193,7 @@ the plumbing differs:
   compression.
 
 This is GPUI itself in the browser. To have Svelte's regular DOM renderer draw the same component
-instead, with the helpers and components swapped for DOM twins, see
+instead, with the helpers and components swapped for DOM versions, see
 [Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md).
 
 ## In the repository

@@ -101,7 +101,7 @@ check('and its follow toggle flips', leaf('follow: off') !== null, true);
 
 show('dom');
 check('dom.html mounts its demo', bundle.mount_demos(), { mounted: ['dom-theme'], failed: [] });
-check('on the DOM twin, says the badge', leaf('DOM') !== null, true);
+check('in the DOM, says the badge', leaf('DOM') !== null, true);
 check('window_size reads the viewport', leaf('1024 × 768') !== null, true);
 await sleep(0);
 const paper = () => document.documentElement.style.getPropertyValue('--paper');
