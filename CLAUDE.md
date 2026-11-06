@@ -158,6 +158,14 @@ npm run og                 # retakes homepage/og.png: headless Chrome over CDP (
                            # $CHROME overrides the path) on index.html#og at 1200x630, device
                            # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
                            # Rerun after changing the hero; keep og:image:alt in step
+npm run shots              # retakes every other screenshot the homepage, README and docs carry
+                           # (scripts/shots.ts, through the bin): the example windows in
+                           # homepage/assets/shots through gpuix-svelte/automation, each driven
+                           # to the state its image shows; tic-tac-toe on the wasm build and the
+                           # README's demos.png (four captures with CSS window chrome) through
+                           # headless Chrome; then og and og:docs. macOS or Windows, Bun and
+                           # Chrome; -- --only hn,demos for a subset. glass.png, app-icon.png and
+                           # the hero's wallpapers are not touched
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints"
 npm run parity             # the @gpuix/native methods nothing in src/ calls (--all: every method,
@@ -344,7 +352,9 @@ the normal app path loads it, and a compiled binary cannot serve. The server is 
 window is created, so `render_hot` remounts reuse it. It owns its stdio loop (upstream's
 `createSseDecoder` + `handleAutomationRequest`) to answer an unparseable request that has an id
 with a `Protocol` error (upstream drops it, and the driver waits forever) and to answer what is in
-flight before stdin's end exits the process. Upstream's `liveRendererAsTest` ticks synchronously
+flight before stdin's end exits the process. In a live window a native `:hover` outlives the move
+that left the element: moves alone never restyle it, however many, but a move after a read does, so a
+capture after a click goes move, read, move (`scripts/shots.ts`). Upstream's `liveRendererAsTest` ticks synchronously
 after each input, which is not enough here — the napi callback carrying the event runs on a later
 loop turn, so a `getTree` right after a `click` could miss a just-shown `{#if}` node. So the
 server hides `tick` from it and wraps the backend (`frame_synced`): requests run one at a time and

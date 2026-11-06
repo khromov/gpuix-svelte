@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
@@ -52,6 +52,13 @@ function click(target: HTMLElement | null) {
 }
 
 check('a page without demos does not load the bundle', page('overview').includes('demos.js'), false);
+const demos = /<img [^>]*demos\.png[^>]*>/.exec(page('overview'))?.[0] ?? '';
+const png = readFileSync(join(root, '.github/resources/demos.png'));
+check(
+	'the README image is served from the site and carries its PNG size, so the overview does not shift while it loads',
+	[demos.includes('src="demos.png"'), existsSync(join(out, 'demos.png')), / width="(\d+)"/.exec(demos)?.[1], / height="(\d+)"/.exec(demos)?.[1], demos.includes('loading="lazy"')],
+	[true, true, String(png.readUInt32BE(16)), String(png.readUInt32BE(20)), true]
+);
 check('a page with demos does, as a module', page('components').includes('<script type="module" src="demos.js"></script>'), true);
 // A Windows checkout has CRLF line endings, which the copy keeps.
 check('the markdown copy keeps the block as a code sample', /```svelte demo tooltip\r?\n/.test(readFileSync(join(out, 'components.md'), 'utf8')), true);
@@ -108,4 +115,4 @@ document.body.innerHTML = '<div data-demo="nope"></div>';
 check('an id the bundle lacks is reported, not thrown', bundle.mount_demos(), { mounted: [], failed: ['nope'] });
 check('with the id in the error', errors.length === 1 && errors[0].includes('"nope"'), true);
 
-finish('docs', 21);
+finish('docs', 22);

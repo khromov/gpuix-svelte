@@ -20,6 +20,7 @@ import { build as vite_build } from 'vite';
 import { dom_plugins } from './vite-dom.ts';
 
 const REPO = 'https://github.com/khromov/gpuix-svelte';
+const RAW = REPO.replace('https://github.com/', 'https://raw.githubusercontent.com/');
 const SITE = 'https://gpuix-svelte.stanislav.garden/';
 const NPM = 'https://www.npmjs.com/package/gpuix-svelte';
 
@@ -70,6 +71,23 @@ function rewrite(href: string, from: string, as: 'html' | 'md') {
 	const page = PAGES.find((p) => p.source === target);
 	if (page) return as === 'html' ? `${page.name}.html${anchor}` : `${SITE}${page.name}.md${anchor}`;
 	return `${REPO}/blob/main/${target}${anchor}`;
+}
+
+// The README links its image through raw.githubusercontent so npm shows it too, and `rewrite` has
+// already turned a relative path into a blob URL; either names a file in this checkout.
+function local_image(href: string) {
+	for (const prefix of [`${RAW}/`, `${REPO}/blob/`]) {
+		if (href.startsWith(prefix)) return join(root, href.slice(prefix.length).replace(/^[^/]+\//, ''));
+	}
+	return null;
+}
+
+// Width and height from the IHDR chunk, which every PNG starts with.
+function png_size(path: string): [number, number] | null {
+	if (!existsSync(path)) return null;
+	const png = readFileSync(path);
+	if (png.toString('hex', 0, 8) !== '89504e470d0a1a0a') return null;
+	return [png.readUInt32BE(16), png.readUInt32BE(20)];
 }
 
 // Fenced code is left alone, since a `](` inside an example is not a link.
@@ -128,6 +146,15 @@ function render({ source, name }: Page, demos: Demo[]) {
 <div class="demo-result" data-demo="${id}"><noscript>The live result needs JavaScript.</noscript></div>
 <pre><code class="language-svelte">${escape(text)}\n</code></pre>
 </div>\n`;
+			},
+			// A PNG from this checkout is served from the site, so the page shows this commit's image rather
+			// than what GitHub has, and carries its size, so the page does not shift while it loads.
+			image({ href, title, text }: Tokens.Image) {
+				const file = local_image(href);
+				const size = file && png_size(file);
+				if (!file || !size) return false;
+				copyFileSync(file, join(out_dir, basename(file)));
+				return `<img src="${basename(file)}" alt="${escape(text)}" width="${size[0]}" height="${size[1]}" loading="lazy" decoding="async"${title ? ` title="${escape(title)}"` : ''}>`;
 			}
 		}
 	});
