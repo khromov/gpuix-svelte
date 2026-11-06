@@ -310,7 +310,8 @@ async function capture_demos() {
 		window_html({ shot: 'hn', title: SHOT_TITLES.hn, left: 48, top: 48, zoom: 0.9 }),
 		window_html({ shot: 'tictactoe', title: SHOT_TITLES.tictactoe, left: 800, top: 48, zoom: 0.9 }),
 		`<div class="at" style="left:1382px;top:48px"><div class="win glass" style="width:370px"><img src="${glass}" alt=""></div></div>`,
-		window_html({ shot: 'counter', title: SHOT_TITLES.counter, left: 1013, top: 740, zoom: 0.9 })
+		// Below the glass panel with clear air between them, and a little smaller so it stays inside the canvas.
+		window_html({ shot: 'counter', title: SHOT_TITLES.counter, left: 940, top: 790, zoom: 0.84 })
 	];
 	writeFileSync(
 		file,
