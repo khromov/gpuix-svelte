@@ -59,6 +59,8 @@ jobs:
       # The scaffolder pins ^<its own version>, which release-please keeps equal to the root's.
       - run: npm publish
         working-directory: packages/create-gpuix-svelte
+      # The UI toolkit, whose peer range is ^<its own version> too, so it follows the release it was tested with.
+      - run: npm run publish:ui
 
   # The tic-tac-toe example built for every platform, plus the update manifest, as assets of the
   # same release: what a scaffolded app's release workflow does, run for real on every release,

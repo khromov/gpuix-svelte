@@ -10,6 +10,6 @@ export default ts.config(
 	{ files: ['**/*.svelte', '**/*.svelte.ts'], languageOptions: { parserOptions: { parser: ts.parser } } },
 	{ languageOptions: { globals: { ...globals.node, Bun: 'readonly' } } },
 	// The DOM build and what runs on it.
-	{ files: ['src/dom.ts', 'src/components/dom/**', 'test/dom.ts', 'examples/cross-target/**'], languageOptions: { globals: { ...globals.browser } } },
-	{ ignores: ['**/node_modules', 'dist', 'lib', 'vendor', 'starter', 'packages/*/template', 'docs/assets', 'test/.samples-tmp', 'test/.hot-tmp', 'test/.bundle-tmp', 'test/.dom-tmp'] }
+	{ files: ['src/dom.ts', 'src/components/dom/**', 'test/dom.ts', 'test/ui-dom.ts', 'examples/cross-target/**', 'packages/ui/**'], languageOptions: { globals: { ...globals.browser } } },
+	{ ignores: ['**/node_modules', 'dist', 'lib', 'vendor', 'starter', 'packages/*/template', 'packages/*/lib', 'docs/assets', 'test/.samples-tmp', 'test/.hot-tmp', 'test/.bundle-tmp', 'test/.dom-tmp', 'test/.ui-tmp'] }
 );

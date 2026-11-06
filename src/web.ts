@@ -74,5 +74,6 @@ export {
 	reset_debug_overlay_stats
 } from './window.ts';
 export type { DebugFrameOverlayMode, DebugFrameOverlayStats } from '@gpuix/native/host';
-export { window_size, window_insets } from './window.ts';
+export { window_size, window_insets, media_query } from './window.ts';
 export type { WindowSize, WindowInsets, EdgeInsets } from '@gpuix/native/host';
+export type { MediaQueryState } from './types.ts';

@@ -227,6 +227,7 @@ check('the picker resolves to null', await dom.prompt_for_paths(), null);
 check('read_native and get_native answer null', [dom.read_native(() => 1), dom.get_native()], [null, null]);
 check('the overlay reads as undefined', [dom.set_debug_overlay('full'), dom.debug_overlay_stats()].map(String), ['undefined', 'undefined']);
 check('window_size reads the viewport', [dom.window_size.width, dom.window_size.height], [1024, 768]);
+check('media_query is matchMedia', [dom.media_query('(min-width: 900px)').current, dom.media_query('(prefers-color-scheme: dark)').current], [true, false]);
 check(
 	'window_insets are zero, with the keyboard fields following the height',
 	[dom.window_insets.safeArea.top, dom.window_insets.keyboardVisible, dom.window_insets.keyboardTop, dom.window_insets.visibleHeight],
@@ -269,10 +270,17 @@ check('render() mounts into <body> and titles the page', [document.title, by_id(
 check("<body> gets GPUI's root box", [document.body.style.display, document.body.style.position, document.body.style.margin], ['flex', 'relative', '0px']);
 check('the badge says DOM', text('target'), 'DOM');
 check('window_size renders', text('size'), '1024 × 768');
-(window as unknown as { happyDOM: { setViewport(viewport: { width: number; height: number }): void } }).happyDOM.setViewport({ width: 800, height: 600 });
-window.dispatchEvent(new Event('resize'));
-flushSync();
+const viewport = (width: number, height: number) => {
+	(window as unknown as { happyDOM: { setViewport(viewport: { width: number; height: number }): void } }).happyDOM.setViewport({ width, height });
+	window.dispatchEvent(new Event('resize'));
+	flushSync();
+};
+viewport(800, 600);
 check('and follows a resize', text('size'), '800 × 600');
+check('media_query renders what the viewport says', text('layout'), 'wide');
+viewport(500, 600);
+check('and follows a resize too', text('layout'), 'narrow');
+viewport(800, 600);
 
 check('the palette landed through set_css_vars', css_var('bg'), '#000000');
 click(by_id('theme'));
@@ -387,4 +395,4 @@ key('t');
 check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 67);
+finish('dom', 70);

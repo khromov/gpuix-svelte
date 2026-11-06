@@ -9,7 +9,7 @@ import { mount, unmount, flushSync } from 'svelte';
 import { createSubscriber } from 'svelte/reactivity';
 import type { EventPayload, PathPromptOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode, DebugFrameOverlayStats, EdgeInsets, WindowInsets, WindowSize } from '@gpuix/native/host';
-import type { AnyComponent, GpuixEvent, GpuiStyle, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
+import type { AnyComponent, GpuixEvent, GpuiStyle, MediaQueryState, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
@@ -341,6 +341,30 @@ export const window_size: Readonly<WindowSize> = {
 	}
 };
 
+/**
+ * `matchMedia`, read fresh on every access and reactive through its `change` event and the window's
+ * `resize` (some embedders report only the latter). False with no window, as on a server.
+ */
+export function media_query(query: string): MediaQueryState {
+	const target = win();
+	const list = target?.matchMedia?.(query) ?? null;
+	const changed = createSubscriber((update) => {
+		if (!target || !list) return;
+		list.addEventListener('change', update);
+		target.addEventListener('resize', update);
+		return () => {
+			list.removeEventListener('change', update);
+			target.removeEventListener('resize', update);
+		};
+	});
+	return {
+		get current() {
+			changed();
+			return list?.matches ?? false;
+		}
+	};
+}
+
 const zero = (): EdgeInsets => ({ top: 0, right: 0, bottom: 0, left: 0 });
 
 /** The page is laid out inside the browser's own insets already, so these read as zero, like a headless window's. */
@@ -366,6 +390,7 @@ export const window_insets: Readonly<WindowInsets> = {
 };
 
 export type {
+	MediaQueryState,
 	ShadowNode,
 	ShadowAttrs,
 	NodeKind,

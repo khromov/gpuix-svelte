@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"declaration": true,
+		"rewriteRelativeImportExtensions": true,
+		"rootDir": "src",
+		"outDir": "lib",
+		// gpuix-svelte is the workspace root behind a symlink; kept as a node_modules path it is external
+		// to this emit, where its real path would make the repository's src/*.ts sources of it.
+		"preserveSymlinks": true
+	},
+	"include": ["src/*.ts"],
+	"exclude": []
+}

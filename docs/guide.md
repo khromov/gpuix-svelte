@@ -146,6 +146,43 @@ other value GPUI reports. Only macOS reports real insets; Windows, Linux and hea
 zeros. Headless tests see their real viewport size. Before any window exists, the size reads as
 800×600.
 
+## Media queries
+
+A layout that changes with the window's width can be written as CSS. `@media` in a `<style>`
+block takes queries over `width`, `height` and `orientation` (`min-`/`max-` or the range syntax,
+in `px`, `rem` or `em`), the rules inside apply while the query holds, and the elements they
+style are restyled when the window's size changes:
+
+```svelte
+<div class="cards">…</div>
+
+<style>
+  .cards { display: flex; flex-direction: row; gap: 16px; }
+  @media (max-width: 700px) {
+    .cards { flex-direction: column; gap: 8px; }
+  }
+</style>
+```
+
+`media_query(query)` is the same test for JavaScript, `matchMedia`-shaped: `current` is reactive
+wherever a template, `$derived` or `$effect` reads it, so a component can branch its markup rather
+than its CSS.
+
+```svelte
+<script>
+  import { media_query } from 'gpuix-svelte';
+  const narrow = media_query('(max-width: 700px)');
+</script>
+
+{#if narrow.current}<Menu />{:else}<Sidebar />{/if}
+```
+
+Both read the window through the same poll as `window_size`, so a resize shows within 100 ms, and
+the poll runs only while something depends on it. A query a window cannot answer
+(`prefers-color-scheme`, `hover`, a `vw` length) never matches, as a browser's `not all`: the
+compiler warns about such an `@media` block and `media_query` warns once per query.
+[Styling](styling.md#media-queries) has the details.
+
 ## Title bar on GNOME
 
 On GNOME under Wayland a gpuix window has no title bar: GNOME leaves drawing it to the app, and

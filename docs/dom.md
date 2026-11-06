@@ -148,6 +148,10 @@ is the DOM element.
 - `on_selection_change(handler)` hears `selectionchange`; `e.value` is the selected text.
 - `window_size` is `innerWidth` × `innerHeight`, reactive through the resize event (no polling).
   `window_insets` reads as zero, since the page already sits inside the browser's insets.
+- `media_query('(max-width: 700px)')` is `matchMedia`, so every query a browser knows works here,
+  including the ones GPUI refuses. `@media` blocks in a `<style>` are plain CSS in the DOM; on GPUI
+  the width, height and orientation ones apply too ([Styling](styling.md#media-queries)), so a
+  shared component can use both.
 - `set_window_title(t)` sets `document.title`; `activate_window()` calls `window.focus()`;
   `toggle_fullscreen()` uses the Fullscreen API; `minimize_window()` and `zoom_window()` do
   nothing.

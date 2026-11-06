@@ -7,6 +7,7 @@
 import type { EventPayload } from '@gpuix/native';
 import { createRenderer } from 'svelte/renderer';
 import { build_style, define_css_vars, flush_var_warnings, used_css_vars } from './style.ts';
+import { media_active, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import type {
 	ClassRule,
@@ -93,6 +94,22 @@ let pending_destroy = new Set<ShadowNode>();
 
 /** `<svg>`s painting their nearest ancestor's `color`, restyled when that ancestor is. */
 let inheriting_svgs = new Set<ShadowNode>();
+
+/** Live nodes with a rule under `@media`, restyled when the window's size changes. */
+let media_nodes = new Set<ShadowNode>();
+
+/** Whether `class_rules` met an `@media` rule since `apply_style` last reset it. */
+let media_read = false;
+
+type ViewportObserver = (callback: (size: Viewport) => void) => () => void;
+
+/** Installed by window.ts: reports the window's size now and on every change, until stopped. */
+let observe_viewport: ViewportObserver | null = null;
+let stop_viewport: (() => void) | null = null;
+let viewport: Viewport | null = null;
+
+/** What `window_size` reads before any window exists. */
+const NO_WINDOW: Viewport = { width: 800, height: 600 };
 
 /** The text field with focus, if any — what `editing` on a window key event reports. */
 let focused_input: ShadowNode | null = null;
@@ -184,6 +201,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		listeners: new Map(),
 		nativeId: null,
 		uses_vars: false,
+		uses_media: false,
 		own_color: undefined,
 		live: false,
 		attached: false,
@@ -268,10 +286,46 @@ function class_rules(el: ShadowNode): readonly ClassRule[] {
 		if (!sheet) continue;
 		for (const rule of sheet) {
 			if (rule.tag !== null && rule.tag !== el.name) continue;
-			if (rule.classes.every((c) => names.includes(c))) (matched ??= []).push(rule);
+			if (!rule.classes.every((c) => names.includes(c))) continue;
+			if (rule.media) {
+				// Whether or not it holds now, the element depends on the window's size from here on.
+				media_read = true;
+				if (!media_active(rule.media, current_viewport())) continue;
+			}
+			(matched ??= []).push(rule);
 		}
 	}
 	return matched ?? NO_RULES;
+}
+
+/** The size the first `@media` rule starts observing; the observer's first report is synchronous. */
+function current_viewport(): Viewport {
+	if (viewport === null && stop_viewport === null && observe_viewport !== null && native !== null) {
+		stop_viewport = observe_viewport(on_viewport);
+	}
+	return viewport ?? NO_WINDOW;
+}
+
+function on_viewport(size: Viewport) {
+	if (viewport !== null && viewport.width === size.width && viewport.height === size.height) return;
+	const first = viewport === null;
+	viewport = { width: size.width, height: size.height };
+	if (first) return;
+	for (const n of media_nodes) {
+		if (n.nativeId !== null) apply_style(n);
+	}
+}
+
+function stop_viewport_observer() {
+	stop_viewport?.();
+	stop_viewport = null;
+	viewport = null;
+}
+
+function track_media(el: ShadowNode) {
+	el.uses_media = media_read;
+	if (media_read) media_nodes.add(el);
+	else media_nodes.delete(el);
 }
 
 function hitbox_root(el: ShadowNode) {
@@ -313,6 +367,7 @@ function inherit_color(el: ShadowNode, style: GpuiStyle) {
 
 function apply_style(el: ShadowNode) {
 	if (el.nativeId === null) return;
+	media_read = false;
 	const style = build_style(el.attrs, class_rules(el));
 	el.uses_vars = used_css_vars();
 
@@ -325,7 +380,11 @@ function apply_style(el: ShadowNode) {
 		} else {
 			inheriting_svgs.delete(el);
 		}
-	} else if (style.color !== el.own_color) {
+	}
+	// Before the `<svg>` sweep below, whose nested calls reset the flag.
+	track_media(el);
+
+	if (el.name !== 'svg' && style.color !== el.own_color) {
 		// Only a new colour changes what an `<svg>` below inherits, and a drag restyles its panel every frame.
 		el.own_color = style.color;
 		if (el.first) {
@@ -631,6 +690,14 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 }
 
 /**
+ * How the renderer learns the window's size for `@media` rules: window.ts installs the polled
+ * reader behind `window_size`, started by the first such rule and stopped once none is live.
+ */
+export function set_viewport_observer(observe: ViewportObserver) {
+	observe_viewport = observe;
+}
+
+/**
  * A theme is one call: every live element whose style read a `var()` is restyled,
  * and the whole sweep ships in the next batch like any other frame. A palette identical
  * to the one in force — a theme effect re-running — is a no-op.
@@ -652,6 +719,8 @@ export function set_native(instance: NativeSink) {
 	by_id = new Map();
 	pending_destroy = new Set();
 	inheriting_svgs = new Set();
+	media_nodes = new Set();
+	stop_viewport_observer();
 	focused_input = null;
 	root_node = null;
 	portals = new Set();
@@ -796,11 +865,13 @@ export function commit() {
 			n.nativeId = null;
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
+			if (n.uses_media) media_nodes.delete(n);
 			if (n === focused_input) focused_input = null;
 			portals.delete(n);
 		}
 		by_id.delete(id);
 	}
+	if (media_nodes.size === 0) stop_viewport_observer();
 
 	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
 	native!.commitMutations?.();

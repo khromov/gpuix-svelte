@@ -17,5 +17,5 @@
 	},
 	"svelteOptions": { "namespace": "gpuixHTML" },
 	"include": ["types", "src", "bin", "scripts", "test", "examples", "packages"],
-	"exclude": ["**/node_modules", "test/.samples-tmp", "test/.hot-tmp", "test/.bundle-tmp", "test/.dom-tmp", "vendor", "dist", "lib", "starter", "packages/*/template", "src/components/dom"]
+	"exclude": ["**/node_modules", "test/.samples-tmp", "test/.hot-tmp", "test/.bundle-tmp", "test/.dom-tmp", "test/.ui-tmp", "vendor", "dist", "lib", "starter", "packages/*/template", "packages/*/lib", "src/components/dom"]
 }

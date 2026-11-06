@@ -24,7 +24,7 @@ check('a descendant selector is refused at compile time', refused.some((w) => w.
 check('so is a pseudo-class named like an Object.prototype key', refused.some((w) => w.includes('`.btn:constructor`')), true);
 check('so is a second pseudo-class on one selector', refused.some((w) => w.includes('`.btn:hover:active`')), true);
 check('so is a pseudo-class with no class or tag', refused.some((w) => w.includes('`:hover`')), true);
-check('so is an at-rule', refused.some((w) => w.includes('`@media (min-width: 1px)`')), true);
+check('so is an at-rule other than @media', refused.some((w) => w.includes('`@supports (display: flex)`')), true);
 check('so is a nested rule', refused.some((w) => w.includes('`&:hover { … } (nested)`')), true);
 check('every other selector is accepted', refused.length, 6);
 check('each refusal names the file', refused.every((w) => w.includes(FIXTURE)), true);

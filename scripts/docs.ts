@@ -32,6 +32,7 @@ const PAGES = [
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
 	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },
+	{ source: 'docs/ui.md', name: 'ui', nav: 'UI toolkit', about: 'gpuix-svelte-ui: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for a GPUI window and the DOM alike, the theme behind them, and responsive layouts with @media and media_query' },
 	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
