@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+members = ["hello-core", "hello-stdio", "hello-ffi", "hello-napi", "hello-wasm"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[profile.release]
+opt-level = "s"
+strip = true

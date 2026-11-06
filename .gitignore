@@ -57,3 +57,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # the custom-renderer svelte build, see CLAUDE.md
 !vendor/*.tgz
+examples/rust-interop/rust/target/
+examples/rust-host/rust/target/
+examples/rust-embed/rust/target/

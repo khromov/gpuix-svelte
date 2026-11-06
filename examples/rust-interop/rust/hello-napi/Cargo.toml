@@ -1,0 +1,16 @@
+[package]
+name = "hello-napi"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+hello-core = { path = "../hello-core" }
+napi = { version = "3", default-features = false, features = ["napi9"] }
+napi-derive = "3"
+
+[build-dependencies]
+napi-build = "2"
