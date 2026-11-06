@@ -12,6 +12,12 @@ plain `.svelte` files and compile like your own components:
 </script>
 ```
 
+Each one runs live on this page, on its [DOM twin](dom.md#the-components-in-the-dom): the
+sample under a demo is the component you see above it, compiled by Svelte's DOM renderer for your
+browser. In a GPUI window the same source draws natively. The samples take their colours from
+tokens this page defines (`--paper`, `--ink`, `--panel`, `--raised`, `--dim`), the way an app's
+come from `set_css_vars`.
+
 ## Scroller
 
 GPUI's own scrollbar (`scrollbar-color`, see [Styling](styling.md)) can't be dragged, so
@@ -30,6 +36,36 @@ Props:
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
 fallbacks.
+
+```svelte demo scroller
+<script>
+  import Scroller from 'gpuix-svelte/components/Scroller.svelte';
+
+  let lines = $state(Array.from({ length: 20 }, (_, i) => `Line ${i + 1}`));
+  let follow = $state(true);
+</script>
+
+<div class="row">
+  <div class="btn" onclick={() => lines.push(`Line ${lines.length + 1}`)}>Append a line</div>
+  <div class="chip" onclick={() => (follow = !follow)}>follow: {follow ? 'on' : 'off'}</div>
+</div>
+<div class="pane">
+  <Scroller gap={4} pad="8px" {follow}>
+    {#each lines as line (line)}
+      <div class="line">{line}</div>
+    {/each}
+  </Scroller>
+</div>
+
+<style>
+  .row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
+  .chip { padding: 6px 12px; border-radius: 6px; cursor: pointer; user-select: none; background-color: var(--panel); }
+  .chip:hover { background-color: var(--raised); }
+  .pane { display: flex; height: 180px; border-radius: 8px; background-color: var(--panel); }
+  .line { padding: 6px 10px; border-radius: 4px; background-color: var(--raised); }
+</style>
+```
 
 ### Virtual lists
 
@@ -69,6 +105,38 @@ A portal mounted later paints over one mounted earlier, so a portal that re-show
 moves to the top. `Tooltip` and `Popover` paint above every portal, because `<anchored>` draws in
 a deferred layer.
 
+```svelte demo portal
+<script>
+  import Portal from 'gpuix-svelte/components/Portal.svelte';
+
+  let open = $state(false);
+</script>
+
+<div class="row">
+  <div class="btn" onclick={() => (open = true)}>Open a dialog</div>
+</div>
+
+{#if open}
+  <Portal>
+    <div class="scrim" onclick={() => (open = false)}>
+      <div class="dialog" onclick={(e) => e.stopPropagation()}>
+        <div class="heading">Rendered here, painted on top</div>
+        <div>The dialog is a child of this demo and still covers the whole window. A click outside closes it.</div>
+        <div class="btn" onclick={() => (open = false)}>Close</div>
+      </div>
+    </div>
+  </Portal>
+{/if}
+
+<style>
+  .row { display: flex; }
+  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
+  .scrim { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background-color: #00000099; }
+  .dialog { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 360px; padding: 20px; border-radius: 12px; background-color: var(--panel); color: var(--ink); }
+  .heading { font-size: 16px; font-weight: 600; }
+</style>
+```
+
 ## Tooltip
 
 A hover tip beside its trigger, built on `<anchored>`. It shows after `delay` ms of hover and stays
@@ -98,6 +166,39 @@ receives onto it:
     <div class="btn" {...hover} onclick={save}>Save</div>
   {/snippet}
 </Tooltip>
+```
+
+```svelte demo tooltip
+<script>
+  import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
+
+  let saves = $state(0);
+</script>
+
+<div class="row">
+  {#each ['top', 'right', 'bottom', 'left'] as side (side)}
+    <Tooltip content="A tip on the {side}" {side}>
+      <div class="chip">{side}</div>
+    </Tooltip>
+  {/each}
+  <Tooltip content="Aligned with the start edge" side="bottom" align="start">
+    <div class="chip">start</div>
+  </Tooltip>
+  <Tooltip content="Aligned with the end edge, after a second" side="bottom" align="end" delay={1000}>
+    <div class="chip">end</div>
+  </Tooltip>
+  <Tooltip content="Save (⌘S)">
+    {#snippet children(hover)}
+      <div class="btn" {...hover} onclick={() => saves++}>{saves ? `Saved ×${saves}` : 'Save'}</div>
+    {/snippet}
+  </Tooltip>
+</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .chip { padding: 6px 12px; border-radius: 6px; cursor: default; user-select: none; background-color: var(--panel); }
+  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
+</style>
 ```
 
 ## Popover
@@ -131,6 +232,52 @@ Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--p
 
 `Tooltip` and `Popover` both wrap the trigger in a box that hugs it, at the start of whatever space
 the parent gives them, and hang their layer off that box.
+
+The second popover below hangs from `position` instead of its trigger. A plain click gives both
+renderers the pointer's `e.x` / `e.y`; on GPUI a right click would come through `onauxclick`.
+
+```svelte demo popover
+<script>
+  import Popover from 'gpuix-svelte/components/Popover.svelte';
+
+  let menu = $state(false);
+  let context = $state(false);
+  let at = $state({ x: 0, y: 0 });
+  let picked = $state('nothing yet');
+
+  function pick(item) {
+    picked = item;
+    menu = context = false;
+  }
+</script>
+
+{#snippet items()}
+  {#each ['Rename', 'Duplicate', 'Delete'] as item (item)}
+    <div class="item" onclick={() => pick(item)}>{item}</div>
+  {/each}
+{/snippet}
+
+<div class="row">
+  <Popover open={menu} onclose={() => (menu = false)} content={items}>
+    <div class="btn" onclick={() => (menu = !menu)}>Actions</div>
+  </Popover>
+  <Popover open={context} onclose={() => (context = false)} content={items} position={at}>
+    <div class="pad" onclick={(e) => ((at = { x: e.x, y: e.y }), (context = true))}>
+      Click anywhere in here for a menu at the pointer
+    </div>
+  </Popover>
+</div>
+<div class="dim">Picked: {picked}</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+  .btn { padding: 6px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; user-select: none; background-color: var(--ink); color: var(--paper); }
+  .pad { padding: 24px; border-radius: 8px; cursor: pointer; user-select: none; background-color: var(--panel); color: var(--dim); }
+  .item { padding: 6px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+  .item:hover { background-color: var(--raised); }
+  .dim { color: var(--dim); }
+</style>
+```
 
 ## `<anchored>`
 

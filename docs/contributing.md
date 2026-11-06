@@ -69,7 +69,7 @@ single demo for that, since several would all write to the same file.
 
 The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`) run anywhere, and so do
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:docs`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
 the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
 
@@ -114,8 +114,23 @@ copies the homepage (`homepage/`) to the root, so the README renders as `overvie
 `docs` workflow publishes it to GitHub Pages on every push to `main` that touches any of them. A
 new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts). `npm run docs:serve`
 builds it the same way, then serves it at http://127.0.0.1:4321 and opens it in your browser, and
-rebuilds whenever the README, `docs/`, `homepage/` or the script itself changes (reload the page to
-see it).
+rebuilds whenever the README, `docs/`, `homepage/`, the DOM twins or the script itself changes
+(reload the page to see it).
+
+A fenced block whose info string is `svelte demo <name>` is also a live demo. The block is the
+whole source of a component: on GitHub it reads as a code sample, on the site it renders as the
+code with the component running above it, on its [DOM twin](dom.md), so the two can't drift. The
+build writes each one to `dist/docs-demos/<page>-<name>.svelte` and bundles them with Vite into
+`dist/docs/demos.js`, the same way `demo:dom` builds the cross-target example
+([`scripts/vite-dom.ts`](../scripts/vite-dom.ts) holds the plugins): `gpuix-svelte` and
+`gpuix-svelte/components/*.svelte` resolve to the DOM twins, exactly as in a consumer's Vite app,
+and only the pages that have a demo load the bundle. Write a demo in the subset both renderers
+draw the same way ([Rendering in the DOM](dom.md#writing-a-component-for-both)) and colour it with
+the tokens the page defines for them, `--paper`, `--ink`, `--panel`, `--raised` and `--dim`, plus
+the components' own `--tooltip-*`, `--popover-*` and `--scroller-*`. Keep `set_css_vars` for a demo
+that is about theming: it writes `:root`, which the whole page reads. A demo that does not compile
+fails `npm run docs`; `npm run test:docs` builds the site and mounts every demo from the built
+bundle under happy-dom, so one that throws at mount fails there, and CI's Linux job runs it.
 
 The social preview images are screenshots: `npm run og` retakes `homepage/og.png` from the
 homepage's `#og` view, and `npm run og:docs` retakes `docs/assets/og-docs.png` from the built

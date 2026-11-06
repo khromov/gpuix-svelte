@@ -73,6 +73,34 @@ It is `true` on GPUI (a native window or the WebAssembly canvas) and `false` on 
 decided by which module the build resolved, so it can be read at module level, before anything
 is mounted.
 
+This page runs the component below on the DOM twin, so its badge reads DOM; in a window the same
+source reads GPUI. Its theme button calls `set_css_vars`, which here writes custom properties on
+`:root`, so the area around it follows, and `window_size` is the viewport:
+
+```svelte demo theme
+<script>
+  import { IS_GPUIX, set_css_vars, window_size } from 'gpuix-svelte';
+
+  const DARK = { paper: '#111111', ink: '#ededed', panel: '#1f1f1f' };
+  const LIGHT = { paper: '#eeeeee', ink: '#171717', panel: '#ffffff' };
+  let dark = $state(true);
+
+  $effect(() => set_css_vars(dark ? DARK : LIGHT));
+</script>
+
+<div class="row">
+  <div class="badge">{IS_GPUIX ? 'GPUI' : 'DOM'}</div>
+  <div>{window_size.width} × {window_size.height}</div>
+  <div class="btn" onclick={() => (dark = !dark)}>{dark ? 'Light' : 'Dark'} theme</div>
+</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border-radius: 10px; background-color: var(--paper); color: var(--ink); }
+  .badge { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background-color: var(--ink); color: var(--paper); }
+  .btn { padding: 6px 12px; border-radius: 6px; cursor: pointer; user-select: none; background-color: var(--panel); }
+</style>
+```
+
 ## What the helpers do in the DOM
 
 Same names, same signatures. Where a helper takes a node, the node an `{@attach}` hands over here

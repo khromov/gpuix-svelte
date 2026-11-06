@@ -109,6 +109,9 @@ npm run test:cross-target  # the cross-target example on GPUI: the palette throu
 npm run test:dom           # the same example on the DOM twin in happy-dom, the stubs of dom.ts and a
                            # name-by-name parity check against web.ts; needs no headless renderer, so it
                            # runs on Linux too
+npm run test:docs          # builds the docs site (always on Node, since Vite runs there) and mounts
+                           # every ```svelte demo``` from the built dist/docs/demos.js into each built
+                           # page under happy-dom, clicking through a few; runs on Linux too
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
@@ -140,11 +143,16 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # them and llms-full.txt — starter/AGENTS.md points agents there;
                            # homepage/ is copied to the root, so README becomes overview.html;
                            # .github/workflows/docs.yml deploys it to GitHub Pages on push.
-                           # A new docs page also needs an entry in scripts/docs.ts's PAGES
+                           # A new docs page also needs an entry in scripts/docs.ts's PAGES.
+                           # A ```svelte demo <name>``` block is a live demo: written to
+                           # dist/docs-demos/<page>-<name>.svelte and bundled by Vite on the DOM
+                           # twin into dist/docs/demos.js, which only pages with a demo load;
+                           # one that does not compile fails the build. See "The docs' live demos"
 npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
                            # (PORT overrides) and opens it in the browser (-- --no-open skips
-                           # that); rebuilds on any change to README.md, docs/, homepage/ or
-                           # scripts/docs.ts by restarting a child that builds and serves
+                           # that); rebuilds on any change to README.md, docs/, homepage/,
+                           # scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts or src/components/dom
+                           # by restarting a child that builds and serves
 npm run og                 # retakes homepage/og.png: headless Chrome over CDP (scripts/og.ts,
                            # $CHROME overrides the path) on index.html#og at 1200x630, device
                            # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
@@ -270,10 +278,11 @@ CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows 
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
 launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
-a check that the binding loads (see the `@gpuix/native` constraint), the four suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`), the Vite build of the
-cross-target example (`demo:dom -- --build-only`) and `test:automation-live` under `xvfb-run`, all
-on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and DirectX on Windows.
+a check that the binding loads (see the `@gpuix/native` constraint), the five suites that need no
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:docs`), the Vite
+build of the cross-target example (`demo:dom -- --build-only`) and `test:automation-live` under
+`xvfb-run`, all on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and
+DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
 `SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`
@@ -630,10 +639,32 @@ bundler without conditions. `docs/dom.md` is the user-facing page. The design:
   `tsconfig.dom.json` covers with no `customConditions` (so `gpuix-svelte` resolves to the twin)
   and the default `svelteHTML` namespace; `typecheck` runs svelte-check once per tsconfig. Never
   put a `vite.config.*` beside a component: svelte-check's config loader reads it as that
-  component's Svelte config and drops the a11y `warningFilter`, so `scripts/dom.ts` holds the Vite
-  config for `examples/cross-target` (`configFile: false` on Vite and on the svelte plugin, since the
-  repo's `svelte.config.js` would turn the custom renderer on) and resolves the bare `gpuix-svelte`
-  through `import.meta.resolve`, i.e. the package's own `exports` under Node's default conditions.
+  component's Svelte config and drops the a11y `warningFilter`, so `scripts/vite-dom.ts` holds the
+  Vite plugins every DOM build here shares (`configFile: false` on Vite and on the svelte plugin,
+  since the repo's `svelte.config.js` would turn the custom renderer on, the a11y `onwarn` filter,
+  and a `resolveId` that sends the bare `gpuix-svelte` through `import.meta.resolve`, i.e. the
+  package's own `exports` under Node's default conditions), and `scripts/dom.ts` (`demo:dom`, for
+  `examples/cross-target`) and `scripts/docs.ts` (the docs' live demos) build on them.
+- **The docs' live demos.** A fenced block in `docs/*.md` with the info string
+  `svelte demo <name>` is both the code sample (GitHub and the markdown copies read the first word)
+  and a component's source: `scripts/docs.ts`'s `code` renderer collects it and emits the sample
+  under a `.demo-result[data-demo="<page>-<name>"]` (a `<noscript>` note inside; two of one name on
+  a page throw), and `bundle_demos` writes the demos to `dist/docs-demos/` (under `dist`, which
+  tsc, svelte-check and eslint all skip) with a generated entry that Vite builds through
+  `dom_plugins({ emitCss: false })` into the single file `dist/docs/demos.js`, which only pages
+  with a demo load. The entry mounts each demo with Svelte's `mount` (the twin's `render` takes
+  `<body>`), catching per demo so one failure costs one demo and a `console.error`, and exports
+  `mount_demos()` for `test/docs.ts`, which needs `preserveEntrySignatures: 'strict'` or an app
+  build drops it. The bundle lands before `homepage/` is copied, so a `demos.js` there hits the
+  collision check; a Vite error rejects `build()` and fails `npm run docs`. The tokens a demo may
+  use (`--paper`, `--ink`, `--panel`, `--raised`, `--dim`, the components' `--tooltip-*` /
+  `--popover-*` / `--scroller-*`) sit on `:root`, not on the frame, because `Tooltip` and `Popover`
+  hang their layer off `<body>`, and because the `dom.md` theme demo's `set_css_vars` writes
+  `<html>`'s inline style, which outranks the `:root` rule: the frame (`.demo-result` reads
+  `--paper`/`--ink`) follows the theme and the site's own tokens (`--bg`, `--fg`, `--accent`, …),
+  which no demo may name, do not. `test/docs.ts` runs the build on Node whatever runtime runs it
+  (`node` from PATH under Bun), imports the bundle under happy-dom with an empty body, then calls
+  `mount_demos()` per built page with the page's inline script stripped.
 - **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the
   DOM components and the example with `svelte/compiler` (no `customRenderer`, `css: 'injected'`)
   into `test/.dom-tmp/`, and rewrites their `'gpuix-svelte'` and component specifiers to
@@ -924,7 +955,9 @@ Unknown events are dropped silently.
 
 `src/components/` ships `.svelte` files as-is; the consumer's loader compiles them, and their
 `import ... from 'gpuix-svelte'` resolves through the package's own `exports` from anywhere.
-`docs/components.md` documents their props and the native `<anchored>`. Each has a DOM twin under
+`docs/components.md` documents their props and the native `<anchored>`, and runs each one live on
+the docs site through its DOM twin (a `svelte demo` block per component; see "The docs' live
+demos"). Each has a DOM twin under
 `src/components/dom/` with the same props, which the same specifier reaches without the
 `custom-renderer` condition (see "Rendering in the DOM"); a prop added here needs adding there.
 
