@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { IS_GPUIX, on_window_key, set_css_vars, window_size } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
@@ -56,7 +57,7 @@
 
 	$effect(() => set_css_vars(dark ? DARK : LIGHT));
 
-	$effect(() =>
+	onDestroy(
 		on_window_key('keydown', (e) => {
 			if (e.editing) return;
 			if (e.key === 't') dark = !dark;
