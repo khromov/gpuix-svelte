@@ -53,7 +53,8 @@ function click(target: HTMLElement | null) {
 
 check('a page without demos does not load the bundle', page('overview').includes('demos.js'), false);
 check('a page with demos does, as a module', page('components').includes('<script type="module" src="demos.js"></script>'), true);
-check('the markdown copy keeps the block as a code sample', readFileSync(join(out, 'components.md'), 'utf8').includes('```svelte demo tooltip\n'), true);
+// A Windows checkout has CRLF line endings, which the copy keeps.
+check('the markdown copy keeps the block as a code sample', /```svelte demo tooltip\r?\n/.test(readFileSync(join(out, 'components.md'), 'utf8')), true);
 
 show('components');
 check('components.html mounts its four demos', bundle.mount_demos(), {
