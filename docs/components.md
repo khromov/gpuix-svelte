@@ -425,6 +425,9 @@ string reaches native as a string and reads as `0` or `true`.
 
 ## In a browser DOM
 
+> [!NOTE]
+> The DOM versions ship in the next release (0.6.0); 0.5.0 on npm has the GPUI components only.
+
 All four render in the DOM as well, so the same components can be shared between a gpuix-svelte
 app and a normal Svelte app such as SvelteKit. A Vite or SvelteKit build gets their DOM versions
 under the same import paths, with the same props and CSS variables: the browser scrolls the `Scroller`, `Portal` moves

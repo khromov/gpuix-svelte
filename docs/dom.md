@@ -1,5 +1,10 @@
 # Rendering Svelte components in both gpuix-svelte and normal DOM
 
+> [!NOTE]
+> **Not released yet.** Everything on this page ships in the next gpuix-svelte release (0.6.0).
+> The current release on npm, 0.5.0, resolves `gpuix-svelte` to the GPUI renderer under every
+> condition, has no `IS_GPUIX`, and ships no DOM versions of its components.
+
 gpuix-svelte's helpers and built-in components render in the DOM as well as in a GPUI window, so
 the same components can be shared between a gpuix-svelte app and a normal Svelte app such as
 SvelteKit, without changes to their code. A build that does not set the `custom-renderer` export
