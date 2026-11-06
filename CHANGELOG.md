@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/khromov/gpuix-svelte/compare/v0.4.1...v0.5.0) (2026-11-06)
+
+
+### Features
+
+* in-app updates from a static manifest, a GitHub release workflow, and a docs pass ([#61](https://github.com/khromov/gpuix-svelte/issues/61)) ([bb82508](https://github.com/khromov/gpuix-svelte/commit/bb82508a536c59d258a9fa30b275e8a80526b221))
+
+
+### Bug Fixes
+
+* keep the relaunch handshake intact, idempotent window unsubscribes, and six more from a bug triage ([#65](https://github.com/khromov/gpuix-svelte/issues/65)) ([3ccca2f](https://github.com/khromov/gpuix-svelte/commit/3ccca2f96b8b7518fa240ef8104753a6a348a5b4))
+* make the tests fail when what they name breaks, and two install() bugs that turned up ([#64](https://github.com/khromov/gpuix-svelte/issues/64)) ([c4f2935](https://github.com/khromov/gpuix-svelte/commit/c4f293568fe173fb9d0da0fd83da7c442480786f))
+* roll back updates that cannot execute, survive refused style ops, and stop resending svg colours ([#63](https://github.com/khromov/gpuix-svelte/issues/63)) ([ba5cfb2](https://github.com/khromov/gpuix-svelte/commit/ba5cfb24ed2448a3a5fbd5804086096070107b7a))
+
 ## [0.4.1](https://github.com/khromov/gpuix-svelte/compare/v0.4.0...v0.4.1) (2026-11-01)
 
 
