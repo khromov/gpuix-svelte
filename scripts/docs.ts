@@ -124,7 +124,7 @@ function render({ source, name }: Page, demos: Demo[]) {
 				if (demos.some((d) => d.id === id)) throw new Error(`[docs] ${source} has two demos named "${id}"`);
 				demos.push({ id, source: text });
 				return `<div class="demo">
-<div class="demo-head"><span class="demo-live">Live</span><a href="dom.html#the-components-in-the-dom">running on the DOM twin</a></div>
+<div class="demo-head"><span class="demo-live">Demo</span><a href="dom.html#the-components-in-the-dom">Renderer: DOM</a></div>
 <div class="demo-result" data-demo="${id}"><noscript>The live result needs JavaScript.</noscript></div>
 <pre><code class="language-svelte">${escape(text)}\n</code></pre>
 </div>\n`;

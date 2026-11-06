@@ -12,7 +12,11 @@ equivalent or do nothing.
 
 ## Setup
 
-Install `gpuix-svelte` next to your app's own `svelte`, and use the Svelte plugin as usual:
+A complete project to copy from is
+[gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo):
+a SvelteKit site on adapter-static and a GPUI window rendering one component library, with the
+typechecks for both sides set up. The short version: install `gpuix-svelte` next to your app's own
+`svelte`, and use the Svelte plugin as usual:
 
 ```js
 // vite.config.js
@@ -164,7 +168,9 @@ The DOM twin makes the imports resolve and the components exist; the component i
 stay inside what both renderers draw the same way. The repository's
 [`examples/cross-target`](../examples/cross-target) is one such component, opened in a window by
 `npm run demo:cross` and served by Vite with `npm run demo:dom`; `test:cross-target` and
-`test:dom` click through it on each renderer.
+`test:dom` click through it on each renderer. The
+[shared-components demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
+is a whole library written this way, typechecked as DOM markup and as GPUI markup.
 
 - Use `div` for boxes and text, `display: flex` where you need it, and `<style>` blocks with
   class rules and `:hover`. Colours as `var(--token)` with one `set_css_vars` call give both the

@@ -318,4 +318,6 @@ string reaches native as a string and reads as `0` or `true`.
 All four ship with a DOM twin that a Vite or SvelteKit build picks up under the same import
 paths, with the same props and CSS variables: the browser scrolls the `Scroller`, `Portal` moves
 its layer to `<body>`, and `Tooltip` and `Popover` place a fixed layer beside the trigger. See
-[Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md#the-components-in-the-dom).
+[Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md#the-components-in-the-dom),
+and for all four inside a library that a SvelteKit site and a GPUI window share,
+[gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo).

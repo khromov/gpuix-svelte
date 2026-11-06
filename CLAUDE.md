@@ -599,7 +599,12 @@ resolves to when the `custom-renderer` condition is absent, which is every brows
 (Vite, SvelteKit) and never the desktop path. `exports["."]` nests the conditions —
 `custom-renderer` → (`browser` → `web.ts`, else `index.ts`), `default` → `dom.ts` — and
 `./components/*` likewise falls back to `src/components/dom/*`; `./dom` names the twin for a
-bundler without conditions. `docs/dom.md` is the user-facing page. The design:
+bundler without conditions. `docs/dom.md` is the user-facing page, and
+`github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo` is a companion repository: a
+SvelteKit site and a GPUI window sharing one component library on this package, linked as
+`file:../gpuix-svelte` until a release carries the twin, with the two typechecks (DOM markup and
+GPUI markup) a hybrid app needs. A change to the twin's API or the components' props should keep it
+building. The design:
 
 - **`IS_GPUIX` is a constant per entry** (`true` in `web.ts`, hence in `index.ts`; `false` in
   `dom.ts`), not `get_native() !== null`, so a `.svelte.ts` module can read it before `render()`.
