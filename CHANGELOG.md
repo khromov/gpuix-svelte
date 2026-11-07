@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/khromov/gpuix-svelte/compare/v0.5.0...v0.6.0) (2026-11-07)
+
+
+### Features
+
+* render gpuix-svelte components in a browser DOM too ([#68](https://github.com/khromov/gpuix-svelte/issues/68)) ([090c891](https://github.com/khromov/gpuix-svelte/commit/090c891c8820d39429808d8f4a956fcef58d62e2))
+
 ## [0.5.0](https://github.com/khromov/gpuix-svelte/compare/v0.4.1...v0.5.0) (2026-11-06)
 
 
