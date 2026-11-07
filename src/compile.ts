@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { Parser, type Node as AcornNode } from 'acorn';
 import { compile, compileModule, type AST } from 'svelte/compiler';
 import { parse_css_text } from './style.ts';
-import { MEDIA_FEATURES, parse_media_query } from './media.ts';
+import { MEDIA_FEATURES, media_constant, parse_media_query } from './media.ts';
 import type { ClassRule, Pseudo } from './types.ts';
 
 /**
@@ -112,15 +112,20 @@ function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string): C
 	const refuse = (text: string, reason = 'only class and tag selectors, plus :hover/:active/:focus-visible, reach GPUI') =>
 		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — ${reason}`);
 
-	// A rule inside `@media` carries the query; one nested deeper carries every query on the way down.
+	// A rule inside `@media` carries the query; one nested deeper carries every query on the way down. A query no
+	// size can change is settled here: `screen` leaves its rules unconditional, `print` drops them.
 	const walk = (children: Array<AST.CSS.Declaration | AST.CSS.Rule | AST.CSS.Atrule>, media: string[]) => {
 		for (const node of children) {
 			if (node.type === 'Declaration') continue;
 			if (node.type === 'Atrule') {
 				const prelude = node.prelude.trim();
+				const list = node.name === 'media' ? parse_media_query(prelude) : null;
 				if (node.name !== 'media') refuse(`@${node.name} ${prelude}`.trim());
-				else if (!node.block || parse_media_query(prelude) === null) refuse(`@media ${prelude}`, `a window answers only for ${MEDIA_FEATURES}`);
-				else walk(node.block.children, [...media, prelude]);
+				else if (!node.block || list === null) refuse(`@media ${prelude}`, `a window answers only for ${MEDIA_FEATURES}`);
+				else {
+					const constant = media_constant(list);
+					if (constant !== false) walk(node.block.children, constant === true ? media : [...media, prelude]);
+				}
 				continue;
 			}
 

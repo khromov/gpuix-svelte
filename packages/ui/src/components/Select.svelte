@@ -2,7 +2,7 @@
 	import Popover from 'gpuix-svelte/components/Popover.svelte';
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
 	import { key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
+	import { open_overlay, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
 
 	let {
 		options,
@@ -19,13 +19,19 @@
 		placeholder?: string;
 		label?: string | null;
 		disabled?: boolean;
-		/** The wrapper's id; the trigger gets `<testid>-trigger`, the list `<testid>-list` and each option `<testid>-<value>`. */
+		/** The wrapper's id; the trigger gets `<testid>-trigger`, the list's panel `<testid>-list-panel` and each option `<testid>-<value>`. */
 		testid?: string | null;
 	} = $props();
 
 	let open = $state(false);
 	let active = $state(-1);
 	const selected = $derived(options.find((o) => o.value === value) ?? null);
+
+	// Registered while open, so a Dialog around it leaves Escape to the list first.
+	$effect(() => {
+		if (!open) return;
+		return open_overlay().release;
+	});
 
 	function show() {
 		if (disabled) return;
@@ -64,7 +70,7 @@
 			move(key === 'down' ? 1 : -1);
 		} else if (key === 'enter' || key === 'space') {
 			e.preventDefault();
-			if (active >= 0) choose(options[active]);
+			if (options[active]) choose(options[active]);
 		} else if (key === 'tab') {
 			open = false;
 		}
@@ -77,6 +83,7 @@
 		<div
 			class="trigger"
 			class:open
+			class:disabled
 			role="button"
 			aria-label={label}
 			aria-expanded={open}
@@ -123,6 +130,8 @@
 	}
 	.select.disabled {
 		opacity: 0.5;
+	}
+	.trigger.disabled {
 		pointer-events: none;
 	}
 	.label {
@@ -162,6 +171,9 @@
 	.trigger.open {
 		border-color: var(--ui-accent);
 	}
+	.trigger.open:hover {
+		border-color: var(--ui-accent);
+	}
 	.value.placeholder {
 		color: var(--ui-muted);
 	}
@@ -190,7 +202,6 @@
 	}
 	.option.disabled {
 		opacity: 0.5;
-		cursor: not-allowed;
 	}
 	.text {
 		display: flex;

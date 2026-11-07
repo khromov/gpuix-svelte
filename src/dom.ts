@@ -14,6 +14,7 @@ import type { AnyComponent, GpuixEvent, GpuiStyle, MediaQueryState, Native, Pixe
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
 export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
+import { media_matches, parse_media_query } from './media.ts';
 
 /** False here; the GPUI entries answer true. Decided per build, so it can be read before anything is mounted. */
 export const IS_GPUIX: boolean = false;
@@ -343,24 +344,34 @@ export const window_size: Readonly<WindowSize> = {
 
 /**
  * `matchMedia`, read fresh on every access and reactive through its `change` event and the window's
- * `resize` (some embedders report only the latter). False with no window, as on a server.
+ * `resize` (some embedders report only the latter), readers woken only when the answer moved. With no
+ * window, as on a server, the query is answered for the 800×600 `window_size` reports there.
  */
 export function media_query(query: string): MediaQueryState {
 	const target = win();
 	const list = target?.matchMedia?.(query) ?? null;
+	if (!target || !list) {
+		const parsed = parse_media_query(query);
+		return { current: parsed !== null && media_matches(parsed, { width: 800, height: 600 }) };
+	}
 	const changed = createSubscriber((update) => {
-		if (!target || !list) return;
-		list.addEventListener('change', update);
-		target.addEventListener('resize', update);
+		let last = list.matches;
+		const check = () => {
+			if (list.matches === last) return;
+			last = list.matches;
+			update();
+		};
+		list.addEventListener('change', check);
+		target.addEventListener('resize', check);
 		return () => {
-			list.removeEventListener('change', update);
-			target.removeEventListener('resize', update);
+			list.removeEventListener('change', check);
+			target.removeEventListener('resize', check);
 		};
 	});
 	return {
 		get current() {
 			changed();
-			return list?.matches ?? false;
+			return list.matches;
 		}
 	};
 }

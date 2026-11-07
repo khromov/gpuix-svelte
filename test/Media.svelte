@@ -13,6 +13,8 @@
 <div class="nested" testId="nested">nested</div>
 <div class="tinted" testId="tinted">tinted</div>
 <div class={dependent ? 'dependent' : 'independent'} testId="switch" onclick={() => (dependent = !dependent)}>switch</div>
+<div class="heavy plain" testId="heavy">heavy</div>
+<div class="both" testId="both">both</div>
 <div testId="query">{wide.current ? 'wide' : 'narrow'}/{tall.current}/{dark.current}</div>
 <div class="row" testId="row">
 	<svg class="icon" testId="icon" source="<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><rect width='1' height='1'/></svg>"></svg>
@@ -59,6 +61,29 @@
 	.dependent,
 	.independent {
 		color: gray;
+	}
+	.heavy.plain {
+		color: navy;
+	}
+	@media (min-width: 1px) {
+		.heavy {
+			color: red;
+		}
+	}
+	@media (max-width: 599px), (hover: none) {
+		.both {
+			opacity: 0.75;
+		}
+	}
+	@media print {
+		.plain {
+			color: pink;
+		}
+	}
+	@media screen {
+		.plain {
+			opacity: 0.5;
+		}
 	}
 	@media (prefers-color-scheme: dark) {
 		.grid {

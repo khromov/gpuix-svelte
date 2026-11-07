@@ -239,9 +239,12 @@ What a query may say:
   types `screen` and `all`; `print` and the other types never match.
 
 Anything else (`prefers-color-scheme`, `hover`, `pointer`, a `vw` length, `or`) has no answer in a
-window: the compiler refuses the block with a warning, and in the DOM build the same block is CSS
-the browser evaluates. The window is polled every 100 ms while any element depends on a query, as
-`window_size` is, and only those elements are restyled when the size changes.
+window. As in a browser, such an alternative in a comma list never matches while the others still
+count; a block none of whose alternatives can be answered is refused with a warning. In the DOM
+build the same block is CSS the browser evaluates. A query no size can change is settled when the
+component compiles: `@media screen` applies as if it were not there, `@media print` drops its
+rules. The window is read through the one poll `window_size` uses, every 100 ms while any element
+depends on a query, and the dependent elements are restyled only when a query's answer changes.
 `media_query('(max-width: 700px)')` in the [Guide](guide.md#media-queries) answers the same
 question from JavaScript.
 

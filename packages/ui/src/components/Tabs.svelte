@@ -103,6 +103,7 @@
 	.tab:focus-visible {
 		outline-width: 2px;
 		outline-offset: -2px;
+		outline-style: solid;
 		outline-color: var(--ui-ink);
 		border-radius: 6px;
 	}
@@ -112,7 +113,6 @@
 	}
 	.tab.disabled {
 		opacity: 0.5;
-		cursor: not-allowed;
 		pointer-events: none;
 	}
 </style>

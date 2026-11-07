@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { media_query, set_css_vars, type Mutation } from 'gpuix-svelte';
 import { compile_svelte } from '../src/compile.ts';
-import { media_matches, parse_media_query } from '../src/media.ts';
+import { media_constant, media_matches, parse_media_query } from '../src/media.ts';
 import { mount_headless, find_test_id, click_test_id, all_text, wait, check, finish } from 'gpuix-svelte/test';
 
 const FIXTURE = fileURLToPath(new URL('./Media.svelte', import.meta.url));
@@ -35,10 +35,35 @@ check('rem and em are 16 px', [at('(min-width: 40rem)', 640), at('(min-width: 40
 check('a bare feature asks for a size at all', [at('(width)', 1), at('(orientation)', 1)], [true, true]);
 check('a unitless value is only valid at zero', [at('(min-width: 0)', 1), at('(min-width: 600)', 700)], [true, null]);
 check('case does not matter', at('SCREEN AND (MIN-WIDTH: 600PX)', 700), true);
+check('`not` with a type negates the whole query', [at('not screen and (min-width: 600px)', 700), at('not screen and (min-width: 600px)', 500)], [false, true]);
+check('an empty query is all', at('', 1), true);
+check('an alternative a window cannot answer never matches, and the rest of the list still counts', [at('(max-width: 500px), (hover: none)', 400), at('(max-width: 500px), (hover: none)', 600)], [true, false]);
 check(
 	'what a window cannot answer parses to null',
-	['(prefers-color-scheme: dark)', '(hover: hover)', '(min-width: 50vw)', '(min-width: 600px', 'garbage', '(min-width: 600px) or (width)', 'only', 'and (width)', '(width) and', '(width) (height)', '(600px <= width < 900px <= height)'].map((q) => parse_media_query(q)),
-	Array(11).fill(null)
+	[
+		'(prefers-color-scheme: dark)',
+		'(hover: hover)',
+		'(min-width: 50vw)',
+		'(min-width: 600px',
+		'garbage',
+		'(min-width: 600px) or (width)',
+		'only',
+		'and (width)',
+		'(width) and',
+		'(width) (height)',
+		'(600px <= width < 900px <= height)',
+		'only (min-width: 600px)',
+		'not (min-width: 600px) and (max-width: 900px)',
+		'(600px < width > 900px)',
+		'(600px = width = 900px)',
+		'(min-width: -100px)'
+	].map((q) => parse_media_query(q)),
+	Array(16).fill(null)
+);
+check(
+	'media_constant tells a query no size can change',
+	['print', 'not all', 'screen', 'not print', 'all and (orientation)', '(width)', 'print, (min-width: 1px)', 'print, screen'].map((q) => media_constant(parse_media_query(q)!)),
+	[false, false, true, true, true, null, null, true]
 );
 
 // --- the compiler --------------------------------------------------------------
@@ -52,6 +77,9 @@ check('a rule under @media carries its query', code.includes('"classes":["grid"]
 check('a rule under nested @media carries both, outermost first', code.includes('"media":["(max-width: 599px)","(orientation: landscape)"]'), true);
 check('a var() under @media still ships as text', code.includes('"css":"color: var(--narrow-ink)","media":["(max-width: 599px)"]'), true);
 check('a rule outside any @media carries none', code.includes('"classes":["plain"],"tag":null,"pseudo":null,"style":{"color":"gray"}}'), true);
+check('an always-true query is settled at compile time', code.includes('"classes":["plain"],"tag":null,"pseudo":null,"style":{"opacity":0.5}}'), true);
+check('an always-false one drops its rules, like the refused ones', code.includes('pink'), false);
+check('a comma list keeps the alternative a window cannot answer', code.includes('"media":["(max-width: 599px), (hover: none)"]'), true);
 const refused = warnings.filter((w) => w.includes('has no GPUI equivalent'));
 check('a query a window cannot answer is refused, naming what it can', refused.some((w) => w.includes('`@media (prefers-color-scheme: dark)`') && w.includes('width and height')), true);
 check('so is a query in a unit a window has no value for', refused.some((w) => w.includes('`@media screen and (min-width: 50vw)`')), true);
@@ -88,7 +116,13 @@ check('rules whose query holds apply, the others do not', pick('grid', 'flexDire
 check('a nested @media needs both queries', pick('nested', 'opacity'), [null]);
 check('an inactive var() rule is not even read', pick('tinted', 'color'), [null]);
 check('an <svg> inherits the colour the active rules give', [style('row').color, style('icon').color], ['blue', 'blue']);
+check('a heavier rule outside @media beats a lighter one inside, at any size', pick('heavy', 'color'), ['navy']);
+check('an always-true query applies, an always-false one does not', pick('plain', 'opacity', 'color'), [0.5, 'gray']);
+check('a comma list holds only through its answerable alternative', pick('both', 'opacity'), [null]);
 check('media_query answers the same size', query(), 'wide/false/false');
+console.warn = (message) => warnings.push(String(message));
+media_query('(prefers-color-scheme: dark)');
+console.warn = warn;
 check('an unanswerable media_query warned once, naming the query', warnings.filter((w) => w.includes('media_query("(prefers-color-scheme: dark)")')).length, 1);
 
 let reads = 0;
@@ -99,6 +133,7 @@ check('a narrower window restyles within a poll', pick('grid', 'flexDirection', 
 check('the nested rule holds in landscape', pick('nested', 'opacity'), [0.5]);
 check('the var() rule resolves once active', pick('tinted', 'color'), ['#ff0000']);
 check('a later rule of equal weight wins when its query holds, and the <svg> follows', [style('row').color, style('icon').color], ['red', 'red']);
+check('the heavier rule still wins, and the comma list now holds', [pick('heavy', 'color')[0], pick('both', 'opacity')[0]], ['navy', 0.75]);
 check('and media_query flipped with it', query(), 'narrow/false/false');
 const touched = restyled();
 check(
@@ -110,6 +145,11 @@ check(
 native.getWindowSize = () => (reads++, { width: 500, height: 800 });
 await until(() => style('nested').opacity == null);
 check('turning portrait drops the nested rule and keeps the rest', [pick('nested', 'opacity')[0], style('grid').flexDirection], [null, 'column']);
+
+ops = [];
+native.getWindowSize = () => (reads++, { width: 480, height: 790 });
+await wait(250);
+check('a size change that crosses no breakpoint restyles nothing', ops.filter((op) => op[0] === 'setStyle').length, 0);
 
 click_test_id('switch');
 check('a class swap away from an @media rule restyles at once', pick('switch', 'opacity', 'color'), [null, 'gray']);
@@ -136,4 +176,4 @@ await wait(250);
 check('a tree without @media rules never watches the window', plain_reads, 0);
 
 TestGpuixRenderer.prototype.applyBatch = apply_batch;
-finish('media', 46);
+finish('media', 58);

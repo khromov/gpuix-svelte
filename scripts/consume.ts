@@ -193,7 +193,11 @@ if (!open) {
 	writeFileSync(join(consumer, 'vite.config.mjs'), VITE_CONFIG);
 	run(process.execPath, [join(consumer, 'node_modules/vite/bin/vite.js'), 'build', '--config', 'vite.config.mjs'], consumer);
 	if (!existsSync(join(consumer, 'dist-dom/index.html'))) throw new Error('the Vite build wrote no dist-dom/index.html');
-	if (process.platform !== 'linux') run(pm, ['run', 'test'], consumer);
+	// The toolkit's lib/ imports svelte/reactivity from node_modules, right next to that registry svelte now.
+	if (process.platform !== 'linux') {
+		run(pm, ['run', 'test'], consumer);
+		run(process.execPath, [join(consumer, 'node_modules/gpuix-svelte/bin/gpuix-svelte.js'), ...(bun ? ['--bun'] : []), 'ui.ts'], consumer);
+	}
 }
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.
 if (bun) {

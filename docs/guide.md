@@ -177,10 +177,11 @@ than its CSS.
 {#if narrow.current}<Menu />{:else}<Sidebar />{/if}
 ```
 
-Both read the window through the same poll as `window_size`, so a resize shows within 100 ms, and
-the poll runs only while something depends on it. A query a window cannot answer
-(`prefers-color-scheme`, `hover`, a `vw` length) never matches, as a browser's `not all`: the
-compiler warns about such an `@media` block and `media_query` warns once per query.
+Both read the window through the one poll `window_size` uses, so a resize shows within 100 ms, the
+three never disagree, and the poll runs only while something depends on it. A query a window
+cannot answer (`prefers-color-scheme`, `hover`, a `vw` length) never matches, as a browser's
+`not all`, while the other alternatives of a comma list still count; an `@media` block or a
+`media_query` with no answerable alternative is warned about, once per query.
 [Styling](styling.md#media-queries) has the details.
 
 ## Title bar on GNOME

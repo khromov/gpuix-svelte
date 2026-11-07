@@ -12,6 +12,7 @@ import { dom_plugins } from './vite-dom.ts';
 
 const args = process.argv.slice(2);
 const at = args.indexOf('--root');
+if (at !== -1 && !args[at + 1]) throw new Error('--root needs a directory, such as packages/ui/showcase');
 const root = fileURLToPath(new URL(`../${at === -1 ? 'examples/cross-target' : args[at + 1]}/`, import.meta.url));
 const out = fileURLToPath(new URL(`../dist/dom-${basename(root)}`, import.meta.url));
 // The page's @font-face reads the site's Geist from here, so the example ships no font of its own.

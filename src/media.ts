@@ -37,11 +37,15 @@ const MEDIA_TYPES = new Set(['all', 'screen', 'print', 'speech', 'aural', 'brail
 const OPERATORS = /\s*(<=|>=|<|>|=)\s*/;
 const FLIP: Record<Operator, Operator> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=', '=': '=' };
 
-/** A unitless value is only valid at zero; `rem` is GPUI's 16 px and `em` is the initial font size, which is 16 px too. */
+/**
+ * A unitless value is only valid at zero and a negative one never (browsers refuse it); `rem` is GPUI's
+ * 16 px and `em` is the initial font size, which is 16 px too.
+ */
 function length(text: string): number | null {
 	const match = LENGTH.exec(text.trim());
 	if (!match) return null;
 	const value = parseFloat(match[1]);
+	if (value < 0) return null;
 	if (match[2] === undefined) return value === 0 ? 0 : null;
 	return match[2].toLowerCase() === 'px' ? value : value * 16;
 }
@@ -68,7 +72,8 @@ function range(parts: string[]): Condition[] | null {
 	const feature = dimension(b);
 	const low = length(a);
 	const high = length(c);
-	if (!feature || low === null || high === null) return null;
+	// Both comparisons of a two-sided range point the same way, and neither is `=`.
+	if (!feature || low === null || high === null || op1[0] !== op2[0] || op1 === '=') return null;
 	return [
 		{ feature, op: FLIP[op1], value: low },
 		{ feature, op: op2, value: high }
@@ -132,7 +137,10 @@ function tokens(text: string): string[] | null {
 	return out;
 }
 
-/** `[only|not] [type] [and] (feature) [and (feature)]*` */
+/**
+ * `[only|not] [type] [and] (feature) [and (feature)]*`. As in CSS, `only` needs a media type and `not`
+ * without one takes a single parenthesised term; with one it negates the whole query.
+ */
 function query(text: string): Query | null {
 	const parts = tokens(text);
 	if (parts === null || parts.length === 0) return null;
@@ -156,17 +164,20 @@ function query(text: string): Query | null {
 			if (parts[at++].toLowerCase() !== 'and' || at === parts.length) return null;
 		}
 	}
-	if (!typed && at === parts.length) return null;
+	if (!typed && (at === parts.length || first === 'only')) return null;
 
+	let terms = 0;
 	while (at < parts.length) {
 		const part = parts[at++];
 		if (!part.startsWith('(')) return null;
 		const parsed = feature(part.slice(1, -1).trim());
 		if (parsed === null) return null;
 		conditions.push(...parsed);
+		terms++;
 		if (at === parts.length) break;
 		if (parts[at++].toLowerCase() !== 'and' || at === parts.length) return null;
 	}
+	if (negated && !typed && terms > 1) return null;
 
 	return { negated, conditions };
 }
@@ -189,18 +200,39 @@ function alternatives(text: string): string[] {
 	return out;
 }
 
+const NEVER: Query = { negated: false, conditions: [{ feature: 'never' }] };
+
 /**
- * Null for anything a window cannot answer (`prefers-color-scheme`, `hover`, a `vw` length, a syntax
- * error), as a browser's `not all`: callers warn and treat the query as never matching.
+ * An alternative a window cannot answer (`prefers-color-scheme`, `hover`, a `vw` length, a syntax error)
+ * never matches, as a browser's `not all`, and the rest of a comma list still counts. Null when no
+ * alternative can be answered, which is what callers warn about. An empty query is `all`.
  */
 export function parse_media_query(text: string): MediaQueryList | null {
+	if (text.trim() === '') return [{ negated: false, conditions: [] }];
 	const list: MediaQueryList = [];
+	let answered = 0;
 	for (const alternative of alternatives(text)) {
 		const parsed = query(alternative);
-		if (parsed === null) return null;
-		list.push(parsed);
+		if (parsed !== null) answered++;
+		list.push(parsed ?? NEVER);
 	}
-	return list;
+	return answered === 0 ? null : list;
+}
+
+/** True or false for a query whose answer no window size can change (`screen`, `not print`, `print`), null otherwise. */
+export function media_constant(list: MediaQueryList): boolean | null {
+	let verdict: boolean | null = false;
+	for (const q of list) {
+		const never = q.conditions.some((c) => c.feature === 'never');
+		const fixed = never || q.conditions.length === 0;
+		if (!fixed) {
+			verdict = null;
+			continue;
+		}
+		// `not print` and `screen` are always true, `print` and `not all` always false.
+		if (q.negated === never) return true;
+	}
+	return verdict;
 }
 
 function holds(condition: Condition, viewport: Viewport): boolean {
@@ -239,4 +271,12 @@ export function media_active(preludes: readonly string[], viewport: Viewport): b
 		if (list === null || !media_matches(list, viewport)) return false;
 	}
 	return true;
+}
+
+/** Whether any query seen by `media_active` answers differently for the two sizes, so a resize that crosses no breakpoint restyles nothing. */
+export function media_changed(before: Viewport, after: Viewport): boolean {
+	for (const list of parsed.values()) {
+		if (list !== null && media_matches(list, before) !== media_matches(list, after)) return true;
+	}
+	return false;
 }

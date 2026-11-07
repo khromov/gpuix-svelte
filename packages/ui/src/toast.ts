@@ -44,7 +44,8 @@ export const toasts = {
 /** Shows a toast and returns its id; a plain string is its title. */
 export function toast(options: ToastOptions | string): number {
 	const given = typeof options === 'string' ? { title: options } : options;
-	const item: ToastItem = { tone: 'neutral', duration: 4000, ...given, id: next_id++ };
+	// An explicit `undefined` means the default; only `null` keeps a toast.
+	const item: ToastItem = { ...given, tone: given.tone ?? 'neutral', duration: given.duration === undefined ? 4000 : given.duration, id: next_id++ };
 	items = [...items, item];
 	if (item.duration != null) timers.set(item.id, setTimeout(() => dismiss_toast(item.id), item.duration));
 	notify();

@@ -53,6 +53,13 @@ interface Entry {
 	state: unknown;
 }
 
+/** What rides in each history entry's state: the position in the stack, and the hidden state. */
+interface Saved {
+	index: number;
+	length: number;
+	state: unknown;
+}
+
 const win = (): Window | null => (IS_GPUIX ? null : (globalThis.window ?? null));
 
 let mode: Mode = 'memory';
@@ -63,6 +70,7 @@ let hooks: Hook[] = [];
 let stack: Entry[] = [{ href: '/', state: undefined }];
 let index = 0;
 let length = 1;
+let generation = 0;
 let current: Route = describe('/', undefined);
 let swallow_pops = 0;
 
@@ -79,31 +87,43 @@ function normalize(pathname: string): string {
 	return slashed.length > 1 && slashed.endsWith('/') ? slashed.slice(0, -1) : slashed;
 }
 
-// A declaration, since `current` below is described at module load, before any `const` here is initialised.
+// Declarations, since `current` above is described at module load, before any `const` here is initialised.
 function segments(path: string): string[] {
 	return path.split('/').filter(Boolean);
 }
 
+/** A malformed escape (`/items/100%`) is a deep link someone typed, not a reason to throw out of the Router. */
+function decode(segment: string): string {
+	try {
+		return decodeURIComponent(segment);
+	} catch {
+		return segment;
+	}
+}
+
 /**
- * The pattern a pathname matches, with its params decoded: a literal segment outranks a `:param` at the
- * same position whatever the table order, so `/items/new` beats `/items/:id`; `*` catches the rest.
+ * The pattern a pathname matches, with its params decoded. Where two patterns fit, the one with a literal
+ * at the earliest position where they differ wins, whatever the table order, so `/items/new` beats
+ * `/items/:id`; `*` catches the rest.
  */
 export function match(patterns: readonly string[], pathname: string): { pattern: string; params: Record<string, string> } | null {
-	const parts = segments(normalize(pathname));
-	let best: { pattern: string; params: Record<string, string>; literals: number } | null = null;
+	const parts = segments(normalize(pathname)).map(decode);
+	let best: { pattern: string; params: Record<string, string>; shape: number[] } | null = null;
 	for (const pattern of patterns) {
 		if (pattern === '*') continue;
 		const shape = segments(pattern);
 		if (shape.length !== parts.length) continue;
 		const params: Record<string, string> = {};
-		let literals = 0;
+		const literals: number[] = [];
 		let ok = true;
 		for (let i = 0; i < shape.length && ok; i++) {
-			if (shape[i].startsWith(':')) params[shape[i].slice(1)] = decodeURIComponent(parts[i]);
-			else if (shape[i] === parts[i]) literals++;
+			if (shape[i].startsWith(':')) {
+				params[shape[i].slice(1)] = parts[i];
+				literals.push(0);
+			} else if (shape[i] === parts[i]) literals.push(1);
 			else ok = false;
 		}
-		if (ok && (best === null || literals > best.literals)) best = { pattern, params, literals };
+		if (ok && (best === null || literals.join('') > best.shape.join(''))) best = { pattern, params, shape: literals };
 	}
 	if (best) return { pattern: best.pattern, params: best.params };
 	return patterns.includes('*') ? { pattern: '*', params: {} } : null;
@@ -121,7 +141,7 @@ function describe(href: string, state: unknown): Route {
 /** A path for a pattern and its params, URL-encoded, plus an optional query: `href('/items/:id', { id: 3 })`. */
 export function href<P extends string>(pattern: P, params: Params<P>, query?: Record<string, string | number | boolean | null | undefined>): string {
 	const values = params as Record<string, string | number>;
-	const path = pattern.replace(/:([A-Za-z0-9_]+)/g, (_, name: string) => {
+	const path = pattern.replace(/:([^/]+)/g, (_, name: string) => {
 		if (!(name in values)) throw new Error(`[gpuix-svelte-ui] href('${pattern}') needs a '${name}' param`);
 		return encodeURIComponent(String(values[name]));
 	});
@@ -130,9 +150,6 @@ export function href<P extends string>(pattern: P, params: Params<P>, query?: Re
 	const text = search.toString();
 	return text ? `${path}?${text}` : path;
 }
-
-/** What a `<Link>`'s `<a href>` says: the hash form in hash mode. */
-export const link_href = (path: string): string => (mode === 'hash' ? `#${path}` : path);
 
 /** The current route and the stack's position, reactive wherever a template or effect reads them. */
 export const router = {
@@ -168,6 +185,11 @@ export const router = {
 		subscribe();
 		return index < length - 1;
 	},
+	/** Counts navigations, so a screen can be keyed on it and mount fresh for each one. */
+	get generation() {
+		subscribe();
+		return generation;
+	},
 	get mode() {
 		subscribe();
 		return mode;
@@ -176,6 +198,13 @@ export const router = {
 
 const read_location = (w: Window) => (mode === 'hash' ? w.location.hash.slice(1) || '/' : w.location.pathname + w.location.search);
 const url_for = (route_href: string) => (mode === 'hash' ? `#${route_href}` : route_href);
+const saved_in = (w: Window): Saved | undefined => (w.history.state as { __ui?: Saved } | null)?.__ui;
+
+// Merged into whatever state the entry already carries, since a SvelteKit page keeps its own there.
+function save(w: Window, replace: boolean, href: string, state: unknown) {
+	const merged = { ...(w.history.state as Record<string, unknown> | null), __ui: { index, length, state } satisfies Saved };
+	w.history[replace ? 'replaceState' : 'pushState'](merged, '', url_for(href));
+}
 
 function guard(to: Route): boolean | string {
 	for (const hook of hooks.slice()) {
@@ -183,6 +212,12 @@ function guard(to: Route): boolean | string {
 		if (verdict === false || typeof verdict === 'string') return verdict;
 	}
 	return true;
+}
+
+function arrive(to: Route) {
+	current = to;
+	generation++;
+	notify();
 }
 
 /** `<Router>` registers its table's patterns here, so `router.params` reads right anywhere. */
@@ -194,7 +229,8 @@ export function use_routes(table: readonly string[]) {
 
 /**
  * Called by `<Router>` once per process; a later call (a hot-reload remount) keeps the current screen. In a
- * browser the position lives in each history entry's state, so back and forward keep the flags right.
+ * browser the position lives in each history entry's state, so back and forward keep the flags right, a
+ * reload included. The `before` hooks do not run for this first screen: nothing has registered them yet.
  */
 export function start_router({ mode: wanted = 'history', initial = '/' }: { mode?: Mode; initial?: string } = {}) {
 	if (started) return;
@@ -207,11 +243,11 @@ export function start_router({ mode: wanted = 'history', initial = '/' }: { mode
 		length = 1;
 		current = describe(initial, undefined);
 	} else {
-		const saved = (w.history.state as { __ui?: { index: number; state: unknown } } | null)?.__ui;
+		const saved = saved_in(w);
 		index = saved?.index ?? 0;
-		length = index + 1;
-		if (!saved) w.history.replaceState({ __ui: { index, state: undefined } }, '', w.location.href);
+		length = Math.max(index + 1, saved?.length ?? 0);
 		current = describe(read_location(w), saved?.state);
+		if (!saved) save(w, true, current.href, undefined);
 		w.addEventListener('popstate', on_pop);
 	}
 	notify();
@@ -243,12 +279,14 @@ export function navigate(path: string, { replace = false, state = undefined }: N
 		}
 		length = stack.length;
 	} else {
-		if (!replace) index++;
-		length = index + 1;
-		w.history[replace ? 'replaceState' : 'pushState']({ __ui: { index, state } }, '', url_for(to.href));
+		// A replacement keeps the browser's forward entries; only a push cuts them off.
+		if (!replace) {
+			index++;
+			length = index + 1;
+		}
+		save(w, replace, to.href, state);
 	}
-	current = to;
-	notify();
+	arrive(to);
 	return true;
 }
 
@@ -258,37 +296,40 @@ function on_pop() {
 		return;
 	}
 	const w = win()!;
-	const saved = (w.history.state as { __ui?: { index: number; state: unknown } } | null)?.__ui;
-	const to_index = saved?.index ?? 0;
+	const saved = saved_in(w);
+	// An entry without a position was not ours: a hash edited in the address bar, a plain fragment link. It
+	// joins the stack as a push, and gets its position so the next pop can find its way back.
+	const foreign = saved === undefined;
+	const to_index = foreign ? index + 1 : saved.index;
 	const to = describe(read_location(w), saved?.state);
 	const verdict = guard(to);
 	if (verdict === false) {
 		// The browser already moved, so it is moved back, and that move is not a navigation either.
 		swallow_pops++;
-		w.history.go(index - to_index);
+		if (foreign) w.history.back();
+		else w.history.go(index - to_index);
 		return;
 	}
 	index = to_index;
-	length = Math.max(length, index + 1);
-	current = to;
-	notify();
+	length = foreign ? index + 1 : Math.max(length, saved.length, index + 1);
+	if (foreign) save(w, true, to.href, undefined);
+	arrive(to);
 	if (typeof verdict === 'string') navigate(verdict, { replace: true });
 }
 
 function step(delta: 1 | -1) {
+	if (delta < 0 ? index <= 0 : index >= length - 1) return;
 	const w = win();
 	if (mode !== 'memory' && w) {
 		w.history.go(delta);
 		return;
 	}
 	const next = index + delta;
-	if (next < 0 || next >= stack.length) return;
 	const to = describe(stack[next].href, stack[next].state);
 	const verdict = guard(to);
 	if (verdict === false) return;
 	index = next;
-	current = to;
-	notify();
+	arrive(to);
 	if (typeof verdict === 'string') navigate(verdict, { replace: true });
 }
 

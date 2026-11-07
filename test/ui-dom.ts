@@ -40,6 +40,11 @@ const css_var = (name: string) => document.documentElement.style.getPropertyValu
 const has = (content: string) => [...document.querySelectorAll<HTMLElement>('div')].some((el) => el.children.length === 0 && el.textContent?.trim() === content);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const closes = () => [...document.querySelectorAll<HTMLElement>('[data-testid^="toaster-"][data-testid$="-close"]')];
+/** Rendered, and hung off <body> rather than anywhere inside the page's own tree, as a Portal or Anchored layer is. */
+const layered = (id: string) => {
+	const target = by_id(id);
+	return target !== null && !by_id('page')!.contains(target) && target.closest('body > *') !== null;
+};
 
 // Cancelable, as a browser's clicks are: a Link's preventDefault() has to keep happy-dom from following the <a> itself.
 function click(target: HTMLElement | null | undefined) {
@@ -110,7 +115,7 @@ check('small Buttons reach the counter', text('count'), '1');
 check('a Button is a focusable button', [by_id('plus')?.getAttribute('role'), by_id('plus')?.tabIndex], ['button', 0]);
 
 click(by_id('menu-button'));
-check('the Menu opens its items off <body>', [by_id('menu-panel')?.closest('body > *') !== null, has('⌘R'), has('Archive')], [true, true, true]);
+check('the Menu opens its items off <body>', [layered('menu-panel'), has('⌘R'), has('Archive')], [true, true, true]);
 click(by_id('menu-rename'));
 check('an item runs and closes it', [text('last'), by_id('menu-panel')], ['Last action: Rename', null]);
 click(by_id('menu-button'));
@@ -147,7 +152,7 @@ check('and the arrows skip a disabled option before Enter picks', [text('fruit-e
 key(by_id('volume-track'), 'ArrowRight');
 check('an arrow key steps the Slider', text('volume-echo'), 'Volume: 41');
 key(by_id('volume-track'), 'End');
-check('End goes to the maximum, and the Progress follows', [text('volume-echo'), has('100%')], ['Volume: 100', true]);
+check('End goes to the maximum, and the Progress follows', [text('volume-echo'), text('level'), by_id('level')?.getAttribute('aria-valuenow')], ['Volume: 100', 'Level 100%', '100']);
 key(by_id('volume-track'), 'Home');
 check('Home to the minimum', text('volume-echo'), 'Volume: 0');
 
@@ -160,7 +165,7 @@ check('and skips the disabled one, wrapping around', text('tab-echo')?.startsWit
 check('only the selected tab is a tab stop', [by_id('tabs-overview')?.tabIndex, by_id('tabs-settings')?.tabIndex, by_id('tabs-billing')?.tabIndex], [0, -1, -1]);
 
 click(by_id('toast-plain'));
-check('a toast shows in the Toaster, off <body>', [has('Saved'), by_id('toaster')?.closest('body > *') !== null], [true, true]);
+check('a toast shows in the Toaster, off <body>', [has('Saved'), layered('toaster')], [true, true]);
 check('every toast has a dismiss button', closes().length, 2);
 click(closes()[1]);
 check('dismissing one leaves the other', [has('Saved'), has('Hello, Ada')], [false, true]);
@@ -170,7 +175,7 @@ click([...document.querySelectorAll<HTMLElement>('[role="button"]')].find((el) =
 check('its action runs and dismisses it', [text('last'), has('Export finished')], ['Last action: Open', false]);
 
 click(by_id('open-dialog'));
-check('the Dialog opens in a Portal off <body>', [by_id('dialog')?.closest('body > *') !== null, has('Delete this project?')], [true, true]);
+check('the Dialog opens in a Portal off <body>', [layered('dialog'), has('Delete this project?')], [true, true]);
 key(window, 'Escape');
 check('Escape closes it', by_id('dialog'), null);
 click(by_id('open-dialog'));
@@ -209,14 +214,18 @@ history.back();
 await sleep(20);
 flushSync();
 check("the browser's back pops the stack, flags included", [...route(), router.can_go_back, router.can_go_forward], ['At /items', '/items', true, true]);
+// A page leaves ⌘[ and ⌘] to the browser, which has them already; a window's Router handles them (test/ui.ts).
 key(window, '[', { metaKey: true });
 await sleep(20);
 flushSync();
-check('⌘[ is back', route(), ['At /', '/']);
-key(window, ']', { metaKey: true });
+check('⌘[ is left to the browser in a page', route(), ['At /items', '/items']);
+history.forward();
 await sleep(20);
 flushSync();
-check('⌘] is forward', route(), ['At /items', '/items']);
+check("the browser's forward goes again", route(), ['At /items/2', '/items/2']);
+history.back();
+await sleep(20);
+flushSync();
 click(by_id('go-lost'));
 check("an unmatched path renders the table's * entry", text('screen'), "Nothing at /nowhere; this is the table's * entry.");
 const off = before((to) => (to.path === '/items/3' ? '/' : to.path !== '/nowhere'));

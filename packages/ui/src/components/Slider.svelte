@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import { key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { bounds_of, own_hitbox, pointer_x, still_pressed, test_id } from 'gpuix-svelte-ui/shared';
+	import { aria_value, bounds_of, own_hitbox, pointer_x, still_pressed, test_id, type Box } from 'gpuix-svelte-ui/shared';
 
 	let {
 		value,
@@ -32,6 +32,8 @@
 
 	let track: unknown = null;
 	let dragging = $state(false);
+	// Read once per drag: the track does not move during one, and on Windows and Linux every read draws a frame.
+	let box: Box | null = null;
 	const fraction = $derived(max > min ? (Math.min(max, Math.max(min, value)) - min) / (max - min) : 0);
 
 	function snap(raw: number) {
@@ -46,13 +48,13 @@
 	}
 
 	function from_pointer(e: { x?: number; clientX?: number }) {
-		const box = bounds_of(track);
 		if (!box || box.width <= 2 * INSET) return;
 		set(min + ((pointer_x(e) - box.x - INSET) / (box.width - 2 * INSET)) * (max - min));
 	}
 
 	function down(e: { x?: number; clientX?: number }) {
 		if (disabled) return;
+		box = bounds_of(track);
 		dragging = true;
 		from_pointer(e);
 	}
@@ -69,6 +71,7 @@
 	}
 
 	function keydown(e: KeyLike) {
+		if (disabled) return;
 		const key = key_of(e);
 		const delta = key === 'right' || key === 'up' ? step : key === 'left' || key === 'down' ? -step : null;
 		if (delta !== null) {
@@ -94,9 +97,11 @@
 	<div
 		class="track"
 		class:dragging
+		class:disabled
 		role="slider"
 		aria-label={label}
 		aria-valuetext={format(value)}
+		{...aria_value(value, min, max)}
 		tabindex={disabled ? -1 : 0}
 		{...own_hitbox}
 		{...test_id(testid ? `${testid}-track` : null)}
@@ -104,8 +109,9 @@
 		onmousedown={down}
 		onkeydown={keydown}
 	>
-		<div class="rail"></div>
-		<div class="fill" style:width="{fraction * 100}%"></div>
+		<div class="rail">
+			<div class="fill" style:width="{fraction * 100}%"></div>
+		</div>
 		<div class="lead" style:width="{fraction * 100}%">
 			<div class="thumb"></div>
 		</div>
@@ -126,6 +132,8 @@
 	}
 	.slider.disabled {
 		opacity: 0.5;
+	}
+	.track.disabled {
 		pointer-events: none;
 	}
 	.head {
@@ -161,6 +169,7 @@
 	.track:focus-visible {
 		outline-width: 2px;
 		outline-offset: 0;
+		outline-style: solid;
 		outline-color: var(--ui-ink);
 	}
 	.rail {
@@ -168,15 +177,14 @@
 		left: 8px;
 		right: 8px;
 		top: 10px;
+		display: flex;
+		flex-direction: row;
 		height: 4px;
 		border-radius: 2px;
 		pointer-events: none;
 		background-color: var(--ui-border-strong);
 	}
 	.fill {
-		position: absolute;
-		left: 8px;
-		top: 10px;
 		height: 4px;
 		border-radius: 2px;
 		pointer-events: none;

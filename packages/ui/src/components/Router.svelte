@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
-	import { on_window_key } from 'gpuix-svelte';
+	import { IS_GPUIX, on_window_key } from 'gpuix-svelte';
 	import RouteSnippet from 'gpuix-svelte-ui/components/RouteSnippet.svelte';
 	import { back, forward, router, start_router, use_routes, type Mode, type Route, type RouteTable } from 'gpuix-svelte-ui/router';
 	import { test_id } from 'gpuix-svelte-ui/shared';
@@ -10,7 +10,7 @@
 		initial = '/',
 		mode = 'history',
 		layout = null,
-		shortcuts = true,
+		shortcuts = IS_GPUIX,
 		testid = null
 	}: {
 		/** Patterns to screens: `{ '/': Home, '/items/:id': Item, '*': NotFound }`. */
@@ -21,7 +21,7 @@
 		mode?: Mode;
 		/** Wraps every screen: `{#snippet layout(content, route)}<Sidebar />{@render content()}{/snippet}`. */
 		layout?: Snippet<[Snippet, Route]> | null;
-		/** ⌘[ / ⌘] and Alt+Left / Alt+Right go back and forward, unless a text field is being edited. */
+		/** ⌘[ / ⌘] and Alt+Left / Alt+Right go back and forward, unless a text field is being edited; on by default in a window, where nothing else provides them. */
 		shortcuts?: boolean;
 		testid?: string | null;
 	} = $props();
@@ -58,7 +58,7 @@
 </script>
 
 {#snippet content()}
-	{#key router.path}
+	{#key router.generation}
 		{#if Entry !== null}
 			{#if typeof Entry === 'function'}
 				<Entry {...screen_props} />

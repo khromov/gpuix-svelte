@@ -38,7 +38,9 @@ npm run demo:native-0.11  # what @gpuix/native 0.11 added: focus-visible, focus 
                           # onlayout/onscrollchange, new styles, register_font, elements_at
 npm run demo:web          # tic-tac-toe in a browser, on GPUI's WebAssembly/WebGPU build (Bun only)
 npm run demo:cross        # one component on both renderers: here in a GPUI window, and
-npm run demo:dom          # here in a browser DOM through Vite (-- --build-only writes dist/dom)
+npm run demo:dom          # here in a browser DOM through Vite (-- --build-only writes dist/dom-cross-target)
+npm run demo:ui           # the UI toolkit's showcase (packages/ui/showcase) in a GPUI window, and
+npm run demo:ui-dom       # the same through Vite (-- --build-only writes dist/dom-showcase)
 npm run tutorial          # interactive onboarding guide: 12 steps with live samples and quizzes
 npm run typecheck         # tsc, then svelte-check for the GPUI markup and again for the DOM components
 npm test                  # typecheck, then every test suite except automation-live and coverage
@@ -51,8 +53,8 @@ New here? `npm run tutorial` opens a guided walkthrough of the renderer that is 
 gpuix-svelte app. Each step pairs an explanation and a diagram with the source of a small
 component, most of them running live, and ends with a quiz.
 
-Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`,
-has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
+Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`
+and `demo:ui-dom`, has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
 twins run the same entry points on Bun, which takes the `.svelte` loader as a `--preload`. CI runs
 both runtimes.
 
@@ -89,10 +91,11 @@ against.
 
 ## The consumer path
 
-`npm run consume` packs the tarball the way a release would and scaffolds an app with
-`packages/create-gpuix-svelte` (whose template is [`starter/`](../starter)). It then installs the
-tarball into that app, typechecks it and runs its headless test through the installed bin (on
-Linux it only typechecks). `npm run bun:consume` does the same with Bun and also builds the app's
+`npm run consume` packs the tarball the way a release would, and the UI toolkit's beside it, and
+scaffolds an app with `packages/create-gpuix-svelte` (whose template is [`starter/`](../starter)).
+It then installs both tarballs into that app, typechecks it, runs its headless test and one over a
+toolkit component through the installed bin (on Linux it only typechecks), and builds a page with
+Vite that imports both. `npm run bun:consume` does the same with Bun and also builds the app's
 standalone binary. `consume:open` and `bun:consume:open` start the app instead of testing it, so
 you can look at its window. CI runs both passes.
 
@@ -101,8 +104,8 @@ you can look at its window. CI runs both passes.
 PR titles must be [conventional commits](https://www.conventionalcommits.org) (`feat:`, `fix:`,
 `docs:`, `chore:` …), because a squash merge makes the title the commit. release-please keeps a
 release PR open on `main`. Merging it tags the release, runs the tests and the consumer path on
-macOS, publishes `gpuix-svelte` and `create-gpuix-svelte` to npm through npm trusted publishing
-(OIDC, with provenance), builds the tic-tac-toe example on every platform with `--archive` and
+macOS, publishes `gpuix-svelte`, `create-gpuix-svelte` and `gpuix-svelte-ui` to npm through npm
+trusted publishing (OIDC, with provenance), builds the tic-tac-toe example on every platform with `--archive` and
 uploads the archives and a signed `update.json` to the GitHub release (see
 [Updating](updating.md)). `npm run pack -- <dir>` builds the same tarball locally.
 

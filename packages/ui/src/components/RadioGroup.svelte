@@ -23,6 +23,8 @@
 
 	const enabled = (option: Option) => !disabled && !option.disabled;
 	const nodes: Record<string, unknown> = {};
+	// One tab stop per group, as a native one has: the selected radio, or the first enabled one while none is.
+	const stop = $derived(options.find((o) => o.value === value && enabled(o)) ?? options.find(enabled) ?? null);
 
 	function choose(option: Option) {
 		if (enabled(option) && option.value !== value) onchange(option.value);
@@ -56,7 +58,7 @@
 			role="radio"
 			aria-label={option.label}
 			{...aria_checked(option.value === value)}
-			tabindex={enabled(option) ? 0 : -1}
+			tabindex={option === stop ? 0 : -1}
 			{...own_hitbox}
 			{...test_id(testid ? `${testid}-${option.value}` : null)}
 			{@attach (node: unknown) => {
@@ -101,11 +103,11 @@
 	.radio:focus-visible {
 		outline-width: 2px;
 		outline-offset: 2px;
+		outline-style: solid;
 		outline-color: var(--ui-ink);
 	}
 	.radio.disabled {
 		opacity: 0.5;
-		cursor: not-allowed;
 		pointer-events: none;
 	}
 	.ring {

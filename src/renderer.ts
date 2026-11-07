@@ -6,8 +6,9 @@
 
 import type { EventPayload } from '@gpuix/native';
 import { createRenderer } from 'svelte/renderer';
+import { observeWindowSize, type WindowSizeHost } from '@gpuix/native/host';
 import { build_style, define_css_vars, flush_var_warnings, used_css_vars } from './style.ts';
-import { media_active, type Viewport } from './media.ts';
+import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import type {
 	ClassRule,
@@ -103,8 +104,12 @@ let media_read = false;
 
 type ViewportObserver = (callback: (size: Viewport) => void) => () => void;
 
-/** Installed by window.ts: reports the window's size now and on every change, until stopped. */
-let observe_viewport: ViewportObserver | null = null;
+/**
+ * Reports the window's size now and on every change, until stopped. Native's own poll by default, since a
+ * test through `gpuix-svelte/test` alone never loads window.ts; window.ts replaces it with the poll
+ * `window_size` shares, guarded against a Windows file dialog.
+ */
+let observe_viewport: ViewportObserver = (callback) => observeWindowSize(native as unknown as WindowSizeHost | null, callback);
 let stop_viewport: (() => void) | null = null;
 let viewport: Viewport | null = null;
 
@@ -300,17 +305,18 @@ function class_rules(el: ShadowNode): readonly ClassRule[] {
 
 /** The size the first `@media` rule starts observing; the observer's first report is synchronous. */
 function current_viewport(): Viewport {
-	if (viewport === null && stop_viewport === null && observe_viewport !== null && native !== null) {
+	if (viewport === null && stop_viewport === null && native !== null) {
 		stop_viewport = observe_viewport(on_viewport);
 	}
 	return viewport ?? NO_WINDOW;
 }
 
+/** A size change restyles the dependent nodes only when some query answers differently for it. */
 function on_viewport(size: Viewport) {
 	if (viewport !== null && viewport.width === size.width && viewport.height === size.height) return;
-	const first = viewport === null;
+	const before = viewport;
 	viewport = { width: size.width, height: size.height };
-	if (first) return;
+	if (before === null || !media_changed(before, viewport)) return;
 	for (const n of media_nodes) {
 		if (n.nativeId !== null) apply_style(n);
 	}
@@ -375,7 +381,10 @@ function apply_style(el: ShadowNode) {
 
 	if (el.name === 'svg') {
 		if (style.color === undefined) {
+			// The ancestor whose colour it takes is tracked itself, and its restyle sweeps the <svg>.
+			const own = media_read;
 			inherit_color(el, style);
+			media_read = own;
 			inheriting_svgs.add(el);
 		} else {
 			inheriting_svgs.delete(el);
@@ -690,8 +699,8 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 }
 
 /**
- * How the renderer learns the window's size for `@media` rules: window.ts installs the polled
- * reader behind `window_size`, started by the first such rule and stopped once none is live.
+ * How the renderer learns the window's size for `@media` rules: window.ts installs the poll behind
+ * `window_size`, started by the first such rule and stopped once none is live.
  */
 export function set_viewport_observer(observe: ViewportObserver) {
 	observe_viewport = observe;

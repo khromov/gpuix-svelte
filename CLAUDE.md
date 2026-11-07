@@ -225,8 +225,8 @@ but scripts run through `npm run`, Node twins and `bun:` twins alike: the bin pi
 from `--bun` or the launching package manager's `npm_config_user_agent`, so `bun run test` would
 run the Node suite on Bun. Adding a bin script means adding both halves and, for a test, chaining
 both into `test` / `bun:test`. `compile` and `demo:web` are Bun-only, `demo:dom` runs Vite on
-Node and has no twin, `bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
-(`lint`, `check:svelte`, `docs`, `vendor`, `parity`, `pack`, `publish:npm`) has none. Repo-local
+Node and has no twin (nor does `demo:ui-dom`), `bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the remaining tooling
+(`lint`, `check:svelte`, `docs`, `vendor`, `parity`, `pack`, `publish:npm`, `pack:ui`, `publish:ui`) has none. Repo-local
 scripts that need no loader run on plain `node`, which strips their types itself.
 
 ## Testing
@@ -740,14 +740,15 @@ theme behind them, a toast queue, and the per-renderer helpers they share. `docs
 user-facing page, with a live DOM demo per group; `packages/ui/README.md` is the npm readme. The
 design:
 
-- **A Bun workspace.** The root's `workspaces: ["packages/*"]` and its
-  `devDependencies["gpuix-svelte-ui"]: "workspace:*"` link `node_modules/gpuix-svelte-ui` →
-  `packages/ui`; the package's own `devDependencies["gpuix-svelte"]: "workspace:*"` is what links the
-  root in as `node_modules/gpuix-svelte` → `..`, so the components' bare `gpuix-svelte` imports
-  resolve to the root under whichever conditions the toolchain sets. The in-repo manifest carries no
+- **A Bun workspace.** The root's `workspaces: ["packages/ui"]` links `node_modules/gpuix-svelte-ui`
+  → `packages/ui` (Bun links every workspace; a root dependency on it would break a Bun `file:`
+  install of this checkout, which the companion repository makes, and the scaffolder is left out of
+  the glob so its bin's mode and the lockfile stay untouched); the package's own
+  `devDependencies["gpuix-svelte"]: "workspace:*"` is what links the root in as
+  `node_modules/gpuix-svelte` → `..`, so the components' bare `gpuix-svelte` imports resolve to the
+  root under whichever conditions the toolchain sets. The in-repo manifest carries no
   `peerDependencies`, because Bun fetches a peer named like the root from the registry instead of
-  linking it. `scripts/publish.ts` strips `workspaces` and that devDependency from the published
-  root manifest.
+  linking it. `scripts/publish.ts` strips `workspaces` from the published root manifest.
 - **Components import their helpers by package name** (`gpuix-svelte-ui/keys`,
   `gpuix-svelte-ui/components/Icon.svelte`), never relatively, and so does `src/index.ts`: the
   published `.ts` modules live in `lib/` while the `.svelte` files stay under `src/components`, so
@@ -948,13 +949,21 @@ CSS's order rules hold), and the renderer's `class_rules()` picks the ones whose
 carries on every `class` change, so `class:` directives and dynamic class strings restyle for free.
 A rule whose queries do not hold against `current_viewport()` is skipped, but still sets
 `media_read`, which `apply_style` turns into the node's `uses_media` and its membership in
-`media_nodes`. The viewport comes from the observer `window.ts` installs through
-`set_viewport_observer` — `observeWindowSize` over the same dialog-guarded `geometry` as
-`window_size`, so a Windows picker stalls neither — started by the first media rule (its first
-report is synchronous), restyling every `media_nodes` entry when the size changes, and stopped by
-`commit()` once the last of them is destroyed; `set_native` resets all of it. `media_query()` in
-`window.ts` is the same parser over `window_size`'s subscriber, and `dom.ts`'s is `matchMedia`,
-re-read on its `change` event and on `resize`, since happy-dom fires only the latter. `build_style` then lays the inline `style` on top; `:hover` rules
+`media_nodes` (an `<svg>` inheriting its colour from such an ancestor is left out: the ancestor's
+own restyle sweeps it). A query no size can change (`screen`, `print`) is settled by `compile.ts`
+through `media_constant`, and an unanswerable alternative of a comma list is a `never` entry, as a
+browser has it, so only a list with no answerable alternative is refused. The viewport comes from
+`observe_viewport`: by default native's own `observeWindowSize`, because a consumer's test through
+`gpuix-svelte/test` never loads window.ts (`test:media` runs `test/media-default.ts` for that
+path), and once window.ts loads, its `watch_size` — one `observeWindowSize` over the dialog-guarded
+`geometry`, shared by `window_size`'s subscriber, `media_query()` and the renderer, so the three
+agree frame for frame and a Windows picker stalls none of them. The observer starts at the first
+media rule (its first report is synchronous), `on_viewport` restyles `media_nodes` only when
+`media_changed` finds a cached query that answers differently for the new size, and `commit()`
+stops it once the last dependent node is destroyed; `set_native` resets all of it. `media_query()`
+in `window.ts` is the same parser over that subscriber, and `dom.ts`'s is `matchMedia`, re-read on
+its `change` event and on `resize` (happy-dom fires only the latter) and waking readers only when
+`matches` moved; with no window it answers for 800×600, as `window_size` reads there. `build_style` then lays the inline `style` on top; `:hover` rules
 become GPUI's native `hover` object with the `hover=` attribute winning, and likewise
 `:focus-visible` / `focus-visible=` for `focusVisible`. A block that reads a `var(--name[,
 fallback])` is emitted as `css` text instead of a parsed `style`, because the map it resolves
@@ -1290,8 +1299,11 @@ released version), and merging that PR tags, creates the GitHub release, runs `n
 `npm run consume` on macOS, then `npm run publish:npm`, `npm publish` in
 `packages/create-gpuix-svelte` and `npm run publish:ui` on Linux with npm trusted publishing (OIDC,
 `id-token: write`; provenance is automatic). Each package has its own trusted publisher on
-npmjs.com: `khromov/gpuix-svelte`, workflow file `release.yml` (`gpuix-svelte-ui` needs one set up
-before its first release). release-please's `extra-files` keeps
+npmjs.com: `khromov/gpuix-svelte`, workflow file `release.yml`. npm only lets a trusted publisher
+be configured on a package that already exists, so `gpuix-svelte-ui`'s first version has to be
+published by hand (`npm run publish:ui` with an npm token, before the release PR that carries it
+merges) and its trusted publisher set up after that; each publish step skips a version that is
+already on npm, so a job that failed part-way can be re-run. release-please's `extra-files` keeps
 `packages/create-gpuix-svelte/package.json`'s and `packages/ui/package.json`'s versions equal to
 the root's; the scaffolder writes `^<its own version>` into the app it creates (so
 `starter/package.json`'s own pin can lag), and the toolkit's published peer range is

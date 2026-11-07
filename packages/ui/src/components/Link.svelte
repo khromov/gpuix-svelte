@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { IS_GPUIX } from 'gpuix-svelte';
-	import { activates } from 'gpuix-svelte-ui/keys';
-	import { link_href, navigate, router } from 'gpuix-svelte-ui/router';
+	import { key_of } from 'gpuix-svelte-ui/keys';
+	import { navigate, router } from 'gpuix-svelte-ui/router';
 	import { own_hitbox, test_id } from 'gpuix-svelte-ui/shared';
 
 	let {
@@ -27,7 +27,7 @@
 
 	type Click = { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; button?: number; preventDefault(): void };
 
-	const target = $derived(href.split('?')[0]);
+	const target = $derived(href.split('?')[0].replace(/(.)\/$/, '$1'));
 	const active = $derived(exact || target === '/' ? router.path === target : router.path === target || router.path.startsWith(`${target}/`));
 
 	// A modified or non-primary click in a browser stays the browser's (a new tab); GPUI reports neither here.
@@ -37,10 +37,24 @@
 		navigate(href, { replace, state });
 	}
 
-	// A real <a> is focusable and Enter clicks it; a GPUI box needs both by hand, and `href` only means something to a page.
-	const extra = $derived(IS_GPUIX ? { role: 'link', tabindex: 0, onkeydown: (e: Click & { key?: string }) => activates(e) && click(e) } : { href: link_href(router.mode === 'hash' ? href : href) });
+	// A real <a href> is a link only where the URL means something: in history and hash mode. A GPUI box, and a
+	// page in memory mode, need the role, the tab stop and Enter by hand instead, or a middle click would open a 404.
+	// `router.mode` is read here directly, so a mode change re-derives the href and not only the tag.
+	const extra = $derived.by(() => {
+		const mode = router.mode;
+		if (IS_GPUIX || mode === 'memory') {
+			return {
+				role: 'link',
+				tabindex: 0,
+				onkeydown: (e: Click & { key?: string }) => {
+					if (key_of(e) === 'enter') click(e);
+				}
+			};
+		}
+		return { href: mode === 'hash' ? `#${href}` : href };
+	});
 	// Typed as the GPUI tag: that namespace knows no <a>, while the DOM typecheck takes any tag.
-	const tag = (IS_GPUIX ? 'div' : 'a') as 'div';
+	const tag = $derived((IS_GPUIX || router.mode === 'memory' ? 'div' : 'a') as 'div');
 </script>
 
 <svelte:element this={tag} class="link" class:active aria-label={label} {...own_hitbox} {...extra} {...test_id(testid)} onclick={click}>
@@ -62,6 +76,7 @@
 	.link:focus-visible {
 		outline-width: 2px;
 		outline-offset: 2px;
+		outline-style: solid;
 		outline-color: var(--ui-ink);
 	}
 	.link.active {

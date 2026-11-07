@@ -25,8 +25,8 @@
 			.join('')
 	);
 
-	// GPUI scales an image through its own attribute; the browser through object-fit in the rule below.
-	const fit = IS_GPUIX ? { objectfit: 'cover' as const } : {};
+	// GPUI scales an image through its own prop, spelled as native reads it; the browser through object-fit in the rule below.
+	const fit = IS_GPUIX ? { objectFit: 'cover' as const } : {};
 	const box = $derived(`width: ${size}px; height: ${size}px; border-radius: ${size / 2}px`);
 </script>
 

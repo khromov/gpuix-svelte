@@ -58,8 +58,9 @@
 			disabled,
 			readonly,
 			oninput: (e: Change) => onchange(text_of(e)),
-			onkeydown: (e: Change & { key?: string }) => {
-				if (key_of(e) === 'enter') onsubmit?.(text_of(e));
+			// Enter during an IME composition commits the composition, not the field.
+			onkeydown: (e: Change & { key?: string; isComposing?: boolean }) => {
+				if (key_of(e) === 'enter' && !e.isComposing) onsubmit?.(text_of(e));
 			}
 		};
 	});
@@ -67,7 +68,7 @@
 
 <div class="field" class:disabled class:invalid={error !== null} {...test_id(testid)}>
 	{#if label}<div class="label">{label}</div>{/if}
-	<input class="input" class:invalid={error !== null} {value} {placeholder} {...field} {...test_id(testid ? `${testid}-input` : null)} />
+	<input class="input" class:invalid={error !== null} aria-label={label} {value} {placeholder} {...field} {...test_id(testid ? `${testid}-input` : null)} />
 	{#if error}
 		<div class="error">{error}</div>
 	{:else if hint}
@@ -116,6 +117,12 @@
 		border-color: var(--ui-accent);
 	}
 	.input.invalid {
+		border-color: var(--ui-danger);
+	}
+	.input.invalid:hover {
+		border-color: var(--ui-danger);
+	}
+	.input.invalid:focus-visible {
 		border-color: var(--ui-danger);
 	}
 	.hint,

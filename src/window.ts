@@ -222,11 +222,35 @@ function polled<T>(
 	};
 }
 
-const size = polled(readWindowSize, observeWindowSize);
+// One poll for everything that watches the size: `window_size` and `media_query` readers and the renderer's
+// `@media` rules, so they agree frame for frame and a Windows dialog stalls none of them.
+const size_watchers = new Set<(size: WindowSize) => void>();
+let stop_size: (() => void) | null = null;
+let last_size: WindowSize | null = null;
+
+function watch_size(callback: (size: WindowSize) => void): () => void {
+	size_watchers.add(callback);
+	if (stop_size === null) {
+		stop_size = observeWindowSize(geometry, (next) => {
+			last_size = next;
+			for (const watcher of size_watchers) watcher(next);
+		});
+	} else {
+		callback(last_size!);
+	}
+	return () => {
+		size_watchers.delete(callback);
+		if (size_watchers.size > 0) return;
+		stop_size?.();
+		stop_size = null;
+		last_size = null;
+	};
+}
+
+const size = polled(readWindowSize, (_host, callback) => watch_size(callback));
 const insets = polled(readWindowInsets, observeWindowInsets);
 
-// The renderer's `@media` rules read the window through the same guarded host, so a Windows dialog stalls neither.
-set_viewport_observer((callback) => observeWindowSize(geometry, callback));
+set_viewport_observer(watch_size);
 
 const warned_queries = new Set<string>();
 
@@ -241,10 +265,11 @@ export function media_query(query: string): MediaQueryState {
 		warned_queries.add(query);
 		console.warn(`[gpuix-svelte] media_query("${query}") never matches on GPUI — a window answers only for ${MEDIA_FEATURES}`);
 	}
+	// A query with no answer never starts the poll either.
+	if (list === null) return { current: false };
 	return {
 		get current() {
-			const now = size();
-			return list !== null && media_matches(list, now);
+			return media_matches(list, size());
 		}
 	};
 }

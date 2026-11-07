@@ -6,7 +6,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -22,6 +22,10 @@ if (command !== 'pack' && command !== 'publish') {
 
 const original = readFileSync(manifest, 'utf8');
 const json = JSON.parse(original);
+// A run killed mid-pack leaves the published manifest in place, which must not become the next run's "original".
+if (json.peerDependencies || !String(json.exports['.']).startsWith('./src/')) {
+	throw new Error('packages/ui/package.json is the published manifest; restore it from git before packing');
+}
 
 function run(cmd: string, args: string[], cwd: string) {
 	const { status } = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' && cmd !== process.execPath });
@@ -62,7 +66,8 @@ function published_manifest() {
 
 let args: string[];
 if (command === 'pack') {
-	const dest = rest[0] ?? pkg;
+	// Absolute, since npm runs in packages/ui while a relative destination is given from the root.
+	const dest = resolve(rest[0] ?? pkg);
 	mkdirSync(dest, { recursive: true });
 	args = ['pack', '--pack-destination', dest, ...rest.slice(1)];
 } else {

@@ -114,7 +114,7 @@
 		"test:overlay": "node bin/gpuix-svelte.js test/overlay.ts",
 		"test:style": "node bin/gpuix-svelte.js test/style.ts",
 		"test:window": "node bin/gpuix-svelte.js test/window.ts",
-		"test:media": "node bin/gpuix-svelte.js test/media.ts",
+		"test:media": "node bin/gpuix-svelte.js test/media.ts && node bin/gpuix-svelte.js test/media-default.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
 		"docs": "node scripts/docs.ts",
 		"docs:serve": "node scripts/docs.ts --serve",
@@ -178,7 +178,7 @@
 		"bun:test:overlay": "node bin/gpuix-svelte.js --bun test/overlay.ts",
 		"bun:test:style": "node bin/gpuix-svelte.js --bun test/style.ts",
 		"bun:test:window": "node bin/gpuix-svelte.js --bun test/window.ts",
-		"bun:test:media": "node bin/gpuix-svelte.js --bun test/media.ts",
+		"bun:test:media": "node bin/gpuix-svelte.js --bun test/media.ts && node bin/gpuix-svelte.js --bun test/media-default.ts",
 		"bun:test:coverage": "node bin/gpuix-svelte.js --bun test/coverage.ts"
 	},
 	"dependencies": {
@@ -191,10 +191,9 @@
 		"svelte"
 	],
 	"workspaces": [
-		"packages/*"
+		"packages/ui"
 	],
 	"devDependencies": {
-		"gpuix-svelte-ui": "workspace:*",
 		"@eslint/js": "^10.0.1",
 		"@happy-dom/global-registrator": "^21.0.4",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",

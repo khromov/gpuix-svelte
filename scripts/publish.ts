@@ -70,9 +70,8 @@ function published_manifest() {
 	const out = structuredClone(json);
 	out.dependencies.svelte = PUBLISHED_SPEC;
 	out.main = lib_for(out.main);
-	// The workspace and its link to packages/ui are the repository's; an installed copy is not a workspace root.
+	// The workspace is the repository's; an installed copy is not a workspace root.
 	delete out.workspaces;
-	delete out.devDependencies['gpuix-svelte-ui'];
 	out.files = ['lib', 'src/components', 'bin', 'assets/icon.png'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
 		out.exports[key] = key === './html' ? { types: './lib/html.d.ts' } : published_target(value);

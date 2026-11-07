@@ -6,7 +6,7 @@ name: docs
 on:
   push:
     branches: [main]
-    paths: [README.md, package.json, docs/**, homepage/**, .github/resources/**, scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts, src/style.ts, src/events.ts, src/search.ts, src/components/dom/**, .github/workflows/docs.yml]
+    paths: [README.md, package.json, docs/**, homepage/**, .github/resources/**, scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts, src/media.ts, src/style.ts, src/events.ts, src/search.ts, src/components/dom/**, packages/ui/src/**, .github/workflows/docs.yml]
   workflow_dispatch:
 
 permissions:

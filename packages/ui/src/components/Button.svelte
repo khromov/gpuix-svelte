@@ -108,6 +108,9 @@
 		border-color: transparent;
 		background-color: var(--ui-raised);
 	}
+	.btn.ghost:focus-visible {
+		border-color: var(--ui-ink);
+	}
 	.btn.danger {
 		color: var(--ui-danger);
 	}
@@ -117,7 +120,6 @@
 	}
 	.btn.disabled {
 		opacity: 0.5;
-		cursor: not-allowed;
 		pointer-events: none;
 	}
 </style>

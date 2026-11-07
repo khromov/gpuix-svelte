@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { test_id, type Tone } from 'gpuix-svelte-ui/shared';
+	import { aria_value, test_id, type Tone } from 'gpuix-svelte-ui/shared';
 
 	let {
 		value,
@@ -24,7 +24,7 @@
 	const percent = $derived(Math.round(fraction * 100));
 </script>
 
-<div class="progress" role="progressbar" aria-label={label} aria-valuetext="{percent}%" {...test_id(testid)}>
+<div class="progress" role="progressbar" aria-label={label} aria-valuetext="{percent}%" {...aria_value(Math.min(max, Math.max(0, value)), 0, max)} {...test_id(testid)}>
 	{#if label || show_value}
 		<div class="head">
 			{#if label}<div class="label">{label}</div>{/if}

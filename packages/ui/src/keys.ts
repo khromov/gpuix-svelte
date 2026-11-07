@@ -6,6 +6,9 @@
 
 export interface KeyLike {
 	key?: string | null;
+	/** GPUI's name for a key auto-repeating; the DOM's is `repeat`. */
+	isHeld?: boolean;
+	repeat?: boolean;
 	preventDefault(): void;
 }
 
@@ -17,10 +20,13 @@ export function key_of(e: { key?: string | null }): string {
 	return lower.startsWith('arrow') ? lower.slice(5) : lower;
 }
 
-/** Enter or Space, what presses a button-like element; the default (a page scroll on Space) is prevented when it is. */
+/**
+ * Enter or Space, what presses a button-like element, once per press (a held key repeats the event); the
+ * default (a page scroll on Space) is prevented when it is.
+ */
 export function activates(e: KeyLike): boolean {
 	const key = key_of(e);
-	if (key !== 'enter' && key !== 'space') return false;
+	if ((key !== 'enter' && key !== 'space') || e.isHeld || e.repeat) return false;
 	e.preventDefault();
 	return true;
 }

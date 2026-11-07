@@ -600,7 +600,7 @@ function supervise() {
 		clearTimeout(timer);
 		timer = setTimeout(cycle, 300);
 	};
-	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts', 'scripts/vite-dom.ts', 'src/dom.ts', 'src/components/dom']) {
+	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts', 'scripts/vite-dom.ts', 'src/dom.ts', 'src/components/dom', 'packages/ui/src']) {
 		const target = join(root, path);
 		watch(target, { recursive: statSync(target).isDirectory() }, (_, file) => {
 			if (!file || !basename(file).startsWith('.')) restart();

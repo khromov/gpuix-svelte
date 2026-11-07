@@ -4,7 +4,7 @@
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Button from 'gpuix-svelte-ui/components/Button.svelte';
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
-	import { test_id } from 'gpuix-svelte-ui/shared';
+	import { open_overlay, test_id } from 'gpuix-svelte-ui/shared';
 
 	let {
 		open,
@@ -36,17 +36,33 @@
 		if (dismissable) onclose();
 	}
 
+	// Only the topmost overlay answers Escape, so a Select or Menu open inside closes alone first.
 	$effect(() => {
 		if (!open) return;
-		return on_window_key('keydown', (e) => {
-			if (e.key === 'escape') dismiss();
+		const overlay = open_overlay();
+		const off = on_window_key('keydown', (e) => {
+			if (e.key === 'escape' && overlay.on_top()) dismiss();
 		});
+		return () => {
+			off();
+			overlay.release();
+		};
 	});
+
+	// In a page, a drag that starts in the panel and ends over the scrim clicks the scrim; only a press that
+	// began there counts. GPUI reports a click only where the press landed, so both reads say the same.
+	type Targeted = { target?: unknown; currentTarget?: unknown };
+	let pressed_scrim = false;
+	const on_scrim = (e: Targeted) => e.target === e.currentTarget;
+	function scrim_click(e: Targeted) {
+		if (pressed_scrim && on_scrim(e)) dismiss();
+		pressed_scrim = false;
+	}
 </script>
 
 {#if open}
 	<Portal>
-		<div class="scrim" onclick={dismiss} {...test_id(testid ? `${testid}-scrim` : null)}>
+		<div class="scrim" onmousedown={(e) => (pressed_scrim = on_scrim(e))} onclick={scrim_click} {...test_id(testid ? `${testid}-scrim` : null)}>
 			<div class="dialog {size}" role="dialog" aria-label={title} onclick={(e) => e.stopPropagation()} {...test_id(testid)}>
 				{#if title || dismissable}
 					<div class="head">

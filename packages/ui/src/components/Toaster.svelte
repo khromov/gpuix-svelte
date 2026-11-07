@@ -22,8 +22,10 @@
 </script>
 
 {#if toasts.current.length > 0}
-	<Portal>
-		<div class="toaster {position}" {...test_id(testid)}>
+	<!-- Portals paint in mount order, so the layer is remounted for each new toast and lands above a Dialog opened since. -->
+	{#key toasts.current[toasts.current.length - 1].id}
+		<Portal>
+			<div class="toaster {position}" {...test_id(testid)}>
 			{#each toasts.current as item (item.id)}
 				<div class="toast {item.tone}" role="status" {...test_id(testid ? `${testid}-${item.id}` : null)}>
 					<div class="bar {item.tone}"></div>
@@ -39,8 +41,9 @@
 					</Button>
 				</div>
 			{/each}
-		</div>
-	</Portal>
+			</div>
+		</Portal>
+	{/key}
 {/if}
 
 <style>

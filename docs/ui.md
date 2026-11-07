@@ -36,8 +36,9 @@ frame. The components themselves resolve through the package's own exports, so
 `gpuix-svelte-ui/components/Button.svelte` is the same file as `Button` from the barrel.
 
 In a GPUI app nothing else is needed. A page wants a stylesheet with what a window gives for
-free: `* { box-sizing: border-box }`, a font, and `body { margin: 0 }` (`render()` sets the last
-one; see [`packages/ui/showcase/index.html`](../packages/ui/showcase/index.html)). A prerendered SvelteKit
+free: `* { box-sizing: border-box }`, a font, `input, textarea { font: inherit }` so the fields
+take it too, and `body { margin: 0 }` (`render()` sets the last one; see
+[`packages/ui/showcase/index.html`](../packages/ui/showcase/index.html)). A prerendered SvelteKit
 page can carry the palette before any effect runs:
 
 ```svelte
@@ -325,6 +326,7 @@ hidden `state` a navigation can carry.
 ```svelte
 <script>
   import { Router } from 'gpuix-svelte-ui';
+  import Sidebar from './Sidebar.svelte';
   import Home from './Home.svelte';
   import Item from './Item.svelte';
   import NotFound from './NotFound.svelte';
@@ -347,12 +349,18 @@ hidden `state` a navigation can carry.
 - `href('/items/:id', { id: 3 })` builds a path with its params typed from the pattern, plus an
   optional query object.
 - `before((to, from) => …)` runs before every navigation, a Link, `navigate()`, the keyboard and
-  the browser's buttons alike: `false` cancels it, a string redirects it. It returns the unsubscribe.
-- ⌘[ and ⌘] (Alt+Left and Alt+Right elsewhere) go back and forward unless a text field has
-  focus; `shortcuts={false}` turns that off.
+  the browser's buttons alike: `false` cancels it, a string redirects it. It returns the
+  unsubscribe. The first screen is not a navigation: a reload on a path a hook would redirect
+  shows that screen, so check `router.path` once on mount for that case.
+- In a window, ⌘[ and ⌘] (Alt+Left and Alt+Right elsewhere) go back and forward unless a text
+  field has focus; a page leaves those keys to the browser, which has them already.
+  `shortcuts` sets either way.
 
 One `Router` per app: the store behind it is global, which is what lets a `Link` anywhere, a
-menu item or a keyboard shortcut navigate without a reference to the router.
+menu item or a keyboard shortcut navigate without a reference to the router. It is a client-side
+router for a window and a Vite page; a SvelteKit site has Kit's router for its pages and would
+use this one only inside a window. Neither `Dialog` nor `Menu` moves keyboard focus into itself
+yet, so Tab still walks the controls behind a dialog.
 
 ```svelte demo router
 <script>
@@ -402,7 +410,8 @@ Both renderers answer `@media` queries over the window's width and height
 ([Styling](styling.md#media-queries)), and `media_query()` answers the same from JavaScript
 ([Guide](guide.md#media-queries)). The toolkit adds named breakpoints: `BREAKPOINTS` is
 `{ sm: 480, md: 768, lg: 1024, xl: 1280 }`, `min_width('md')` is `media_query('(min-width: 768px)')`
-and `max_width('md')` is everything narrower. Resize the browser to see both halves of this
+and `max_width('md')` is `media_query('(width < 768px)')`, everything narrower, in the range form
+that leaves no fractional width between the two. Resize the browser to see both halves of this
 sample agree:
 
 ```svelte demo responsive
@@ -424,7 +433,7 @@ sample agree:
 <style>
   .cards { display: flex; flex-direction: row; gap: 12px; }
   .cell { display: flex; flex-direction: column; flex-grow: 1; flex-basis: 0; }
-  @media (max-width: 767px) {
+  @media (width < 768px) {
     .cards { flex-direction: column; }
   }
   .row { display: flex; margin-top: 10px; }
@@ -448,7 +457,7 @@ cross-target the same way (see [DOM](dom.md#writing-a-component-for-both) for th
   handed over.
 - `MONO` is a monospace family each side has (`var(--ui-mono)` in CSS).
 
-Every component takes a `testid`, and the derived ids are documented on each prop
+Every interactive component takes a `testid`, and the derived ids are documented on each prop
 (`<testid>-input`, `<testid>-panel`, `<testid>-<value>`), so a headless test on GPUI
 ([Testing](testing.md)) and a DOM test find the same things: the repository's `test/ui.ts` and
 `test/ui-dom.ts` click through the whole showcase that way.

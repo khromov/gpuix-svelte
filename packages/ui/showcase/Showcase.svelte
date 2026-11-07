@@ -57,7 +57,7 @@
 	let last = $state('nothing yet');
 
 	// The same breakpoint as the @media rule below, so the chip and the layout agree.
-	const narrow = media_query('(max-width: 720px)');
+	const narrow = media_query('(width <= 720px)');
 
 	$effect(() => apply_theme(dark ? 'dark' : 'light'));
 
@@ -327,12 +327,12 @@
 		flex-grow: 1;
 		min-width: 0;
 	}
-	@media (min-width: 721px) {
+	@media (width > 720px) {
 		.cell {
 			flex-basis: 320px;
 		}
 	}
-	@media (max-width: 720px) {
+	@media (width <= 720px) {
 		.grid {
 			flex-direction: column;
 			gap: 12px;
