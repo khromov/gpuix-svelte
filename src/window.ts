@@ -5,9 +5,10 @@
  */
 
 import type { PathPromptOptions } from '@gpuix/native';
-import { get_native, node_of, with_native_id } from './renderer.ts';
+import { get_native, node_of, set_viewport_observer, with_native_id } from './renderer.ts';
 import { set_titlebar_title } from './titlebar.ts';
-import type { Native, PixelFormat, ShadowNode, WindowNative } from './types.ts';
+import { MEDIA_FEATURES, media_matches, parse_media_query } from './media.ts';
+import type { MediaQueryState, Native, PixelFormat, ShadowNode, WindowNative } from './types.ts';
 import { createSubscriber } from 'svelte/reactivity';
 import {
 	observeWindowInsets,
@@ -221,8 +222,57 @@ function polled<T>(
 	};
 }
 
-const size = polled(readWindowSize, observeWindowSize);
+// One poll for everything that watches the size: `window_size` and `media_query` readers and the renderer's
+// `@media` rules, so they agree frame for frame and a Windows dialog stalls none of them.
+const size_watchers = new Set<(size: WindowSize) => void>();
+let stop_size: (() => void) | null = null;
+let last_size: WindowSize | null = null;
+
+function watch_size(callback: (size: WindowSize) => void): () => void {
+	size_watchers.add(callback);
+	if (stop_size === null) {
+		stop_size = observeWindowSize(geometry, (next) => {
+			last_size = next;
+			for (const watcher of size_watchers) watcher(next);
+		});
+	} else {
+		callback(last_size!);
+	}
+	return () => {
+		size_watchers.delete(callback);
+		if (size_watchers.size > 0) return;
+		stop_size?.();
+		stop_size = null;
+		last_size = null;
+	};
+}
+
+const size = polled(readWindowSize, (_host, callback) => watch_size(callback));
 const insets = polled(readWindowInsets, observeWindowInsets);
+
+set_viewport_observer(watch_size);
+
+const warned_queries = new Set<string>();
+
+/**
+ * `matchMedia` for a window: `(min-width: 600px)`, `(width < 900px)`, `(orientation: portrait)` and
+ * their `and` / comma combinations, reactive through the same poll as `window_size`. A query a window
+ * cannot answer never matches, as a browser's `not all`, and is warned about once.
+ */
+export function media_query(query: string): MediaQueryState {
+	const list = parse_media_query(query);
+	if (list === null && !warned_queries.has(query)) {
+		warned_queries.add(query);
+		console.warn(`[gpuix-svelte] media_query("${query}") never matches on GPUI — a window answers only for ${MEDIA_FEATURES}`);
+	}
+	// A query with no answer never starts the poll either.
+	if (list === null) return { current: false };
+	return {
+		get current() {
+			return media_matches(list, size());
+		}
+	};
+}
 
 /** The window's logical size, reactive in a template or effect; 800×600 until a native exists. */
 export const window_size: Readonly<WindowSize> = {

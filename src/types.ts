@@ -32,6 +32,8 @@ export interface ShadowNode {
 	nativeId: number | null;
 	/** Its style read a `var()`, so `set_css_vars` has to restyle it. */
 	uses_vars: boolean;
+	/** One of its rules sits under an `@media` query, so a window resize has to restyle it. */
+	uses_media: boolean;
 	/** Its resolved `color`, so a restyle that leaves it alone need not visit the `<svg>`s inheriting it. */
 	own_color: GpuiStyle[string];
 	/** Reachable from the designated GPUI root. */
@@ -69,8 +71,16 @@ export type StyleRule = { pseudo: Pseudo } & (
 	| { css: string; style?: undefined; generation?: number; resolved?: GpuiStyle }
 );
 
-/** A `StyleRule` with the selector `compile.ts` accepted: classes and at most one tag. */
-export type ClassRule = StyleRule & { classes: string[]; tag: string | null };
+/**
+ * A `StyleRule` with the selector `compile.ts` accepted: classes and at most one tag. `media` holds the
+ * `@media` preludes the rule sits under, outermost first, every one of which has to hold for it to apply.
+ */
+export type ClassRule = StyleRule & { classes: string[]; tag: string | null; media?: string[] };
+
+/** What `media_query()` returns: `current` is reactive wherever a template or effect reads it. */
+export interface MediaQueryState {
+	readonly current: boolean;
+}
 
 /** One entry of the batch `applyBatch` receives. */
 export type Mutation =

@@ -45,7 +45,7 @@
 	.btn:constructor {
 		color: purple;
 	}
-	@media (min-width: 1px) {
+	@supports (display: flex) {
 		.btn {
 			color: pink;
 		}

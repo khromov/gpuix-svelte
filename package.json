@@ -75,9 +75,15 @@
 		"demo:web": "bun scripts/web.ts",
 		"demo:cross": "node bin/gpuix-svelte.js examples/cross-target/main.ts",
 		"demo:dom": "node scripts/dom.ts",
+		"demo:ui": "node bin/gpuix-svelte.js packages/ui/showcase/main.ts",
+		"demo:ui-dom": "node scripts/dom.ts --root packages/ui/showcase",
+		"pack:ui": "node scripts/publish-ui.ts pack",
+		"publish:ui": "node scripts/publish-ui.ts publish",
 		"tutorial": "node bin/gpuix-svelte.js examples/tutorial/main.ts",
-		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:dialog && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:tab && npm run test:titlebar && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window && npm run test:helpers && npm run test:search && npm run test:tooltip && npm run test:cross-target && npm run test:dom && npm run test:docs && npm run test:automation && npm run test:bundle && npm run test:update",
+		"test": "npm run typecheck && npm run test:reorder && npm run test:smoke && npm run test:autocommit && npm run test:style && npm run test:teardown && npm run test:lifecycle && npm run test:compile && npm run test:css && npm run test:module && npm run test:vars && npm run test:scroller && npm run test:dialog && npm run test:hitbox && npm run test:auxclick && npm run test:window-keys && npm run test:tab && npm run test:titlebar && npm run test:portal && npm run test:host && npm run test:overlay && npm run test:window && npm run test:media && npm run test:helpers && npm run test:search && npm run test:tooltip && npm run test:cross-target && npm run test:dom && npm run test:ui && npm run test:ui-dom && npm run test:docs && npm run test:automation && npm run test:bundle && npm run test:update",
 		"test:cross-target": "node bin/gpuix-svelte.js test/cross-target.ts",
+		"test:ui": "node bin/gpuix-svelte.js test/ui.ts",
+		"test:ui-dom": "node bin/gpuix-svelte.js test/ui-dom.ts",
 		"test:dom": "node bin/gpuix-svelte.js test/dom.ts",
 		"test:docs": "node bin/gpuix-svelte.js test/docs.ts",
 		"test:bundle": "node bin/gpuix-svelte.js test/bundle.ts",
@@ -108,6 +114,7 @@
 		"test:overlay": "node bin/gpuix-svelte.js test/overlay.ts",
 		"test:style": "node bin/gpuix-svelte.js test/style.ts",
 		"test:window": "node bin/gpuix-svelte.js test/window.ts",
+		"test:media": "node bin/gpuix-svelte.js test/media.ts && node bin/gpuix-svelte.js test/media-default.ts",
 		"test:coverage": "node bin/gpuix-svelte.js test/coverage.ts",
 		"docs": "node scripts/docs.ts",
 		"docs:serve": "node scripts/docs.ts --serve",
@@ -135,9 +142,12 @@
 		"bun:demo:desktop": "node bin/gpuix-svelte.js --bun examples/desktop-apis/main.ts",
 		"bun:demo:native-0.11": "node bin/gpuix-svelte.js --bun examples/native-0.11/main.ts",
 		"bun:demo:cross": "node bin/gpuix-svelte.js --bun examples/cross-target/main.ts",
+		"bun:demo:ui": "node bin/gpuix-svelte.js --bun packages/ui/showcase/main.ts",
 		"bun:tutorial": "node bin/gpuix-svelte.js --bun examples/tutorial/main.ts",
-		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:dialog && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:tab && npm run bun:test:titlebar && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window && npm run bun:test:helpers && npm run bun:test:search && npm run bun:test:tooltip && npm run bun:test:cross-target && npm run bun:test:dom && npm run bun:test:docs && npm run bun:test:automation && npm run bun:test:bundle && npm run bun:test:update",
+		"bun:test": "npm run bun:typecheck && npm run bun:test:reorder && npm run bun:test:smoke && npm run bun:test:autocommit && npm run bun:test:style && npm run bun:test:teardown && npm run bun:test:lifecycle && npm run bun:test:compile && npm run bun:test:css && npm run bun:test:module && npm run bun:test:vars && npm run bun:test:scroller && npm run bun:test:dialog && npm run bun:test:hitbox && npm run bun:test:auxclick && npm run bun:test:window-keys && npm run bun:test:tab && npm run bun:test:titlebar && npm run bun:test:portal && npm run bun:test:host && npm run bun:test:overlay && npm run bun:test:window && npm run bun:test:media && npm run bun:test:helpers && npm run bun:test:search && npm run bun:test:tooltip && npm run bun:test:cross-target && npm run bun:test:dom && npm run bun:test:ui && npm run bun:test:ui-dom && npm run bun:test:docs && npm run bun:test:automation && npm run bun:test:bundle && npm run bun:test:update",
 		"bun:test:cross-target": "node bin/gpuix-svelte.js --bun test/cross-target.ts",
+		"bun:test:ui": "node bin/gpuix-svelte.js --bun test/ui.ts",
+		"bun:test:ui-dom": "node bin/gpuix-svelte.js --bun test/ui-dom.ts",
 		"bun:test:dom": "node bin/gpuix-svelte.js --bun test/dom.ts",
 		"bun:test:docs": "node bin/gpuix-svelte.js --bun test/docs.ts",
 		"bun:test:bundle": "node bin/gpuix-svelte.js --bun test/bundle.ts",
@@ -168,6 +178,7 @@
 		"bun:test:overlay": "node bin/gpuix-svelte.js --bun test/overlay.ts",
 		"bun:test:style": "node bin/gpuix-svelte.js --bun test/style.ts",
 		"bun:test:window": "node bin/gpuix-svelte.js --bun test/window.ts",
+		"bun:test:media": "node bin/gpuix-svelte.js --bun test/media.ts && node bin/gpuix-svelte.js --bun test/media-default.ts",
 		"bun:test:coverage": "node bin/gpuix-svelte.js --bun test/coverage.ts"
 	},
 	"dependencies": {
@@ -178,6 +189,9 @@
 	},
 	"bundleDependencies": [
 		"svelte"
+	],
+	"workspaces": [
+		"packages/ui"
 	],
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

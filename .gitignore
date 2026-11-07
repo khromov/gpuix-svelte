@@ -7,6 +7,7 @@ test/.samples-tmp
 test/.hot-tmp
 test/.bundle-tmp
 test/.dom-tmp
+test/.ui-tmp
 
 # compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib
@@ -19,10 +20,11 @@ starter/bun.lock
 out
 dist
 
-# the JS and declarations scripts/publish.ts emits for the tarball, and the scaffolder's copy of starter/
+# the JS and declarations scripts/publish.ts and scripts/publish-ui.ts emit for the tarballs, and the scaffolder's copy of starter/
 lib
 packages/create-gpuix-svelte/template
 packages/create-gpuix-svelte/LICENSE
+packages/ui/LICENSE
 *.tgz
 
 # code coverage

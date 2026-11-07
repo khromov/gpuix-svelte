@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { Parser, type Node as AcornNode } from 'acorn';
 import { compile, compileModule, type AST } from 'svelte/compiler';
 import { parse_css_text } from './style.ts';
+import { MEDIA_FEATURES, media_constant, parse_media_query } from './media.ts';
 import type { ClassRule, Pseudo } from './types.ts';
 
 /**
@@ -108,30 +109,43 @@ function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
  */
 function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string): ClassRule[] {
 	const rules: ClassRule[] = [];
-	const refuse = (text: string) =>
-		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — only class and tag selectors, plus :hover/:active/:focus-visible, reach GPUI`);
+	const refuse = (text: string, reason = 'only class and tag selectors, plus :hover/:active/:focus-visible, reach GPUI') =>
+		console.warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — ${reason}`);
 
-	for (const node of css.children) {
-		if (node.type !== 'Rule') {
-			refuse(`@${node.name} ${node.prelude}`.trim());
-			continue;
-		}
+	// A rule inside `@media` carries the query; one nested deeper carries every query on the way down. A query no
+	// size can change is settled here: `screen` leaves its rules unconditional, `print` drops them.
+	const walk = (children: Array<AST.CSS.Declaration | AST.CSS.Rule | AST.CSS.Atrule>, media: string[]) => {
+		for (const node of children) {
+			if (node.type === 'Declaration') continue;
+			if (node.type === 'Atrule') {
+				const prelude = node.prelude.trim();
+				const list = node.name === 'media' ? parse_media_query(prelude) : null;
+				if (node.name !== 'media') refuse(`@${node.name} ${prelude}`.trim());
+				else if (!node.block || list === null) refuse(`@media ${prelude}`, `a window answers only for ${MEDIA_FEATURES}`);
+				else {
+					const constant = media_constant(list);
+					if (constant !== false) walk(node.block.children, constant === true ? media : [...media, prelude]);
+				}
+				continue;
+			}
 
-		const declarations: string[] = [];
-		for (const child of node.block.children) {
-			if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
-			else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
-		}
-		const css = declarations.join('; ');
-		// A `var()` only resolves at runtime, so a block that reads one ships as text.
-		const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
+			const declarations: string[] = [];
+			for (const child of node.block.children) {
+				if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
+				else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
+			}
+			const css = declarations.join('; ');
+			// A `var()` only resolves at runtime, so a block that reads one ships as text.
+			const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
 
-		for (const complex of node.prelude.children) {
-			const selector = compile_selector(complex);
-			if (selector === null) refuse(source.slice(complex.start, complex.end));
-			else rules.push({ ...selector, ...body });
+			for (const complex of node.prelude.children) {
+				const selector = compile_selector(complex);
+				if (selector === null) refuse(source.slice(complex.start, complex.end));
+				else rules.push(media.length ? { ...selector, ...body, media } : { ...selector, ...body });
+			}
 		}
-	}
+	};
+	walk(css.children, []);
 
 	return rules.sort((a, b) => weight(a) - weight(b));
 }

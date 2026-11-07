@@ -32,6 +32,8 @@ work for class rules, which are translated the same way.
   is in that state. `class:` directives and dynamic class strings restyle live.
 - `hover="..."`, `active="..."` and `focus-visible="..."` attributes, for hover, press and
   keyboard-focus styles set directly on the element.
+- `@media` blocks over the window's `width`, `height` and `orientation`, restyled as the window is
+  resized (see [Media queries](#media-queries)).
 - `var(--token)` and `var(--token, fallback)` in class rules and inline styles, on any property.
   Values come from `set_css_vars({ token: '#fff' })`, and a theme switch is one call (see
   [Theming with CSS variables](#theming-with-css-variables)).
@@ -57,8 +59,9 @@ work for class rules, which are translated the same way.
   rule beat inline `style`.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
 - Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
-  `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, `@media` and
-  nesting. The compiler refuses them with a warning.
+  `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, nesting, and
+  every at-rule but `@media` (see [Media queries](#media-queries)). The compiler refuses them with
+  a warning.
 - `transform`, `transition`, `z-index`, `letter-spacing` and `font-style` are ignored, mostly
   without a warning.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
@@ -206,6 +209,44 @@ inline `style=` too. Keys work with or without the `--`, and setting one to `nul
 declaration is dropped and a warning names the variable once. Setting the palette from an
 `$effect` like the one above is fine: the check runs after your effects have, so a variable the
 effect defines is never reported.
+
+## Media queries
+
+Nothing native evaluates CSS, so `@media` is answered by gpuix-svelte from the window's size. A
+block applies while its query holds, nests like any other at-rule (inner blocks need every query on
+the way down), and keeps its place in the source order, so a rule under `@media` wins over an
+equal rule written before it and loses to one written after it, as in a browser:
+
+```svelte
+<style>
+  .cards { display: flex; flex-direction: row; gap: 16px; }
+  @media (max-width: 700px) {
+    .cards { flex-direction: column; gap: 8px; }
+  }
+  @media (min-width: 1200px) and (orientation: landscape) {
+    .cards { gap: 24px; }
+  }
+</style>
+```
+
+What a query may say:
+
+- `width` and `height`, as `min-width: 600px`, `max-width: 599px`, `width: 600px`, or the range
+  syntax (`width >= 600px`, `600px <= width < 900px`), in `px`, `rem` or `em` (both 16 px) or a
+  unitless `0`.
+- `orientation: portrait | landscape` (a square window is portrait).
+- `and` between features, a comma between alternatives, `not` or `only` in front, and the media
+  types `screen` and `all`; `print` and the other types never match.
+
+Anything else (`prefers-color-scheme`, `hover`, `pointer`, a `vw` length, `or`) has no answer in a
+window. As in a browser, such an alternative in a comma list never matches while the others still
+count; a block none of whose alternatives can be answered is refused with a warning. In the DOM
+build the same block is CSS the browser evaluates. A query no size can change is settled when the
+component compiles: `@media screen` applies as if it were not there, `@media print` drops its
+rules. The window is read through the one poll `window_size` uses, every 100 ms while any element
+depends on a query, and the dependent elements are restyled only when a query's answer changes.
+`media_query('(max-width: 700px)')` in the [Guide](guide.md#media-queries) answers the same
+question from JavaScript.
 
 ## Seeing it for yourself
 

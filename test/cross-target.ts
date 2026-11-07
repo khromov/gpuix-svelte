@@ -16,6 +16,19 @@ check('the badge says GPUI', text_of('target'), 'GPUI');
 const size = native.getWindowSize();
 check('window_size renders the viewport', text_of('size'), `${size.width} × ${size.height}`);
 
+// A poll is 100 ms, and a loaded Windows runner's timers are coarse.
+async function until(done: () => boolean) {
+	for (let waited = 0; waited < 2000 && !done(); waited += 25) await wait(25);
+}
+const padding = () => find_test_id('app')?.style?.padding;
+check('media_query answers the window, and the @media rule agrees', [text_of('layout'), padding()], ['wide', 16]);
+native.getWindowSize = () => ({ width: 500, height: 400 });
+await until(() => text_of('layout') === 'narrow' && padding() === 8);
+check('a narrower window flips both within a poll', [text_of('layout'), padding()], ['narrow', 8]);
+native.getWindowSize = () => size;
+await until(() => text_of('layout') === 'wide' && padding() === 16);
+check('and back', [text_of('layout'), padding()], ['wide', 16]);
+
 check('the palette landed through set_css_vars', bg(), '#000000');
 click_test_id('theme');
 check('the theme button flips it', bg(), '#fafafa');
@@ -61,4 +74,4 @@ check('a click inside the dialog stays inside', find_test_id('dialog') !== null,
 click_at(20, 20);
 check('a click on the scrim closes it', find_test_id('dialog'), null);
 
-finish('cross-target', 20);
+finish('cross-target', 23);

@@ -70,6 +70,8 @@ function published_manifest() {
 	const out = structuredClone(json);
 	out.dependencies.svelte = PUBLISHED_SPEC;
 	out.main = lib_for(out.main);
+	// The workspace is the repository's; an installed copy is not a workspace root.
+	delete out.workspaces;
 	out.files = ['lib', 'src/components', 'bin', 'assets/icon.png'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
 		out.exports[key] = key === './html' ? { types: './lib/html.d.ts' } : published_target(value);
