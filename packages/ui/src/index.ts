@@ -12,9 +12,11 @@ export { default as Checkbox } from 'gpuix-svelte-ui/components/Checkbox.svelte'
 export { default as Dialog } from 'gpuix-svelte-ui/components/Dialog.svelte';
 export { default as Icon } from 'gpuix-svelte-ui/components/Icon.svelte';
 export { default as Kbd } from 'gpuix-svelte-ui/components/Kbd.svelte';
+export { default as Link } from 'gpuix-svelte-ui/components/Link.svelte';
 export { default as Menu } from 'gpuix-svelte-ui/components/Menu.svelte';
 export { default as Progress } from 'gpuix-svelte-ui/components/Progress.svelte';
 export { default as RadioGroup } from 'gpuix-svelte-ui/components/RadioGroup.svelte';
+export { default as Router } from 'gpuix-svelte-ui/components/Router.svelte';
 export { default as Select } from 'gpuix-svelte-ui/components/Select.svelte';
 export { default as Separator } from 'gpuix-svelte-ui/components/Separator.svelte';
 export { default as Skeleton } from 'gpuix-svelte-ui/components/Skeleton.svelte';
@@ -35,6 +37,8 @@ export { default as Tooltip } from 'gpuix-svelte/components/Tooltip.svelte';
 
 export { apply_theme, theme, theme_vars, theme_rule, DARK, LIGHT, type Palette } from './theme.ts';
 export { toast, dismiss_toast, clear_toasts, toasts, type ToastOptions, type ToastItem } from './toast.ts';
+export { router, navigate, back, forward, before, href, screen, match, start_router, stop_router } from './router.ts';
+export type { Route, RouteProps, RouteTable, Screen, Params, Mode, NavigateOptions, Hook } from './router.ts';
 export { key_of, activates, type KeyLike } from './keys.ts';
 export { own_hitbox, test_id, aria_checked, bounds_of, focus_node, pointer_x, still_pressed, MONO, BREAKPOINTS, min_width, max_width } from './shared.ts';
 export type { Tone, Option, MenuEntry, Box, Breakpoint } from './shared.ts';

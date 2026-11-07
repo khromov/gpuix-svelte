@@ -9,9 +9,11 @@
 		Checkbox,
 		Dialog,
 		Kbd,
+		Link,
 		Menu,
 		Progress,
 		RadioGroup,
+		Router,
 		Scroller,
 		Select,
 		Separator,
@@ -26,10 +28,16 @@
 		Toggle,
 		Tooltip,
 		apply_theme,
+		back,
+		forward,
+		href,
+		router,
+		screen,
 		test_id,
 		toast,
 		type MenuEntry,
-		type Option
+		type Option,
+		type RouteProps
 	} from 'gpuix-svelte-ui';
 
 	// Every component once, on one screen: `demo:ui` opens it in a GPUI window, `demo:ui-dom` serves it
@@ -206,6 +214,41 @@
 						</div>
 					</Card>
 				</div>
+
+				<div class="cell">
+					{#snippet home()}
+						<div class="muted">Home. Pick a link above; ⌘[ and ⌘] (Alt+arrows elsewhere) go back and forward.</div>
+					{/snippet}
+					{#snippet items()}
+						<div class="row">
+							<div class="muted">Three items:</div>
+							{#each [1, 2, 3] as id (id)}
+								<Link href={href('/items/:id', { id })} testid="go-item-{id}"><Kbd>{id}</Kbd></Link>
+							{/each}
+						</div>
+					{/snippet}
+					{#snippet item({ params }: RouteProps)}
+						<div class="muted">Item {params.id}, mounted fresh for this path.</div>
+					{/snippet}
+					{#snippet lost()}
+						<div class="muted">Nothing at {router.path}; this is the table's * entry.</div>
+					{/snippet}
+					<Card title="Screens" description="A Router over four routes, Links with an active state, and a history stack.">
+						<div class="row">
+							<Link href="/" testid="go-home">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Home</Badge>{/snippet}</Link>
+							<Link href="/items" testid="go-items">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Items</Badge>{/snippet}</Link>
+							<Link href={href('/items/:id', { id: 3 })} testid="go-item">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Item 3</Badge>{/snippet}</Link>
+							<Link href="/nowhere" testid="go-lost">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Lost</Badge>{/snippet}</Link>
+							<div class="spacer"></div>
+							<Button size="sm" disabled={!router.can_go_back} onclick={back} testid="back">Back</Button>
+							<Button size="sm" disabled={!router.can_go_forward} onclick={forward} testid="forward">Forward</Button>
+						</div>
+						<div class="screen" {...test_id('screen')}>
+							<Router routes={{ '/': screen(home), '/items': screen(items), '/items/:id': screen(item), '*': screen(lost) }} testid="router" />
+						</div>
+						<div class="muted" {...test_id('route')}>At {router.href}</div>
+					</Card>
+				</div>
 			</div>
 		</div>
 	</Scroller>
@@ -301,6 +344,14 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 8px;
+	}
+	.screen {
+		display: flex;
+		flex-direction: column;
+		min-height: 40px;
+		padding: 10px 12px;
+		border-radius: 8px;
+		background-color: var(--ui-raised);
 	}
 	.count {
 		min-width: 32px;

@@ -20,15 +20,17 @@ if (spawnSync(node, [join(root, 'scripts/ui-bundle.ts'), tmp], { cwd: root, stdi
 	process.exit(1);
 }
 
-GlobalRegistrator.register({ width: 1024, height: 768 });
+// A real origin, so the history API accepts pushState.
+GlobalRegistrator.register({ url: 'http://localhost/', width: 1024, height: 768 });
 
 // After the registration, or Svelte's client runtime would be evaluated with no `document`.
 const { check, finish } = await import('gpuix-svelte/test');
-const { Showcase, mount, flushSync } = (await import(pathToFileURL(join(tmp, 'dist/showcase.js')).href)) as {
+// The router API comes from the bundle, where it is the instance the showcase's Router drives.
+const { Showcase, mount, flushSync, router, navigate, before, href, match, start_router, stop_router } = (await import(pathToFileURL(join(tmp, 'dist/showcase.js')).href)) as {
 	Showcase: never;
 	mount(component: never, options: { target: Element }): unknown;
 	flushSync(): void;
-};
+} & typeof import('../packages/ui/src/router.ts');
 const { toast, dismiss_toast, clear_toasts, toasts } = await import('../packages/ui/src/toast.ts');
 const { theme_rule, theme_vars, DARK, LIGHT } = await import('../packages/ui/src/theme.ts');
 
@@ -39,10 +41,11 @@ const has = (content: string) => [...document.querySelectorAll<HTMLElement>('div
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const closes = () => [...document.querySelectorAll<HTMLElement>('[data-testid^="toaster-"][data-testid$="-close"]')];
 
+// Cancelable, as a browser's clicks are: a Link's preventDefault() has to keep happy-dom from following the <a> itself.
 function click(target: HTMLElement | null | undefined) {
 	if (!target) throw new Error('nothing to click');
-	target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-	target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+	target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+	target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 	flushSync();
 }
 
@@ -190,4 +193,57 @@ check('media_query follows the viewport', text('layout'), 'narrow');
 viewport(1024, 768);
 check('and back', text('layout'), 'wide');
 
-finish('ui-dom', 52);
+// --- the router -----------------------------------------------------------------
+const route = () => [text('route'), location.pathname + location.search + location.hash];
+check('the Router starts from the page URL, in history mode', [text('screen')?.startsWith('Home.'), ...route(), router.mode], [true, 'At /', '/', 'history']);
+check('a Link is a real link, active on its own screen', [by_id('go-items')?.getAttribute('href'), by_id('go-home')?.classList.contains('active'), by_id('go-items')?.classList.contains('active')], ['/items', true, false]);
+click(by_id('go-items'));
+check('and navigates through pushState', [...route(), by_id('go-items')?.classList.contains('active'), text('screen')?.startsWith('Three items')], ['At /items', '/items', true, true]);
+const modified = new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true });
+by_id('go-item')!.dispatchEvent(modified);
+flushSync();
+check('a modified click is left to the browser', [modified.defaultPrevented, text('route')], [false, 'At /items']);
+click(by_id('go-item-2'));
+check('a Link inside a screen, built by href(), carries its param', [text('screen'), router.params], ['Item 2, mounted fresh for this path.', { id: '2' }]);
+history.back();
+await sleep(20);
+flushSync();
+check("the browser's back pops the stack, flags included", [...route(), router.can_go_back, router.can_go_forward], ['At /items', '/items', true, true]);
+key(window, '[', { metaKey: true });
+await sleep(20);
+flushSync();
+check('⌘[ is back', route(), ['At /', '/']);
+key(window, ']', { metaKey: true });
+await sleep(20);
+flushSync();
+check('⌘] is forward', route(), ['At /items', '/items']);
+click(by_id('go-lost'));
+check("an unmatched path renders the table's * entry", text('screen'), "Nothing at /nowhere; this is the table's * entry.");
+const off = before((to) => (to.path === '/items/3' ? '/' : to.path !== '/nowhere'));
+click(by_id('go-item'));
+check('a before hook can redirect', route(), ['At /', '/']);
+click(by_id('go-lost'));
+check('or cancel', route(), ['At /', '/']);
+history.back();
+await sleep(20);
+flushSync();
+check("and cancels the browser's own back, which is undone", route(), ['At /', '/']);
+off();
+navigate(href('/items/:id', { id: 'a b' }, { tab: 'notes' }), { state: { from: 'test' } });
+flushSync();
+check('navigate() from code: params decoded, the query kept, hidden state read back', [text('screen'), ...route(), router.query, router.state], ['Item a b, mounted fresh for this path.', 'At /items/a%20b?tab=notes', '/items/a%20b?tab=notes', { tab: 'notes' }, { from: 'test' }]);
+
+stop_router();
+start_router({ mode: 'hash', initial: '/' });
+navigate('/items');
+flushSync();
+check('hash mode keeps the path in the fragment, and Links say so', [location.hash, text('route'), by_id('go-items')?.getAttribute('href')], ['#/items', 'At /items', '#/items']);
+stop_router();
+start_router({ mode: 'memory', initial: '/items/9' });
+flushSync();
+check('memory mode starts from `initial` and leaves the URL alone', [text('screen'), location.hash], ['Item 9, mounted fresh for this path.', '#/items']);
+
+check('match() prefers a literal segment to a param, and * catches the rest', [match(['/items/:id', '/items/new'], '/items/new')?.pattern, match(['/items/:id'], '/items/7')?.params, match(['/a', '*'], '/b')?.pattern, match(['/a'], '/b')], ['/items/new', { id: '7' }, '*', null]);
+check('href() encodes params and builds a query', [href('/items/:id', { id: 'a b' }, { q: 1, none: null }), href('/items/:id/:tab', { id: 1, tab: 'x' })], ['/items/a%20b?q=1', '/items/1/x']);
+
+finish('ui-dom', 69);

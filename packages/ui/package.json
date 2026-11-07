@@ -9,6 +9,7 @@
 		".": "./src/index.ts",
 		"./theme": "./src/theme.ts",
 		"./toast": "./src/toast.ts",
+		"./router": "./src/router.ts",
 		"./keys": "./src/keys.ts",
 		"./shared": "./src/shared.ts",
 		"./icons": "./src/icons.ts",

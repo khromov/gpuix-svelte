@@ -775,11 +775,26 @@ design:
   GPUI. In the CSS: no descendant selectors, no `@keyframes` (`Spinner` and `Skeleton` are
   timers), `flex-basis` only under a `min-width` query (GPUI has no `auto` for it), and
   `border-width: 0 0 1px 0` rather than a lone `border-style`, which a browser draws 3 px wide.
+- **The router** (`src/router.ts`, `Router.svelte`, `Link.svelte`) is paths with a history stack:
+  the store is module state, so a window keeps its screen across a `render_hot` remount
+  (`start_router` is once per process; `stop_router` exists for the DOM test's mode switches), and in
+  a page the history API or the hash holds the stack while the position (`index`, `length`) rides in
+  each entry's `history.state.__ui`, which is how `can_go_back` / `can_go_forward` stay right through
+  the browser's own buttons. A `before` hook that cancels a `popstate` is undone with `history.go`
+  and the resulting `popstate` swallowed; a redirect from one navigates with `replace`. `match`
+  prefers a literal segment to a `:param` whatever the table order. `Router` registers the table's
+  patterns with `use_routes` before its first read (under `untrack`, then in an `$effect.pre`) so
+  `router.params` is right anywhere, keys the screen on the path so every navigation mounts it
+  fresh, and renders a `screen(snippet)` entry through `RouteSnippet`, since nothing tells a
+  snippet from a component at runtime. `Link` is a `<svelte:element this={IS_GPUIX ? 'div' : 'a'}>`
+  with the `href`, or the role, tabindex and Enter handling, spread per renderer; a modified click
+  in a page is left to the browser.
 - **Tests and demos.** `packages/ui/showcase/Showcase.svelte` is every component once, with test
   ids; `demo:ui` opens it, `demo:ui-dom` serves it, `test/ui.ts` clicks through it headlessly (the
-  lower cards after a `wheel`, since the viewport caps at ~540 px, and the dialog before that, since
-  its button is in the header) and `test/ui-dom.ts` under happy-dom from the Vite bundle
-  `scripts/ui-bundle.ts` writes to `test/.ui-tmp` (on Node even under Bun, like `test:docs`).
+  lower rows after a `wheel` each, since the viewport caps at ~540 px, and the dialog before that,
+  since its button is in the header) and `test/ui-dom.ts` under happy-dom from the Vite bundle
+  `scripts/ui-bundle.ts` writes to `test/.ui-tmp` (on Node even under Bun, like `test:docs`), which
+  also exports the router API so the test drives the instance the showcase's Router uses.
   `check:svelte -- packages/ui` is the autofixer pass; its two suggestions are the timers.
 
 ## Hard constraints

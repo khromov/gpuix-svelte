@@ -6,7 +6,8 @@
 
 `gpuix-svelte-ui` is a set of components written once for both renderers: a native window through
 gpuix-svelte, and a browser DOM through Vite or SvelteKit. Buttons, fields, choices, menus, dialogs,
-toasts, a few layout and feedback pieces, and the theme behind them. Every component on this page
+toasts, a few layout and feedback pieces, a router for the screens of an app, and the theme behind
+them. Every component on this page
 runs live, in the DOM; `npm run demo:ui` in the repository opens the same showcase in a GPUI window,
 and `npm run demo:ui-dom` serves it as a page.
 
@@ -305,6 +306,92 @@ itself after `duration` ms (4000 by default; `null` keeps it) or when dismissed,
 
 <style>
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+## Screens and routing
+
+`Router` switches between screens by path, with a history stack behind it. In a window the stack
+is in memory, and a hot reload keeps the current screen; in a page the stack is the browser's, so
+the address bar, back and forward and deep links work (`mode="history"`, the default, or
+`mode="hash"` for a static host that cannot rewrite every URL to `index.html`; `mode="memory"`
+leaves the URL alone). The table maps patterns to components, with `:param` segments and a `*`
+fallback, and a screen receives `params` and `query` props; `screen(snippet)` puts a snippet in
+the table instead, for an app small enough to keep its screens in one file. Every navigation
+mounts the screen fresh, so state that should survive a round trip lives in a module or in the
+hidden `state` a navigation can carry.
+
+```svelte
+<script>
+  import { Router } from 'gpuix-svelte-ui';
+  import Home from './Home.svelte';
+  import Item from './Item.svelte';
+  import NotFound from './NotFound.svelte';
+</script>
+
+<Router routes={{ '/': Home, '/items/:id': Item, '*': NotFound }} initial="/">
+  {#snippet layout(content, route)}
+    <Sidebar current={route.path} />
+    {@render content()}
+  {/snippet}
+</Router>
+```
+
+- `<Link href="/items/3">` navigates on click. It is a real `<a>` in a page, so a modified click
+  opens a new tab, and a focusable box in a window. Its content snippet gets `{ active }`, true
+  on that screen and the ones below it (`exact` limits it to the path itself).
+- `navigate(path, { replace, state })`, `back()` and `forward()` do the same from code;
+  `router.path`, `router.params`, `router.query`, `router.state`, `router.can_go_back` and
+  `router.can_go_forward` are reactive wherever they are read.
+- `href('/items/:id', { id: 3 })` builds a path with its params typed from the pattern, plus an
+  optional query object.
+- `before((to, from) => …)` runs before every navigation, a Link, `navigate()`, the keyboard and
+  the browser's buttons alike: `false` cancels it, a string redirects it. It returns the unsubscribe.
+- ⌘[ and ⌘] (Alt+Left and Alt+Right elsewhere) go back and forward unless a text field has
+  focus; `shortcuts={false}` turns that off.
+
+One `Router` per app: the store behind it is global, which is what lets a `Link` anywhere, a
+menu item or a keyboard shortcut navigate without a reference to the router.
+
+```svelte demo router
+<script>
+  import { Badge, Button, Link, Router, back, forward, href, router, screen } from 'gpuix-svelte-ui';
+</script>
+
+{#snippet home()}
+  <div class="note">Home. Pick a link, then use the buttons.</div>
+{/snippet}
+{#snippet items()}
+  <div class="row">
+    <div class="note">Items:</div>
+    {#each [1, 2, 3] as id}
+      <Link href={href('/items/:id', { id })}><Badge>#{id}</Badge></Link>
+    {/each}
+  </div>
+{/snippet}
+{#snippet item({ params })}
+  <div class="note">Item {params.id}, with params typed from its pattern.</div>
+{/snippet}
+{#snippet lost()}
+  <div class="note">Nothing at {router.path}.</div>
+{/snippet}
+
+<div class="row">
+  <Link href="/">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Home</Badge>{/snippet}</Link>
+  <Link href="/items">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Items</Badge>{/snippet}</Link>
+  <Link href="/elsewhere">{#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>Elsewhere</Badge>{/snippet}</Link>
+  <Button size="sm" disabled={!router.can_go_back} onclick={back}>Back</Button>
+  <Button size="sm" disabled={!router.can_go_forward} onclick={forward}>Forward</Button>
+</div>
+<div class="screen">
+  <Router routes={{ '/': screen(home), '/items': screen(items), '/items/:id': screen(item), '*': screen(lost) }} mode="memory" shortcuts={false} />
+</div>
+<div class="note">router.href is {router.href}</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .screen { display: flex; flex-direction: column; min-height: 40px; margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--ui-raised); }
   .note { font-size: 13px; color: var(--ui-muted); }
 </style>
 ```

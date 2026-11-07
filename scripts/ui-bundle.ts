@@ -19,6 +19,7 @@ const entry = join(out, 'entry.js');
 writeFileSync(
 	entry,
 	`export { default as Showcase } from '../../packages/ui/showcase/Showcase.svelte';
+export { router, navigate, back, forward, before, href, match, start_router, stop_router } from 'gpuix-svelte-ui/router';
 export { mount, unmount, flushSync } from 'svelte';
 `
 );

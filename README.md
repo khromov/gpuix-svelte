@@ -133,8 +133,9 @@ files, spawn processes, open SQLite databases and load native addons directly.
   sharing one component library:
   [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
 - **A UI toolkit for both renderers.** `gpuix-svelte-ui` is buttons, fields, choices, menus,
-  dialogs, toasts, layout and feedback components written once for a GPUI window and the DOM, with
-  the theme behind them (next release, 0.6.0). → [docs/ui.md](docs/ui.md)
+  dialogs, toasts, layout and feedback components and a router for an app's screens, written once
+  for a GPUI window and the DOM, with the theme behind them (next release, 0.6.0).
+  → [docs/ui.md](docs/ui.md)
 - **Media queries.** `@media` over the window's width, height and orientation in a `<style>`
   block, and `media_query()` for JavaScript, on both renderers (next release, 0.6.0).
   → [docs/styling.md](docs/styling.md#media-queries)
@@ -149,7 +150,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 | [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
-| [UI toolkit](docs/ui.md) | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, the theme behind them, responsive layouts |
+| [UI toolkit](docs/ui.md) | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)).

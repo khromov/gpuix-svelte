@@ -8,13 +8,18 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mount_headless, find_test_id, find_all, find_text, click, click_test_id, click_text, click_at, focus, press, type, hover, wheel, drag, bounds, wait, screenshot, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, find_all, find_text, click, click_test_id, click_text, click_at, focus, press, type, hover, wheel, drag, bounds, wait, settle, screenshot, check, finish, type TreeNode } from 'gpuix-svelte/test';
+import { before, href, navigate } from 'gpuix-svelte-ui/router';
 
 const Showcase = (await import('../packages/ui/showcase/Showcase.svelte')).default;
 // Wide enough for three cards per row on macOS; Windows opens its own size, where the rows reflow but stay reachable.
 const { native } = mount_headless(Showcase, { width: 1100, height: 540 });
 
 const text_of = (id: string) => (find_test_id(id)?.children ?? []).map((c) => c.text ?? '').join('').trim();
+const text_in = (id: string) => {
+	const walk = (n: TreeNode | null): string => (n ? (n.text ?? '') + (n.children ?? []).map(walk).join('') : '');
+	return walk(find_test_id(id)).trim();
+};
 const has = (text: string) => find_text(text) !== null;
 const bg = () => find_test_id('page')?.style?.backgroundColor;
 const style_of = (id: string) => find_test_id(id)?.style ?? {};
@@ -125,7 +130,7 @@ dismiss_all();
 check('dismissing clears them', [closes().length, has('Hello, Ada'), has('Project deleted')], [0, false, false]);
 
 // --- the lower cards, scrolled into the viewport ---------------------------------
-wheel(find_test_id('scroll')!, 0, -600);
+wheel(find_test_id('scroll')!, 0, -400);
 await wait(80);
 
 const track = bounds(find_test_id('volume-track')!)!;
@@ -150,6 +155,36 @@ press('right');
 check('and skips the disabled one, wrapping around', text_of('tab-echo').startsWith('An overview.'), true);
 press('end');
 check('End goes to the last enabled tab', text_of('tab-echo'), 'Settings would go here.');
+
+// --- the router, in the last row ---------------------------------------------------
+wheel(find_test_id('scroll')!, 0, -400);
+await wait(80);
+const badge_of = (id: string) => find_test_id(id)?.children?.[0]?.style?.backgroundColor ?? null;
+check('the Router shows the initial screen', [text_in('screen').startsWith('Home.'), text_of('route')], [true, 'At /']);
+check('the Link to it is active, the others not', [badge_of('go-home'), badge_of('go-items')], ['#ff3e0029', '#1c1c1c']);
+click_test_id('go-items');
+check('a Link navigates', [text_in('screen').startsWith('Three items'), text_of('route'), badge_of('go-items')], [true, 'At /items', '#ff3e0029']);
+click_test_id('go-item-2');
+check('a Link inside a screen, built by href(), carries its param', [text_in('screen'), badge_of('go-items')], ['Item 2, mounted fresh for this path.', '#ff3e0029']);
+click_test_id('back');
+check('Back pops the stack', text_of('route'), 'At /items');
+click_test_id('forward');
+check('and Forward goes again', text_of('route'), 'At /items/2');
+press('cmd-[');
+check('⌘[ is back', text_of('route'), 'At /items');
+press('cmd-]');
+check('⌘] is forward', text_of('route'), 'At /items/2');
+click_test_id('go-lost');
+check("an unmatched path renders the table's * entry", text_in('screen'), "Nothing at /nowhere; this is the table's * entry.");
+const off = before((to) => (to.path === '/items/3' ? '/' : to.path !== '/nowhere'));
+click_test_id('go-item');
+check('a before hook can redirect', [text_in('screen').startsWith('Home.'), text_of('route')], [true, 'At /']);
+click_test_id('go-lost');
+check('or cancel', text_of('route'), 'At /');
+off();
+navigate(href('/items/:id', { id: 'a b' }, { tab: 'notes' }));
+settle();
+check('navigate() from code, params decoded and the query kept', [text_in('screen'), text_of('route')], ['Item a b, mounted fresh for this path.', 'At /items/a%20b?tab=notes']);
 
 click_test_id('toast-plain');
 check('a toast shows', has('Saved'));
@@ -176,4 +211,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 53);
+finish('ui', 65);
