@@ -78,6 +78,12 @@ ul[role=list]{list-style:none}
 .nav ul a:hover,.nav ul a[aria-current]{color:var(--text)}
 .nav ul a[aria-current]{text-decoration:underline;text-underline-offset:5px;text-decoration-color:var(--accent)}
 
+.banner{display:flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:10px var(--gut);background:var(--s1);border-bottom:1px solid var(--line);font-size:15px;line-height:1.4;color:var(--text);text-decoration:none;text-align:center}
+.banner b{font-weight:600}
+.banner:hover{background:var(--s2)}
+.banner-arrow{flex:none;color:var(--accent);transition:transform .15s ease}
+.banner:hover .banner-arrow{transform:translateX(3px)}
+
 .hero{padding:30px 0 80px}
 h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;text-wrap:balance}
 .lead{display:grid;gap:24px;margin-top:18px}
@@ -742,7 +748,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 .h-fine{display:none}
 .h-touch{display:inline}
 }
-:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
+:root:has(#og:target) :is(.banner,.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
 :root:has(#og:target) .hero{padding:0}
 :root:has(#og:target) .hero .wrap{grid-template-columns:minmax(0,1fr) 600px;gap:0 48px;padding:0 72px;min-height:574px}
 :root:has(#og:target) h1{font-size:54px}
@@ -752,6 +758,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 </head>
 <body>
 <i id="og" hidden></i>
+<a class="banner" href="https://www.youtube.com/live/GvjlR90cJOo?t=1890"><span>Watch the video presentation of gpuix-svelte on <b class="nw">This Week in Svelte</b></span><span class="banner-arrow" aria-hidden="true">→</span></a>
 <header class="top">
 <nav class="wrap nav" aria-label="Main">
 <div class="brand"><a href="./"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte</a></div>
