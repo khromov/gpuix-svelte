@@ -290,7 +290,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 		keys: []
 	};
 	// render() opens a window only for a native it creates itself, so a filled slot takes it past that.
-	(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('gpuix.svelte.host')] = slot;
+	(globalThis as unknown as { __gpuix_svelte_host: unknown }).__gpuix_svelte_host = slot;
 
 	const Reorder = (await import('./Reorder.svelte')).default;
 	const dim_shipped_by_render = (options: RenderOptions = {}) => {

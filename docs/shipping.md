@@ -124,8 +124,28 @@ and both are off by default:
 `bun build.ts --aot --trim` turns them on in a scaffolded app. They need a Bun that has them, which
 for now means a canary build. On any other Bun the build prints that they have no effect and makes
 the usual executable. On macOS (Apple Silicon), Bun 1.4.4-canary.1 builds the tic-tac-toe example at
-139 MB with neither, 88 MB with `trim`, 125 MB with `aot` and 82 MB with both. The canary's runtime
+139 MB with neither, 88 MB with `trim`, 125 MB with `aot` and 80 MB with both. The canary's runtime
 is larger than 1.4.4's, which builds the same app at 109 MB.
+
+`trim` only removes what the compiler can prove the app never uses. When it can't, an object goes
+straight to Bun: `remove` takes features out anyway. Bun's
+[feature names](https://bun.com/docs/compiler/size#feature-names) list what each one covers. For
+tic-tac-toe, this brings both options together down to 67 MB:
+
+```ts
+await build({
+	entry: './standalone.ts',
+	aot: true,
+	trim: {
+		remove: ['bundler', 'plugin', 'sql', 'redis', 'sqlite', 'image', 's3', 'test', 'fs-router', 'profiler',
+			'inspector', 'http2', 'http3', 'interpreter', 'serve', 'worker', 'webassembly', 'source-maps', 'temporal']
+	}
+});
+```
+
+None of those are features gpuix-svelte uses, but your own code might. A removed feature throws
+`ERR_FEATURE_REMOVED` when the app reaches it, so leave out of the list anything the app calls:
+`serve` for `Bun.serve()`, `sqlite` for `bun:sqlite`, `interpreter` for `eval()`.
 
 Both options are Bun's and still experimental, so run the executable itself before you ship it. With
 `aot`, a type error in your own `.ts` files stops the build, and code can't be loaded from disk at

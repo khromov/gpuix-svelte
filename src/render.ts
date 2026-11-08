@@ -1,7 +1,8 @@
 /**
  * The structure mirrors `@gpuix/react`'s `render()` — a `globalThis` slot so
  * `hot.ts` remounts onto the same window, and a paced `setTimeout` loop
- * driving `tick()`. It imports no `node:*` module, so it bundles for the browser as-is.
+ * driving `tick()`. Its one `node:*` import is previous-instance.ts's `node:fs`, which
+ * Bun's browser build stubs, so it bundles for the browser as-is.
  */
 
 import { GpuixRenderer, type EventPayload, type WindowOptions } from '@gpuix/native';
@@ -29,8 +30,6 @@ import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './type
  */
 const FRAME_MS = 8;
 
-const SLOT = Symbol.for('gpuix.svelte.host');
-
 /** A browser bundle has no `process` at all, and every knob read through this is desktop-only. */
 const env = (name: string): string | undefined => globalThis.process?.env?.[name];
 
@@ -45,8 +44,9 @@ interface Host {
 }
 
 function host(): Host {
-	const slots = globalThis as unknown as Record<symbol, Host | undefined>;
-	return (slots[SLOT] ??= { native: null, root: null, component: null, loop: null, keys: [] });
+	// A named property, since Bun's `trim` takes any computed key on `globalThis` for a way to reach `eval` and every Bun API.
+	const slots = globalThis as unknown as { __gpuix_svelte_host?: Host };
+	return (slots.__gpuix_svelte_host ??= { native: null, root: null, component: null, loop: null, keys: [] });
 }
 
 /**
@@ -214,8 +214,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
-		const automation = env('GPUIX_AUTOMATION');
-		if (automation && automation !== '0') start_automation(slot.native);
+		// Spelled out, not read through env(), so build()'s define folds the branch and its import away.
+		if (typeof process !== 'undefined' && process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');
 	}
 

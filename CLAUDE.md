@@ -357,8 +357,11 @@ ends the app's stdin. `test_app()` is the same `App` over `TestGpuixRenderer`, t
 agent's shell or `demo-all.ts`'s four children, and the env var is what lets stdin ending mean
 "exit". Under it `render()` rebinds `console.log`/`info`/`debug` to stderr before creating the
 window (stdout is the wire, and a write without a trailing newline would swallow the next frame)
-and imports `src/automation-server.ts` through a computed specifier, so neither the web bundle nor
-the normal app path loads it, and a compiled binary cannot serve. The server is started where the
+and imports `src/automation-server.ts` through a computed specifier, so the normal app path never
+loads it. Bun inlines that `const` and keeps the `import()` for run time, and `aot` compiles any path
+written out as a string, server and zod included, so `build()` defines `process.env.GPUIX_AUTOMATION`
+to `""` and `render.ts` reads it spelled out: the branch and its import fold away and a compiled
+binary cannot serve. The server is started where the
 window is created, so `render_hot` remounts reuse it. It owns its stdio loop (upstream's
 `createSseDecoder` + `handleAutomationRequest`) to answer an unparseable request that has an id
 with a `Protocol` error (upstream drops it, and the driver waits forever) and to answer what is in
@@ -412,20 +415,38 @@ from `bunfig.toml`, so it wires `src/plugin.ts`'s exported hooks in itself:
 reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
 
 `build({ aot, trim })` passes Bun's experimental `compile.aot` / `compile.trim`, both off by
-default. A Bun without them ignores them silently (1.4.4 builds the same 108.5 MB either way) and
-`Bun.version` can't tell a canary apart (1.4.4-canary.1 reports `1.4.4`), so `supported_flags`
-asks `bun build --help` for each flag and logs the ones it drops. Both shrink the runtime below bare
-Bun, so with either one on, the size floor gives way to a search for the host prebuild's bytes in
-the executable (`native_addon()`; embedded verbatim, checked on macOS only). On macOS with
-1.4.4-canary.1, tic-tac-toe is 138.7 MB plain, 88.4 with `trim`, 125.4 with `aot`, 82.3 with both,
-and all four mount. What still stops `trim` (an `aot` build's `aotExplain: ['trim']` report):
-`host()`'s `globalThis[SLOT]`, a computed key on `globalThis`, makes `eval` and every `Bun.*` API
-look reachable (a fixed property name instead removed 9 more features, −1.4 MB). `@gpuix/native`'s
-napi-rs loader (`new Function`, `require(process.env.NAPI_RS_NATIVE_LIBRARY_PATH)`) and the
-deliberate computed imports (automation server, `getBuiltinModule`) also block it. Shipping the
-TypeScript under an `"aot"` export condition was measured too and does not pay. Bun type-checked
-the 15 files and typed accesses rose from 922 to 1,498, but the compiled program grew, so the
-executable came out 1 MB larger.
+default; `trim` may also be Bun's `{ allow, remove }` object, passed through as it is. A Bun
+without them ignores them silently (1.4.4 builds the same 108.5 MB either way) and `Bun.version`
+can't tell a canary apart (1.4.4-canary.1 reports `1.4.4`), so `supported_flags` asks
+`bun build --help` for each flag and logs the ones it drops. With either one on, two things change:
+the size floor gives way to a search for the host prebuild's bytes in the executable (`native_addon()`;
+embedded verbatim, checked on macOS only), since both shrink the runtime below bare Bun; and
+`@gpuix/native` resolves to a one-line `require()` of that prebuild instead of napi-rs's loader,
+whose `new Function` and `require(process.env.NAPI_RS_NATIVE_LIBRARY_PATH)` keep `trim` from
+removing Bun's module loader and interpreter. The default build keeps the loader, since no CI job
+launches a compiled binary. On macOS with 1.4.4-canary.1, tic-tac-toe is 138.7 MB plain, 88.4 with
+`trim`, 125.4 with `aot` and 79.9 with both, down from 82.3 before the trim fixes.
+
+To see what stops `trim`, add `aotExplain: ['trim']` to an `aot` build's `compile` and read the
+`trim:` lines in `result.logs`: `blocked by` names the cause and where. Fixed so far, each worth
+measuring again after a change near it: a computed key on `globalThis` (the window slot, now
+`__gpuix_svelte_host`, since `globalThis[x]` could be `eval` or any `Bun.*` API), the automation
+`import()`, `previous-instance.ts`'s `process.getBuiltinModule` (now a static `node:fs` import, which
+Bun's browser build stubs) and the napi-rs loader. An app without updates, the counter, is then at
+74.6 MB with only the addon's own `process.dlopen` left. Tic-tac-toe still reports `Function` at
+`update.ts`'s `new AppUpdate`, which keeps the interpreter and makes the compiler assume every Bun
+API is reachable (`used (Bun.build)` and the like, with no location). Bisecting found two
+triggers that edits in our code don't clear. One is adm-zip's read path: `new AdmZip(path)` plus
+`getEntries()` alone, not its `fs` / `decoder` options. The other is the `AppUpdate` instance
+reaching the component (`$state.raw` doesn't change it). Without both, the build is 75.3 MB.
+`trim: { remove: [...] }` gets past them: with `bundler`, `plugin`, `sql`, `redis`, `sqlite`,
+`image`, `s3`, `test`, `fs-router`, `profiler`, `inspector`, `http2` and `http3` removed it is
+73.3 MB, and adding `interpreter`, `serve`, `worker`, `webassembly`, `source-maps` and `temporal`
+makes 66.8 MB. Both mount, and the update check runs. It stays opt-in, since `remove` overrides
+the compiler and an app that uses one of those throws `ERR_FEATURE_REMOVED`. Typing doesn't help
+`trim`: narrowing `typeof fetch` changed nothing, and shipping the TypeScript under an `"aot"` export
+condition made the executable 1 MB larger. Bun type-checked the 15 files and typed accesses rose
+from 922 to 1,498, but the compiled program grew with them.
 
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
@@ -547,8 +568,8 @@ Electron- or CLI-shaped. The design:
   Node throws ENOEXEC (a
   wrong-architecture build) from `spawn` itself and puts ENOENT and the like on the event, and
   `test:update` goes through the first, since its fake executables can't exec. The new instance's
-  `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
-  before creating the window; `process.getBuiltinModule('node:fs')` for the sentinel) writes the
+  `wait_for_previous_instance()` (`src/previous-instance.ts`, which render.ts calls before
+  creating the window; its static `node:fs` import is stubbed by Bun's browser build) writes the
   sentinel first, then polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH and returns
   `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
   all three variables are taken out of the environment on the first call so children don't inherit
@@ -837,7 +858,7 @@ render.ts    window lifecycle + frame loop  ─┐
 renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
-  hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
+  hot.ts       render_hot's fs.watch reload         ─ node:* stays out of render.ts but for previous-instance.ts's node:fs
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
   dom.ts       the entry without `custom-renderer`  ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
   register.ts  Node loader (module.registerHooks)   ─ the default
@@ -938,8 +959,9 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   the shadow node has to keep Svelte's exact string. The node's `listeners` map survives that purge, like `attrs`
   does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
-**`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
-reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
+**`render.ts`** owns the `GpuixRenderer`, a `globalThis.__gpuix_svelte_host` slot for the window
+(so remounts reuse it; a named property, since Bun's `trim` reads a computed key on `globalThis` as a
+way to `eval`), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
 `setImmediate` burns most of a core at idle. `requiresTick()` is true on every desktop platform —
 on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether that thread
 is still alive — and `tick()` returns false once the last window closes, which ends the loop and
@@ -949,8 +971,8 @@ behind it (a resolved `fetch`, a timer) would sit in the queue until the next cl
 run `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame.
 `next_frame()` resolves after the loop's next `tick()` (a timer where there is no loop), which is
 what the automation server waits on. It reads env through a `globalThis.process?.env` helper and
-keeps no `node:*` import, so it bundles for the browser as-is; `render_hot` lives in **`hot.ts`**
-for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
+its one `node:*` import is previous-instance.ts's `node:fs`, which Bun's browser build stubs, so it
+bundles for the browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
 `compile.ts` propagates that query to child `.svelte` specifiers — static, side-effect and dynamic
 `import()` alike — or a reload would re-instantiate the root against stale children. It finds them
 by parsing the emitted JS with `acorn` (Svelte's own parser; the other runtime dependencies are

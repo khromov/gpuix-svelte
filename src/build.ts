@@ -52,9 +52,17 @@ export interface BuildOptions {
 	aot?: boolean;
 	/**
 	 * Leave out the Bun and Node.js APIs the app never calls (Bun's experimental `compile.trim`).
-	 * Off by default; on a Bun that lacks it the build says so and goes ahead without it.
+	 * Off by default; on a Bun that lacks it the build says so and goes ahead without it. An object
+	 * is passed to Bun as it is: `remove` takes features out even where the compiler cannot prove
+	 * them unused, and the app throws `ERR_FEATURE_REMOVED` if it reaches one.
 	 */
-	trim?: boolean;
+	trim?: boolean | TrimOptions;
+}
+
+/** Bun's `compile.trim` object; the names are Bun's feature names (https://bun.com/docs/compiler/size#feature-names). */
+export interface TrimOptions {
+	allow?: string[];
+	remove?: string[];
 }
 
 type CompileFlag = 'aot' | 'trim';
@@ -134,13 +142,19 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		write_ico(app.icon, windows.icon, scratch);
 	}
 
+	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
+	const addon = flags.length > 0 ? native_addon() : null;
+	// napi-rs's loader can `require()` a path from the environment and has a `new Function` in it, which keeps `trim` from removing Bun's module loader and interpreter.
+	const direct = join(scratch, 'native.cjs');
+	if (addon) writeFileSync(direct, `module.exports = require(${JSON.stringify(addon)});\n`);
+
 	// `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
 	// no plugin silently becomes a file asset, so count what actually went through it.
 	let components = 0;
 	const plugin: BunPlugin = {
 		name: 'gpuix-svelte',
 		setup(build) {
-			build.onResolve({ filter: /^@gpuix\/native$/ }, resolve_native_cjs);
+			build.onResolve({ filter: /^@gpuix\/native$/ }, addon ? () => ({ path: direct }) : resolve_native_cjs);
 			build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['custom-renderer', 'production']));
 			build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 			build.onLoad({ filter: /\.svelte$/ }, (args) => {
@@ -152,7 +166,6 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 
 	// What gpuix-svelte/update knows about the executable it is running in.
 	const embedded: EmbeddedAppInfo = { name: app.name, slug: app.slug, identifier: app.identifier, version: app.version, ...(app.update && { update: app.update }) };
-	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
 
 	const result = await Bun.build({
 		entrypoints: [entry],
@@ -164,7 +177,9 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 			'process.env.NODE_ENV': '"production"',
 			'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)),
 			// The dev-run override must not redirect a shipped app.
-			'process.env.GPUIX_UPDATE_MANIFEST': '""'
+			'process.env.GPUIX_UPDATE_MANIFEST': '""',
+			// A binary cannot serve automation, and `aot` would otherwise compile the server and zod in.
+			'process.env.GPUIX_AUTOMATION': '""'
 		},
 		minify: true,
 		plugins: [plugin],
@@ -176,7 +191,8 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 			autoloadDotenv: false,
 			...(windows && { windows }),
 			// Spread, since @types/bun does not declare them yet.
-			...Object.fromEntries(flags.map((flag) => [flag, true]))
+			...(flags.includes('aot') && { aot: true }),
+			...(flags.includes('trim') && { trim: options.trim })
 		}
 	});
 
@@ -187,9 +203,9 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 	if (components === 0) throw new Error(`${TAG} no .svelte file went through the plugin; ${rel(entry)} has to import the component it renders`);
 
 	const size = statSync(binary).size;
-	if (flags.length > 0) {
+	if (addon) {
 		// Both flags shrink the runtime below bare Bun, so no size floor can tell a lost addon apart.
-		if (!readFileSync(binary).includes(readFileSync(native_addon()))) throw new Error(`${TAG} ${rel(binary)} does not contain the GPUI addon`);
+		if (!readFileSync(binary).includes(readFileSync(addon))) throw new Error(`${TAG} ${rel(binary)} does not contain the GPUI addon`);
 	} else {
 		// The output is Bun's own executable plus the payload, and the addon is at least
 		// 17 MB on every platform, so anything closer to bare Bun than that lost it.
