@@ -121,3 +121,5 @@ jobs:
         env:
           # Git Bash would rewrite a key starting with `/` into a Windows path.
           MSYS_NO_PATHCONV: 1
+      # A Bun without the experimental options has to say so and build as usual; one with them gets the direct prebuild and the byte check.
+      - run: npm run compile -- --aot --trim

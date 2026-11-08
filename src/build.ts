@@ -7,13 +7,13 @@
 import type { BunPlugin } from 'bun';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	archive_name,
 	DEFAULT_ICON,
 	info_plist,
+	native_addon,
 	notarize,
 	notary_auth,
 	read_app_options,
@@ -144,7 +144,7 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 
 	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
 	const addon = flags.length > 0 ? native_addon() : null;
-	// napi-rs's loader can `require()` a path from the environment and has a `new Function` in it, which keeps `trim` from removing Bun's module loader and interpreter.
+	// Bun's `trim` report blames napi-rs's loader for a `require()` of a path from the environment and for `eval` (at a `hasOwnProperty.call`), which keep Bun's module loader and interpreter in.
 	const direct = join(scratch, 'native.cjs');
 	if (addon) writeFileSync(direct, `module.exports = require(${JSON.stringify(addon)});\n`);
 
@@ -286,14 +286,6 @@ function supported_flags(requested: CompileFlag[]): CompileFlag[] {
 		log(`${missing.join(' and ')} ${verb} no effect on this build: Bun ${Bun.version_with_sha} does not support ${pronoun}`);
 	}
 	return supported;
-}
-
-function native_addon(): string {
-	const from_native = createRequire(createRequire(import.meta.url).resolve('@gpuix/native'));
-	const prebuilds = Object.keys(from_native('./package.json').optionalDependencies ?? {});
-	const prebuild = prebuilds.find((name) => name.startsWith(`@gpuix/native-${process.platform}-${process.arch}`));
-	if (!prebuild) throw new Error(`${TAG} @gpuix/native has no prebuild for ${process.platform}-${process.arch}`);
-	return from_native.resolve(prebuild);
 }
 
 /** Windows file versions are up to four 16-bit integers. */

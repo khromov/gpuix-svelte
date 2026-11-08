@@ -48,7 +48,7 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
 - `standalone.ts` mounts `App.svelte` with `render` and a static import, since a binary has no
   source files to hot-reload. Keep its window options in step with `app.ts`.
 - `bun build.ts --aot --trim` turns on Bun's experimental compile options, which make the
-  executable smaller (on macOS, about 80 MB instead of 110). They need a Bun canary for now, and
+  executable smaller (on macOS, about 80 MB, against 110 MB from Bun 1.4.4 without them). They need a Bun canary for now, and
   on any other Bun the build says they have no effect. Run the executable itself before shipping it.
 - macOS keeps a downloaded, unsigned app from opening until it is allowed under System Settings →
   Privacy & Security. With `CODESIGN_IDENTITY` set (a `.env` beside package.json), the build signs

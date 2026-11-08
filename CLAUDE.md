@@ -118,6 +118,7 @@ npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), 
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
                            # source (both real entries, what is accepted and what fails), app
                            # metadata defaults, what the window takes from them, the Info.plist,
+                           # the host prebuild an aot/trim build embeds,
                            # the .ico container, and real .ico/.icns where the platform has a
                            # scaler, under a path with a space and a ’
 npm run test:update        # gpuix-svelte/update: version order, manifest signing and merging,
@@ -296,7 +297,7 @@ once.
 CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows arm64
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
-launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
+launched; plain, then `--aot --trim`), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
 a check that the binding loads (see the `@gpuix/native` constraint), the five suites that need no
 headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:docs`), the Vite
 build of the cross-target example (`demo:dom -- --build-only`) and `test:automation-live` under
@@ -419,12 +420,16 @@ default; `trim` may also be Bun's `{ allow, remove }` object, passed through as 
 without them ignores them silently (1.4.4 builds the same 108.5 MB either way) and `Bun.version`
 can't tell a canary apart (1.4.4-canary.1 reports `1.4.4`), so `supported_flags` asks
 `bun build --help` for each flag and logs the ones it drops. With either one on, two things change:
-the size floor gives way to a search for the host prebuild's bytes in the executable (`native_addon()`;
-embedded verbatim, checked on macOS only), since both shrink the runtime below bare Bun; and
-`@gpuix/native` resolves to a one-line `require()` of that prebuild instead of napi-rs's loader,
-whose `new Function` and `require(process.env.NAPI_RS_NATIVE_LIBRARY_PATH)` keep `trim` from
-removing Bun's module loader and interpreter. The default build keeps the loader, since no CI job
-launches a compiled binary. On macOS with 1.4.4-canary.1, tic-tac-toe is 138.7 MB plain, 88.4 with
+the size floor gives way to a search for the host prebuild's bytes in the executable, since both
+shrink the runtime below bare Bun; and `@gpuix/native` resolves to a one-line `require()` of that
+prebuild instead of napi-rs's loader. Bun's trim report blames the loader for its
+`require(process.env.NAPI_RS_NATIVE_LIBRARY_PATH)` and for `eval` at a
+`Object.prototype.hasOwnProperty.call`, though it has no `new Function`, and both keep Bun's module
+loader and interpreter in. The default build keeps the loader, since no CI job launches a compiled
+binary. `native_addon()` (`app-bundle.ts`, so `test:bundle` checks it on every CI platform) finds
+the prebuild; the embedded copy was verbatim on macOS, and CI's `compile` job runs `--aot --trim`
+after the plain build, which on a stable Bun without the options only proves the fallback, until
+one ships them. On macOS with 1.4.4-canary.1, tic-tac-toe is 138.7 MB plain, 88.4 with
 `trim`, 125.4 with `aot` and 79.9 with both, down from 82.3 before the trim fixes.
 
 To see what stops `trim`, add `aotExplain: ['trim']` to an `aot` build's `compile` and read the

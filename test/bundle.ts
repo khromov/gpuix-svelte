@@ -8,10 +8,10 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import module from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
-import { app_slug, DEFAULT_ICON, ico, ICO_SIZES, info_plist, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
+import { app_slug, DEFAULT_ICON, ico, ICO_SIZES, info_plist, native_addon, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
 import { window_options_for } from '../src/render.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -215,6 +215,10 @@ check(
 check('what the window is given directly wins', window_options_for({ title: 'T', appId: 'a.b' }, { name: 'Named', identifier: 'com.x.y' }), { title: 'T', appId: 'a.b' });
 check('no app adds nothing', window_options_for({ width: 10 }, undefined), { width: 10 });
 
+// An aot or trim build resolves @gpuix/native to this file and searches the executable for its bytes.
+const addon = native_addon();
+check('the host prebuild is an installed .node for this platform', [existsSync(addon), basename(addon).startsWith(`gpuix-native.${process.platform}-${process.arch}`), addon.endsWith('.node')], [true, true, true]);
+
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 39 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 40 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
