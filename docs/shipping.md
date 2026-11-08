@@ -66,7 +66,12 @@ If `name` is not set, the window title doubles as the app name. The reverse hold
 ```ts
 import { build } from 'gpuix-svelte/build';
 
-await build({ entry: './standalone.ts', archive: process.argv.includes('--archive') });
+await build({
+	entry: './standalone.ts',
+	archive: process.argv.includes('--archive'),
+	aot: process.argv.includes('--aot'),
+	trim: process.argv.includes('--trim')
+});
 ```
 
 It reads the `app` options and the `title` from `standalone.ts`'s source, so they have to be
@@ -104,7 +109,27 @@ Good to know:
   `WM_CLASS`, which is how the desktop connects the two.
 - **Unsigned by default.** macOS blocks a downloaded, unsigned app until the person allows it under
   System Settings → Privacy & Security, and Windows SmartScreen warns about an unsigned `.exe`. For
-  anything you distribute, see the next section.
+  anything you distribute, see [Signing and notarizing on macOS](#signing-and-notarizing-on-macos).
+
+## A smaller executable (experimental)
+
+Bun has two experimental compile options that make the executable smaller. `build()` takes both,
+and both are off by default:
+
+- `aot: true` compiles the JavaScript to machine code ahead of time and leaves the JIT out
+  ([Bun's docs](https://bun.com/docs/compiler/aot)).
+- `trim: true` leaves out the Bun and Node.js APIs the app never calls
+  ([Bun's docs](https://bun.com/docs/compiler/size)).
+
+`bun build.ts --aot --trim` turns them on in a scaffolded app. They need a Bun that has them, which
+for now means a canary build. On any other Bun the build prints that they have no effect and makes
+the usual executable. On macOS (Apple Silicon), Bun 1.4.4-canary.1 builds the tic-tac-toe example at
+139 MB with neither, 88 MB with `trim`, 125 MB with `aot` and 82 MB with both. The canary's runtime
+is larger than 1.4.4's, which builds the same app at 109 MB.
+
+Both options are Bun's and still experimental, so run the executable itself before you ship it. With
+`aot`, a type error in your own `.ts` files stops the build, and code can't be loaded from disk at
+run time. Bun's [compatibility page](https://bun.com/docs/compiler/compatibility) lists the rest.
 
 ## Signing and notarizing on macOS
 

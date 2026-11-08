@@ -197,7 +197,8 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a 
                            # build.ts makes: dist/Tic-tac-toe.app with its icon on macOS,
                            # dist/tic-tac-toe.exe (no console, version info) on Windows,
                            # dist/tic-tac-toe on Linux; signs/notarizes with CODESIGN_IDENTITY /
-                           # NOTARY_PROFILE. Refuses to run under Node
+                           # NOTARY_PROFILE. Refuses to run under Node. -- --aot / -- --trim turn
+                           # on Bun's experimental compile options (see "Standalone binary")
 ```
 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
@@ -409,6 +410,22 @@ from `bunfig.toml`, so it wires `src/plugin.ts`'s exported hooks in itself:
 
 `autoloadBunfig` and `autoloadDotenv` are off, so a `bunfig.toml` or `.env` beside the binary can't
 reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
+
+`build({ aot, trim })` passes Bun's experimental `compile.aot` / `compile.trim`, both off by
+default. A Bun without them ignores them silently (1.4.4 builds the same 108.5 MB either way) and
+`Bun.version` can't tell a canary apart (1.4.4-canary.1 reports `1.4.4`), so `supported_flags`
+asks `bun build --help` for each flag and logs the ones it drops. Both shrink the runtime below bare
+Bun, so with either one on, the size floor gives way to a search for the host prebuild's bytes in
+the executable (`native_addon()`; embedded verbatim, checked on macOS only). On macOS with
+1.4.4-canary.1, tic-tac-toe is 138.7 MB plain, 88.4 with `trim`, 125.4 with `aot`, 82.3 with both,
+and all four mount. What still stops `trim` (an `aot` build's `aotExplain: ['trim']` report):
+`host()`'s `globalThis[SLOT]`, a computed key on `globalThis`, makes `eval` and every `Bun.*` API
+look reachable (a fixed property name instead removed 9 more features, −1.4 MB). `@gpuix/native`'s
+napi-rs loader (`new Function`, `require(process.env.NAPI_RS_NATIVE_LIBRARY_PATH)`) and the
+deliberate computed imports (automation server, `getBuiltinModule`) also block it. Shipping the
+TypeScript under an `"aot"` export condition was measured too and does not pay. Bun type-checked
+the 15 files and typed accesses rose from 922 to 1,498, but the compiled program grew, so the
+executable came out 1 MB larger.
 
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
@@ -1276,6 +1293,10 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   `custom-condition` branch (check it out before reading; it is force-pushed about weekly). To run
   a consumer app's test suite against this checkout, swap its `node_modules/gpuix-svelte` for a
   symlink to this repo; `bun install` there restores the published copy.
+- A Bun canary for `--aot` / `--trim` builds lives in the gitignored `.bun-canary/`, never through
+  `bun upgrade --canary`, which replaces the system Bun other processes use. Fetch it with
+  `curl -fsSL -o /tmp/bun.zip https://github.com/oven-sh/bun/releases/download/canary/bun-darwin-aarch64.zip && unzip -j -o /tmp/bun.zip '*/bun' -d .bun-canary`,
+  then run `.bun-canary/bun scripts/compile.ts --aot --trim`. `bun --revision` names the canary.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
