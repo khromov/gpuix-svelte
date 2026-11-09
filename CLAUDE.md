@@ -899,7 +899,13 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   stays out of `by_id`, so `elements_at` reports the text once. Without it VoiceOver heard none of a
   plain-text app and a `role="button"` div had no name. Layout is unchanged (every example's
   headless screenshot was byte-identical), but each such text costs one more native node; upstream
-  labelling a content `text` whose parent is no `text` would make the wrapper unnecessary.
+  labelling a content `text` whose parent is no `text` would make the wrapper unnecessary. Native's
+  search, highlight ranges, selection and copy treat adjacent text leaves under one parent as one
+  run (`text/search.rs`, `text/selection.rs`), so text beside other text (`Hello {#if}there{/if}`)
+  stays bare and unlabelled: `wants_wrapper` reads the nearest real siblings, and `insert`,
+  `remove` and the blank transitions in `setText` call `rewrap` on the ones either side, which
+  rebuilds a node whose wrapping no longer fits. `unwrap_text` folds the wrappers back out of what
+  `tree()`, `automation_tree()`, `test_app()` and the live automation server read.
 - Ids are allocated lazily, when a node first becomes reachable from the root (`live`). Svelte
   renders offscreen constantly, and eager creation would leak a Rust node per abandoned render.
 - Because virtual nodes are always leaves, "the next native node" is a flat scan of following
@@ -1026,11 +1032,11 @@ demos"). Each has a DOM version under
   carries `background-color: #00000001`, or native paints `#1a1a1a` behind it (since 0.11 any
   declared background opts out, `transparent` included). `Tooltip` tracks hover per source (wrapper,
   spread trigger handlers, tip) because a pointer jumping onto the tip gets the tip's `mouseEnter`
-  before the trigger's `mouseLeave`. The spread handlers include `onfocus`/`onblur`, so a trigger
-  shows its tip on keyboard focus and Escape hides it; focus counts only without the pointer on the
-  trigger. Native's `needs_focus` makes anything listening for `focus` focusable, so a click now
-  focuses the trigger, and GPUI reports the hover from the paint after it: a hover within 250 ms of
-  focus marks that focus as the pointer's (GPUI version only, since the browser reports hover first).
+  before the trigger's `mouseLeave`. The snippet's second argument holds `onfocus`/`onblur`, a
+  separate opt-in because native's `needs_focus` makes anything listening for `focus` focusable,
+  which would let a click on a plain trigger take focus from a text field. Focus shows the tip at
+  once unless the pointer is on the trigger, any `mouseEnter` takes over from focus (GPUI reports
+  the hover a paint after the click whose focus came first), and Escape hides it.
   `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>`
   only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`). Both forward a `style` prop to the
   tip or panel: `var()` resolves from one global map and a parent's scoped rules cannot reach in, so

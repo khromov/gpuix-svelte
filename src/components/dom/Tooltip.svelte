@@ -6,7 +6,7 @@
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
 	type Hover = { onmouseenter: () => void; onmouseleave: () => void };
-	type Trigger = Hover & { onfocus: () => void; onblur: () => void };
+	type Focus = { onfocus: () => void; onblur: () => void };
 
 	let {
 		children,
@@ -20,7 +20,7 @@
 		testid = null
 	}: {
 		/** The trigger; the hover handlers it is passed exist for the GPUI version, where a listener of its own would occlude the wrapper, and the focus ones show the tip on keyboard focus. */
-		children: Snippet<[Trigger]>;
+		children: Snippet<[Hover, Focus]>;
 		content: string | Snippet;
 		side?: Side;
 		align?: Align;
@@ -57,6 +57,7 @@
 	const track = (source: Exclude<keyof typeof over, 'focus'>): Hover => ({
 		onmouseenter: () => {
 			over[source] = true;
+			over.focus = false;
 			sync();
 		},
 		onmouseleave: () => {
@@ -66,8 +67,8 @@
 	});
 
 	const wrap = track('wrap');
-	const trigger: Trigger = {
-		...track('trigger'),
+	const trigger = track('trigger');
+	const focus: Focus = {
 		// Focus that arrives with the pointer already on the trigger came from a click, which hover covers.
 		onfocus: () => {
 			if (over.wrap || over.trigger) return;
@@ -93,7 +94,7 @@
 
 <div class="host">
 	<div class="anchor" {...wrap} data-testid={testid} {@attach (node: HTMLElement) => (anchor = node)}>
-		{@render children(trigger)}
+		{@render children(trigger, focus)}
 		{#if open ?? shown}
 			<!-- No pointer, as on GPUI: a tip snapped over its own trigger must not take the trigger's clicks. -->
 			<Anchored {anchor} {side} {align} {gap} occlude={false}>

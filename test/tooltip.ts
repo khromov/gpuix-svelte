@@ -106,7 +106,12 @@ function move(x: number, y: number) {
 }
 
 {
-	check('on* handlers spread from the snippet parameter reach the trigger', [...find_test_id('save-trigger')!.events!].sort(), [
+	check(
+		'the hover handlers alone add no focus listener, which would make a plain trigger focusable',
+		[...find_test_id('plain-trigger')!.events!].sort(),
+		['mouseEnter', 'mouseLeave']
+	);
+	check('on* handlers spread from the snippet parameters reach the trigger', [...find_test_id('save-trigger')!.events!].sort(), [
 		'blur',
 		'click',
 		'focus',
@@ -156,6 +161,14 @@ function move(x: number, y: number) {
 	await wait(120);
 	check('so does focus whose hover GPUI reports a paint later, as after a click', shown('save-tip'), false);
 	unfocus();
+
+	move(mid_x(anchor), mid_y(anchor));
+	await wait(80);
+	const hovered = shown('save-tip');
+	press('escape');
+	check('Escape hides a tip that hover showed too', [hovered, shown('save-tip')], [true, false]);
+	move(2, 2);
+	await wait(120);
 }
 
 {
@@ -165,6 +178,8 @@ function move(x: number, y: number) {
 	check('side="right" centres it beside a trigger whose wrapper the column stretched', [tip.x, near(mid_y(tip), mid_y(badge))], [badge.x + badge.width + 6, true]);
 	const styled = find_test_id('pinned-tip')!.style!;
 	check("style lays inline CSS over the tip's own rules and leaves the rest", [styled.backgroundColor, styled.borderRadius, styled.paddingTop], ['#1e66f5', 0, 4]);
+	press('escape');
+	check('Escape leaves a tip that open forces', find_text('Rich') !== null, true);
 }
 
 // --- Popover -----------------------------------------------------------------
@@ -199,4 +214,4 @@ function move(x: number, y: number) {
 	check('a right click outside closes it too', [counts(), shown('menu-panel')], ['1-1-3-1-1', false]);
 }
 
-finish('tooltip', 33);
+finish('tooltip', 36);

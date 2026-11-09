@@ -78,8 +78,19 @@
 		<div class="size" testid="size">{window_size.width} × {window_size.height}</div>
 		<div class="spacer"></div>
 		<Tooltip content="Toggle the theme (T)">
-			{#snippet children(hover)}
-				<div class="btn" {...hover} onclick={() => (dark = !dark)} testid="theme">{dark ? 'Light' : 'Dark'}</div>
+			{#snippet children(hover, focus)}
+				<div
+					class="btn"
+					role="button"
+					tabindex="0"
+					{...hover}
+					{...focus}
+					onclick={() => (dark = !dark)}
+					onkeydown={(e) => ['enter', 'Enter', 'space', ' '].includes(e.key ?? '') && (dark = !dark)}
+					testid="theme"
+				>
+					{dark ? 'Light' : 'Dark'}
+				</div>
 			{/snippet}
 		</Tooltip>
 		<Popover open={menu} onclose={() => (menu = false)} testid="menu">

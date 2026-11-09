@@ -10,6 +10,9 @@
 	let late = $state(false);
 	let plain = $state('first');
 	let archived = $state(0);
+	let split = $state(false);
+	let greet = $state(true);
+	let run_matches = $state(-1);
 	const rows = Array.from({ length: 30 }, (_, i) => i);
 
 	export function show_late() {
@@ -18,6 +21,10 @@
 
 	export function set_plain(text: string) {
 		plain = text;
+	}
+
+	export function set_split(value: boolean) {
+		split = value;
 	}
 </script>
 
@@ -62,4 +69,14 @@
 		<div>{plain}</div>
 		<div>{`archived: ${archived}`}</div>
 	</div>
+	<div
+		testid="run"
+		style="display: flex; flex-direction: row; width: 300px"
+		highlight={{ query: 'Hello there' }}
+		onhighlight={(e: GpuixEvent) => (run_matches = e.matchCount ?? -1)}
+	>
+		Hello {#if split}<div>|</div>{/if}there world
+	</div>
+	<div>{`matches: ${run_matches}`}</div>
+	<text>Hi {#if greet}there{/if}</text>
 </div>

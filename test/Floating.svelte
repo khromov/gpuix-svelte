@@ -23,12 +23,17 @@
 			<div class="badge">badge</div>
 		</Tooltip>
 		<Tooltip content="Save (cmd-s)" side="bottom" delay={50} testid="save">
-			{#snippet children(hover)}
-				<div class="btn" tabindex="0" {...hover} onclick={() => counts.save++} testId="save-trigger">Save</div>
+			{#snippet children(hover, focus)}
+				<div class="btn" tabindex="0" {...hover} {...focus} onclick={() => counts.save++} testId="save-trigger">Save</div>
 			{/snippet}
 		</Tooltip>
 		<Tooltip content="Slow" delay={60000} testid="slow">
 			<div class="badge">slow</div>
+		</Tooltip>
+		<Tooltip content="Plain" testid="plain">
+			{#snippet children(hover)}
+				<div class="badge" {...hover} testId="plain-trigger">plain</div>
+			{/snippet}
 		</Tooltip>
 	</div>
 	<div class="under" onclick={() => counts.under++} testId="under">under</div>

@@ -7,7 +7,10 @@ without a pointer. [Testing](testing.md#accessibility) shows how to assert on th
 
 ## What reaches a screen reader
 
-- Text is a label wherever it sits, so a `role="button"` div is named by the text inside it.
+- Text is a label wherever it sits, so a `role="button"` div is named by the text inside it. The
+  exception is text beside other text: when an `{#if}`, an `{#each}` or a component splits a
+  sentence into several text nodes, they stay unlabelled, because a label would break what GPUI
+  selects, copies and searches as one run. A `<text>` element around the sentence labels it whole.
 - `input` and `textarea` are text fields, and `img` is an image labelled by its `alt`.
 - Any other element shows up only with a `role`. The ARIA role names work: `button`, `heading`,
   `switch`, `checkbox`, `radio`, `link`, `listbox` and `option`, `menu` and `menuitem`, `dialog`,
@@ -30,7 +33,7 @@ GPUI window gets:
 
 | In a browser | In a GPUI window |
 | --- | --- |
-| `aria-checked`, `aria-pressed` | `aria-valuetext="on"` or `"off"`, which a switch or checkbox reports as its value |
+| `aria-checked`, `aria-pressed` | `aria-valuetext="on"` or `"off"`, which a switch or checkbox reports as its value, though still with no checked state |
 | `aria-disabled` | Nothing announces it. `tabindex="-1"` at least takes the control out of the Tab order |
 | `aria-hidden` | `role="none"` keeps one element out of the tree, but its text stays in |
 | `aria-labelledby`, `aria-describedby`, `aria-controls` | The words themselves, in `aria-label` or `aria-description` |
@@ -80,7 +83,7 @@ after closing:
 
 {#if open}
   <Portal>
-    <div role="dialog" aria-label="Rename" tabindex="-1" onkeydown={trap} {@attach (node) => (dialog = node)}>
+    <div role="dialog" aria-label="Rename" onkeydown={trap} {@attach (node) => (dialog = node)}>
       <input autofocus />
       <div role="button" tabindex="0" onclick={hide}>Done</div>
     </div>
@@ -88,10 +91,10 @@ after closing:
 {/if}
 ```
 
-The dialog takes `tabindex="-1"` because a key reaches only the focused element and its focusable
-ancestors. A long list reads best as one tab stop: `tabindex="0"` on the selected row and `-1` on
-the rest, with the arrow keys calling `focus_element()` and `scroll_into_view()` on the next row.
-A `Tooltip` whose trigger spreads the snippet's handlers opens on keyboard focus too
+The dialog needs no `tabindex`: a key pressed in the field reaches every ancestor listening for it.
+A long list reads best as one tab stop: `tabindex="0"` on the selected row and `-1` on the rest,
+with the arrow keys calling `focus_element()` and `scroll_into_view()` on the next row. A `Tooltip`
+opens on keyboard focus when its trigger spreads the snippet's focus handlers
 ([Tooltip](components.md#tooltip)).
 
 ## Components shared with the DOM

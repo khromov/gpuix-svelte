@@ -88,7 +88,7 @@ click(find_test_id('delete')!);
 native.flush();
 check('and it follows state', labelled()?.expanded, true);
 
-const host = component as { show_late(): void; set_plain(text: string): void };
+const host = component as { show_late(): void; set_plain(text: string): void; set_split(value: boolean): void };
 const labels = () => a11y().filter((n) => n.aria?.role === 'Label').map((n) => n.aria?.value);
 check('plain text outside a <text> is a Label too', ['Archive', 'first'].map((t) => labels().includes(t)), [true, true]);
 check(
@@ -118,6 +118,20 @@ check(
 	[find_test_id('archive')!.children?.[0]?.text, raw_of(JSON.parse(native.getTreeJson()), 'archive')?.children?.[0]?.children?.[0]?.text],
 	['Archive', 'Archive']
 );
+
+const trimmed = () => labels().map((v) => v?.trim());
+const [hello, world] = [bounds(find_text('Hello ')!)!, bounds(find_text('there world')!)!];
+check('text beside other text stays one native run, so a search crosses it', all_text().includes('matches: 1'), true);
+const across = drag_select({ x: hello.x + 1, y: hello.y + hello.height / 2 }, { x: world.x + world.width - 1, y: world.y + world.height / 2 });
+check('and a selection across it reads as one string, with no line break where it was split', [across?.startsWith('Hello there wor'), across?.includes('\n')], [true, false]);
+clear_selection();
+host.set_split(true);
+settle();
+check('an element splitting the run gives each side its label', ['Hello', 'there world'].map((t) => trimmed().includes(t)), [true, true]);
+host.set_split(false);
+settle();
+check('and taking it out joins the run again', [trimmed().includes('Hello'), all_text().includes('matches: 1')], [false, true]);
+check('a <text> around a split sentence labels it whole', [trimmed().includes('Hi there'), trimmed().includes('Hi')], [true, false]);
 
 drop_files(find_test_id('drop')!, ['/tmp/a.png', '/tmp/b.txt']);
 check('onfiledrop gets the dropped paths', all_text().includes('dropped: /tmp/a.png,/tmp/b.txt'), true);
@@ -225,4 +239,4 @@ try {
 check('window controls are no-ops headlessly', controls, 'no throw');
 check('prompt_for_paths resolves null without a picker', await prompt_for_paths({ multiple: true }).catch((e: Error) => e.message), null);
 
-finish('host', 36);
+finish('host', 41);

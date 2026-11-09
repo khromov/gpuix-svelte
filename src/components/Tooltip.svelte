@@ -5,7 +5,7 @@
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
 	type Hover = { onmouseenter: () => void; onmouseleave: () => void };
-	type Trigger = Hover & { onfocus: () => void; onblur: () => void };
+	type Focus = { onfocus: () => void; onblur: () => void };
 
 	let {
 		children,
@@ -18,8 +18,11 @@
 		style = null,
 		testid = null
 	}: {
-		/** The trigger; one with a listener of its own occludes the wrapper, so it spreads the handlers it is passed, which also show the tip on keyboard focus. */
-		children: Snippet<[Trigger]>;
+		/**
+		 * The trigger; one with a listener of its own occludes the wrapper, so it spreads the hover handlers it is
+		 * passed. A trigger that takes keyboard focus spreads the focus ones too, which make anything focusable on GPUI.
+		 */
+		children: Snippet<[Hover, Focus]>;
 		content: string | Snippet;
 		side?: Side;
 		align?: Align;
@@ -50,7 +53,6 @@
 	// A pointer that jumps onto the tip enters it before it leaves the trigger, so hover is tracked per
 	// source rather than by the last event, and the 80 ms grace once none is hovered lets it cross the gap.
 	const over = { wrap: false, trigger: false, tip: false, focus: false };
-	let focused_at = 0;
 
 	function sync() {
 		clearTimeout(timer);
@@ -67,8 +69,8 @@
 	const track = (source: Exclude<keyof typeof over, 'focus'>): Hover => ({
 		onmouseenter: () => {
 			over[source] = true;
-			// GPUI reports a hover from the paint after the move, so a click's focus can arrive first; it was the pointer's.
-			if (over.focus && performance.now() - focused_at < 250) over.focus = false;
+			// The pointer takes over from focus, since GPUI reports a hover a paint after the click whose focus came first.
+			over.focus = false;
 			sync();
 		},
 		onmouseleave: () => {
@@ -79,13 +81,12 @@
 
 	const wrap = track('wrap');
 	const tip = track('tip');
-	const trigger: Trigger = {
-		...track('trigger'),
+	const trigger = track('trigger');
+	const focus: Focus = {
 		// Focus that arrives with the pointer already on the trigger came from a click, which hover covers.
 		onfocus: () => {
 			if (over.wrap || over.trigger) return;
 			over.focus = true;
-			focused_at = performance.now();
 			clearTimeout(timer);
 			shown = true;
 		},
@@ -107,7 +108,7 @@
 
 <div class="host">
 	<div class="anchor" hitbox="self" {...wrap} testId={testid}>
-		{@render children(trigger)}
+		{@render children(trigger, focus)}
 		{#if open ?? shown}
 			<div class="pin" style:justify-content={x} style:align-items={y}>
 				<div class="dot">
