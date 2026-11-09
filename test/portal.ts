@@ -76,4 +76,11 @@ check('turned on, it moves to the root', [on_top('dynamic'), holds(row(), 'dynam
 click_test_id('float');
 check('turned off again, it returns to its place among its siblings', [on_top('dynamic'), (row()!.children ?? []).at(-2)?.testId], [false, 'dynamic']);
 
-finish('portal', 20);
+const run = () => (raw_test_id(raw(), 'run')!.children ?? []).map((c) => c.children?.length ?? 0);
+const wrapped = run();
+click_test_id('lift');
+const joined = run();
+click_test_id('lift');
+check('text either side of an element that becomes a portal joins into one bare run, and splits again', [wrapped, joined, run()], [[1, 1, 1], [0, 0], [1, 1, 1]]);
+
+finish('portal', 21);

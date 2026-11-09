@@ -90,7 +90,9 @@
 			clearTimeout(timer);
 			shown = true;
 		},
+		// A blur that ends no focus-shown tip must not reach sync(), which would reopen one Escape dismissed under a resting pointer.
 		onblur: () => {
+			if (!over.focus) return;
 			over.focus = false;
 			sync();
 		}

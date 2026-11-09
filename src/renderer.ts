@@ -352,6 +352,7 @@ function reparent(el: ShadowNode) {
 	if (el.nativeId === null || !el.attached || !el.live) return;
 	attach(el);
 	attach_portals();
+	rewrap_beside(el.prev, el.next);
 }
 
 const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
@@ -370,7 +371,6 @@ function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
 
-/** The nearest sibling with a native node in this parent's list, or null. */
 function real_sibling(from: ShadowNode | null, dir: 'prev' | 'next') {
 	for (let s = from; s; s = s[dir]) {
 		if (s.kind === 'comment' || (s.kind === 'text' && is_blank(s.data)) || is_portal(s)) continue;
@@ -784,7 +784,6 @@ export function unwrap_text<T extends { id: number; children?: T[] }>(node: T): 
 	return node.children ? { ...node, children: node.children.map(unwrap_text) } : node;
 }
 
-/** `unwrap_text` over the JSON string native's tree reads return. */
 export function unwrap_text_json(json: string) {
 	const tree = json ? (JSON.parse(json) as { id: number } | null) : null;
 	return tree ? JSON.stringify(unwrap_text(tree)) : json;

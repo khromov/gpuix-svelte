@@ -310,6 +310,10 @@ flushSync();
 const hovered = tooltip() !== null;
 key('Escape');
 check('Escape hides a tip that hover showed too', [hovered, tooltip()], [true, null]);
+by_id('theme')!.dispatchEvent(new FocusEvent('blur'));
+await sleep(350);
+flushSync();
+check('and focus leaving while the pointer stays does not bring it back', tooltip(), null);
 mouse(by_id('theme'), 'mouseleave');
 await sleep(120);
 flushSync();
@@ -402,4 +406,4 @@ key('t');
 check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 70);
+finish('dom', 71);

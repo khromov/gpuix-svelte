@@ -16,7 +16,7 @@ import {
 	type ParamsOf,
 	type ResultOf
 } from '@gpuix/native/automation';
-import { unwrap_text_json } from './renderer.ts';
+import { commit, unwrap_text_json } from './renderer.ts';
 
 const INPUTS = new Set<MethodName>([
 	'click',
@@ -40,7 +40,13 @@ export function serve_automation(native: GpuixRenderer, next_frame: () => Promis
 	const view = new Proxy(native, {
 		get(target, key) {
 			if (key === 'tick') return undefined;
-			if (key === 'getAutomationTree') return () => unwrap_text_json(target.getAutomationTree());
+			if (key === 'getAutomationTree') {
+				return () => {
+					// unwrap_text folds by the shadow tree, which is ahead of native until queued mutations ship.
+					commit();
+					return unwrap_text_json(target.getAutomationTree());
+				};
+			}
 			const value: unknown = Reflect.get(target, key);
 			return typeof value === 'function' ? value.bind(target) : value;
 		}

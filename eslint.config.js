@@ -11,5 +11,5 @@ export default ts.config(
 	{ languageOptions: { globals: { ...globals.node, Bun: 'readonly' } } },
 	// The DOM build and what runs on it.
 	{ files: ['src/dom.ts', 'src/components/dom/**', 'test/dom.ts', 'examples/cross-target/**'], languageOptions: { globals: { ...globals.browser } } },
-	{ ignores: ['**/node_modules', 'dist', 'lib', 'vendor', 'starter', 'packages/*/template', 'docs/assets', 'test/.samples-tmp', 'test/.hot-tmp', 'test/.bundle-tmp', 'test/.dom-tmp'] }
+	{ ignores: ['**/node_modules', 'dist', 'lib', 'vendor', 'starter', 'packages/*/template', 'docs/assets', 'test/.samples-tmp', 'test/.hot-tmp', 'test/.bundle-tmp', 'test/.dom-tmp', 'test/.ui-tmp'] }
 );

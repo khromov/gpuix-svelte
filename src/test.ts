@@ -6,7 +6,7 @@
 
 import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
-import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch, unwrap_text, unwrap_text_json } from './renderer.ts';
+import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch, unwrap_text } from './renderer.ts';
 import { create_window_root } from './titlebar.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
 
@@ -419,8 +419,9 @@ export async function wait_for<T>(pred: () => T, { timeout = 2000, interval = 16
 }
 
 export function automation_tree(): AutomationNode | null {
-	const json = unwrap_text_json(native().getAutomationTree());
-	return json ? (JSON.parse(json) as AutomationNode | null) : null;
+	const json = native().getAutomationTree();
+	const root = json ? (JSON.parse(json) as AutomationNode | null) : null;
+	return root && unwrap_text(root);
 }
 
 /** One key in GPUI's keystroke syntax — `'escape'`, `'cmd-k'`, `'shift-tab'`. */
