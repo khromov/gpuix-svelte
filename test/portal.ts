@@ -19,6 +19,10 @@ const on_top = (id: string) => {
 	return last.testId === id || (last.children ?? []).some((c) => c.testId === id);
 };
 const ids = (node: TreeNode): number[] => [node.id, ...(node.children ?? []).flatMap(ids)];
+// tree() folds the node the renderer wraps plain text in, and native counts both.
+const raw = () => JSON.parse(native.getTreeJson()) as TreeNode;
+const raw_test_id = (node: TreeNode, id: string): TreeNode | null =>
+	node.testId === id ? node : ((node.children ?? []).map((c) => raw_test_id(c, id)).find(Boolean) ?? null);
 
 check("the portal's content is the root's last native child", on_top('over'), true);
 check('and no longer sits under its shadow parent natively', holds(find_test_id('inner'), 'over'), false);
@@ -31,7 +35,7 @@ check('a click where both overlap reaches the portal, not the later sibling', hi
 click_at(200, 110);
 check('the sibling still takes clicks outside the portal', hits(), '1-1-0');
 
-const gone = [...ids(find_test_id('inner')!), ...ids(last_root_child())];
+const gone = [...ids(raw_test_id(raw(), 'inner')!), ...ids(raw().children!.at(-1)!)];
 const retained = native.getRetainedElementCount();
 click_test_id('toggle');
 check('removing the {#if} takes the portal out natively', find_test_id('over'), null);

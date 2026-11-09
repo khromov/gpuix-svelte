@@ -298,6 +298,11 @@ mouse(by_id('theme'), 'mouseleave');
 await sleep(120);
 flushSync();
 check('and hides once the pointer leaves', tooltip(), null);
+by_id('theme')!.dispatchEvent(new FocusEvent('focus'));
+flushSync();
+check('keyboard focus shows it at once', tooltip()?.textContent, 'Toggle the theme (T)');
+key('Escape');
+check('and Escape hides it', tooltip(), null);
 
 box_of(by_id('menu')!, 100, 50, 80, 30);
 click(by_id('menu-trigger'));
@@ -387,4 +392,4 @@ key('t');
 check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 67);
+finish('dom', 69);

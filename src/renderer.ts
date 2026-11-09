@@ -183,6 +183,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		attrs: {},
 		listeners: new Map(),
 		nativeId: null,
+		textId: null,
 		uses_vars: false,
 		own_color: undefined,
 		live: false,
@@ -382,7 +383,15 @@ function materialize(n: ShadowNode) {
 			n.nativeId = ++next_id;
 			by_id.set(n.nativeId, n);
 			emit(['createElement', n.nativeId, 'text']);
-			emit(['setText', n.nativeId, n.data]);
+			if (n.parent?.name === 'text') {
+				emit(['setText', n.nativeId, n.data]);
+				return;
+			}
+			// Native labels only a `text` holding no string of its own, so text outside a `<text>` gets one around it or screen readers never hear it.
+			n.textId = ++next_id;
+			emit(['createElement', n.textId, 'text']);
+			emit(['setText', n.textId, n.data]);
+			emit(['appendChild', n.nativeId, n.textId]);
 			return;
 		}
 
@@ -525,11 +534,12 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 				emit(['destroyElement', n.nativeId]);
 				by_id.delete(n.nativeId);
 				n.nativeId = null;
+				n.textId = null;
 				n.attached = false;
 				return;
 			}
 
-			emit(['setText', n.nativeId, text]);
+			emit(['setText', n.textId ?? n.nativeId, text]);
 			return;
 		}
 
@@ -794,6 +804,7 @@ export function commit() {
 		const n = by_id.get(id);
 		if (n) {
 			n.nativeId = null;
+			n.textId = null;
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
 			if (n === focused_input) focused_input = null;

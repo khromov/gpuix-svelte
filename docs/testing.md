@@ -87,6 +87,25 @@ code that waits on those, `await wait_for(() => find_text('ready'), { timeout, i
 polls, pumping between tries, and rejects with the label once the timeout (2000 ms by default)
 passes.
 
+## Accessibility
+
+`native.getA11yTree()` returns, as JSON, the accessibility tree GPUI built from the last painted
+frame. Each entry in its `nodes` has an `aria` object: the role as AccessKit names it (`Button`,
+`Heading`, `Label`, `Switch`, `ListBoxOption`), and `label`, `value` (a text's string),
+`expanded`, `selected` and `level` where they are set. The dump lists no parents, so assert that a
+node with the fields you expect exists:
+
+```ts
+const a11y = () => Object.values(JSON.parse(native.getA11yTree()).nodes).map((n) => n.aria);
+check('the switch is labelled', a11y().some((a) => a?.role === 'Switch' && a.label === 'Wi-Fi'), true);
+```
+
+Call `settle()` after a change and before reading the tree again. A button named by the text inside
+it has no `label` of its own here: the platform takes the name from the `Label` inside it.
+[Accessibility](accessibility.md) lists what reaches the tree. To hear
+what a screen reader says, run the app with VoiceOver on (⌘F5), or inspect the window with Xcode's
+Accessibility Inspector.
+
 ## Driving a running app
 
 `gpuix-svelte/automation` is a Playwright-style `App` and `Locator` for a gpuix-svelte app, in two

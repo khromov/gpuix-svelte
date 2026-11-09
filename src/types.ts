@@ -30,6 +30,8 @@ export interface ShadowNode {
 	listeners: Map<string, EventHandler[]>;
 	/** Allocated lazily, when the node first becomes reachable from the root. */
 	nativeId: number | null;
+	/** The inner native node holding a text node's string, when `nativeId` is the `text` around it. */
+	textId: number | null;
 	/** Its style read a `var()`, so `set_css_vars` has to restyle it. */
 	uses_vars: boolean;
 	/** Its resolved `color`, so a restyle that leaves it alone need not visit the `<svg>`s inheriting it. */

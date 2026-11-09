@@ -10,7 +10,7 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 ([sveltejs/svelte#18511](https://github.com/sveltejs/svelte/pull/18511)).
 
 User-facing documentation lives in `README.md` and `docs/` (`styling.md`, `guide.md`,
-`components.md`, `testing.md`, `shipping.md`, `contributing.md`); this file is the internals and
+`components.md`, `accessibility.md`, `testing.md`, `shipping.md`, `contributing.md`); this file is the internals and
 the constraints behind them, and points there rather than repeating them.
 
 ## Commands
@@ -891,6 +891,15 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 - Elements and non-blank text get a `nativeId`; comments, blank text and fragments never do —
   they are ordering-only. That holds in both directions: text set to `''` at runtime gives its id
   back, or it would keep a slot in GPUI's flex/gap layout.
+- Native gives the accessibility `Label` role only to a `text` element holding no string of its
+  own (`is_text_host` in upstream's `renderer.rs`), so that React's text instances inside a
+  `<text>` aren't heard twice. Svelte puts text anywhere, so a text node whose parent is not a
+  `<text>` ships as two native nodes: `nativeId` is the outer `text` (what attaches, anchors and is
+  destroyed) and `textId` the inner one holding the string, which every `setText` targets and which
+  stays out of `by_id`, so `elements_at` reports the text once. Without it VoiceOver heard none of a
+  plain-text app and a `role="button"` div had no name. Layout is unchanged (every example's
+  headless screenshot was byte-identical), but each such text costs one more native node; upstream
+  labelling a content `text` whose parent is no `text` would make the wrapper unnecessary.
 - Ids are allocated lazily, when a node first becomes reachable from the root (`live`). Svelte
   renders offscreen constantly, and eager creation would leak a Rust node per abandoned render.
 - Because virtual nodes are always leaves, "the next native node" is a flat scan of following
@@ -1017,7 +1026,12 @@ demos"). Each has a DOM version under
   carries `background-color: #00000001`, or native paints `#1a1a1a` behind it (since 0.11 any
   declared background opts out, `transparent` included). `Tooltip` tracks hover per source (wrapper,
   spread trigger handlers, tip) because a pointer jumping onto the tip gets the tip's `mouseEnter`
-  before the trigger's `mouseLeave`. `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>`
+  before the trigger's `mouseLeave`. The spread handlers include `onfocus`/`onblur`, so a trigger
+  shows its tip on keyboard focus and Escape hides it; focus counts only without the pointer on the
+  trigger. Native's `needs_focus` makes anything listening for `focus` focusable, so a click now
+  focuses the trigger, and GPUI reports the hover from the paint after it: a hover within 250 ms of
+  focus marks that focus as the pointer's (GPUI version only, since the browser reports hover first).
+  `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>`
   only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`). Both forward a `style` prop to the
   tip or panel: `var()` resolves from one global map and a parent's scoped rules cannot reach in, so
   inline style is the only per-instance hook.

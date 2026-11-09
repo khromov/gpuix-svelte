@@ -24,7 +24,7 @@
 		</Tooltip>
 		<Tooltip content="Save (cmd-s)" side="bottom" delay={50} testid="save">
 			{#snippet children(hover)}
-				<div class="btn" {...hover} onclick={() => counts.save++} testId="save-trigger">Save</div>
+				<div class="btn" tabindex="0" {...hover} onclick={() => counts.save++} testId="save-trigger">Save</div>
 			{/snippet}
 		</Tooltip>
 		<Tooltip content="Slow" delay={60000} testid="slow">

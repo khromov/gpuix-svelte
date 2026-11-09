@@ -29,6 +29,7 @@ const PAGES = [
 	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var() and set_css_vars' },
 	{ source: 'docs/components.md', name: 'components', nav: 'Components', about: 'Scroller (scrollbars, virtual lists), Portal (modals, menus, toasts), Tooltip, Popover and the native <anchored> they build on' },
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
+	{ source: 'docs/accessibility.md', name: 'accessibility', nav: 'Accessibility', about: 'what reaches a screen reader (text, roles, aria-* attributes), what GPUI lacks and what to use instead, keyboard and focus patterns for menus, dialogs and lists' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
 	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },

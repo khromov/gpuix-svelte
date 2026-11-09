@@ -140,6 +140,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
 | [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
+| [Accessibility](docs/accessibility.md) | What reaches a screen reader, what GPUI lacks and what to use instead, keyboard patterns for menus, dialogs and lists |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 | [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |

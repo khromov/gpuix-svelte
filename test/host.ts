@@ -28,6 +28,7 @@ import {
 import {
 	mount_headless,
 	find_test_id,
+	find_text,
 	click,
 	drop_files,
 	drag_select,
@@ -42,7 +43,7 @@ import {
 } from 'gpuix-svelte/test';
 
 interface A11yNode {
-	aria?: { role?: string; label?: string; expanded?: boolean; selected?: boolean; level?: number };
+	aria?: { role?: string; label?: string; value?: string; expanded?: boolean; selected?: boolean; level?: number };
 }
 
 const PNG = Uint8Array.from(
@@ -87,6 +88,37 @@ click(find_test_id('delete')!);
 native.flush();
 check('and it follows state', labelled()?.expanded, true);
 
+const host = component as { show_late(): void; set_plain(text: string): void };
+const labels = () => a11y().filter((n) => n.aria?.role === 'Label').map((n) => n.aria?.value);
+check('plain text outside a <text> is a Label too', ['Archive', 'first'].map((t) => labels().includes(t)), [true, true]);
+check(
+	'text inside a <text> is not wrapped again, which would leave the <text> a Label with no value',
+	[labels().filter((v) => v === 'Delete').length, labels().filter((v) => !v).length],
+	[1, 0]
+);
+host.set_plain('second');
+settle();
+check('a change to plain text reaches its Label', [labels().includes('first'), labels().includes('second')], [false, true]);
+const label_count = labels().length;
+host.set_plain(' ');
+settle();
+const blank_count = labels().length;
+host.set_plain('third');
+settle();
+check('blank plain text leaves the tree and comes back as a Label', [blank_count, labels().length, labels().includes('third')], [label_count - 1, label_count, true]);
+const word = bounds(find_text('Archive')!)!;
+const hits = elements_at(word.x + word.width / 2, word.y + word.height / 2);
+check('elements_at reports plain text once, as its shadow node', hits.filter((n) => n.kind === 'text').map((n) => n.data), ['Archive']);
+click(find_text('Archive')!);
+check('a click on plain text still reaches the button around it', all_text().includes('archived: 1'), true);
+type Raw = { testId?: string; text?: string; children?: Raw[] };
+const raw_of = (n: Raw, id: string): Raw | null => (n.testId === id ? n : (n.children ?? []).map((c) => raw_of(c, id)).find(Boolean) ?? null);
+check(
+	'tree() folds the wrapper back, so a test reads plain text as the app wrote it',
+	[find_test_id('archive')!.children?.[0]?.text, raw_of(JSON.parse(native.getTreeJson()), 'archive')?.children?.[0]?.children?.[0]?.text],
+	['Archive', 'Archive']
+);
+
 drop_files(find_test_id('drop')!, ['/tmp/a.png', '/tmp/b.txt']);
 check('onfiledrop gets the dropped paths', all_text().includes('dropped: /tmp/a.png,/tmp/b.txt'), true);
 
@@ -121,7 +153,7 @@ focus_previous();
 check('focus_previous walks back out', focused_element()?.nativeId, f('f0'));
 focus_previous();
 check('and wraps backwards to the last stop', focused_element()?.nativeId, f('f3'));
-(component as { show_late(): void }).show_late();
+host.show_late();
 settle();
 focus_next();
 check('a tab stop an {#if} adds joins the order once it has painted', focused_element()?.nativeId, f('late'));
@@ -193,4 +225,4 @@ try {
 check('window controls are no-ops headlessly', controls, 'no throw');
 check('prompt_for_paths resolves null without a picker', await prompt_for_paths({ multiple: true }).catch((e: Error) => e.message), null);
 
-finish('host', 29);
+finish('host', 36);

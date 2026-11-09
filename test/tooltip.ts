@@ -16,6 +16,8 @@ import {
 	click_at,
 	click_test_id,
 	press,
+	focus,
+	unfocus,
 	all_text,
 	check,
 	finish,
@@ -104,7 +106,13 @@ function move(x: number, y: number) {
 }
 
 {
-	check('on* handlers spread from the snippet parameter reach the trigger', [...find_test_id('save-trigger')!.events!].sort(), ['click', 'mouseEnter', 'mouseLeave']);
+	check('on* handlers spread from the snippet parameter reach the trigger', [...find_test_id('save-trigger')!.events!].sort(), [
+		'blur',
+		'click',
+		'focus',
+		'mouseEnter',
+		'mouseLeave'
+	]);
 
 	const anchor = box(find_test_id('save'));
 	move(mid_x(anchor), mid_y(anchor));
@@ -119,6 +127,35 @@ function move(x: number, y: number) {
 	check("and the trigger's own click still fires", counts(), '1-1-0-0-0');
 	move(2, 2);
 	await wait(120);
+}
+
+{
+	const trigger = find_test_id('save-trigger')!;
+	unfocus();
+	focus(trigger);
+	check('keyboard focus shows the tip at once, with no pointer near it', shown('save-tip'), true);
+	press('escape');
+	check('Escape hides it', shown('save-tip'), false);
+	unfocus();
+	focus(trigger);
+	unfocus();
+	await wait(120);
+	check('and so does focus moving away', shown('save-tip'), false);
+
+	const anchor = box(find_test_id('save'));
+	move(mid_x(anchor), mid_y(anchor));
+	focus(trigger);
+	move(2, 2);
+	await wait(120);
+	check('focus that came with the pointer, as a click brings it, leaves with the pointer', shown('save-tip'), false);
+	unfocus();
+
+	focus(trigger);
+	move(mid_x(anchor), mid_y(anchor));
+	move(2, 2);
+	await wait(120);
+	check('so does focus whose hover GPUI reports a paint later, as after a click', shown('save-tip'), false);
+	unfocus();
 }
 
 {
@@ -162,4 +199,4 @@ function move(x: number, y: number) {
 	check('a right click outside closes it too', [counts(), shown('menu-panel')], ['1-1-3-1-1', false]);
 }
 
-finish('tooltip', 28);
+finish('tooltip', 33);

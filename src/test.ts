@@ -6,14 +6,14 @@
 
 import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
-import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch } from './renderer.ts';
+import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch, node_of } from './renderer.ts';
 import { create_window_root } from './titlebar.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
 
 /** On macOS the headless viewport can be any width but never taller than this; Windows ignores the requested size. */
 export const MAX_HEADLESS_HEIGHT = 538;
 
-/** One node of `getTreeJson()`: what GPUI holds, with the ids the shadow tree assigned. */
+/** One node of `getTreeJson()`: what GPUI holds, with the ids the shadow tree assigned and plain text unwrapped. */
 export interface TreeNode {
 	id: number;
 	type: string;
@@ -180,7 +180,14 @@ export async function wait(ms = 30) {
 	pump();
 }
 
-export const tree = (): TreeNode => JSON.parse(native().getTreeJson());
+// The renderer puts a second `text` around plain text for screen readers; a test reads the tree as the app wrote it.
+function unwrap(node: TreeNode): TreeNode {
+	const inner = node_of(node.id)?.kind === 'text' && node.children?.length === 1 ? node.children[0] : null;
+	if (inner) return { ...inner, id: node.id };
+	return node.children ? { ...node, children: node.children.map(unwrap) } : node;
+}
+
+export const tree = (): TreeNode => unwrap(JSON.parse(native().getTreeJson()));
 
 type Visit = (node: TreeNode, parent: TreeNode | null) => void;
 

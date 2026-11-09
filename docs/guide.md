@@ -206,10 +206,8 @@ negative as the content moves) after every scroll, including `scroll_into_view()
 where `onscroll` hears only wheel input. It does not fire on `<virtual-list>`. Neither one takes the
 pointer, so neither costs a `hitbox="self"` ancestor its clicks.
 
-`role` and the `aria-label`, `aria-description`, `aria-id`, `aria-expanded`, `aria-selected`,
-`aria-valuetext` and `aria-level` attributes reach VoiceOver and other accessibility clients
-through GPUI. `text`, `input`, `textarea` and `img` (with `alt` as its label) have roles of their
-own. A `div` or any other element needs a `role` to show up in the accessibility tree.
+`role` and `aria-*` attributes reach VoiceOver and other screen readers through GPUI.
+[Accessibility](accessibility.md) lists which ones, and what to use for those GPUI doesn't have yet.
 
 ### While a file picker is open
 

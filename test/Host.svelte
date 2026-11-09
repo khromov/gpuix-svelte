@@ -8,10 +8,16 @@
 	let open = $state(false);
 	let moved = $state(0);
 	let late = $state(false);
+	let plain = $state('first');
+	let archived = $state(0);
 	const rows = Array.from({ length: 30 }, (_, i) => i);
 
 	export function show_late() {
 		late = true;
+	}
+
+	export function set_plain(text: string) {
+		plain = text;
 	}
 </script>
 
@@ -51,4 +57,9 @@
 		{/each}
 	</div>
 	<div role="tab" aria-label="Static" aria-expanded="false" aria-selected="true" style="width: 10px; height: 10px"></div>
+	<div style="display: flex; flex-direction: row; gap: 8px">
+		<div role="button" testid="archive" onclick={() => archived++}>Archive</div>
+		<div>{plain}</div>
+		<div>{`archived: ${archived}`}</div>
+	</div>
 </div>
