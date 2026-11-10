@@ -1,4 +1,6 @@
 main.pg { display: flex; flex-direction: column; height: calc(100dvh - 57px); min-height: 480px; padding: 0; }
+.top .wrap { max-width: none; }
+.top .links { margin-right: calc(var(--corner) + 8px - var(--gut)); }
 .pg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px var(--gut); border-bottom: 1px solid var(--line); }
 .pg-bar h1 { margin: 0 8px 0 0; color: var(--fg); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
 .pg-field { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }

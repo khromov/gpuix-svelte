@@ -184,7 +184,7 @@ function render({ source, name }: Page, demos: Demo[]) {
 const CSS = `
 @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
-:root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #8f8f8f; --link: #ededed; --accent: #ff3e00; --gut: 32px; --corner: 80px; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
+:root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #8f8f8f; --link: #ededed; --accent: #ff3e00; --gut: 32px; --corner: 56px; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
 :root { --paper: #111111; --ink: #ededed; --panel: #1f1f1f; --raised: #2c2c2c; --dim: #a1a1a1; --tooltip-surface: #ededed; --tooltip-ink: #000; --popover-surface: #1f1f1f; --popover-border: #404040; --popover-ink: #ededed; --scroller-thumb: #404040; --scroller-thumb-hover: #5a5a5a; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: 80px; }
@@ -206,9 +206,11 @@ a { color: var(--link); }
 .links a:hover, .links a[aria-current] { color: var(--fg); }
 .links a[aria-current] { text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--accent); }
 .github-corner { position: absolute; top: 0; right: 0; z-index: 20; display: block; width: var(--corner); height: var(--corner); pointer-events: none; }
-.github-corner svg { display: block; width: 100%; height: 100%; fill: #1c1c1c; color: #ededed; pointer-events: none; transition: fill 0.15s ease; }
+.github-corner svg { display: block; width: 100%; height: 100%; fill: var(--surface); color: var(--muted); pointer-events: none; transition: fill 0.15s ease, color 0.15s ease; }
+.github-corner .edge { fill: none; stroke: var(--line); stroke-width: 1px; transition: stroke 0.15s ease; }
 .github-corner path { pointer-events: auto; }
-.github-corner:hover svg { fill: #262626; }
+.github-corner:hover svg { fill: #111; color: var(--fg); }
+.github-corner:hover .edge { stroke: var(--line-strong); }
 .github-corner:focus-visible { outline: none; }
 .github-corner:focus-visible svg { fill: #ededed; color: #000; }
 .octo-arm { transform-origin: 130px 106px; }
@@ -319,7 +321,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .pager .next { grid-column: 2; text-align: right; }
 @media (max-width: 1180px) { .layout { grid-template-columns: 200px minmax(0, 760px); gap: 56px; } }
 @media (max-width: 860px) {
-  :root { --gut: 16px; --corner: 60px; }
+  :root { --gut: 16px; --corner: 52px; }
   html { scroll-padding-top: 16px; }
   .top { position: static; }
   .top-inner { height: 52px; }
@@ -381,7 +383,7 @@ strip.scrollLeft += current.getBoundingClientRect().left - strip.getBoundingClie
 const MARK_PATHS = '<path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/>';
 const MARK = `<svg class="mark" viewBox="0 0 64 64" aria-hidden="true">${MARK_PATHS}</svg>`;
 const ICON = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#000"/><g transform="translate(32 32) scale(.72) translate(-32 -32)" color="#fff">${MARK_PATHS}</g></svg>`)}`;
-const CORNER = `<a href="${REPO}" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>`;
+const CORNER = `<a href="${REPO}" class="github-corner" aria-label="View source on GitHub"><svg width="56" height="56" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L250,250 L250,0 Z"></path><path class="edge" d="M0,0 L250,250" vector-effect="non-scaling-stroke"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>`;
 const OG_IMAGE = `${SITE}og-docs.png`;
 const OG_ALT = 'The Overview page of the gpuix-svelte docs: page list, opening paragraph and a screenshot of the Hacker News, tic-tac-toe and control center demos.';
 
