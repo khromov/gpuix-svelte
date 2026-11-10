@@ -437,8 +437,8 @@ To see what stops `trim`, add `aotExplain: ['trim']` to an `aot` build's `compil
 `trim:` lines in `result.logs`: `blocked by` names the cause and where. Fixed so far, each worth
 measuring again after a change near it: a computed key on `globalThis` (the window slot, now
 `__gpuix_svelte_host`, since `globalThis[x]` could be `eval` or any `Bun.*` API), the automation
-`import()`, `previous-instance.ts`'s `process.getBuiltinModule` (now a static `node:fs` import, which
-Bun's browser build stubs) and the napi-rs loader. An app without updates, the counter, is then at
+`import()`, `previous-instance.ts`'s and `screen-reader.ts`'s `process.getBuiltinModule` (now static
+`node:fs` / `node:child_process` imports, which Bun's browser build stubs) and the napi-rs loader. An app without updates, the counter, is then at
 74.6 MB with only the addon's own `process.dlopen` left. Tic-tac-toe still reports `Function` at
 `update.ts`'s `new AppUpdate`, which keeps the interpreter and makes the compiler assume every Bun
 API is reachable (`used (Bun.build)` and the like, with no location). Bisecting found two
@@ -864,7 +864,7 @@ render.ts    window lifecycle + frame loop  ─┐
 renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
-  hot.ts       render_hot's fs.watch reload         ─ node:* stays out of render.ts but for previous-instance.ts's node:fs
+  hot.ts       render_hot's fs.watch reload         ─ node:* stays out of render.ts but for node:fs and node:child_process
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
   dom.ts       the entry without `custom-renderer`  ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
   reset.ts     the DOM build's CSS reset, one `:where()` rule per tag GPUI draws bare  ─ a new alias tag adds its entry here
@@ -998,8 +998,8 @@ behind it (a resolved `fetch`, a timer) would sit in the queue until the next cl
 run `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame.
 `next_frame()` resolves after the loop's next `tick()` (a timer where there is no loop), which is
 what the automation server waits on. It reads env through a `globalThis.process?.env` helper and
-its one `node:*` import is previous-instance.ts's `node:fs`, which Bun's browser build stubs, so it
-bundles for the browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
+its only `node:*` imports are previous-instance.ts's `node:fs` and screen-reader.ts's
+`node:child_process`, which Bun's browser build stubs, so it bundles for the browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
 `compile.ts` propagates that query to child `.svelte` specifiers — static, side-effect and dynamic
 `import()` alike — or a reload would re-instantiate the root against stale children. It finds them
 by parsing the emitted JS with `acorn` (Svelte's own parser; the other runtime dependencies are

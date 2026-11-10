@@ -1,8 +1,9 @@
 /**
  * The structure mirrors `@gpuix/react`'s `render()` — a `globalThis` slot so
  * `hot.ts` remounts onto the same window, and a paced `setTimeout` loop
- * driving `tick()`. Its one `node:*` import is previous-instance.ts's `node:fs`, which
- * Bun's browser build stubs, so it bundles for the browser as-is.
+ * driving `tick()`. Its only `node:*` imports are previous-instance.ts's `node:fs` and
+ * screen-reader.ts's `node:child_process`, which Bun's browser build stubs, so it bundles for the
+ * browser as-is.
  */
 
 import { GpuixRenderer, type EventPayload, type WindowOptions } from '@gpuix/native';

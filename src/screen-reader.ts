@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process';
+
 const POLL_MS = 2000;
 
 let running = false;
@@ -12,11 +14,9 @@ export function voiceover_running(now: number): boolean {
 	const process = globalThis.process;
 	if (process?.platform !== 'darwin' || checking || now - checked < POLL_MS) return running;
 	checked = now;
-	// Not an import: render.ts has to bundle for the browser.
-	const child_process = process.getBuiltinModule?.('node:child_process');
-	if (!child_process) return running;
 	checking = true;
-	child_process.execFile('/usr/bin/pgrep', ['-x', 'VoiceOver'], (error) => {
+	// Bun's browser build stubs node:child_process, which the platform check above never reaches.
+	execFile('/usr/bin/pgrep', ['-x', 'VoiceOver'], (error) => {
 		running = error === null;
 		checking = false;
 	});
