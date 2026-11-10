@@ -3,7 +3,7 @@
  * run it in a browser; `compile.ts` adds the file read and `render_hot`'s cache-buster.
  */
 
-import { compile, type AST } from 'svelte/compiler';
+import { compile, parse, type AST } from 'svelte/compiler';
 import { parse_css_text } from './style.ts';
 import type { ClassRule, Pseudo } from './types.ts';
 
@@ -79,9 +79,63 @@ function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string, wa
 
 const weight = (rule: ClassRule) => rule.classes.length * 2 + (rule.tag === null ? 0 : 1);
 
+/** Elements whose text HTML keeps as written. */
+const PREFORMATTED = new Set(['pre', 'textarea']);
+
+type TemplateNode = { type?: string; name?: string; start: number; end: number; nodes?: TemplateNode[] };
+
+/**
+ * Collapses the whitespace inside the template's text the way an HTML parser does, since GPUI draws
+ * a text node as written and a sentence wrapped in the markup would show its line break and
+ * indentation. A run with a line break moves into a comment, which the compiler drops, so every
+ * line keeps its number in errors and warnings. Strings from expressions are not touched.
+ */
+export function collapse_whitespace(source: string): string {
+	let fragment: unknown;
+	try {
+		fragment = parse(source, { modern: true }).fragment;
+	} catch {
+		// The compile reports it, against the source as written.
+		return source;
+	}
+
+	const edits: Array<[number, number, string]> = [];
+	const visit = (value: unknown, preformatted: boolean) => {
+		if (Array.isArray(value)) {
+			for (const item of value) visit(item, preformatted);
+			return;
+		}
+		if (value === null || typeof value !== 'object') return;
+		const node = value as TemplateNode;
+		if (node.type === 'Fragment' && !preformatted) {
+			const nodes = node.nodes ?? [];
+			nodes.forEach((child, i) => {
+				if (child.type !== 'Text') return;
+				const text = source.slice(child.start, child.end);
+				for (const run of text.matchAll(/\s+/g)) {
+					// The compiler trims and collapses a text's edges itself, except against an expression.
+					const leads = run.index === 0 && nodes[i - 1]?.type !== 'ExpressionTag';
+					const trails = run.index + run[0].length === text.length && nodes[i + 1]?.type !== 'ExpressionTag';
+					if (run[0] === ' ' || leads || trails) continue;
+					const at = child.start + run.index;
+					edits.push([at, at + run[0].length, run[0].includes('\n') ? `<!--${run[0]}--> ` : ' ']);
+				}
+			});
+		}
+		const inside = preformatted || (node.type === 'RegularElement' && PREFORMATTED.has(node.name ?? ''));
+		for (const key in node) visit((node as unknown as Record<string, unknown>)[key], inside);
+	};
+	visit(fragment, false);
+
+	let out = source;
+	for (const [start, end, text] of edits.sort((a, b) => b[0] - a[0])) out = out.slice(0, start) + text + out.slice(end);
+	return out;
+}
+
 /** Compiles a component's source to client JS for the custom renderer imported from `renderer_module`. */
 export function compile_source(source: string, path: string, renderer_module: string, warn: Warn = console.warn): string {
 	let scope = null as string | null;
+	source = collapse_whitespace(source);
 
 	const { js, warnings, ast } = compile(source, {
 		filename: path,

@@ -887,6 +887,17 @@ resolve from the `.svelte` file's own location. `async: true` rides along becaus
 (`SvelteBoundary.js` reads through the `renderer_snippet` wrapper; still present in the vendored
 build). Reported upstream on #18511; drop the flag once it lands.
 
+Before compiling, `collapse_whitespace` (`compile-core.ts`) does to the template's text what an
+HTML parser would: GPUI draws a text node as written and the compiler leaves interior whitespace to
+the browser, so a sentence wrapped over indented lines showed its line break and tabs. It parses
+the source and rewrites runs of whitespace in `Text` nodes that sit directly in a fragment (not
+attribute values, not under `<pre>` or `<textarea>`), including a run at a text's edge when the
+neighbour is an `{expression}`, which is the one edge the compiler does not collapse itself. A run
+with a line break becomes `<!--run--> `, because the compiler drops comments and joins the text
+around them, and that keeps every line's number for errors and warnings (columns on that line
+shift). Strings from expressions are never touched, so a deliberate `\n` in data still breaks the
+line. A source that does not parse is handed to `compile` unchanged, which reports it.
+
 It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
 renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
 (`modernAst: true`) and appends a `define_styles(scope, rules)` call to the component: one rule per

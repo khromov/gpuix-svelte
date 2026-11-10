@@ -187,12 +187,10 @@ check(
 	linked,
 	examples.flatMap((name) => targets.map((target) => [name, target, true, false, [], []]))
 );
-// GPUI draws a text node as written, where HTML collapses the line break and indentation of wrapped markup.
-const wrapped = (source: string) => /\\n\t+\S/.test(compile_for('gpui', source, base).code);
 check(
-	'no example wraps a sentence across lines, which GPUI would draw with the break and the indentation',
-	[examples.filter((name) => wrapped(readFileSync(join(root, 'playground/examples', name), 'utf8'))), wrapped('<div>\n\tone\n\ttwo\n</div>')],
-	[[], true]
+	'the GPUI compile collapses a sentence wrapped in the markup, which the DOM leaves to the browser',
+	[/one two/.test(compile_for('gpui', '<div>\n\tone\n\ttwo\n</div>', base).code), /one two/.test(compile_for('dom', '<div>\n\tone\n\ttwo\n</div>', base).code)],
+	[true, false]
 );
 const gpui = compile_for('gpui', '<div class="a">hi</div>\n<style>.a { color: red; padding: 1em; }</style>', base);
 check(

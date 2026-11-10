@@ -65,6 +65,12 @@ work for class rules, which are translated the same way.
   `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select` and
   `selection-color`. An `<svg>` gets its parent's `color` from the renderer, but not the parent's
   `:hover` colour.
+- Whitespace in the text of your markup collapses as it does in HTML, so a sentence wrapped over
+  several indented lines is drawn with single spaces (from the next release, 0.6.0; before it the
+  line break and the indentation are drawn too). The compiler does this, and only for text written
+  in the template: a string that comes from an expression (`{message}`) is drawn as written, line
+  breaks included, as is the text inside `<pre>` and `<textarea>`. `white-space: pre` and
+  `pre-wrap` do not exist.
 - Assume the rest of CSS is missing too.
 
 <details>

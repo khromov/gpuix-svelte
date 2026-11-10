@@ -15,7 +15,10 @@
 			<div class="badge">{IS_GPUIX ? 'GPUI' : 'DOM'}</div>
 			<div class="dim">{window_size.width} × {window_size.height}</div>
 		</div>
-		<div>One source, two renderers. Switch the renderer above the result and this badge follows; the colours come from one set_css_vars call on either.</div>
+		<div>
+			One source, two renderers. Switch the renderer above the result and this badge follows; the
+			colours come from one set_css_vars call on either.
+		</div>
 		<div class="btn" onclick={() => (dark = !dark)}>{dark ? 'Light' : 'Dark'} theme</div>
 	</div>
 </div>

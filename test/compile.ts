@@ -8,6 +8,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { compile_svelte } from '../src/compile.ts';
+import { collapse_whitespace, compile_source } from '../src/compile-core.ts';
 import { import_fresh, on_change } from '../src/hot.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
@@ -84,4 +85,32 @@ check(
 	['remount', 'remount', 'restart', 'restart', null, null, null, null, null, 'remount', 'remount']
 );
 
-finish('compile', 19 + (process.versions.bun ? 1 : 0));
+const compiled = (source: string) => compile_source(source, 'App.svelte', 'gpuix-svelte/renderer', () => {});
+check(
+	'a sentence wrapped in the markup compiles to one line of text, as HTML would lay it out',
+	[compiled('<div>\n\tone\n\ttwo   three\n</div>').includes("['div', null, 'one two three']"), compile_source('<div>one two</div>', 'App.svelte', 'x').includes("'one two'")],
+	[true, true]
+);
+const mixed = compiled('<script>let n = $state(1);</script>\n<div onclick={() => n++}>\n\tone {n}\n\ttwo\n\t{n}\n\t{n} x\n</div>');
+check('also where the text sits beside an expression', [mixed.includes("`one ${$.get(n) ?? ''} two ${$.get(n) ?? ''} ${$.get(n) ?? ''} x`"), /two\s*\n/.test(mixed)], [true, false]);
+const kept = compiled('<script>const s = "a\\n  b";</script>\n<textarea>\n a\n   b</textarea><pre>a\n   b</pre><div class="a\n\tb">{s}</div>');
+check(
+	'a string from an expression, an attribute, <pre> and <textarea> keep their whitespace',
+	[kept.includes("['textarea', null, ' a\\n   b']"), kept.includes("['pre', null, 'a\\n   b']"), kept.includes("class: 'a\\n\tb'"), kept.includes('"a\\n  b"')],
+	[true, true, true, true]
+);
+const line_of = (source: string) => {
+	try {
+		compile_source(source, 'App.svelte', 'x');
+	} catch (error) {
+		return (error as { start?: { line: number } }).start?.line;
+	}
+};
+const collapsed = collapse_whitespace('<div>\n\tone\n\ttwo\n</div>');
+check(
+	'every line keeps its number, so an error after wrapped text points where it did',
+	[collapsed.split('\n').length, collapsed === '<div>\n\tone<!--\n\t--> two\n</div>', line_of('<script>let n = 1;</script>\n<div>\n\tone\n\ttwo\n</div>\n<input bind:value={n} />'), collapse_whitespace('<div>\n{#if}')],
+	[4, true, 6, '<div>\n{#if}']
+);
+
+finish('compile', 23 + (process.versions.bun ? 1 : 0));
