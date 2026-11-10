@@ -113,7 +113,9 @@ npm run test:dom           # the same example in the DOM in happy-dom, the stubs
                            # runs on Linux too
 npm run test:docs          # builds the docs site (always on Node, since Vite runs there) and mounts
                            # every ```svelte demo``` from the built dist/docs/demos.js into each built
-                           # page under happy-dom, clicking through a few; runs on Linux too
+                           # page under happy-dom, clicking through a few; then the playground up
+                           # to the browser: both frames built, every example compiled for both
+                           # renderers into imports of built files, the tree mirror; runs on Linux too
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
@@ -150,12 +152,15 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # A ```svelte demo <name>``` block is a live demo: written to
                            # dist/docs-demos/<page>-<name>.svelte and bundled by Vite for the DOM
                            # into dist/docs/demos.js, which only pages with a demo load;
-                           # one that does not compile fails the build. See "The docs' live demos"
+                           # one that does not compile fails the build. See "The docs' live demos".
+                           # Also builds the playground (playground/, scripts/playground.ts) into
+                           # dist/docs/playground.html, playground/ and playground-sw.js. See
+                           # "The docs' playground"
 npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
                            # (PORT overrides) and opens it in the browser (-- --no-open skips
                            # that); rebuilds on any change to README.md, docs/, homepage/,
-                           # scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts or src/components/dom
-                           # by restarting a child that builds and serves
+                           # playground/, src/, scripts/docs.ts, scripts/playground.ts or
+                           # scripts/vite-dom.ts by restarting a child that builds and serves
 npm run og                 # retakes homepage/og.png: headless Chrome over CDP (scripts/og.ts,
                            # $CHROME overrides the path) on index.html#og at 1200x630, device
                            # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
@@ -693,6 +698,38 @@ building. The design:
   which no demo may name, do not. `test/docs.ts` runs the build on Node whatever runtime runs it
   (`node` from PATH under Bun), imports the bundle under happy-dom with an empty body, then calls
   `mount_demos()` per built page with the page's inline script stripped.
+- **The docs' playground** (`playground/`, built by `scripts/playground.ts`, at `/playground.html`
+  with a link in the site's top nav and the homepage's). The page (`main.ts`: a CodeMirror editor,
+  `examples/*.svelte` read with `?raw` and typechecked as GPUI markup) compiles the source in the
+  browser and runs it in one same-origin iframe per renderer, because GPUI's wasm appends its canvas
+  to `<body>` and can never be torn down, and the DOM `render()` takes `<body>` too. `compile.ts`
+  calls `src/compile-core.ts` for GPUI (the package's compile step with no `node:*` or `process`,
+  which `compile.ts` wraps with the file read and the cache-buster) and `svelte/compiler` with
+  `css: 'injected'` for the DOM, then `link()` rewrites every import to a URL. That is the trick the
+  whole thing rests on: each frame is a Vite build whose entries are the frame script plus one tiny
+  re-exporting module per specifier in `modules.ts` (`preserveEntrySignatures: 'strict'`, file
+  names from `file_of`), so the blob module the frame imports shares the frame's chunks: one Svelte
+  runtime, one renderer, live bindings intact. An import outside that list is a compile error
+  naming it; a new shipped component or svelte entry point goes in `modules.ts`. The GPUI frame is
+  the first wasm build here made by Vite, not Bun: a plugin compiles `.svelte` with
+  `compile_svelte`, points `gpuix-svelte`, `/renderer` and `/components/*` at `src/`, and replaces
+  `@gpuix/native` with a virtual module that imports `wasm/gpuix-web.js` and the `.wasm` through
+  `?url` (the package's `browser.mjs` uses `with { type: 'file' }`, which only Bun reads), under
+  the conditions `custom-renderer` + `browser`; `base: './'` keeps the wasm and the preloaded
+  chunks relative. `frame-gpui.ts` wraps `GpuixRenderer.prototype.applyBatch` and posts every
+  batch to the page, where `tree.ts`'s `Mirror` rebuilds GPUI's element tree from the operations
+  alone (the wasm has no `getTreeJson`), text wrappers included; that is the Render tree and
+  Mutations views, and Compiled JS is the compiler's output before linking. The GPUI frame is
+  remounted through `render()` on every edit (so `set_css_vars` values outlive a run), the DOM
+  frame is reloaded. **Isolation**: GitHub Pages cannot send COOP/COEP, so an inline script
+  registers `playground/sw.js` (published as `playground-sw.js`, scope `./playground`, which covers
+  the page and the frames and nothing else) and reloads once; the worker re-serves every response
+  with `credentialless`, or `require-corp` where the page says Safari, which has no
+  `credentialless` and so loses the cross-origin analytics script on that page. Without isolation
+  (no service worker, plain `http:` off localhost) the page falls back to the DOM renderer with a
+  note. `docs:serve` sends no headers of its own, so local runs take the same path. Checking the
+  wasm side is by hand in headless Chrome over CDP, as for `demo:web`; here it needs
+  `--enable-unsafe-webgpu` or `--enable-unsafe-swiftshader`.
 - **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the
   DOM components and the example with `svelte/compiler` (no `customRenderer`, `css: 'injected'`)
   into `test/.dom-tmp/`, and rewrites their `'gpuix-svelte'` and component specifiers to
@@ -820,6 +857,7 @@ Three layers, `src/`:
 render.ts    window lifecycle + frame loop  ─┐
 renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
+  compile-core.ts  the compile step alone, no node:* ─ what the docs' playground runs in the browser
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
   hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true

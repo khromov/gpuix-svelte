@@ -2,6 +2,10 @@
  * The docs site's live demos: builds the site, then imports the built bundle under happy-dom and
  * mounts it into each built page the way the browser does. A demo that does not compile fails
  * the build; one that throws at mount, or a page whose ids the bundle lacks, fails here.
+ *
+ * The playground is covered up to the browser: its page and both frames are built, every example
+ * compiles for both renderers into imports of files the build wrote, and the tree it shows follows
+ * the renderer's operations. GPUI's wasm itself only runs in a real browser.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -9,6 +13,10 @@ import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
+import type { Mutation } from 'gpuix-svelte';
+import { compile_for, link } from '../playground/compile.ts';
+import { MODULES, file_of, type Target } from '../playground/modules.ts';
+import { Mirror, batch_html, dom_html, tree_html, type MirrorNode } from '../playground/tree.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const out = join(root, 'dist/docs');
@@ -133,4 +141,101 @@ document.body.innerHTML = '<div data-demo="nope"></div>';
 check('an id the bundle lacks is reported, not thrown', bundle.mount_demos(), { mounted: [], failed: ['nope'] });
 check('with the id in the error', errors.length === 1 && errors[0].includes('"nope"'), true);
 
-finish('docs', 23);
+const playground = join(out, 'playground');
+const playground_page = page('playground');
+check(
+	'the playground is a page of the site, linked from the docs and the homepage',
+	[playground_page.includes('<a href="playground.html" aria-current="page">Playground</a>'), page('overview').includes('<a href="playground.html">Playground</a>'), page('index').includes('<a href="playground.html">Playground</a>')],
+	[true, true, true]
+);
+check(
+	'it isolates itself through the service worker before loading its script',
+	[playground_page.indexOf("register('playground-sw.js") > 0, playground_page.indexOf("register('playground-sw.js") < playground_page.indexOf('src="playground/main.js"'), existsSync(join(out, 'playground-sw.js'))],
+	[true, true, true]
+);
+const targets: Target[] = ['gpui', 'dom'];
+check(
+	'each frame is built with its page, its script and every module a component may import',
+	targets.map((target) => ['index.html', 'frame.js', ...MODULES[target].map((m) => file_of(m.specifier))].filter((file) => !existsSync(join(playground, target, file)))),
+	[[], []]
+);
+check('the GPUI frame carries the wasm beside it', existsSync(join(playground, 'gpui', 'gpuix-web_bg.wasm')), true);
+const gpui_chunks = readdirSync(join(playground, 'gpui'))
+	.filter((name) => name.endsWith('.js'))
+	.map((name) => readFileSync(join(playground, 'gpui', name), 'utf8'));
+check(
+	'the frame finds the wasm beside it, wherever the site is served',
+	[gpui_chunks.some((code) => code.includes('new URL(`gpuix-web_bg.wasm`,import.meta.url)')), gpui_chunks.some((code) => code.includes('/gpuix-web_bg.wasm'))],
+	[true, false]
+);
+
+const base = pathToFileURL(playground + '/').href;
+const examples = readdirSync(join(root, 'playground/examples')).filter((name) => name.endsWith('.svelte'));
+/** The files a linked module imports that the build did not write. */
+const missing = (code: string) =>
+	[...code.matchAll(/(?:from|import)\s*"(file:[^"]+)"/g)].map((m) => m[1]).filter((url) => !existsSync(fileURLToPath(url)));
+const linked = examples.flatMap((name) =>
+	targets.map((target) => {
+		const { code, runnable, warnings } = compile_for(target, readFileSync(join(root, 'playground/examples', name), 'utf8'), base);
+		return [name, target, code.includes("from 'svelte/internal/client'"), /from\s*'/.test(runnable), missing(runnable), warnings];
+	})
+);
+check('there are examples to pick from', examples.length >= 4, true);
+check(
+	'every example compiles for both renderers, without a warning, into imports of built files only',
+	linked,
+	examples.flatMap((name) => targets.map((target) => [name, target, true, false, [], []]))
+);
+const gpui = compile_for('gpui', '<div class="a">hi</div>\n<style>.a { color: red; padding: 1em; }</style>', base);
+check(
+	'the GPUI compile is the package\'s own: the custom renderer, the parsed <style> rules, and a dropped value reported on every compile',
+	[gpui.code.includes("import $renderer from 'gpuix-svelte/renderer'"), gpui.code.includes('$define_styles('), gpui.warnings, compile_for('gpui', '<div style="x">hi</div>\n<style>div { padding: 1em; }</style>', base).warnings],
+	[true, true, ['dropped unsupported style value `padding: 1em`'], ['dropped unsupported style value `padding: 1em`']]
+);
+check('the DOM compile has neither', /\$renderer|define_styles/.test(compile_for('dom', '<div class="a">hi</div>\n<style>.a { color: red; }</style>', base).code), false);
+const refusal = (code: string) => {
+	try {
+		return link(code, 'gpui', base).includes('file:');
+	} catch (error) {
+		return (error as Error).message;
+	}
+};
+check(
+	'an import the frame was not built with is refused by name, and a known one is linked',
+	[refusal("import { onMount } from 'svelte';"), String(refusal("import _ from 'lodash';")).startsWith('The playground cannot import "lodash".'), refusal("import { fade } from 'svelte/transition';") === true, link("import { fade } from 'svelte/transition';", 'dom', base).includes('file:')],
+	[true, true, false, true]
+);
+
+const shape = (node: MirrorNode | null): unknown => node && [node.type, node.id, ...(node.text === null ? [] : [node.text]), ...node.children.map(shape)];
+const mirror = new Mirror();
+const mount: Mutation[] = [
+	['createElement', 1, 'div'],
+	['setRoot', 1],
+	['createElement', 2, 'div'],
+	['createElement', 3, 'text'],
+	['setText', 3, 'a'],
+	['appendChild', 2, 3],
+	['appendChild', 1, 2],
+	['createElement', 4, 'div'],
+	['insertBefore', 1, 4, 2],
+	['setStyle', 4, { gap: 8 }],
+	['setEventListener', 4, 'click', true],
+	['setCustomProp', 4, 'testId', 'first']
+];
+mirror.apply(mount);
+check('the mirror rebuilds the tree from the operations', shape(mirror.root), ['div', 1, ['div', 4], ['div', 2, ['text', 3, 'a']]]);
+const html = tree_html(mirror);
+check('and shows each element\'s style, listeners and props', [html.includes('gap'), html.includes('on: click'), html.includes('testId'), html.includes('&quot;first&quot;')], [true, true, true, true]);
+mirror.apply([
+	['appendChild', 4, 2],
+	['setEventListener', 4, 'click', false],
+	['setCustomProp', 4, 'testId', null]
+]);
+check('a re-insert reparents, and a listener or prop taken off is gone', [shape(mirror.root), tree_html(mirror).includes('on: click'), tree_html(mirror).includes('testId')], [['div', 1, ['div', 4, ['div', 2, ['text', 3, 'a']]]], false, false]);
+mirror.apply([['destroyElement', 4]]);
+check('a destroyed element takes its subtree with it', [shape(mirror.root), [...mirror.nodes.keys()]], [['div', 1], [1]]);
+check('a batch lists its operations', [batch_html(3, mount).includes('applyBatch 3 · 12 operations'), batch_html(1, [mount[0]]).includes('1 operation<')], [true, true]);
+const dom_tree = dom_html('<div class="a"><script>x</script><!----><b>hi &amp; <i>there</i></b></div>');
+check('the DOM tree is escaped markup without scripts or Svelte\'s anchors', [dom_tree.includes('&lt;<span class="pg-t-tag">div</span>'), dom_tree.includes('script'), dom_tree.includes('<b>'), dom_tree.includes('&quot;hi &amp;&quot;')], [true, false, false, true]);
+
+finish('docs', 39);

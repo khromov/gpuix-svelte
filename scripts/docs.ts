@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
 import { build as vite_build } from 'vite';
 import { dom_plugins } from './vite-dom.ts';
+import { PLAYGROUND_BODY, PLAYGROUND_CSS, PLAYGROUND_ISOLATE, build_playground } from './playground.ts';
 
 const REPO = 'https://github.com/khromov/gpuix-svelte';
 const RAW = REPO.replace('https://github.com/', 'https://raw.githubusercontent.com/');
@@ -340,6 +341,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .table :is(th, td) { padding: 9px 12px; }
   .page-end { margin-top: 56px; }
 }
+@media (max-width: 480px) { .links { gap: 16px; } .links a:last-child { display: none; } }
 @media (max-width: 400px) { .version { display: none; } }
 `;
 
@@ -387,15 +389,15 @@ const OG_ALT = 'The Overview page of the gpuix-svelte docs: page list, opening p
 const description = (p: Page) =>
 	`${p.name === 'overview' ? 'A Svelte custom renderer for GPUI, the UI framework behind Zed. ' : ''}${p.about[0].toUpperCase()}${p.about.slice(1)}.`;
 
-function page(current: Page, body: string, live: boolean) {
-	const heading = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
-	const title = escape(heading === 'gpuix-svelte' ? heading : `${heading} · gpuix-svelte`);
-	const about = escape(description(current));
-	const url = `${SITE}${current.name}.html`;
-	const i = PAGES.indexOf(current);
-	const [prev, next] = [PAGES[i - 1], PAGES[i + 1]];
-	const nav = PAGES.map((p) => `<li><a href="${p.name}.html"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a></li>`).join('\n');
-	return `<!doctype html>
+interface Head {
+	title: string;
+	about: string;
+	url: string;
+	/** Markup for the end of `<head>`, after the site's stylesheet. */
+	extra: string;
+}
+
+const head = ({ title, about, url, extra }: Head) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -421,24 +423,48 @@ function page(current: Page, body: string, live: boolean) {
 <meta name="twitter:description" content="${about}">
 <meta name="twitter:image" content="${OG_IMAGE}">
 <meta name="twitter:image:alt" content="${OG_ALT}">
-<link rel="alternate" type="text/markdown" href="${current.name}.md">
 <style>${CSS}</style>
 <script src="prism.js" defer></script>
-${live ? '<script type="module" src="demos.js"></script>\n' : ''}<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
+${extra}<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
 </head>
 <body>
-<a class="skip" href="#content">Skip to content</a>
-<header class="top">
+<a class="skip" href="#content">Skip to content</a>`;
+
+const top = (section: 'docs' | 'playground') => `<header class="top">
 <div class="wrap top-inner">
 <a class="wordmark" href="index.html">${MARK}gpuix-svelte</a>
 <a class="version" href="${REPO}/blob/main/CHANGELOG.md" title="Changelog">v${version}</a>
 <nav class="links" aria-label="Site">
-<a href="overview.html" aria-current="true">Docs</a>
+<a href="overview.html"${section === 'docs' ? ' aria-current="true"' : ''}>Docs</a>
+<a href="playground.html"${section === 'playground' ? ' aria-current="page"' : ''}>Playground</a>
 <a href="index.html#examples">Examples</a>
 </nav>
 </div>
 </header>
-${CORNER}
+${CORNER}`;
+
+const FOOT = `<footer class="foot">
+<div class="wrap foot-inner">
+<p><b>gpuix-svelte</b> · MIT license · <a href="https://stanislav.garden">Stanislav Khromov</a></p>
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="${REPO}">GitHub</a></li>
+<li><a href="${NPM}">npm</a></li>
+<li><a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a></li>
+</ul>
+<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
+</div>
+</footer>`;
+
+function page(current: Page, body: string, live: boolean) {
+	const heading = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
+	const title = escape(heading === 'gpuix-svelte' ? heading : `${heading} · gpuix-svelte`);
+	const i = PAGES.indexOf(current);
+	const [prev, next] = [PAGES[i - 1], PAGES[i + 1]];
+	const nav = PAGES.map((p) => `<li><a href="${p.name}.html"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a></li>`).join('\n');
+	const extra = `<link rel="alternate" type="text/markdown" href="${current.name}.md">\n${live ? '<script type="module" src="demos.js"></script>\n' : ''}`;
+	return `${head({ title, about: escape(description(current)), url: `${SITE}${current.name}.html`, extra })}
+${top('docs')}
 <div class="wrap layout">
 <nav class="sidebar" aria-label="Pages">
 <ul>
@@ -462,23 +488,28 @@ ${next ? `<a class="next" href="${next.name}.html" rel="next"><span>Next</span>$
 </div>
 </main>
 </div>
-<footer class="foot">
-<div class="wrap foot-inner">
-<p><b>gpuix-svelte</b> · MIT license · <a href="https://stanislav.garden">Stanislav Khromov</a></p>
-<ul>
-<li><a href="index.html">Home</a></li>
-<li><a href="${REPO}">GitHub</a></li>
-<li><a href="${NPM}">npm</a></li>
-<li><a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a></li>
-</ul>
-<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
-</div>
-</footer>
+${FOOT}
 <script>${SCRIPT}</script>
 </body>
 </html>
 `;
 }
+
+const PLAYGROUND_ABOUT = 'Edit a Svelte component and watch gpuix-svelte render it in the browser: on GPUI compiled to WebAssembly or in the DOM, with the element tree, the mutations and the compiled JavaScript beside it.';
+
+// The isolation script comes first in <head>, since its reload should cost as little of the first load as it can.
+const playground_page = () => `${head({
+	title: 'Playground · gpuix-svelte',
+	about: escape(PLAYGROUND_ABOUT),
+	url: `${SITE}playground.html`,
+	extra: `<script>${PLAYGROUND_ISOLATE}</script>\n<style>${PLAYGROUND_CSS}</style>\n<script type="module" src="playground/main.js"></script>\n`
+})}
+${top('playground')}
+${PLAYGROUND_BODY}
+${FOOT}
+</body>
+</html>
+`;
 
 // One bundle for every page, built as a consumer's Vite would build it, so `gpuix-svelte` and its components
 // resolve to the DOM versions of the components; its entry mounts each demo into the `data-demo` element of the same id.
@@ -547,6 +578,8 @@ async function build() {
 		writeFileSync(join(out_dir, `${p.name}.md`), markdown(p.source));
 	}
 	if (demos.length) await bundle_demos(demos);
+	writeFileSync(join(out_dir, 'playground.html'), playground_page());
+	await build_playground(out_dir);
 	writeFileSync(join(out_dir, 'llms.txt'), llms_txt());
 	writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source).trim()).join('\n\n---\n\n') + '\n');
 	copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
@@ -556,7 +589,7 @@ async function build() {
 		if (existsSync(join(out_dir, entry))) throw new Error(`[docs] homepage/${entry} collides with the docs output`);
 		cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
 	}
-	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, ${demos.length} live demos in demos.js, with homepage/ at the root → ${out_dir}`);
+	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, ${demos.length} live demos in demos.js, the playground, with homepage/ at the root → ${out_dir}`);
 }
 
 if (process.argv.includes('--serve')) {
@@ -600,7 +633,7 @@ function supervise() {
 		clearTimeout(timer);
 		timer = setTimeout(cycle, 300);
 	};
-	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts', 'scripts/vite-dom.ts', 'src/dom.ts', 'src/components/dom']) {
+	for (const path of ['README.md', 'docs', 'homepage', 'playground', 'scripts/docs.ts', 'scripts/playground.ts', 'scripts/vite-dom.ts', 'src']) {
 		const target = join(root, path);
 		watch(target, { recursive: statSync(target).isDirectory() }, (_, file) => {
 			if (!file || !basename(file).startsWith('.')) restart();
@@ -629,7 +662,9 @@ function serve(open: boolean) {
 		'.webp': 'image/webp',
 		'.json': 'application/json',
 		'.svg': 'image/svg+xml',
-		'.woff2': 'font/woff2'
+		'.woff2': 'font/woff2',
+		// instantiateStreaming rejects a wasm response typed as anything else.
+		'.wasm': 'application/wasm'
 	};
 	const server = createServer((req, res) => {
 		const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
