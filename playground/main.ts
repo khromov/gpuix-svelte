@@ -48,7 +48,6 @@ let run = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let painting = false;
 let compiled_status = '';
-let remembering = 0;
 
 const frames: Record<Target, Frame> = {
 	gpui: { el: el<HTMLIFrameElement>('pg-frame-gpui'), ready: false, pending: null, sent: null },
@@ -74,10 +73,8 @@ EXAMPLES.forEach((example, i) => select.add(new Option(example.name, String(i)))
 
 const editor = create_editor(el('pg-editor'), shared.source ?? EXAMPLES[0].source, () => {
 	clearTimeout(timer);
-	timer = setTimeout(() => {
-		void remember();
-		update();
-	}, 300);
+	forget();
+	timer = setTimeout(update, 300);
 });
 
 select.addEventListener('change', () => {
@@ -162,13 +159,20 @@ function send(which: Target, code: string) {
 	}
 }
 
-/** Puts the source and renderer in the address, so the page's URL is always the link to share. */
-async function remember() {
-	const mine = ++remembering;
-	const hash = await encode_hash(editor.get(), target);
-	// Compression is asynchronous, so an older call can finish after a newer one.
-	if (mine === remembering) history.replaceState(null, '', hash);
-	return new URL(hash, location.href).href;
+/** The source goes in a link only when one is asked for; the address itself never carries it. */
+const link = async () => new URL(await encode_hash(editor.get(), target), location.href).href;
+
+/** A link someone opened stops describing the page once they change it, so it leaves the address. */
+function forget() {
+	if (!location.hash) return;
+	// Not before the service worker's one reload, which has to land on the link that was opened.
+	let settled = isolated;
+	try {
+		settled ||= sessionStorage.getItem('playground-isolating') !== null;
+	} catch {
+		settled = true;
+	}
+	if (settled) history.replaceState(null, '', location.pathname + location.search);
 }
 
 function update() {
@@ -244,7 +248,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-target]
 		target = button.dataset.target as Target;
 		for (const other of document.querySelectorAll('[data-target]')) other.setAttribute('aria-pressed', String(other === button));
 		el('pg-count').hidden = target !== 'gpui';
-		void remember();
+		forget();
 		update();
 	});
 }
@@ -263,12 +267,12 @@ if (navigator.clipboard) {
 	share.hidden = false;
 	share.addEventListener('click', () => {
 		clearTimeout(timer);
-		const link = remember();
+		const url = link();
 		update();
 		// Safari forgets the click across an await, so the link is awaited inside the clipboard write.
-		const written = typeof ClipboardItem === 'function' ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': link.then((text) => new Blob([text], { type: 'text/plain' })) })]) : Promise.reject();
+		const written = typeof ClipboardItem === 'function' ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': url.then((text) => new Blob([text], { type: 'text/plain' })) })]) : Promise.reject();
 		written
-			.catch(() => link.then((text) => navigator.clipboard.writeText(text)))
+			.catch(() => url.then((text) => navigator.clipboard.writeText(text)))
 			.then(
 				() => (share.textContent = 'Link copied'),
 				() => (share.textContent = 'Copy failed')

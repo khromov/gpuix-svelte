@@ -17,7 +17,8 @@
 		</div>
 		<div>
 			One source, two renderers. Switch the renderer above the result and this badge follows; the
-			colours come from one set_css_vars call on either.
+			colours come from one set_css_vars call on either. Each renderer runs its own copy of the
+			component, so the theme you pick here stays with this one.
 		</div>
 		<div class="btn" onclick={() => (dark = !dark)}>{dark ? 'Light' : 'Dark'} theme</div>
 	</div>
