@@ -102,8 +102,9 @@ files, spawn processes, open SQLite databases and load native addons directly.
 ## Coming from Svelte on the web
 
 - **HTML elements are mapped to GPUI primitives**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
-  `markdown`, `virtual-list` and `anchored`. Any other tag renders as a `div`, with a one-time
-  warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
+  `markdown`, `virtual-list` and `anchored`. `button` works too: an unstyled `div` that is a tab
+  stop with the button role, clicked by Enter and Space. Any other tag renders as a `div`, with a
+  one-time warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
 - **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
   with `:hover`, `:active` and `:focus-visible`. Values GPUI can't use are dropped with a warning.

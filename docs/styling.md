@@ -149,8 +149,8 @@ These are accepted, but they mean something different from what CSS would.
   on its badges, icons and images pass straight through to it. Descendants that take input keep
   their own hitbox: a child with its own handler (other than `onlayout`, `onscrollchange`,
   `onmotioncomplete` and `onhighlight`, which take no pointer), focusable elements (`tabindex` or
-  `autofocus`), scroll containers, and the input-taking elements (`input`, `textarea`, `code`,
-  `diff`, `markdown`, `virtual-list`, `anchored`). A `pointer-events` you set yourself still wins.
+  `autofocus`), scroll containers, and the input-taking elements (`button`, `input`, `textarea`,
+  `code`, `diff`, `markdown`, `virtual-list`, `anchored`). A `pointer-events` you set yourself still wins.
 - `onclick` is the primary button alone, as in the DOM. A right or middle click is `onauxclick`,
   where `e.isRightClick` tells the two apart and `e.x` / `e.y` are window coordinates, so a menu
   rendered through `<Portal>` can be placed right at them. macOS's ctrl+click arrives as an
