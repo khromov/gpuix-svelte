@@ -54,6 +54,8 @@ render(App, { title: 'My app' });
 `render()` mounts into `document.body` and sets the page title. `<body>` gets the box GPUI gives
 its root, a flex row filling the viewport with `position: relative` and no margin, or `rootStyle`
 in its place, so a root with `width: 100%; height: 100%` fills the page as it fills the window.
+It also gets `line-height: 1.618`, GPUI's default, so a line of text is as tall on both; a
+browser's own default follows the font and is tighter. A `font` shorthand on an element resets it.
 `width`, `height`, `titlebar`, `tabNavigation`, `keyboardFocusDim`, `debugFrameOverlay` and
 `onEvent` are ignored. A second `render()` replaces the first. `render_hot` exists only to reject
 with a message naming the bin, which is what an entry that lands here by mistake has skipped;

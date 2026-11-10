@@ -643,7 +643,10 @@ building. The design:
   absent; `render_hot` is there only to reject with a message naming the bin, because an entry
   run as plain `node app.ts` lands here and would otherwise die on a missing-export SyntaxError.
   `render()` gives `<body>` `create_root`'s box (flex, `100%` × viewport, relative, no margin), or
-  `rootStyle` in its place as on GPUI, and clears what the previous call set. Key names follow
+  `rootStyle` in its place as on GPUI, and clears what the previous call set. Under either it sets
+  `line-height: 1.618`, GPUI's default (`phi()`, and native takes `lineHeight` in px only, so the
+  GPUI side cannot be given a relative one): a browser's `normal` follows the font (1.3 for Geist,
+  1.15 for the system font), which made every text line on GPUI about a quarter taller. Key names follow
   GPUI's `press()` spelling, with the physical key (`e.code`) standing in under Alt or Shift once
   the layout has turned the key into a symbol (⌥T is `†`), and `editing` means a text field, not a
   checkbox. Every `document`/`window` read goes through `doc()`/`win()`, so SvelteKit's server pass
