@@ -21,6 +21,13 @@ const native_dir = dirname(fileURLToPath(import.meta.resolve('@gpuix/native')));
 
 const NATIVE = '\0gpuix-native-wasm';
 
+// render.ts imports these for code no browser reaches; Bun's browser build stubs them silently, Vite warns per import.
+const NODE_STUBS: Record<string, string> = {
+	'node:fs': 'export const writeFileSync = undefined;',
+	'node:child_process': 'export const execFile = undefined;'
+};
+const STUB = '\0gpuix-node-stub:';
+
 // @gpuix/native's own browser entry imports the wasm `with { type: 'file' }`, which only Bun's bundler reads.
 const native_entry = `import init, { GpuixRenderer } from ${JSON.stringify(normalizePath(join(native_dir, 'wasm/gpuix-web.js')))};
 import wasm_url from ${JSON.stringify(`${normalizePath(join(native_dir, 'wasm/gpuix-web_bg.wasm'))}?url`)};
@@ -35,12 +42,14 @@ const gpui_plugin: Plugin = {
 	enforce: 'pre',
 	resolveId(id) {
 		if (id === '@gpuix/native') return NATIVE;
+		if (id in NODE_STUBS) return STUB + id;
 		if (id === 'gpuix-svelte') return join(root, 'src/web.ts');
 		if (id === 'gpuix-svelte/renderer') return join(root, 'src/renderer.ts');
 		if (id.startsWith('gpuix-svelte/components/')) return join(root, 'src/components', id.slice('gpuix-svelte/components/'.length));
 	},
 	load(id) {
 		if (id === NATIVE) return native_entry;
+		if (id.startsWith(STUB)) return NODE_STUBS[id.slice(STUB.length)];
 		if (id.endsWith('.svelte')) return compile_svelte(id);
 	}
 };

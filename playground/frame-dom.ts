@@ -5,7 +5,7 @@
 
 import type { AnyComponent } from 'gpuix-svelte';
 import { render } from 'gpuix-svelte';
-import { connect, forward_console, post } from './frame.ts';
+import { ROOT_STYLE, connect, forward_console, post } from './frame.ts';
 
 forward_console();
 
@@ -19,4 +19,4 @@ new MutationObserver(() => {
 	});
 }).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
 
-connect((component) => render(component as AnyComponent));
+connect((component) => render(component as AnyComponent, { rootStyle: ROOT_STYLE }));

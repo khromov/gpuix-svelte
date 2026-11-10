@@ -3,7 +3,10 @@
  * posts and hand its component to `run`, and report console output and errors back.
  */
 
-export const post = (message: Record<string, unknown>) => parent.postMessage({ playground: true, ...message }, location.origin);
+/** GPUI's default box plus a background and a text colour, since GPUI draws black text on an unpainted window. */
+export const ROOT_STYLE = { display: 'flex', width: '100%', height: '100%', position: 'relative', backgroundColor: '#000000', color: '#ededed' };
+
+export const post =(message: Record<string, unknown>) => parent.postMessage({ playground: true, ...message }, location.origin);
 
 const text_of = (value: unknown): string => {
 	if (value instanceof Error) return value.message;

@@ -767,7 +767,9 @@ building. The design:
   alone (the wasm has no `getTreeJson`), text wrappers included; that is the Render tree and
   Mutations views, and Compiled JS is the compiler's output before linking. The GPUI frame is
   remounted through `render()` on every edit (so `set_css_vars` values outlive a run), the DOM
-  frame is reloaded. **Fonts**: the wasm cannot reach system fonts and has no `registerFont`, so
+  frame is reloaded. Both frames pass `render()` the same `rootStyle` (`ROOT_STYLE` in `frame.ts`:
+  the default box plus a black background and `#ededed` text), because GPUI's default text is black
+  on an unpainted, black window, so a bare `<div>Hello</div>` was invisible. **Fonts**: the wasm cannot reach system fonts and has no `registerFont`, so
   the canvas draws everything in the eight faces it embeds (IBM Plex Sans 400/600 and Lilex
   400/700, each with an italic), and the DOM frame loads the same faces from
   `homepage/assets/fonts/gpui/` instead of the site's Geist. Those files were cut out of
