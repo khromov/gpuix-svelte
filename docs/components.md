@@ -201,15 +201,17 @@ a deferred layer.
 ## Tooltip
 
 A hover tip beside its trigger, built on `<anchored>`. It shows after `delay` ms of hover and stays
-open while the pointer crosses onto the tip, with an 80 ms grace for the gap. The tip takes no
-clicks, so they land on whatever lies beneath it.
+open while the pointer crosses onto the tip, with an 80 ms grace for the gap. A trigger that spreads
+the snippet's focus handlers also shows it at once on keyboard focus and hides it on blur, until the
+pointer takes over. Escape hides it either way. The tip takes no clicks, so they land on whatever
+lies beneath it.
 
 Props:
 
 - `content`: a string or a snippet.
 - `side` (default `top`), `align` (default `center`), `gap` (default `6`) and `delay` (default
   `300`).
-- `open` forces the tip shown or hidden. `null`, the default, leaves it to hover.
+- `open` forces the tip shown or hidden. `null`, the default, leaves it to hover and focus.
 - `style`: inline CSS for one tip, which wins over the tip's own rules
   (`style="padding: 8px 12px; border-radius: 0; background-color: #ff3e00"`).
 - `testid` goes on the wrapper around the trigger. The tip gets `<testid>-tip`.
@@ -217,14 +219,17 @@ Props:
 Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you set for the whole
 app with `set_css_vars`.
 
-A decorative trigger (text, an icon, a badge) needs nothing more. A trigger with a handler of its
-own, such as a button, takes the hover for itself, so spread the handlers the `children` snippet
-receives onto it:
+A decorative trigger (text, an icon, a badge) needs nothing more, but a keyboard can't reach it, so
+put nothing in its tip that isn't on screen elsewhere. A trigger with a handler of its own, such as
+a button, takes the hover for itself, so spread the hover handlers the `children` snippet receives
+onto it. A trigger that takes keyboard focus (one with `tabindex`) spreads the second argument, the
+focus handlers, too. Leave those off anything else: on GPUI, listening for focus makes an element
+focusable, so a click on it would take focus away from a text field.
 
 ```svelte
 <Tooltip content="Save (⌘S)">
-  {#snippet children(hover)}
-    <div class="btn" {...hover} onclick={save}>Save</div>
+  {#snippet children(hover, focus)}
+    <div class="btn" role="button" tabindex="0" {...hover} {...focus} onclick={save}>Save</div>
   {/snippet}
 </Tooltip>
 ```

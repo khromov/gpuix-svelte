@@ -67,6 +67,7 @@ check('getByText is a substring match', await app.getByText('item').count(), 2);
 check('chaining scopes to descendants', [await app.getByText('alpha').count(), await app.getByTestId('list').getByText('alpha').count()], [2, 1]);
 check('element() throws NotFound for no match', await code_of(app.getByTestId('nope').element()), 'NotFound');
 check('element() throws Ambiguous for two', await code_of(app.getByText('item').element()), 'Ambiguous');
+check('plain text is one text node, not the wrapper the renderer puts around it as well', await app.getByTestId('count').getByType('text').count(), 1);
 
 await app.getByText('increment').click();
 await app.getByTestId('inc').click();
@@ -98,4 +99,4 @@ rmSync(shot, { force: true });
 await app.close();
 check('a closed app refuses further calls', await code_of(app.getByTestId('inc').count()), 'Closed');
 
-finish('automation', 20);
+finish('automation', 21);

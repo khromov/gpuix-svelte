@@ -10,6 +10,7 @@ import { createSubscriber } from 'svelte/reactivity';
 import type { EventPayload, PathPromptOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode, DebugFrameOverlayStats, EdgeInsets, WindowInsets, WindowSize } from '@gpuix/native/host';
 import type { AnyComponent, GpuixEvent, GpuiStyle, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
+import { RESET_CSS } from './reset.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
@@ -168,11 +169,17 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (root.height === '100vh') body.style.height = '100dvh';
 	root_keys = Object.keys(root);
 
+	if (!document.head.querySelector('style[data-gpuix-svelte]')) {
+		const reset = document.createElement('style');
+		reset.setAttribute('data-gpuix-svelte', '');
+		reset.textContent = RESET_CSS;
+		document.head.prepend(reset);
+	}
+
 	mounted = mount(Component, { target: body, props }) as Record<string, unknown>;
 	flushSync();
 	return mounted;
 }
-
 /** Hot reload belongs to the GPUI window; an entry that calls this landed in a DOM build, usually by skipping the bin. */
 export const render_hot: (entry: string | URL, options?: RenderOptions) => Promise<void> = () =>
 	Promise.reject(new Error(`[gpuix-svelte] render_hot() opens a GPUI window and this build resolved gpuix-svelte to its DOM build: ${BIN_HINT}; a browser entry calls render() with an imported component`));

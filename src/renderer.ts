@@ -183,6 +183,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		attrs: {},
 		listeners: new Map(),
 		nativeId: null,
+		textId: null,
 		uses_vars: false,
 		own_color: undefined,
 		live: false,
@@ -244,8 +245,20 @@ function first_native_after(cursor: ShadowNode | null) {
 	return null;
 }
 
+const BUTTON_ATTRS = new Set(['role', 'tabindex', 'tabIndex', 'disabled']);
+
+const is_disabled = (el: ShadowNode) => el.attrs.disabled != null && el.attrs.disabled !== false && el.attrs.disabled !== 'false';
+
+/** `<button>` is a div with what a browser's has for free: the role, a tab stop, and Enter or Space as a click. */
+function button_defaults(el: ShadowNode) {
+	if (el.name !== 'button' || el.nativeId === null) return;
+	if (!('role' in el.attrs)) emit(['setCustomProp', el.nativeId, 'role', 'button']);
+	if (!('tabindex' in el.attrs) && !('tabIndex' in el.attrs)) emit(['setCustomProp', el.nativeId, 'tabIndex', is_disabled(el) ? null : 0]);
+}
+
 function map_tag(name: string) {
 	if (GPUI_TAGS.has(name)) return name;
+	if (name === 'button') return 'div';
 	if (!warned_tags.has(name)) {
 		warned_tags.add(name);
 		console.warn(`[gpuix-svelte] <${name}> has no GPUI equivalent — rendering it as <div>.`);
@@ -291,7 +304,7 @@ function descends(n: ShadowNode, ancestor: ShadowNode) {
  * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
  */
 function shielded(el: ShadowNode, style: GpuiStyle) {
-	if (INTERACTIVE_TAGS.has(el.name)) return false;
+	if (INTERACTIVE_TAGS.has(el.name) || el.name === 'button') return false;
 	for (const event of el.listeners.keys()) if (!PASSIVE_EVENTS.has(event)) return false;
 	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
 	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
@@ -351,6 +364,7 @@ function reparent(el: ShadowNode) {
 	if (el.nativeId === null || !el.attached || !el.live) return;
 	attach(el);
 	attach_portals();
+	rewrap_beside(el.prev, el.next);
 }
 
 const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
@@ -369,6 +383,36 @@ function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
 
+function real_sibling(from: ShadowNode | null, dir: 'prev' | 'next') {
+	for (let s = from; s; s = s[dir]) {
+		if (s.kind === 'comment' || (s.kind === 'text' && is_blank(s.data)) || is_portal(s)) continue;
+		return s;
+	}
+	return null;
+}
+
+// Native searches, selects and copies adjacent text leaves as one run, which a wrapper would split, so text beside text stays bare and unlabelled.
+const wants_wrapper = (n: ShadowNode) =>
+	n.parent?.name !== 'text' && real_sibling(n.prev, 'prev')?.kind !== 'text' && real_sibling(n.next, 'next')?.kind !== 'text';
+
+/** Rebuilds a live text node whose neighbours changed, so its wrapper matches `wants_wrapper` again. */
+function rewrap(n: ShadowNode | null) {
+	if (n === null || n.kind !== 'text' || n.nativeId === null || !n.attached || !n.live) return;
+	if ((n.textId !== null) === wants_wrapper(n)) return;
+	emit(['destroyElement', n.nativeId]);
+	by_id.delete(n.nativeId);
+	n.nativeId = null;
+	n.textId = null;
+	n.attached = false;
+	materialize(n);
+	attach(n);
+}
+
+const rewrap_beside = (prev: ShadowNode | null, next: ShadowNode | null) => {
+	rewrap(real_sibling(prev, 'prev'));
+	rewrap(real_sibling(next, 'next'));
+};
+
 /** Idempotent. */
 function materialize(n: ShadowNode) {
 	if (n.kind === 'comment' || n.kind === 'fragment') return;
@@ -382,7 +426,15 @@ function materialize(n: ShadowNode) {
 			n.nativeId = ++next_id;
 			by_id.set(n.nativeId, n);
 			emit(['createElement', n.nativeId, 'text']);
-			emit(['setText', n.nativeId, n.data]);
+			if (!wants_wrapper(n)) {
+				emit(['setText', n.nativeId, n.data]);
+				return;
+			}
+			// Native labels only a `text` holding no string of its own, so text outside a `<text>` gets one around it or screen readers never hear it.
+			n.textId = ++next_id;
+			emit(['createElement', n.textId, 'text']);
+			emit(['setText', n.textId, n.data]);
+			emit(['appendChild', n.nativeId, n.textId]);
 			return;
 		}
 
@@ -403,6 +455,10 @@ function materialize(n: ShadowNode) {
 			for (const type of ['focus', 'blur']) {
 				if (!n.listeners.has(type)) emit(['setEventListener', n.nativeId, type, true]);
 			}
+		}
+		if (n.name === 'button') {
+			button_defaults(n);
+			if (!n.listeners.has('keyDown')) emit(['setEventListener', n.nativeId, 'keyDown', true]);
 		}
 	}
 
@@ -491,6 +547,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		else if (RENDERER_ATTRS.has(key)) restyle_subtree(el);
 		else {
 			apply_prop(el, key, value);
+			if (BUTTON_ATTRS.has(key)) button_defaults(el);
 			if (FOCUS_ATTRS.has(key) && hitbox_root(el) !== null) apply_style(el);
 		}
 	},
@@ -504,6 +561,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
 		else {
 			apply_prop(el, name, null);
+			if (BUTTON_ATTRS.has(name)) button_defaults(el);
 			if (FOCUS_ATTRS.has(name) && hitbox_root(el) !== null) apply_style(el);
 		}
 	},
@@ -525,17 +583,20 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 				emit(['destroyElement', n.nativeId]);
 				by_id.delete(n.nativeId);
 				n.nativeId = null;
+				n.textId = null;
 				n.attached = false;
+				rewrap_beside(n.prev, n.next);
 				return;
 			}
 
-			emit(['setText', n.nativeId, text]);
+			emit(['setText', n.textId ?? n.nativeId, text]);
 			return;
 		}
 
 		if (n.kind !== 'text' || is_blank(text) || !n.live) return;
 		materialize(n);
 		attach(n);
+		rewrap_beside(n.prev, n.next);
 	},
 
 	getFirstChild: (n) => n.first,
@@ -553,8 +614,10 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
+		const [left, right, was_live] = [n.prev, n.next, n.live];
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
+		if (was_live) rewrap_beside(left, right);
 
 		set_live(n, parent.live === true);
 
@@ -563,6 +626,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
 			attach_portals();
+			rewrap(n);
+			rewrap_beside(n.prev, n.next);
 		} else if (n.nativeId !== null && n.attached) {
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
@@ -574,12 +639,14 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	remove(n) {
 		if (n.parent === null) return;
 
+		const [left, right, was_live] = [n.prev, n.next, n.live];
 		unlink(n);
 		// Never destroy here: Svelte removes and re-inserts the same node in
 		// consecutive statements (see `each.js`'s controlled-anchor reset).
 		set_live(n, false);
 		pending_destroy.add(n);
 		mark_dirty();
+		if (was_live) rewrap_beside(left, right);
 	},
 
 	addEventListener(target, type, handler: EventHandler) {
@@ -614,7 +681,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		if (handlers.length === 0) {
 			target.listeners.delete(event);
 			// A text field keeps reporting focus and blur: `focused_input` depends on it.
-			const tracked = TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur');
+			const tracked =
+				(TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur')) || (target.name === 'button' && event === 'keyDown');
 			if (target.nativeId !== null) {
 				if (!tracked) emit(['setEventListener', target.nativeId, event, false]);
 				if (hitbox_root(target) !== null) apply_style(target);
@@ -728,6 +796,18 @@ export const get_native = (): Native | null => native as Native | null;
 
 export const node_of = (id: number | null | undefined): ShadowNode | null => (id == null ? null : (by_id.get(id) ?? null));
 
+/** A tree read from native, with each wrapper `materialize` put around plain text folded back into that text, as the app wrote it. */
+export function unwrap_text<T extends { id: number; children?: T[] }>(node: T): T {
+	const inner = by_id.get(node.id)?.kind === 'text' && node.children?.length === 1 ? node.children[0] : null;
+	if (inner) return { ...inner, id: node.id };
+	return node.children ? { ...node, children: node.children.map(unwrap_text) } : node;
+}
+
+export function unwrap_text_json(json: string) {
+	const tree = json ? (JSON.parse(json) as { id: number } | null) : null;
+	return tree ? JSON.stringify(unwrap_text(tree)) : json;
+}
+
 /** `position: relative`, so a portal's `inset: 0` means the window; a `null` dim leaves native's flag as it is. */
 export function create_root(
 	style: GpuiStyle = { display: 'flex', width: '100%', height: '100%', position: 'relative' },
@@ -794,6 +874,7 @@ export function commit() {
 		const n = by_id.get(id);
 		if (n) {
 			n.nativeId = null;
+			n.textId = null;
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
 			if (n === focused_input) focused_input = null;
@@ -877,6 +958,9 @@ export function dispatch(payload: EventPayload) {
 		else if (payload.eventType === 'blur' && focused_input === target) focused_input = null;
 	}
 
+	const button = target.name === 'button';
+	if (button && payload.eventType === 'click' && is_disabled(target)) return;
+
 	const flags = KEY_EVENTS.has(payload.eventType) ? flags_for(payload) : null;
 	const handlers = target.listeners.get(payload.eventType);
 	if (handlers && handlers.length > 0 && !flags?.stopped) {
@@ -910,6 +994,9 @@ export function dispatch(payload: EventPayload) {
 		}
 	}
 
+	if (button && payload.eventType === 'keyDown' && !payload.isHeld && !flags?.prevented && (payload.key === 'enter' || payload.key === 'space')) {
+		dispatch({ ...payload, eventType: 'click' });
+	}
 	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload);
 }
 

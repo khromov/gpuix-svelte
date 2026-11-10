@@ -8,7 +8,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { TestGpuixRenderer } from '@gpuix/native';
 import { App, AutomationError, connectStdio, connectTest, type TestAutomationRenderer } from '@gpuix/native/automation';
-import { get_native } from './renderer.ts';
+import { get_native, unwrap_text_json } from './renderer.ts';
 import { MAX_HEADLESS_HEIGHT, drain, focus, press, pump, settle, type, unfocus } from './test.ts';
 
 export { App, Locator, AutomationError, connectStdio, connectTest, PROTOCOL_VERSION } from '@gpuix/native/automation';
@@ -150,7 +150,7 @@ export function headless_renderer(): TestAutomationRenderer {
 		getSelectedText: () => native().getSelectedText(),
 		clearSelection: () => native().clearSelection(),
 		captureScreenshot: (path) => settled(native()).captureScreenshot(path),
-		getAutomationTree: () => settled(native()).getAutomationTree(),
+		getAutomationTree: () => unwrap_text_json(settled(native()).getAutomationTree()),
 		getElementBounds: (id) => native().getElementBounds(id),
 		clockPause: () => native().clockPause(),
 		clockSet: (now) => settled(native().clockSet(now)),
