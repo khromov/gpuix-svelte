@@ -7,6 +7,7 @@ import type { Mutation } from '../src/types.ts';
 import { compile_for, problem_of, type Compiled } from './compile.ts';
 import { create_editor } from './editor.ts';
 import type { Target } from './modules.ts';
+import { decode_hash, encode_hash } from './share.ts';
 import { Mirror, batch_html, count_nodes, dom_html, tree_html } from './tree.ts';
 import counter from './examples/Counter.svelte?raw';
 import list from './examples/List.svelte?raw';
@@ -37,31 +38,7 @@ const BASE = new URL('playground/', location.href).href;
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-function encode(text: string) {
-	let binary = '';
-	for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
-	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function decode(text: string) {
-	const binary = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
-	return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
-}
-
-function from_hash(): { source: string | null; target: Target | null } {
-	const params = new URLSearchParams(location.hash.slice(1));
-	const renderer = params.get('renderer');
-	let source: string | null = null;
-	try {
-		const code = params.get('code');
-		if (code) source = decode(code);
-	} catch {
-		source = null;
-	}
-	return { source, target: renderer === 'gpui' || renderer === 'dom' ? renderer : null };
-}
-
-const shared = from_hash();
+const shared = await decode_hash(location.hash);
 const isolated = globalThis.crossOriginIsolated === true;
 
 let target: Target = shared.target ?? (isolated ? 'gpui' : 'dom');
@@ -71,6 +48,7 @@ let run = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let painting = false;
 let compiled_status = '';
+let remembering = 0;
 
 const frames: Record<Target, Frame> = {
 	gpui: { el: el<HTMLIFrameElement>('pg-frame-gpui'), ready: false, pending: null, sent: null },
@@ -97,7 +75,7 @@ EXAMPLES.forEach((example, i) => select.add(new Option(example.name, String(i)))
 const editor = create_editor(el('pg-editor'), shared.source ?? EXAMPLES[0].source, () => {
 	clearTimeout(timer);
 	timer = setTimeout(() => {
-		remember();
+		void remember();
 		update();
 	}, 300);
 });
@@ -185,8 +163,12 @@ function send(which: Target, code: string) {
 }
 
 /** Puts the source and renderer in the address, so the page's URL is always the link to share. */
-function remember() {
-	history.replaceState(null, '', `#${new URLSearchParams({ renderer: target, code: encode(editor.get()) })}`);
+async function remember() {
+	const mine = ++remembering;
+	const hash = await encode_hash(editor.get(), target);
+	// Compression is asynchronous, so an older call can finish after a newer one.
+	if (mine === remembering) history.replaceState(null, '', hash);
+	return new URL(hash, location.href).href;
 }
 
 function update() {
@@ -262,7 +244,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-target]
 		target = button.dataset.target as Target;
 		for (const other of document.querySelectorAll('[data-target]')) other.setAttribute('aria-pressed', String(other === button));
 		el('pg-count').hidden = target !== 'gpui';
-		remember();
+		void remember();
 		update();
 	});
 }
@@ -281,12 +263,16 @@ if (navigator.clipboard) {
 	share.hidden = false;
 	share.addEventListener('click', () => {
 		clearTimeout(timer);
-		remember();
+		const link = remember();
 		update();
-		navigator.clipboard.writeText(location.href).then(
-			() => (share.textContent = 'Link copied'),
-			() => (share.textContent = 'Copy failed')
-		);
+		// Safari forgets the click across an await, so the link is awaited inside the clipboard write.
+		const written = typeof ClipboardItem === 'function' ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': link.then((text) => new Blob([text], { type: 'text/plain' })) })]) : Promise.reject();
+		written
+			.catch(() => link.then((text) => navigator.clipboard.writeText(text)))
+			.then(
+				() => (share.textContent = 'Link copied'),
+				() => (share.textContent = 'Copy failed')
+			);
 		setTimeout(() => (share.textContent = 'Copy link'), 1500);
 	});
 }

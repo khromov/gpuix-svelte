@@ -16,6 +16,7 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import type { Mutation } from 'gpuix-svelte';
 import { compile_for, link } from '../playground/compile.ts';
 import { MODULES, file_of, type Target } from '../playground/modules.ts';
+import { decode_hash, encode_hash } from '../playground/share.ts';
 import { Mirror, batch_html, dom_html, tree_html, type MirrorNode } from '../playground/tree.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -238,4 +239,13 @@ check('a batch lists its operations', [batch_html(3, mount).includes('applyBatch
 const dom_tree = dom_html('<div class="a"><script>x</script><!----><b>hi &amp; <i>there</i></b></div>');
 check('the DOM tree is escaped markup without scripts or Svelte\'s anchors', [dom_tree.includes('&lt;<span class="pg-t-tag">div</span>'), dom_tree.includes('script'), dom_tree.includes('<b>'), dom_tree.includes('&quot;hi &amp;&quot;')], [true, false, false, true]);
 
-finish('docs', 39);
+const counter = readFileSync(join(root, 'playground/examples/Counter.svelte'), 'utf8') + '— ünïcode ✓';
+const hash = await encode_hash(counter, 'dom');
+const plain = `#renderer=gpui&code=${Buffer.from(counter).toString('base64url')}`;
+check(
+	'a link carries the source compressed, opens to the same text and renderer, and an uncompressed link from before still opens',
+	[await decode_hash(hash), hash.length < plain.length / 2, await decode_hash(plain), await decode_hash('#renderer=dom&z=not-deflate')],
+	[{ source: counter, target: 'dom' }, true, { source: counter, target: 'gpui' }, { source: null, target: 'dom' }]
+);
+
+finish('docs', 40);
