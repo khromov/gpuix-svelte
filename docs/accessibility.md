@@ -12,6 +12,7 @@ without a pointer. [Testing](testing.md#accessibility) shows how to assert on th
   sentence into several text nodes, they stay unlabelled, because a label would break what GPUI
   selects, copies and searches as one run. A `<text>` element around the sentence labels it whole.
 - `input` and `textarea` are text fields, and `img` is an image labelled by its `alt`.
+- `button` is a button, named by the text inside it.
 - Any other element shows up only with a `role`. The ARIA role names work: `button`, `heading`,
   `switch`, `checkbox`, `radio`, `link`, `listbox` and `option`, `menu` and `menuitem`, `dialog`,
   `tablist` and `tab`, `slider`, `progressbar`, `status`, `alert`, `region`, `group` and the rest.
@@ -46,9 +47,18 @@ GPUI window gets:
 ## Keyboard and focus
 
 [Keyboard shortcuts and focus](guide.md#keyboard-shortcuts-and-focus) covers Tab, the focus
-helpers and `:focus-visible`. A control built from a `div` needs three things a browser button has
-for free: `tabindex="0"`, Enter and Space doing what a click does (GPUI calls them `enter` and
-`space`), and a `:focus-visible` rule so the keyboard can see where it is.
+helpers and `:focus-visible`. Write a button as `<button onclick={save}>Save</button>`: it is a
+`div` with nothing drawn for it, plus what a browser's button has for free. It has the `button`
+role, it is a tab stop, and Enter and Space call `onclick` (once per press, and not when an
+`onkeydown` of yours called `preventDefault()`). `disabled` takes the tab stop away and keeps
+clicks and keys from `onclick`. A `role` or `tabindex` of your own wins. It still needs a
+`:focus-visible` rule so the keyboard can see where it is. In a browser the same tag is a real
+button, and `render()` takes the browser's own border, padding, background and font off it with a
+`:where(button)` rule, which any rule of yours outranks; a page that mounts the component some
+other way (SvelteKit, say) needs that reset in its own CSS.
+
+A control built from a `div` needs those three things by hand: `role`, `tabindex="0"`, and Enter
+and Space doing what a click does (GPUI calls them `enter` and `space`).
 
 A menu or a dialog takes focus when it opens and gives it back when it closes. `autofocus` on the
 first control focuses it as it mounts. Note what had focus before opening, and focus that again

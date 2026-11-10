@@ -74,6 +74,13 @@ interface GpuixAttributes extends GpuixEvents {
 	[key: symbol]: ((node: ShadowNode) => unknown) | false | null | undefined;
 }
 
+interface ButtonAttributes extends GpuixAttributes {
+	/** No tab stop, and neither a click nor Enter or Space reaches `onclick`. */
+	disabled?: Flag;
+	/** Accepted so a component shared with the DOM typechecks; GPUI has no forms. */
+	type?: Text;
+}
+
 interface InputAttributes extends GpuixAttributes {
 	value?: Text;
 	placeholder?: Text;
@@ -190,6 +197,7 @@ declare global {
 		interface IntrinsicElements extends SvelteTags {
 			div: GpuixAttributes;
 			text: GpuixAttributes;
+			button: ButtonAttributes;
 			img: ImgAttributes;
 			svg: SvgAttributes;
 			input: InputAttributes;

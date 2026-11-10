@@ -168,10 +168,21 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (root.height === '100vh') body.style.height = '100dvh';
 	root_keys = Object.keys(root);
 
+	if (!document.head.querySelector('style[data-gpuix-svelte]')) {
+		const reset = document.createElement('style');
+		reset.setAttribute('data-gpuix-svelte', '');
+		reset.textContent = BUTTON_RESET;
+		document.head.prepend(reset);
+	}
+
 	mounted = mount(Component, { target: body, props }) as Record<string, unknown>;
 	flushSync();
 	return mounted;
 }
+
+// On GPUI a `<button>` is an unstyled div, so the browser's own button look comes off; `:where()` keeps any rule of the app's above it.
+const BUTTON_RESET =
+	':where(button){display:block;margin:0;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:inherit;appearance:none}';
 
 /** Hot reload belongs to the GPUI window; an entry that calls this landed in a DOM build, usually by skipping the bin. */
 export const render_hot: (entry: string | URL, options?: RenderOptions) => Promise<void> = () =>

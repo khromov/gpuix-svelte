@@ -404,6 +404,12 @@ check(
 );
 key('t');
 check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
+const resets = [...document.head.querySelectorAll('style[data-gpuix-svelte]')];
+check(
+	"render() takes the browser's button look off once, under any rule of the app's",
+	[resets.length, document.head.firstElementChild === resets[0], resets[0]?.textContent?.startsWith(':where(button){')],
+	[1, true, true]
+);
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 71);
+finish('dom', 72);

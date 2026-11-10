@@ -245,8 +245,20 @@ function first_native_after(cursor: ShadowNode | null) {
 	return null;
 }
 
+const BUTTON_ATTRS = new Set(['role', 'tabindex', 'tabIndex', 'disabled']);
+
+const is_disabled = (el: ShadowNode) => el.attrs.disabled != null && el.attrs.disabled !== false && el.attrs.disabled !== 'false';
+
+/** `<button>` is a div with what a browser's has for free: the role, a tab stop, and Enter or Space as a click. */
+function button_defaults(el: ShadowNode) {
+	if (el.name !== 'button' || el.nativeId === null) return;
+	if (!('role' in el.attrs)) emit(['setCustomProp', el.nativeId, 'role', 'button']);
+	if (!('tabindex' in el.attrs) && !('tabIndex' in el.attrs)) emit(['setCustomProp', el.nativeId, 'tabIndex', is_disabled(el) ? null : 0]);
+}
+
 function map_tag(name: string) {
 	if (GPUI_TAGS.has(name)) return name;
+	if (name === 'button') return 'div';
 	if (!warned_tags.has(name)) {
 		warned_tags.add(name);
 		console.warn(`[gpuix-svelte] <${name}> has no GPUI equivalent — rendering it as <div>.`);
@@ -292,7 +304,7 @@ function descends(n: ShadowNode, ancestor: ShadowNode) {
  * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
  */
 function shielded(el: ShadowNode, style: GpuiStyle) {
-	if (INTERACTIVE_TAGS.has(el.name)) return false;
+	if (INTERACTIVE_TAGS.has(el.name) || el.name === 'button') return false;
 	for (const event of el.listeners.keys()) if (!PASSIVE_EVENTS.has(event)) return false;
 	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
 	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
@@ -444,6 +456,10 @@ function materialize(n: ShadowNode) {
 				if (!n.listeners.has(type)) emit(['setEventListener', n.nativeId, type, true]);
 			}
 		}
+		if (n.name === 'button') {
+			button_defaults(n);
+			if (!n.listeners.has('keyDown')) emit(['setEventListener', n.nativeId, 'keyDown', true]);
+		}
 	}
 
 	for (let c = n.first; c; c = c.next) {
@@ -531,6 +547,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		else if (RENDERER_ATTRS.has(key)) restyle_subtree(el);
 		else {
 			apply_prop(el, key, value);
+			if (BUTTON_ATTRS.has(key)) button_defaults(el);
 			if (FOCUS_ATTRS.has(key) && hitbox_root(el) !== null) apply_style(el);
 		}
 	},
@@ -544,6 +561,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
 		else {
 			apply_prop(el, name, null);
+			if (BUTTON_ATTRS.has(name)) button_defaults(el);
 			if (FOCUS_ATTRS.has(name) && hitbox_root(el) !== null) apply_style(el);
 		}
 	},
@@ -663,7 +681,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		if (handlers.length === 0) {
 			target.listeners.delete(event);
 			// A text field keeps reporting focus and blur: `focused_input` depends on it.
-			const tracked = TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur');
+			const tracked =
+				(TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur')) || (target.name === 'button' && event === 'keyDown');
 			if (target.nativeId !== null) {
 				if (!tracked) emit(['setEventListener', target.nativeId, event, false]);
 				if (hitbox_root(target) !== null) apply_style(target);
@@ -939,6 +958,9 @@ export function dispatch(payload: EventPayload) {
 		else if (payload.eventType === 'blur' && focused_input === target) focused_input = null;
 	}
 
+	const button = target.name === 'button';
+	if (button && payload.eventType === 'click' && is_disabled(target)) return;
+
 	const flags = KEY_EVENTS.has(payload.eventType) ? flags_for(payload) : null;
 	const handlers = target.listeners.get(payload.eventType);
 	if (handlers && handlers.length > 0 && !flags?.stopped) {
@@ -972,6 +994,9 @@ export function dispatch(payload: EventPayload) {
 		}
 	}
 
+	if (button && payload.eventType === 'keyDown' && !payload.isHeld && !flags?.prevented && (payload.key === 'enter' || payload.key === 'space')) {
+		dispatch({ ...payload, eventType: 'click' });
+	}
 	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload);
 }
 

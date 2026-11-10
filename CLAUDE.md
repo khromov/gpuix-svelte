@@ -88,6 +88,7 @@ npm run test:dialog        # a file picker open on a faked-blocked UI thread: no
 npm run test:hitbox        # hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
+npm run test:button        # <button>: the Button role, a tab stop, Enter/Space as a click, disabled
 npm run test:titlebar      # render's titlebar option through mount_headless: title, buttons, layout
                            # below the bar, rootStyle on the box below it, set_window_title, close
                            # unmounts once; and where wants_titlebar's 'auto' default draws it
@@ -938,7 +939,12 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
 **`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
 reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
-`setImmediate` burns most of a core at idle. `requiresTick()` is true on every desktop platform —
+`setImmediate` burns most of a core at idle. On macOS native answers one accessibility request per
+`tick()`, so at 8 ms a read costs 8 ms and VoiceOver reports the app as not responding; while
+VoiceOver runs the loop ticks every 1 ms instead (`src/screen-reader.ts` asks `pgrep -x VoiceOver`
+every 2 s, since native has no signal for an assistive client and `defaults` misses a VoiceOver
+started without its shortcut). Other accessibility clients still get 8 ms, until
+native wakes JS for run-loop input the way `setFrameWakeCallback` does for frames. `requiresTick()` is true on every desktop platform —
 on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether that thread
 is still alive — and `tick()` returns false once the last window closes, which ends the loop and
 the process. Where `requiresTick()` is false (the wasm build), `set_auto_commit(true)` makes the
@@ -1086,7 +1092,14 @@ are the ones that bite most often, and the renderer behaviour behind them.
 - Only GPUI tags exist (`div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
   `markdown`, `virtual-list`, `anchored`); anything else degrades to `div` with a one-time
   warning. That includes `<canvas>`: native 0.11 registers no such element, so a window gave it no
-  layout box and painted neither it nor its children. `<img src>` is a filesystem path, a `data:`
+  layout box and painted neither it nor its children. `<button>` is the one alias: the renderer
+  ships it as a `div` (no styling of its own) with `role` `button` and `tabIndex` 0 unless the
+  element sets its own, always listens for `keyDown` on it, and re-dispatches an unprevented,
+  unheld `enter` or `space` as a `click`; `disabled` clears the tab stop and drops both the
+  pointer's click and the key's (native 0.11 has no disabled state, so a screen reader is not
+  told). The DOM build's `render()` prepends one `<style data-gpuix-svelte>` holding a
+  `:where(button)` reset to `<head>`, so a bare button looks the same on both; a page mounted
+  without `render()` gets no reset. Other HTML tags stay unknown on purpose. `<img src>` is a filesystem path, a `data:`
   URL or an http(s) URL GPUI fetches in the background, so give it both a width and a height.
   `<markdown>` is rebuilt and laid out in full on every frame, on screen or not, and the cost
   follows its block count, not its bytes (a 226-block page cost ~7 ms a frame headless, ~18 ms in
