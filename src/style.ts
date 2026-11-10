@@ -161,6 +161,9 @@ const FILL = [
 
 const warned = new Set<string>();
 
+/** The docs' playground recompiles one source on every edit and has to hear a dropped value each time. */
+export const forget_style_warnings = () => warned.clear();
+
 /** `var(--name)` values, set from JS; every rule or inline style that reads one re-resolves on change. */
 const css_vars = new Map<string, string>();
 let vars_generation = 0;

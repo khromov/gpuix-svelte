@@ -134,8 +134,8 @@ function apply_style(target: HTMLElement, style: GpuiStyle) {
 
 /** GPUI's default root (`create_root`). */
 const ROOT_BOX: GpuiStyle = { display: 'flex', position: 'relative', width: '100%', height: '100%' };
-/** What a `<body>` needs on top to be the window, whatever the root box: no margin, and the viewport for its height. */
-const PAGE: GpuiStyle = { margin: 0, height: '100vh' };
+/** What a `<body>` needs on top to be the window, whatever the root box: no margin, the viewport for its height, and GPUI's default line height (the golden ratio), where a browser's `normal` follows the font. */
+const PAGE: GpuiStyle = { margin: 0, height: '100vh', lineHeight: '1.618' };
 
 let mounted: Record<string, unknown> | null = null;
 let kept: Array<() => void> = [];

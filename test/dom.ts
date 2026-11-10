@@ -267,6 +267,7 @@ dom.render(CrossTarget, { title: 'Cross-target test' });
 const live_keydown = keydown_listeners;
 check('render() mounts into <body> and titles the page', [document.title, by_id('app') !== null], ['Cross-target test', true]);
 check("<body> gets GPUI's root box", [document.body.style.display, document.body.style.position, document.body.style.margin], ['flex', 'relative', '0px']);
+check("<body> gets GPUI's line height", document.body.style.lineHeight, '1.618');
 check('the badge says DOM', text('target'), 'DOM');
 check('window_size renders', text('size'), '1024 × 768');
 (window as unknown as { happyDOM: { setViewport(viewport: { width: number; height: number }): void } }).happyDOM.setViewport({ width: 800, height: 600 });
@@ -402,6 +403,7 @@ check(
 	[document.querySelectorAll('[testid="app"]').length, document.title, document.body.style.display, document.body.style.padding],
 	[1, 'again', '', '4px']
 );
+check('the line height stays under a rootStyle that sets none', document.body.style.lineHeight, '1.618');
 key('t');
 check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
 const resets = [...document.head.querySelectorAll('style[data-gpuix-svelte]')];
@@ -412,4 +414,4 @@ check(
 );
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 72);
+finish('dom', 74);

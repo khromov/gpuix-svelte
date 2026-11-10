@@ -147,7 +147,10 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
-For real code, the [examples](examples) are the best reference (see [Examples](#examples)).
+For real code, the [examples](examples) are the best reference (see [Examples](#examples)). To try
+a component without installing anything, the [playground](https://gpuix-svelte.stanislav.garden/playground.html)
+compiles one in the browser and runs it on GPUI's WebAssembly build or in the DOM, with the
+element tree, the mutations and the compiled JavaScript beside it.
 
 ## Adding it to an existing project
 

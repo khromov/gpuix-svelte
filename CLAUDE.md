@@ -113,7 +113,9 @@ npm run test:dom           # the same example in the DOM in happy-dom, the stubs
                            # runs on Linux too
 npm run test:docs          # builds the docs site (always on Node, since Vite runs there) and mounts
                            # every ```svelte demo``` from the built dist/docs/demos.js into each built
-                           # page under happy-dom, clicking through a few; runs on Linux too
+                           # page under happy-dom, clicking through a few; then the playground up
+                           # to the browser: both frames built, every example compiled for both
+                           # renderers into imports of built files, the tree mirror; runs on Linux too
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
@@ -151,12 +153,15 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # A ```svelte demo <name>``` block is a live demo: written to
                            # dist/docs-demos/<page>-<name>.svelte and bundled by Vite for the DOM
                            # into dist/docs/demos.js, which only pages with a demo load;
-                           # one that does not compile fails the build. See "The docs' live demos"
+                           # one that does not compile fails the build. See "The docs' live demos".
+                           # Also builds the playground (playground/, scripts/playground.ts) into
+                           # dist/docs/playground.html, playground/ and playground-sw.js. See
+                           # "The docs' playground"
 npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
                            # (PORT overrides) and opens it in the browser (-- --no-open skips
                            # that); rebuilds on any change to README.md, docs/, homepage/,
-                           # scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts or src/components/dom
-                           # by restarting a child that builds and serves
+                           # playground/, src/, scripts/docs.ts, scripts/playground.ts or
+                           # scripts/vite-dom.ts by restarting a child that builds and serves
 npm run og                 # retakes homepage/og.png: headless Chrome over CDP (scripts/og.ts,
                            # $CHROME overrides the path) on index.html#og at 1200x630, device
                            # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
@@ -681,7 +686,10 @@ building. The design:
   absent; `render_hot` is there only to reject with a message naming the bin, because an entry
   run as plain `node app.ts` lands here and would otherwise die on a missing-export SyntaxError.
   `render()` gives `<body>` `create_root`'s box (flex, `100%` × viewport, relative, no margin), or
-  `rootStyle` in its place as on GPUI, and clears what the previous call set. Key names follow
+  `rootStyle` in its place as on GPUI, and clears what the previous call set. Under either it sets
+  `line-height: 1.618`, GPUI's default (`phi()`, and native takes `lineHeight` in px only, so the
+  GPUI side cannot be given a relative one): a browser's `normal` follows the font (1.3 for Geist,
+  1.15 for the system font), which made every text line on GPUI about a quarter taller. Key names follow
   GPUI's `press()` spelling, with the physical key (`e.code`) standing in under Alt or Shift once
   the layout has turned the key into a symbol (⌥T is `†`), and `editing` means a text field, not a
   checkbox. Every `document`/`window` read goes through `doc()`/`win()`, so SvelteKit's server pass
@@ -736,6 +744,43 @@ building. The design:
   which no demo may name, do not. `test/docs.ts` runs the build on Node whatever runtime runs it
   (`node` from PATH under Bun), imports the bundle under happy-dom with an empty body, then calls
   `mount_demos()` per built page with the page's inline script stripped.
+- **The docs' playground** (`playground/`, built by `scripts/playground.ts`, at `/playground.html`
+  with a link in the site's top nav and the homepage's). The page (`main.ts`: a CodeMirror editor,
+  `examples/*.svelte` read with `?raw` and typechecked as GPUI markup) compiles the source in the
+  browser and runs it in one same-origin iframe per renderer, because GPUI's wasm appends its canvas
+  to `<body>` and can never be torn down, and the DOM `render()` takes `<body>` too. `compile.ts`
+  calls `src/compile-core.ts` for GPUI (the package's compile step with no `node:*` or `process`,
+  which `compile.ts` wraps with the file read and the cache-buster) and `svelte/compiler` with
+  `css: 'injected'` for the DOM, then `link()` rewrites every import to a URL. That is the trick the
+  whole thing rests on: each frame is a Vite build whose entries are the frame script plus one tiny
+  re-exporting module per specifier in `modules.ts` (`preserveEntrySignatures: 'strict'`, file
+  names from `file_of`), so the blob module the frame imports shares the frame's chunks: one Svelte
+  runtime, one renderer, live bindings intact. An import outside that list is a compile error
+  naming it; a new shipped component or svelte entry point goes in `modules.ts`. The GPUI frame is
+  the first wasm build here made by Vite, not Bun: a plugin compiles `.svelte` with
+  `compile_svelte`, points `gpuix-svelte`, `/renderer` and `/components/*` at `src/`, and replaces
+  `@gpuix/native` with a virtual module that imports `wasm/gpuix-web.js` and the `.wasm` through
+  `?url` (the package's `browser.mjs` uses `with { type: 'file' }`, which only Bun reads), under
+  the conditions `custom-renderer` + `browser`; `base: './'` keeps the wasm and the preloaded
+  chunks relative. `frame-gpui.ts` wraps `GpuixRenderer.prototype.applyBatch` and posts every
+  batch to the page, where `tree.ts`'s `Mirror` rebuilds GPUI's element tree from the operations
+  alone (the wasm has no `getTreeJson`), text wrappers included; that is the Render tree and
+  Mutations views, and Compiled JS is the compiler's output before linking. The GPUI frame is
+  remounted through `render()` on every edit (so `set_css_vars` values outlive a run), the DOM
+  frame is reloaded. **Fonts**: the wasm cannot reach system fonts and has no `registerFont`, so
+  the canvas draws everything in the eight faces it embeds (IBM Plex Sans 400/600 and Lilex
+  400/700, each with an italic), and the DOM frame loads the same faces from
+  `homepage/assets/fonts/gpui/` instead of the site's Geist. Those files were cut out of
+  `gpuix-web_bg.wasm` itself (scan for sfnt headers, length from the table directory) and
+  compressed with fontTools; redo that if a native bump changes the embedded fonts. **Isolation**: GitHub Pages cannot send COOP/COEP, so an inline script
+  registers `playground/sw.js` (published as `playground-sw.js`, scope `./playground`, which covers
+  the page and the frames and nothing else) and reloads once; the worker re-serves every response
+  with `credentialless`, or `require-corp` where the page says Safari, which has no
+  `credentialless` and so loses the cross-origin analytics script on that page. Without isolation
+  (no service worker, plain `http:` off localhost) the page falls back to the DOM renderer with a
+  note. `docs:serve` sends no headers of its own, so local runs take the same path. Checking the
+  wasm side is by hand in headless Chrome over CDP, as for `demo:web`; here it needs
+  `--enable-unsafe-webgpu` or `--enable-unsafe-swiftshader`.
 - **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the
   DOM components and the example with `svelte/compiler` (no `customRenderer`, `css: 'injected'`)
   into `test/.dom-tmp/`, and rewrites their `'gpuix-svelte'` and component specifiers to
@@ -863,6 +908,7 @@ Three layers, `src/`:
 render.ts    window lifecycle + frame loop  ─┐
 renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
+  compile-core.ts  the compile step alone, no node:* ─ what the docs' playground runs in the browser
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
   hot.ts       render_hot's fs.watch reload         ─ node:* stays out of render.ts but for node:fs and node:child_process
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
@@ -891,6 +937,22 @@ resolve from the `.svelte` file's own location. `async: true` rides along becaus
 `pending`/`failed` snippet in a `<svelte:boundary>` crashes the compiler without it
 (`SvelteBoundary.js` reads through the `renderer_snippet` wrapper; still present in the vendored
 build). Reported upstream on #18511; drop the flag once it lands.
+
+Before compiling, `collapse_whitespace` (`compile-core.ts`) does to the template's text what an
+HTML parser would: GPUI draws a text node as written and the compiler leaves interior whitespace to
+the browser, so a sentence wrapped over indented lines showed its line break and tabs. It parses
+the source and rewrites runs of HTML's whitespace (`[ \t\r\n]`, as the compiler's own patterns
+have it, never `\s`: a no-break space is content) in `Text` nodes that sit directly in a fragment
+(not attribute values, not under `<pre>`, `<textarea>`, or a `<script>`/`<style>` in the markup,
+whose one `Text` is raw), including a run at a text's edge when the neighbour is an `{expression}`,
+which is the one edge the compiler does not collapse itself. The neighbour is found the way
+`clean_nodes` finds it, past comments and the nodes it hoists (`UNSEEN`). A component with
+`<svelte:options preserveWhitespace />` is left alone, which is the way back to text drawn as
+written. A run
+with a line break becomes `<!--run--> `, because the compiler drops comments and joins the text
+around them, and that keeps every line's number for errors and warnings (columns on that line
+shift). Strings from expressions are never touched, so a deliberate `\n` in data still breaks the
+line. A source that does not parse is handed to `compile` unchanged, which reports it.
 
 It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
 renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
@@ -1316,6 +1378,18 @@ WebKit shapes two things there. The markup is 2× through CSS `zoom`, because it
 on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either of which still
 exports a wrong PNG without an error. And the image is drawn three times 250 ms apart, because nested
 images appear only from the second draw. It also skips `filter`, so Matrix has no glow in Safari.
+
+`homepage/stickers.html` (`/stickers.html`, `noindex`) draws the stickers and their parts: the
+logo-and-wordmark sticker (10:3, rounded corners, a concentric line inset from the edge) in three
+colourways, a black square with `gpuix` over an indented orange `svelte`, and the logo and the two
+words alone, cropped to their ink at one shared scale. Each downloads as its SVG or as a PNG drawn
+from that SVG on a canvas; the square stops at 4000 px because Safari refuses a canvas over 16.7
+megapixels. None of `share/`'s WebKit workarounds apply, because the SVGs hold only paths: the text
+is Geist at weight 600 with the lockup's -0.03em tracking, outlined once with fontkit from
+`homepage/assets/fonts/Geist-Variable.woff2` (decompressed to TTF first, since fontkit's variation
+instances fail on WOFF2), the whole wordmark baked into the rounded sticker at x 270, baseline 185.4
+(its `translate` is the optical nudge since) and each word at 100 units on a baseline at 0, with
+`INK` holding their measured bounds. Redo them if the lockup changes.
 
 `starter/` is the template `create-gpuix-svelte` copies (its `prepack` syncs it into the package's
 gitignored `template/`; run from the repo, `index.js` reads `starter/` directly) and so the app
