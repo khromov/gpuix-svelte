@@ -5,6 +5,7 @@
  */
 
 import type { BunPlugin } from 'bun';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ import {
 	archive_name,
 	DEFAULT_ICON,
 	info_plist,
+	native_addon,
 	notarize,
 	notary_auth,
 	read_app_options,
@@ -43,7 +45,27 @@ export interface BuildOptions {
 	archive?: boolean;
 	/** With `archive`, runs on the packaged output before macOS signing, so the signature and the archive both cover what it does: where a Windows `.exe` gets `signtool`, say. */
 	beforeArchive?: (result: Pick<BuildResult, 'output' | 'binary' | 'app'>) => void | Promise<void>;
+	/**
+	 * Compile the app to machine code ahead of time (Bun's experimental `compile.aot`). Off by
+	 * default; on a Bun that lacks it the build says so and goes ahead without it.
+	 */
+	aot?: boolean;
+	/**
+	 * Leave out the Bun and Node.js APIs the app never calls (Bun's experimental `compile.trim`).
+	 * Off by default; on a Bun that lacks it the build says so and goes ahead without it. An object
+	 * is passed to Bun as it is: `remove` takes features out even where the compiler cannot prove
+	 * them unused, and the app throws `ERR_FEATURE_REMOVED` if it reaches one.
+	 */
+	trim?: boolean | TrimOptions;
 }
+
+/** Bun's `compile.trim` object; the names are Bun's feature names (https://bun.com/docs/compiler/size#feature-names). */
+export interface TrimOptions {
+	allow?: string[];
+	remove?: string[];
+}
+
+type CompileFlag = 'aot' | 'trim';
 
 export interface BuildResult {
 	/** What to ship: the `.app` on macOS, the `.exe` on Windows, the executable on Linux. */
@@ -120,13 +142,19 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		write_ico(app.icon, windows.icon, scratch);
 	}
 
+	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
+	const addon = flags.length > 0 ? native_addon() : null;
+	// Bun's `trim` report blames napi-rs's loader for a `require()` of a path from the environment and for `eval` (at a `hasOwnProperty.call`), which keep Bun's module loader and interpreter in.
+	const direct = join(scratch, 'native.cjs');
+	if (addon) writeFileSync(direct, `module.exports = require(${JSON.stringify(addon)});\n`);
+
 	// `Bun.build` ignores the plugin bunfig.toml preloads, and a `.svelte` import with
 	// no plugin silently becomes a file asset, so count what actually went through it.
 	let components = 0;
 	const plugin: BunPlugin = {
 		name: 'gpuix-svelte',
 		setup(build) {
-			build.onResolve({ filter: /^@gpuix\/native$/ }, resolve_native_cjs);
+			build.onResolve({ filter: /^@gpuix\/native$/ }, addon ? () => ({ path: direct }) : resolve_native_cjs);
 			build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['custom-renderer', 'production']));
 			build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 			build.onLoad({ filter: /\.svelte$/ }, (args) => {
@@ -149,7 +177,9 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 			'process.env.NODE_ENV': '"production"',
 			'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)),
 			// The dev-run override must not redirect a shipped app.
-			'process.env.GPUIX_UPDATE_MANIFEST': '""'
+			'process.env.GPUIX_UPDATE_MANIFEST': '""',
+			// A binary cannot serve automation, and `aot` would otherwise compile the server and zod in.
+			'process.env.GPUIX_AUTOMATION': '""'
 		},
 		minify: true,
 		plugins: [plugin],
@@ -159,7 +189,10 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 			// A bunfig.toml or .env beside the launched binary must not reconfigure it.
 			autoloadBunfig: false,
 			autoloadDotenv: false,
-			...(windows && { windows })
+			...(windows && { windows }),
+			// Spread, since @types/bun does not declare them yet.
+			...(flags.includes('aot') && { aot: true }),
+			...(flags.includes('trim') && { trim: options.trim })
 		}
 	});
 
@@ -169,11 +202,16 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 	}
 	if (components === 0) throw new Error(`${TAG} no .svelte file went through the plugin; ${rel(entry)} has to import the component it renders`);
 
-	// The output is Bun's own executable plus the payload, and the addon is at least
-	// 17 MB on every platform, so anything closer to bare Bun than that lost it.
 	const size = statSync(binary).size;
-	const floor = statSync(process.execPath).size + 12 * 1024 * 1024;
-	if (size < floor) throw new Error(`${TAG} ${rel(binary)} is ${mb(size)} MB, under the ${mb(floor)} MB floor — the GPUI addon was not embedded`);
+	if (addon) {
+		// Both flags shrink the runtime below bare Bun, so no size floor can tell a lost addon apart.
+		if (!readFileSync(binary).includes(readFileSync(addon))) throw new Error(`${TAG} ${rel(binary)} does not contain the GPUI addon`);
+	} else {
+		// The output is Bun's own executable plus the payload, and the addon is at least
+		// 17 MB on every platform, so anything closer to bare Bun than that lost it.
+		const floor = statSync(process.execPath).size + 12 * 1024 * 1024;
+		if (size < floor) throw new Error(`${TAG} ${rel(binary)} is ${mb(size)} MB, under the ${mb(floor)} MB floor — the GPUI addon was not embedded`);
+	}
 
 	let output = binary;
 	let executable = binary;
@@ -189,7 +227,7 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		write_icns(app.icon, join(resources, 'AppIcon.icns'), scratch);
 		output = bundle;
 	}
-	log(`${rel(output)} (${mb(size)} MB) — ${app.name} ${app.version}, ${app.identifier}${app.icon === DEFAULT_ICON ? ', default icon' : ''}`);
+	log(`${rel(output)} (${mb(size)} MB${flags.length > 0 ? `, ${flags.join(' + ')}` : ''}) — ${app.name} ${app.version}, ${app.identifier}${app.icon === DEFAULT_ICON ? ', default icon' : ''}`);
 
 	const archive = options.archive ? join(outdir, archive_name(app)) : undefined;
 	if (archive) await options.beforeArchive?.({ output, binary: executable, app });
@@ -235,6 +273,19 @@ function entry_app(entry: string): EntryApp {
 	} catch (error) {
 		throw new Error(`${TAG} ${rel(entry)}: ${(error as Error).message}`, { cause: error });
 	}
+}
+
+/** `Bun.build` silently ignores a compile option it does not know, so ask the CLI, which lists each flag wherever the API has it. */
+function supported_flags(requested: CompileFlag[]): CompileFlag[] {
+	if (requested.length === 0) return [];
+	const help = spawnSync(process.execPath, ['build', '--help'], { encoding: 'utf8' }).stdout ?? '';
+	const supported = requested.filter((flag) => new RegExp(`^\\s*--${flag}\\s`, 'm').test(help));
+	const missing = requested.filter((flag) => !supported.includes(flag));
+	if (missing.length > 0) {
+		const [verb, pronoun] = missing.length > 1 ? ['have', 'them'] : ['has', 'it'];
+		log(`${missing.join(' and ')} ${verb} no effect on this build: Bun ${Bun.version_with_sha} does not support ${pronoun}`);
+	}
+	return supported;
 }
 
 /** Windows file versions are up to four 16-bit integers. */
