@@ -45,9 +45,26 @@ const gpui_plugin: Plugin = {
 	}
 };
 
+/** The faces GPUI's wasm embeds (it cannot reach system fonts, and has no `registerFont`), so the DOM frame draws the same glyphs. */
+const GPUI_FACES: Array<[family: string, file: string, weight: number, style: string]> = [
+	['IBM Plex Sans', 'IBMPlexSans-Regular', 400, 'normal'],
+	['IBM Plex Sans', 'IBMPlexSans-Italic', 400, 'italic'],
+	['IBM Plex Sans', 'IBMPlexSans-SemiBold', 600, 'normal'],
+	['IBM Plex Sans', 'IBMPlexSans-SemiBoldItalic', 600, 'italic'],
+	['Lilex', 'Lilex-Regular', 400, 'normal'],
+	['Lilex', 'Lilex-Italic', 400, 'italic'],
+	['Lilex', 'Lilex-Bold', 700, 'normal'],
+	['Lilex', 'Lilex-BoldItalic', 700, 'italic']
+];
+
+const GPUI_FONT_FACES = GPUI_FACES.map(
+	([family, file, weight, style]) =>
+		`@font-face{font-family:"${family}";src:url("../../assets/fonts/gpui/${file}.woff2") format("woff2");font-weight:${weight};font-style:${style};font-display:swap}`
+).join('');
+
 const FRAME_STYLE: Record<Target, string> = {
 	gpui: `*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100%;height:100%;touch-action:none}html,body,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}[data-gpui-input]{-webkit-user-select:text!important;user-select:text!important}`,
-	dom: `@font-face{font-family:"Geist";src:url("../../assets/fonts/Geist-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap}*,*::before,*::after{box-sizing:border-box}html{background:#000;color:#fff;color-scheme:dark}body{font:16px "Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#ff3e0059}text{display:inline}`
+	dom: `${GPUI_FONT_FACES}*,*::before,*::after{box-sizing:border-box}html{background:#000;color:#fff;color-scheme:dark}body{font:16px "IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#ff3e0059}text{display:inline}`
 };
 
 const frame_html = (target: Target) => `<!doctype html>

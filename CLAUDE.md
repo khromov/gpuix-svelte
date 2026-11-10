@@ -724,7 +724,12 @@ building. The design:
   alone (the wasm has no `getTreeJson`), text wrappers included; that is the Render tree and
   Mutations views, and Compiled JS is the compiler's output before linking. The GPUI frame is
   remounted through `render()` on every edit (so `set_css_vars` values outlive a run), the DOM
-  frame is reloaded. **Isolation**: GitHub Pages cannot send COOP/COEP, so an inline script
+  frame is reloaded. **Fonts**: the wasm cannot reach system fonts and has no `registerFont`, so
+  the canvas draws everything in the eight faces it embeds (IBM Plex Sans 400/600 and Lilex
+  400/700, each with an italic), and the DOM frame loads the same faces from
+  `homepage/assets/fonts/gpui/` instead of the site's Geist. Those files were cut out of
+  `gpuix-web_bg.wasm` itself (scan for sfnt headers, length from the table directory) and
+  compressed with fontTools; redo that if a native bump changes the embedded fonts. **Isolation**: GitHub Pages cannot send COOP/COEP, so an inline script
   registers `playground/sw.js` (published as `playground-sw.js`, scope `./playground`, which covers
   the page and the frames and nothing else) and reloads once; the worker re-serves every response
   with `credentialless`, or `require-corp` where the page says Safari, which has no
