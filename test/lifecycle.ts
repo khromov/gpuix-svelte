@@ -114,7 +114,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	console.error = error;
 	check(
 		'a string cut mid-emoji reaches native as U+FFFD, in text and props alike, and nothing is refused',
-		[first()?.children?.[0]?.text, JSON.parse(native.getTreeJson()).children?.[1]?.testId, refusals_of_text],
+		[first()?.children?.[0]?.children?.[0]?.text, JSON.parse(native.getTreeJson()).children?.[1]?.testId, refusals_of_text],
 		['whole \u{1F600} cut \uFFFD literal \\ud83d', '\uFFFD', []]
 	);
 	check('while the shadow node keeps the string Svelte gave it, for its own diffing', text.data === wording, true);

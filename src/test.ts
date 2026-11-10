@@ -6,14 +6,14 @@
 
 import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
 import { mount, unmount, flushSync, type Component } from 'svelte';
-import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch } from './renderer.ts';
+import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch, unwrap_text } from './renderer.ts';
 import { create_window_root } from './titlebar.ts';
 import type { GpuiStyle, ShadowNode } from './types.ts';
 
 /** On macOS the headless viewport can be any width but never taller than this; Windows ignores the requested size. */
 export const MAX_HEADLESS_HEIGHT = 538;
 
-/** One node of `getTreeJson()`: what GPUI holds, with the ids the shadow tree assigned. */
+/** One node of `getTreeJson()`: what GPUI holds, with the ids the shadow tree assigned and plain text unwrapped (`unwrap_text`). */
 export interface TreeNode {
 	id: number;
 	type: string;
@@ -180,7 +180,7 @@ export async function wait(ms = 30) {
 	pump();
 }
 
-export const tree = (): TreeNode => JSON.parse(native().getTreeJson());
+export const tree = (): TreeNode => unwrap_text(JSON.parse(native().getTreeJson()) as TreeNode);
 
 type Visit = (node: TreeNode, parent: TreeNode | null) => void;
 
@@ -420,7 +420,8 @@ export async function wait_for<T>(pred: () => T, { timeout = 2000, interval = 16
 
 export function automation_tree(): AutomationNode | null {
 	const json = native().getAutomationTree();
-	return json ? (JSON.parse(json) as AutomationNode | null) : null;
+	const root = json ? (JSON.parse(json) as AutomationNode | null) : null;
+	return root && unwrap_text(root);
 }
 
 /** One key in GPUI's keystroke syntax — `'escape'`, `'cmd-k'`, `'shift-tab'`. */

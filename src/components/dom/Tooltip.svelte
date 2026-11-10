@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onDestroy, type Snippet } from 'svelte';
+	import { on_window_key } from 'gpuix-svelte';
 	import Anchored from './Anchored.svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
 	type Hover = { onmouseenter: () => void; onmouseleave: () => void };
+	type Focus = { onfocus: () => void; onblur: () => void };
 
 	let {
 		children,
@@ -17,15 +19,15 @@
 		style = null,
 		testid = null
 	}: {
-		/** The trigger; the hover handlers it is passed exist for the GPUI version, where a listener of its own would occlude the wrapper. */
-		children: Snippet<[Hover]>;
+		/** The trigger; the hover handlers it is passed exist for the GPUI version, where a listener of its own would occlude the wrapper, and the focus ones show the tip on keyboard focus. */
+		children: Snippet<[Hover, Focus]>;
 		content: string | Snippet;
 		side?: Side;
 		align?: Align;
 		gap?: number;
 		/** ms of hover before the tip shows. */
 		delay?: number;
-		/** Forces the tip shown or hidden; `null` leaves it to hover. */
+		/** Forces the tip shown or hidden; `null` leaves it to hover and focus. */
 		open?: boolean | null;
 		/** Inline CSS for the tip box, which wins over its own rules: `padding: 0; border-radius: 12px`. */
 		style?: string | null;
@@ -38,17 +40,24 @@
 
 	// The wrapper and the trigger's spread handlers report separately, so hover is tracked per source
 	// rather than by the last event, and the 80 ms grace once neither is hovered covers the handoff.
-	const over = { wrap: false, trigger: false };
+	const over = { wrap: false, trigger: false, focus: false };
 
 	function sync() {
 		clearTimeout(timer);
-		if (!over.wrap && !over.trigger) timer = setTimeout(() => (shown = false), 80);
+		if (!over.wrap && !over.trigger && !over.focus) timer = setTimeout(() => (shown = false), 80);
 		else if (!shown) timer = setTimeout(() => (shown = true), delay);
 	}
 
-	const track = (source: keyof typeof over): Hover => ({
+	function hide() {
+		clearTimeout(timer);
+		over.focus = false;
+		shown = false;
+	}
+
+	const track = (source: Exclude<keyof typeof over, 'focus'>): Hover => ({
 		onmouseenter: () => {
 			over[source] = true;
+			over.focus = false;
 			sync();
 		},
 		onmouseleave: () => {
@@ -59,13 +68,35 @@
 
 	const wrap = track('wrap');
 	const trigger = track('trigger');
+	const focus: Focus = {
+		// Focus that arrives with the pointer already on the trigger came from a click, which hover covers.
+		onfocus: () => {
+			if (over.wrap || over.trigger) return;
+			over.focus = true;
+			clearTimeout(timer);
+			shown = true;
+		},
+		// A blur that ends no focus-shown tip must not reach sync(), which would reopen one Escape dismissed under a resting pointer.
+		onblur: () => {
+			if (!over.focus) return;
+			over.focus = false;
+			sync();
+		}
+	};
+
+	$effect(() => {
+		if (!shown) return;
+		return on_window_key('keydown', (e) => {
+			if (e.key === 'escape') hide();
+		});
+	});
 
 	onDestroy(() => clearTimeout(timer));
 </script>
 
 <div class="host">
 	<div class="anchor" {...wrap} data-testid={testid} {@attach (node: HTMLElement) => (anchor = node)}>
-		{@render children(trigger)}
+		{@render children(trigger, focus)}
 		{#if open ?? shown}
 			<!-- No pointer, as on GPUI: a tip snapped over its own trigger must not take the trigger's clicks. -->
 			<Anchored {anchor} {side} {align} {gap} occlude={false}>
