@@ -1327,6 +1327,14 @@ on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either 
 exports a wrong PNG without an error. And the image is drawn three times 250 ms apart, because nested
 images appear only from the second draw. It also skips `filter`, so Matrix has no glow in Safari.
 
+`homepage/stickers.html` (`/stickers.html`, `noindex`) draws the logo-and-wordmark sticker, 10:3 with
+rounded corners, in three colourways, and downloads each as its SVG or as a 4800 × 1440 PNG drawn
+from that SVG on a canvas (transparent outside the corners). None of `share/`'s WebKit workarounds
+apply, because the SVG holds only paths: its wordmark is Geist at weight 600 with the lockup's
+-0.03em tracking, outlined once with fontkit from `homepage/assets/fonts/Geist-Variable.woff2`
+(decompressed to TTF first, since fontkit's variation instances fail on WOFF2) and baked into the
+sticker's coordinates, so a print shop's renderer needs no font. Redo it if the lockup changes.
+
 `starter/` is the template `create-gpuix-svelte` copies (its `prepack` syncs it into the package's
 gitignored `template/`; run from the repo, `index.js` reads `starter/` directly) and so the app
 `npm run consume` installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays

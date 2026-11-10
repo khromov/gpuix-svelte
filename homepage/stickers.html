@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stickers · gpuix-svelte</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M28.4 18.3 15.4 32l13 13.7' fill='none' stroke='%23fff' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34.9 18.3 50 32 34.9 45.7Z' fill='%23ff3e00' stroke='%23ff3e00' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preload" href="assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:Geist;src:url(assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{
+--bg:#000;--s1:#0a0a0a;--s3:#171717;
+--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.13);--line-3:rgba(255,255,255,.22);
+--text:#ededed;--text-2:#a1a1a1;--text-3:#8f8f8f;
+--accent:#ff3e00;
+--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+a{color:inherit}
+p,figure{margin:0}
+
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;height:56px;padding:0 32px;background:var(--bg);border-bottom:1px solid var(--line)}
+.home{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.home svg{width:22px;height:22px}
+.home span{margin-left:4px;font-weight:400;color:var(--text-3)}
+main{max-width:1280px;margin:0 auto;padding:32px}
+.lead{max-width:68ch;color:var(--text-2);text-wrap:pretty}
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:32px 28px;margin-top:28px}
+.slot{display:grid;place-items:center;padding:clamp(20px,6%,40px);border-radius:12px;background:repeating-conic-gradient(#262626 0 25%,#1c1c1c 0 50%) 0 0/20px 20px;box-shadow:0 0 0 1px var(--line-2)}
+.slot svg{display:block;width:100%;height:auto}
+figcaption{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+figcaption b{margin-right:auto;font-weight:600;letter-spacing:-.015em}
+.save{appearance:none;height:30px;padding:0 12px;font:500 12.5px/1 var(--sans);color:var(--text);background:var(--s3);border:1px solid var(--line-2);border-radius:7px;white-space:nowrap;cursor:pointer}
+.save:hover{background:#1f1f1f;border-color:var(--line-3)}
+.save:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.save:disabled{color:var(--text-3);cursor:progress}
+@media (max-width:640px){
+.top{padding:0 16px}
+main{padding:24px 16px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+<a class="home" href="./"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte<span>stickers</span></a>
+</header>
+<main>
+<p class="lead" id="lead"></p>
+<div class="sheet" id="sheet"></div>
+</main>
+<script>
+// Geist 600 with the lockup's -0.03em tracking as outlines, so neither download depends on a font and a print shop's renderer draws what the page shows.
+const WORDMARK = 'M305.16 204.52Q296.9 204.52 291 202.27Q285.1 200.03 281.51 195.96Q277.91 191.89 276.49 186.58L292.07 185.52Q293.25 189.06 296.14 191.06Q299.03 193.07 305.16 193.07Q312.13 193.07 315.9 189.94Q319.68 186.82 319.68 180.21L319.68 172.18Q317.44 176.79 312.48 179.56Q307.52 182.33 301.39 182.33Q293.6 182.33 287.52 178.5Q281.45 174.66 278.02 167.76Q274.6 160.86 274.6 151.77Q274.6 142.68 277.96 135.78Q281.33 128.88 287.35 124.93Q293.36 120.97 301.15 120.97Q308 120.97 312.95 124.04Q317.91 127.11 320.15 132.18L320.15 122.39L334.9 122.39L334.9 179.85Q334.9 187.88 331.18 193.42Q327.47 198.97 320.8 201.74Q314.13 204.52 305.16 204.52ZM304.93 170.53Q311.65 170.53 315.67 165.52Q319.68 160.5 319.8 151.65Q319.91 145.75 318.08 141.56Q316.26 137.37 312.89 135.07Q309.53 132.77 304.93 132.77Q297.97 132.77 294.13 137.91Q290.3 143.04 290.3 151.65Q290.3 160.27 294.25 165.4Q298.2 170.53 304.93 170.53ZM347.93 203.1L347.93 122.39L362.44 122.39L362.8 135.84L361.26 135.13Q363.62 128.17 368.99 124.57Q374.36 120.97 381.56 120.97Q390.53 120.97 396.48 125.46Q402.44 129.94 405.39 137.37Q408.34 144.81 408.34 153.89Q408.34 162.98 405.33 170.41Q402.33 177.85 396.37 182.33Q390.41 186.82 381.44 186.82Q376.72 186.82 372.65 185.16Q368.58 183.51 365.69 180.44Q362.8 177.38 361.62 173.25L363.03 172.07L363.03 203.1ZM377.9 174.54Q384.74 174.54 388.7 169.06Q392.65 163.57 392.65 153.89Q392.65 144.22 388.7 138.73Q384.74 133.24 377.9 133.24Q373.3 133.24 369.99 135.55Q366.69 137.85 364.86 142.45Q363.03 147.05 363.03 153.89Q363.03 160.74 364.8 165.34Q366.57 169.94 369.93 172.24Q373.3 174.54 377.9 174.54ZM437.25 186.82Q427.7 186.82 422.09 180.5Q416.49 174.19 416.49 162.98L416.49 122.39L431.59 122.39L431.59 159.2Q431.59 167.11 434.24 170.83Q436.9 174.54 442.33 174.54Q448.46 174.54 451.83 170.47Q455.19 166.4 455.19 158.61L455.19 122.39L470.29 122.39L470.29 185.4L456.49 185.4L456.13 168.05L458.02 168.64Q456.61 177.61 451.3 182.21Q445.99 186.82 437.25 186.82ZM482.09 185.4L482.09 122.39L497.2 122.39L497.2 185.4ZM481.86 114.01L481.86 100.56L497.55 100.56L497.55 114.01ZM501.54 185.4L524.2 153.3L502.37 122.39L518.77 122.39L533.16 143.86L547.32 122.39L563.96 122.39L542.25 153.42L564.79 185.4L548.39 185.4L533.4 162.74L518.3 185.4ZM563.99 157.32L563.99 144.57L604.11 144.57L604.11 157.32ZM639.01 186.82Q629.45 186.82 623.14 184.1Q616.83 181.39 613.52 176.55Q610.22 171.71 609.75 165.58L625.2 164.87Q626.03 169.82 629.22 172.54Q632.4 175.25 639.13 175.25Q644.44 175.25 647.21 173.54Q649.98 171.83 649.98 168.17Q649.98 166.05 648.98 164.63Q647.98 163.22 645.09 162.15Q642.2 161.09 636.65 160.03Q627.09 158.38 621.66 155.96Q616.24 153.54 614.05 149.88Q611.87 146.22 611.87 140.8Q611.87 131.95 618.65 126.46Q625.44 120.97 638.54 120.97Q647.62 120.97 653.46 123.86Q659.31 126.75 662.31 131.53Q665.32 136.31 665.8 142.21L650.46 142.92Q650.34 139.97 649.04 137.61Q647.74 135.25 645.15 133.89Q642.55 132.54 638.3 132.54Q632.99 132.54 630.22 134.66Q627.45 136.78 627.45 140.32Q627.45 142.8 628.57 144.45Q629.69 146.11 632.4 147.11Q635.12 148.11 639.84 148.94Q649.51 150.35 655.18 152.83Q660.84 155.31 663.26 159.03Q665.68 162.74 665.68 167.94Q665.68 177.02 658.42 181.92Q651.16 186.82 639.01 186.82ZM689.09 185.4L666.08 122.39L682.01 122.39L698.06 170.18L714.1 122.39L730.03 122.39L707.02 185.4ZM761.28 186.82Q751.84 186.82 744.88 182.75Q737.92 178.67 734.14 171.24Q730.37 163.81 730.37 153.89Q730.37 143.98 734.14 136.61Q737.92 129.23 744.82 125.1Q751.72 120.97 760.93 120.97Q769.9 120.97 776.68 124.98Q783.47 129 787.12 136.55Q790.78 144.1 790.78 154.72L790.78 158.14L746.06 158.14Q746.53 166.4 750.6 170.59Q754.67 174.78 761.4 174.78Q766.47 174.78 769.84 172.48Q773.2 170.18 774.5 166.05L789.96 166.99Q787.36 176.2 779.75 181.51Q772.14 186.82 761.28 186.82ZM746.06 147.99L775.21 147.99Q774.73 140.32 770.84 136.61Q766.95 132.89 760.93 132.89Q754.91 132.89 750.96 136.78Q747 140.68 746.06 147.99ZM814.69 185.4Q807.84 185.4 803.71 181.86Q799.58 178.32 799.58 170.53L799.58 101.62L814.69 101.62L814.69 169Q814.69 171.36 815.93 172.54Q817.17 173.72 819.41 173.72L824.01 173.72L824.01 185.4ZM850.96 185.4Q841.52 185.4 837.1 181.03Q832.67 176.67 832.67 167.35L832.67 107.64L847.78 107.64L847.78 165.93Q847.78 170.3 849.66 172.01Q851.55 173.72 855.56 173.72L864.41 173.72L864.41 185.4ZM822.76 134.07L822.76 122.39L864.41 122.39L864.41 134.07ZM898.14 186.82Q888.7 186.82 881.74 182.75Q874.77 178.67 871 171.24Q867.22 163.81 867.22 153.89Q867.22 143.98 871 136.61Q874.77 129.23 881.68 125.1Q888.58 120.97 897.78 120.97Q906.75 120.97 913.54 124.98Q920.32 129 923.98 136.55Q927.64 144.1 927.64 154.72L927.64 158.14L882.92 158.14Q883.39 166.4 887.46 170.59Q891.53 174.78 898.26 174.78Q903.33 174.78 906.69 172.48Q910.06 170.18 911.35 166.05L926.81 166.99Q924.22 176.2 916.6 181.51Q908.99 186.82 898.14 186.82ZM882.92 147.99L912.06 147.99Q911.59 140.32 907.7 136.61Q903.8 132.89 897.78 132.89Q891.77 132.89 887.81 136.78Q883.86 140.68 882.92 147.99Z';
+const [WIDTH, HEIGHT, RADIUS] = [1000, 300, 72];
+const PNG_WIDTH = 4800;
+const PNG_HEIGHT = PNG_WIDTH * HEIGHT / WIDTH;
+const DPI = 300;
+const COLOURS = [
+	{ id: 'dark', name: 'Dark', bg: '#000', body: '#fff', tip: '#ff3e00', text: '#fff' },
+	{ id: 'light', name: 'Light', bg: '#fff', body: '#0a0a0a', tip: '#ff3e00', text: '#0a0a0a' },
+	{ id: 'orange', name: 'Orange', bg: '#ff3e00', body: '#000', tip: '#000', text: '#000' }
+];
+
+const sticker = (c, width = WIDTH, height = HEIGHT) => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img"><title>gpuix-svelte</title><rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}" fill="${c.bg}"/><g transform="translate(56 64) scale(2.68)"><path d="M27 13 9 32l18 19" fill="none" stroke="${c.body}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="${c.tip}" stroke="${c.tip}" stroke-width="5" stroke-linejoin="round"/></g><path d="${WORDMARK}" fill="${c.text}"/></svg>`;
+
+const inches = (px) => Math.round(px / DPI * 10) / 10;
+document.getElementById('lead').textContent = `Rounded-rectangle stickers of the logo and wordmark. The PNG is ${PNG_WIDTH} × ${PNG_HEIGHT} px with transparent corners, ${inches(PNG_WIDTH)} × ${inches(PNG_HEIGHT)} in at ${DPI} DPI; the SVG is the same artwork in vector, with the text as outlines.`;
+
+const sheet = document.getElementById('sheet');
+sheet.innerHTML = COLOURS.map((c) => `
+	<figure>
+		<div class="slot">${sticker(c)}</div>
+		<figcaption><b>${c.name}</b><button class="save" type="button" data-id="${c.id}" data-format="png">PNG, ${PNG_WIDTH} × ${PNG_HEIGHT}</button><button class="save" type="button" data-id="${c.id}" data-format="svg">SVG</button></figcaption>
+	</figure>`).join('');
+
+async function png(svg) {
+	const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+	try {
+		const image = new Image();
+		image.src = url;
+		await image.decode();
+		const canvas = Object.assign(document.createElement('canvas'), { width: PNG_WIDTH, height: PNG_HEIGHT });
+		canvas.getContext('2d').drawImage(image, 0, 0, PNG_WIDTH, PNG_HEIGHT);
+		return await new Promise((done, fail) => canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('the canvas produced no PNG'))), 'image/png'));
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
+
+function save(blob, name) {
+	const url = URL.createObjectURL(blob);
+	Object.assign(document.createElement('a'), { href: url, download: name }).click();
+	setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+sheet.addEventListener('click', async (e) => {
+	const button = e.target.closest('.save');
+	if (!button) return;
+	const colour = COLOURS.find((c) => c.id === button.dataset.id);
+	const name = `gpuix-svelte-sticker-${colour.id}.${button.dataset.format}`;
+	if (button.dataset.format === 'svg') {
+		save(new Blob([sticker(colour)], { type: 'image/svg+xml' }), name);
+		return;
+	}
+	const label = button.textContent;
+	button.disabled = true;
+	button.textContent = 'Rendering…';
+	try {
+		save(await png(sticker(colour, PNG_WIDTH, PNG_HEIGHT)), name);
+		button.textContent = label;
+	} catch (error) {
+		console.error(error);
+		button.textContent = 'Failed, see console';
+	}
+	button.disabled = false;
+});
+</script>
+</body>
+</html>
