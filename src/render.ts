@@ -21,6 +21,7 @@ import renderer, {
 import { set_debug_overlay } from './window.ts';
 import { create_window_root, wants_titlebar } from './titlebar.ts';
 import { wait_for_previous_instance } from './previous-instance.ts';
+import { voiceover_running } from './screen-reader.ts';
 import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './types.ts';
 
 /**
@@ -28,6 +29,9 @@ import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './type
  * timeout burns ~73% CPU at idle (see the comment in @gpuix/react's renderer).
  */
 const FRAME_MS = 8;
+
+/** Native answers one accessibility request per `tick()`, and at 8 ms each VoiceOver gives up on the app ("not responding"). */
+const VOICEOVER_FRAME_MS = 1;
 
 const SLOT = Symbol.for('gpuix.svelte.host');
 
@@ -126,7 +130,8 @@ export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 't
 		}
 		for (const resolve of frame_waiters.splice(0)) resolve();
 
-		timer = setTimeout(loop, Math.max(0, FRAME_MS - (performance.now() - started)));
+		const frame_ms = voiceover_running(started) ? VOICEOVER_FRAME_MS : FRAME_MS;
+		timer = setTimeout(loop, Math.max(0, frame_ms - (performance.now() - started)));
 	};
 
 	looping = true;
