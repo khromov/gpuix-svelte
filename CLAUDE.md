@@ -824,6 +824,7 @@ compile.ts   .svelte → JS, runtime-agnostic  ─┘
   hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
   dom.ts       the entry without `custom-renderer`  ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
+  reset.ts     the DOM build's CSS reset, one `:where()` rule per tag GPUI draws bare  ─ a new alias tag adds its entry here
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
@@ -1097,8 +1098,8 @@ are the ones that bite most often, and the renderer behaviour behind them.
   element sets its own, always listens for `keyDown` on it, and re-dispatches an unprevented,
   unheld `enter` or `space` as a `click`; `disabled` clears the tab stop and drops both the
   pointer's click and the key's (native 0.11 has no disabled state, so a screen reader is not
-  told). The DOM build's `render()` prepends one `<style data-gpuix-svelte>` holding a
-  `:where(button)` reset to `<head>`, so a bare button looks the same on both; a page mounted
+  told). The DOM build's `render()` prepends one `<style data-gpuix-svelte>` holding
+  `reset.ts`'s `:where(button)` rule to `<head>`, so a bare button looks the same on both; a page mounted
   without `render()` gets no reset. Other HTML tags stay unknown on purpose. `<img src>` is a filesystem path, a `data:`
   URL or an http(s) URL GPUI fetches in the background, so give it both a width and a height.
   `<markdown>` is rebuilt and laid out in full on every frame, on screen or not, and the cost

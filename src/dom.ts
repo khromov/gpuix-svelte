@@ -10,6 +10,7 @@ import { createSubscriber } from 'svelte/reactivity';
 import type { EventPayload, PathPromptOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode, DebugFrameOverlayStats, EdgeInsets, WindowInsets, WindowSize } from '@gpuix/native/host';
 import type { AnyComponent, GpuixEvent, GpuiStyle, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
+import { RESET_CSS } from './reset.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
@@ -171,7 +172,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (!document.head.querySelector('style[data-gpuix-svelte]')) {
 		const reset = document.createElement('style');
 		reset.setAttribute('data-gpuix-svelte', '');
-		reset.textContent = BUTTON_RESET;
+		reset.textContent = RESET_CSS;
 		document.head.prepend(reset);
 	}
 
@@ -179,11 +180,6 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	flushSync();
 	return mounted;
 }
-
-// On GPUI a `<button>` is an unstyled div, so the browser's own button look comes off; `:where()` keeps any rule of the app's above it.
-const BUTTON_RESET =
-	':where(button){display:block;margin:0;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:inherit;appearance:none}';
-
 /** Hot reload belongs to the GPUI window; an entry that calls this landed in a DOM build, usually by skipping the bin. */
 export const render_hot: (entry: string | URL, options?: RenderOptions) => Promise<void> = () =>
 	Promise.reject(new Error(`[gpuix-svelte] render_hot() opens a GPUI window and this build resolved gpuix-svelte to its DOM build: ${BIN_HINT}; a browser entry calls render() with an imported component`));
