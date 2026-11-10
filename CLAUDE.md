@@ -1327,13 +1327,17 @@ on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either 
 exports a wrong PNG without an error. And the image is drawn three times 250 ms apart, because nested
 images appear only from the second draw. It also skips `filter`, so Matrix has no glow in Safari.
 
-`homepage/stickers.html` (`/stickers.html`, `noindex`) draws the logo-and-wordmark sticker, 10:3 with
-rounded corners, in three colourways, and downloads each as its SVG or as a 4800 × 1440 PNG drawn
-from that SVG on a canvas (transparent outside the corners). None of `share/`'s WebKit workarounds
-apply, because the SVG holds only paths: its wordmark is Geist at weight 600 with the lockup's
--0.03em tracking, outlined once with fontkit from `homepage/assets/fonts/Geist-Variable.woff2`
-(decompressed to TTF first, since fontkit's variation instances fail on WOFF2) and baked into the
-sticker's coordinates, so a print shop's renderer needs no font. Redo it if the lockup changes.
+`homepage/stickers.html` (`/stickers.html`, `noindex`) draws the stickers and their parts: the
+logo-and-wordmark sticker (10:3, rounded corners, a concentric line inset from the edge) in three
+colourways, a black square with `gpuix` over an indented orange `svelte`, and the logo and the two
+words alone, cropped to their ink at one shared scale. Each downloads as its SVG or as a PNG drawn
+from that SVG on a canvas; the square stops at 4000 px because Safari refuses a canvas over 16.7
+megapixels. None of `share/`'s WebKit workarounds apply, because the SVGs hold only paths: the text
+is Geist at weight 600 with the lockup's -0.03em tracking, outlined once with fontkit from
+`homepage/assets/fonts/Geist-Variable.woff2` (decompressed to TTF first, since fontkit's variation
+instances fail on WOFF2), the whole wordmark baked into the rounded sticker at x 270, baseline 185.4
+(its `translate` is the optical nudge since) and each word at 100 units on a baseline at 0, with
+`INK` holding their measured bounds. Redo them if the lockup changes.
 
 `starter/` is the template `create-gpuix-svelte` copies (its `prepack` syncs it into the package's
 gitignored `template/`; run from the repo, `index.js` reads `starter/` directly) and so the app
