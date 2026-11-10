@@ -69,8 +69,9 @@ work for class rules, which are translated the same way.
   several indented lines is drawn with single spaces (from the next release, 0.6.0; before it the
   line break and the indentation are drawn too). The compiler does this, and only for text written
   in the template: a string that comes from an expression (`{message}`) is drawn as written, line
-  breaks included, as is the text inside `<pre>` and `<textarea>`. `white-space: pre` and
-  `pre-wrap` do not exist.
+  breaks included, as is the text inside `<pre>` and `<textarea>`. A no-break space is kept, as in
+  HTML. `<svelte:options preserveWhitespace />` turns the collapsing off for a component, whose
+  text is then drawn exactly as written. `white-space: pre` and `pre-wrap` do not exist.
 - Assume the rest of CSS is missing too.
 
 <details>

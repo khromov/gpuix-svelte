@@ -890,9 +890,14 @@ build). Reported upstream on #18511; drop the flag once it lands.
 Before compiling, `collapse_whitespace` (`compile-core.ts`) does to the template's text what an
 HTML parser would: GPUI draws a text node as written and the compiler leaves interior whitespace to
 the browser, so a sentence wrapped over indented lines showed its line break and tabs. It parses
-the source and rewrites runs of whitespace in `Text` nodes that sit directly in a fragment (not
-attribute values, not under `<pre>` or `<textarea>`), including a run at a text's edge when the
-neighbour is an `{expression}`, which is the one edge the compiler does not collapse itself. A run
+the source and rewrites runs of HTML's whitespace (`[ \t\r\n]`, as the compiler's own patterns
+have it, never `\s`: a no-break space is content) in `Text` nodes that sit directly in a fragment
+(not attribute values, not under `<pre>`, `<textarea>`, or a `<script>`/`<style>` in the markup,
+whose one `Text` is raw), including a run at a text's edge when the neighbour is an `{expression}`,
+which is the one edge the compiler does not collapse itself. The neighbour is found the way
+`clean_nodes` finds it, past comments and the nodes it hoists (`UNSEEN`). A component with
+`<svelte:options preserveWhitespace />` is left alone, which is the way back to text drawn as
+written. A run
 with a line break becomes `<!--run--> `, because the compiler drops comments and joins the text
 around them, and that keeps every line's number for errors and warnings (columns on that line
 shift). Strings from expressions are never touched, so a deliberate `\n` in data still breaks the

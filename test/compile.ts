@@ -113,4 +113,31 @@ check(
 	[4, true, 6, '<div>\n{#if}']
 );
 
-finish('compile', 23 + (process.versions.bun ? 1 : 0));
+const spaces = '<div>10 km a b　c</div>';
+check(
+	'only the whitespace HTML collapses is collapsed: a no-break space and its relatives are content',
+	[collapse_whitespace(spaces) === spaces, collapse_whitespace('<div>a \t b   c\n\t </div>')],
+	[true, '<div>a b  c<!--\n\t-->  </div>']
+);
+check(
+	'a text meets an expression across whatever the compiler takes out between them',
+	['<div>{a}<!-- c -->\n\tmore</div>', '<div>more\n\t<!-- c -->{a}</div>', '<div>{a}{#snippet s()}x{/snippet}\n\tmore</div>', '{#if a}{a}{@const q = 1}\n\tmore {q}{/if}', '<div>{a}<b>x</b>\n\tmore</div>'].map(collapse_whitespace),
+	[
+		'<div>{a}<!-- c --><!--\n\t--> more</div>',
+		'<div>more<!--\n\t--> <!-- c -->{a}</div>',
+		'<div>{a}{#snippet s()}x{/snippet}<!--\n\t--> more</div>',
+		'{#if a}{a}{@const q = 1}<!--\n\t--> more {q}{/if}',
+		'<div>{a}<b>x</b>\n\tmore</div>'
+	]
+);
+check('and the compiler then joins them with one space', compiled('<script>let a = $state(1);</script>\n<div onclick={() => a++}>{a}<!-- c -->\n\tmore</div>').includes("`${$.get(a) ?? ''} more`"), true);
+const raw = '<div><script>\n  if (a   <   b) {\n    x()\n  }\n</script><style>\n  a   b {\n color: red }\n</style></div>';
+check('a <script> or <style> in the markup is not text, and stays as written', collapse_whitespace(raw) === raw, true);
+const preserved = '<svelte:options preserveWhitespace />\n<div>one\n\ttwo   three</div>';
+check(
+	'<svelte:options preserveWhitespace /> keeps the template text as written, and only when it is on',
+	[collapse_whitespace(preserved) === preserved, compiled(preserved).includes("'one\\n\ttwo   three'"), compiled(preserved.replace('preserveWhitespace', 'preserveWhitespace={false}')).includes("'one two three'")],
+	[true, true, true]
+);
+
+finish('compile', 28 + (process.versions.bun ? 1 : 0));

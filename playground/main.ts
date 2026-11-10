@@ -13,12 +13,14 @@ import counter from './examples/Counter.svelte?raw';
 import list from './examples/List.svelte?raw';
 import theme from './examples/Theme.svelte?raw';
 import components from './examples/Components.svelte?raw';
+import whitespace from './examples/Whitespace.svelte?raw';
 
 const EXAMPLES = [
 	{ name: 'Counter', source: counter },
 	{ name: 'Keyed list', source: list },
 	{ name: 'Theme on both renderers', source: theme },
-	{ name: 'Scroller, Tooltip, Popover, Portal', source: components }
+	{ name: 'Scroller, Tooltip, Popover, Portal', source: components },
+	{ name: 'Whitespace in text', source: whitespace }
 ];
 
 type View = 'result' | 'tree' | 'mutations' | 'js';

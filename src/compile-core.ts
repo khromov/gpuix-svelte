@@ -79,8 +79,11 @@ function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string, wa
 
 const weight = (rule: ClassRule) => rule.classes.length * 2 + (rule.tag === null ? 0 : 1);
 
-/** Elements whose text HTML keeps as written. */
-const PREFORMATTED = new Set(['pre', 'textarea']);
+/** Elements whose text HTML keeps as written, or reads as something other than text. */
+const PREFORMATTED = new Set(['pre', 'textarea', 'script', 'style']);
+
+/** What the compiler takes out of a fragment before it decides which of a text's edges touch an expression. */
+const UNSEEN = new Set(['Comment', 'ConstTag', 'DeclarationTag', 'DebugTag', 'SnippetBlock', 'SvelteHead', 'TitleElement', 'SvelteWindow', 'SvelteBody', 'SvelteDocument']);
 
 type TemplateNode = { type?: string; name?: string; start: number; end: number; nodes?: TemplateNode[] };
 
@@ -88,12 +91,15 @@ type TemplateNode = { type?: string; name?: string; start: number; end: number; 
  * Collapses the whitespace inside the template's text the way an HTML parser does, since GPUI draws
  * a text node as written and a sentence wrapped in the markup would show its line break and
  * indentation. A run with a line break moves into a comment, which the compiler drops, so every
- * line keeps its number in errors and warnings. Strings from expressions are not touched.
+ * line keeps its number in errors and warnings. Strings from expressions are not touched, and
+ * `<svelte:options preserveWhitespace />` turns it off for the component.
  */
 export function collapse_whitespace(source: string): string {
 	let fragment: unknown;
 	try {
-		fragment = parse(source, { modern: true }).fragment;
+		const root = parse(source, { modern: true });
+		if (root.options?.preserveWhitespace) return source;
+		fragment = root.fragment;
 	} catch {
 		// The compile reports it, against the source as written.
 		return source;
@@ -108,17 +114,18 @@ export function collapse_whitespace(source: string): string {
 		if (value === null || typeof value !== 'object') return;
 		const node = value as TemplateNode;
 		if (node.type === 'Fragment' && !preformatted) {
-			const nodes = node.nodes ?? [];
+			const nodes = (node.nodes ?? []).filter((child) => !UNSEEN.has(child.type ?? ''));
 			nodes.forEach((child, i) => {
 				if (child.type !== 'Text') return;
 				const text = source.slice(child.start, child.end);
-				for (const run of text.matchAll(/\s+/g)) {
+				// HTML's whitespace and the compiler's, not `\s`: a no-break space is content.
+				for (const run of text.matchAll(/[ \t\r\n]+/g)) {
 					// The compiler trims and collapses a text's edges itself, except against an expression.
 					const leads = run.index === 0 && nodes[i - 1]?.type !== 'ExpressionTag';
 					const trails = run.index + run[0].length === text.length && nodes[i + 1]?.type !== 'ExpressionTag';
 					if (run[0] === ' ' || leads || trails) continue;
 					const at = child.start + run.index;
-					edits.push([at, at + run[0].length, run[0].includes('\n') ? `<!--${run[0]}--> ` : ' ']);
+					edits.push([at, at + run[0].length, /[\r\n]/.test(run[0]) ? `<!--${run[0]}--> ` : ' ']);
 				}
 			});
 		}
