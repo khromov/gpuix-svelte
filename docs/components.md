@@ -33,7 +33,8 @@ Props:
 - `scroll={false}` clips the content and draws no thumb.
 - `follow` keeps the bottom in view while content grows, as in a streaming reply.
 - `virtual` and `estimate` make it a [virtual list](#virtual-lists).
-- `testid` goes on the scroll column. The thumb gets `<testid>-thumb`.
+- `testid` goes on the scroll column (the `<virtual-list>` with `virtual`). The thumb gets
+  `<testid>-thumb`, and a virtual list's drag strip `<testid>-strip`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
 fallbacks.
@@ -110,8 +111,14 @@ creates every row; only the layout and paint are skipped.
 - `follow` becomes the list's own tail-following.
 - `pad` pads the box around the list, so it does not scroll with the rows. No gutter is reserved,
   so the thumb paints over the rows' right edge. `scroll={false}` is ignored.
-- Nothing reports a change in row count, so the thumb re-reads the list's position every 250 ms
-  (100 ms with `follow`).
+- The thumb is GPUI's own (`scrollbar-color` on the list), painted from the heights the list has
+  measured in the frame it scrolls, so nothing polls the list.
+- GPUI's thumb takes no pointer, so an invisible 8 px strip along the list's right edge does the
+  dragging, with the same pointer capture. It takes the clicks on the rows' right 8 px, and while
+  it is hovered or dragged the thumb turns `--scroller-thumb-hover`. A press reads the list's
+  position once and estimates its length from the rows above the top one, or from `estimate` at
+  the very top, so rows far from `estimate` make the thumb run ahead of or behind the pointer. A
+  drag let go past the end settles on the last row.
 
 ## Portal
 
