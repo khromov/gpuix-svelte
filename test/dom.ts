@@ -144,6 +144,19 @@ document.dispatchEvent(new Event('selectionchange'));
 off_selection();
 document.dispatchEvent(new Event('selectionchange'));
 check('on_selection_change hears selectionchange until unsubscribed', selections, 1);
+{
+	const words = document.createElement('p');
+	words.textContent = 'Pick these words';
+	document.body.append(words);
+	const range = document.createRange();
+	range.selectNodeContents(words);
+	document.getSelection()!.addRange(range);
+	const picked = dom.selected_text();
+	dom.clear_selection();
+	check('selected_text reads the document selection, and clear_selection empties it to null', [picked, dom.selected_text()], ['Pick these words', null]);
+	words.remove();
+}
+check('a page is never a terminal', dom.is_terminal(), false);
 
 {
 	const [a, b] = inputs('text', 'text');
@@ -454,4 +467,4 @@ check(
 );
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 77);
+finish('dom', 79);

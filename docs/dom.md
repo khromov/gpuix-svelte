@@ -148,6 +148,8 @@ is the DOM element.
   textarea or a contenteditable has focus, and `e.preventDefault()` reaches the browser event.
   `render()`'s `onKeyDown` / `onKeyUp` go through it too.
 - `on_selection_change(handler)` hears `selectionchange`; `e.value` is the selected text.
+  `selected_text()` is `document.getSelection()` as text, reactive through the same event, and
+  `clear_selection()` empties it. `is_terminal()` is false.
 - `dismiss_layer({ onEscape })` keeps the same stack, with a `window` `keydown` listener added as
   the first layer opens: a handler on the focused element, or a window one subscribed before that,
   can still call `e.preventDefault()` to keep the top layer open.

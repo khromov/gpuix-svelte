@@ -7,7 +7,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { GpuixRenderer, TestGpuixRenderer } from '@gpuix/native';
 import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
-import { focus_dim_on_render, handle_event, render, start_frame_loop } from '../src/render.ts';
+import { focus_dim_on_render, handle_event, next_frame, render, start_frame_loop } from '../src/render.ts';
 import { render_hot } from '../src/hot.ts';
 import { text_content, check, finish } from 'gpuix-svelte/test';
 import type { GpuiStyle, Mutation, RenderOptions, ShadowNode } from '../src/types.ts';
@@ -49,6 +49,89 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	check('the loop keeps ticking after a commit throws', ticks > 1, true);
 	check('a failure that is no refusal may have been applied, so it is not resent op by op', batches, 1);
 	check('and it reaches the log rather than vanishing', logged, ['[gpuix-svelte] commit failed: Error: boom']);
+}
+
+// --- nor a throwing tick -----------------------------------------------------
+{
+	let ticks = 0;
+	const logged = await errors_during(async () => {
+		const loop = start_frame_loop({
+			requiresTick: () => true,
+			tick: () => {
+				ticks++;
+				throw new Error('pump blew up');
+			}
+		});
+		await new Promise((resolve) => setTimeout(resolve, 60));
+		loop.stop();
+	});
+	check('the loop keeps ticking after tick() throws, logging each throw', [ticks > 1, logged.length === ticks, logged[0]], [true, true, '[gpuix-svelte] tick failed: Error: pump blew up']);
+}
+
+// --- with display-link wakes (macOS), the timer covers only what they don't ---
+{
+	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+	const first = <T>(reply: Promise<T>, ms: number) => Promise.race([reply, sleep(ms).then(() => 'timed out')]);
+	let ticks = 0;
+	const hooks: { ticked?: () => void; wake?: (() => void) | null; committed?: () => void } = {};
+	const native = {
+		requiresTick: () => true,
+		tick() {
+			ticks++;
+			hooks.ticked?.();
+			return true;
+		},
+		setFrameWakeCallback: (callback?: (() => void) | null) => ((hooks.wake = callback), true),
+		applyBatch: () => (hooks.committed?.(), [])
+	};
+	const wake = () => hooks.wake!();
+	// Resolves just after a tick, when the next timed one is as far off as it gets.
+	const after_tick = () => new Promise<void>((resolve) => (hooks.ticked = resolve));
+	// Windows timers can be as coarse as 15.6 ms, so these tell the 8 ms pace from the 100 ms fallback rather than measure it.
+	const ticks_during = async (ms: number) => {
+		const from = ticks;
+		await sleep(ms);
+		return ticks - from;
+	};
+
+	set_native(native);
+	const root = create_root();
+	commit();
+	let loop = start_frame_loop(native);
+	check('where nothing happens, the loop ticks on the 100 ms fallback, not every 8 ms', (await ticks_during(350)) <= 5, true);
+
+	await after_tick();
+	const shipped = new Promise((resolve) => (hooks.committed = () => resolve('committed')));
+	renderer.insert(root, renderer.createElement('div'), null);
+	check("a timer's mutation commits within a frame, not on the fallback", await first(shipped, 60), 'committed');
+
+	await after_tick();
+	check('next_frame brings the tick forward too, so automation waits frames rather than the fallback', await first(next_frame().then(() => 'ticked'), 60), 'ticked');
+
+	await after_tick();
+	handle_event({ elementId: -1, eventType: 'layout' });
+	check('an event a paint sends leaves the pace alone', (await ticks_during(150)) <= 3, true);
+	handle_event({ elementId: -1, eventType: 'keyDown' });
+	check('input keeps the 8 ms pace for a while, since the next key reaches JS only on a tick', (await ticks_during(150)) >= 5, true);
+	loop.stop();
+
+	loop = start_frame_loop(native);
+	await after_tick();
+	const before_wake = ticks;
+	wake();
+	check('a wake ticks at once', ticks - before_wake, 1);
+	let wakes = 0;
+	const before_stream = ticks;
+	await new Promise<void>((resolve) => {
+		const stream = setInterval(() => {
+			wake();
+			if (++wakes === 12) resolve(clearInterval(stream));
+		}, 8);
+	});
+	check('while wakes keep coming, the timer stays out of their way', ticks - before_stream <= wakes + 3, true);
+	check('and once they stop, it keeps the 8 ms pace for a while', (await ticks_during(150)) >= 5, true);
+	loop.stop();
+	check('stop() takes the wake back', hooks.wake, null);
 }
 
 // --- one op native refuses costs that op, not the frame --------------------
@@ -347,4 +430,4 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 
 set_auto_commit(false);
 
-finish('lifecycle', 33);
+finish('lifecycle', 43);

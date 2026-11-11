@@ -347,6 +347,24 @@ export const register_font: (bytes: Uint8Array) => void = noop;
 /** `document.elementsFromPoint`, typed as GPUI nodes for a shared signature. */
 export const elements_at = (x: number, y: number): ShadowNode[] => (doc()?.elementsFromPoint?.(x, y) ?? []) as unknown as ShadowNode[];
 
+const selection_changed = createSubscriber((update) => {
+	const document = doc();
+	if (!document) return;
+	document.addEventListener('selectionchange', update);
+	return () => document.removeEventListener('selectionchange', update);
+});
+
+/** The document's selection as text, or null when it is empty; reactive through `selectionchange`. */
+export function selected_text(): string | null {
+	selection_changed();
+	return doc()?.getSelection()?.toString() || null;
+}
+
+export const clear_selection = () => doc()?.getSelection()?.removeAllRanges();
+
+/** A page is never drawn in a terminal. */
+export const is_terminal = (): boolean => false;
+
 // GPUI's draw-time overlay has no counterpart; the browser's own profiler does.
 export const set_debug_overlay: (mode: DebugFrameOverlayMode) => DebugFrameOverlayMode | undefined = () => undefined;
 export const cycle_debug_overlay = (): DebugFrameOverlayMode | undefined => undefined;

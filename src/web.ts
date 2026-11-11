@@ -44,8 +44,12 @@ export {
 	set_image,
 	set_image_pixels,
 	register_font,
-	elements_at
+	elements_at,
+	selected_text,
+	clear_selection
 } from './window.ts';
+/** Whether native 0.11's terminal mode draws the app inside the terminal, where there is no title bar; false until `render()` opened the window. */
+export { isTerminal as is_terminal } from '@gpuix/native';
 export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 export type {
 	ShadowNode,

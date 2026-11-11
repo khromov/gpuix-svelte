@@ -224,6 +224,13 @@ what `@gpuix/native` 0.11 added (`npm run demo:native-0.11`).
 - `on_selection_change(handler)` hears every change to the window's text selection, a clear
   included. `e.value` is the selected text, and `undefined` after a clear. It returns its
   unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.
+- `selected_text()` is the selected text, or `null`, and is reactive where a template,
+  `$derived` or `$effect` reads it, through the same event rather than a poll.
+  `clear_selection()` drops the selection; `selected_text()` follows once the next frame reports
+  the change.
+- `is_terminal()` is true when `@gpuix/native`'s terminal mode (`GPUIX_TERMINAL=1`) draws the app
+  inside the terminal, where there is no title bar to leave room for. It is false until
+  `render()` has opened the window, so read it while rendering, not at module scope.
 - `scroll_into_view(node)` scrolls the nearest scroll container or `<virtual-list>` until `node`
   shows.
 - `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`.

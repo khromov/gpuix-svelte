@@ -1,9 +1,9 @@
 /**
- * The structure mirrors `@gpuix/react`'s `render()` — a `globalThis` slot so
- * `hot.ts` remounts onto the same window, and a paced `setTimeout` loop
- * driving `tick()`. Its only `node:*` imports are previous-instance.ts's `node:fs` and
- * screen-reader.ts's `node:child_process`, which Bun's browser build stubs, so it bundles for the
- * browser as-is.
+ * Like `@gpuix/react`'s `render()`, a `globalThis` slot so `hot.ts` remounts onto the same window,
+ * but with a frame loop of its own rather than `@gpuix/native/runtime`'s `startFrameLoop`, which has
+ * no room for the commit, the frame waiters or VoiceOver's pace. Its only `node:*` imports are
+ * previous-instance.ts's `node:fs` and screen-reader.ts's `node:child_process`, which Bun's browser
+ * build stubs, so it bundles for the browser as-is.
  */
 
 import { GpuixRenderer, type EventPayload, type WindowOptions } from '@gpuix/native';
@@ -16,6 +16,7 @@ import renderer, {
 	is_dirty,
 	dispatch,
 	set_auto_commit,
+	set_on_dirty,
 	queue_destroy,
 	on_window_key,
 	on_selection_change
@@ -26,14 +27,23 @@ import { wait_for_previous_instance } from './previous-instance.ts';
 import { voiceover_running } from './screen-reader.ts';
 import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './types.ts';
 
-/**
- * ~125fps, above the 60 and 120 Hz most displays run at. `setImmediate` instead of a paced
- * timeout burns ~73% CPU at idle (see the comment in @gpuix/react's renderer).
- */
+/** ~125fps, above the 60 and 120 Hz most displays run at; `setImmediate` instead burns most of a core at idle. */
 const FRAME_MS = 8;
 
 /** Native answers one accessibility request per `tick()`, and at 8 ms each VoiceOver gives up on the app ("not responding"). */
 const VOICEOVER_FRAME_MS = 1;
+
+/** Where display-link wakes drive the ticks (macOS), the timer only pumps a window that is not drawing: idle, hidden or occluded. */
+const IDLE_FRAME_MS = 100;
+
+/** Input reaches JS only on a tick and never wakes it, so the loop keeps `FRAME_MS` this long after the last input or drawn frame. */
+const ACTIVE_MS = 2000;
+
+/** Longer than a frame at 60 Hz, so while the display link runs its next wake comes before this timer does. */
+const WAKE_WAIT_MS = 25;
+
+/** Events a paint sends, which say nothing about anyone using the window. */
+const PAINT_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'highlight', 'visibleRange']);
 
 /** A browser bundle has no `process` at all, and every knob read through this is desktop-only. */
 const env = (name: string): string | undefined => globalThis.process?.env?.[name];
@@ -59,6 +69,7 @@ function host(): Host {
  * host's `onEvent` may let one through, and a handler's must not cost the host its `onEvent`.
  */
 export function handle_event(event: EventPayload, onEvent?: (event: EventPayload) => void) {
+	if (!PAINT_EVENTS.has(event.eventType)) running_loop?.input();
 	try {
 		dispatch(event);
 		// Run Svelte's effects now, so the
@@ -76,13 +87,16 @@ export function handle_event(event: EventPayload, onEvent?: (event: EventPayload
 }
 
 const frame_waiters: Array<() => void> = [];
-let looping = false;
 
-/** Resolves after the frame loop's next `tick()`, or a frame's worth of time where there is no loop. */
+/** What reaches the running frame loop between its ticks. */
+let running_loop: { soon(): void; input(): void } | null = null;
+
+/** Resolves after the frame loop's next `tick()`, which it brings forward to a frame after the last, or a frame's worth of time where there is no loop. */
 export function next_frame(): Promise<void> {
 	return new Promise((resolve) => {
-		if (looping) frame_waiters.push(resolve);
-		else setTimeout(resolve, FRAME_MS);
+		if (!running_loop) return void setTimeout(resolve, FRAME_MS);
+		frame_waiters.push(resolve);
+		running_loop.soon();
 	});
 }
 
@@ -97,7 +111,9 @@ function start_automation(native: GpuixRenderer) {
 	);
 }
 
-export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 'tick'>): { stop(): void } {
+export function start_frame_loop(
+	native: Pick<GpuixRenderer, 'requiresTick' | 'tick'> & Partial<Pick<GpuixRenderer, 'setFrameWakeCallback'>>
+): { stop(): void } {
 	if (!native.requiresTick()) {
 		// Only the wasm build, which drives its own frames off the canvas: with no loop
 		// to poll `is_dirty()`, commits have to schedule themselves. Every desktop platform
@@ -111,41 +127,89 @@ export function start_frame_loop(native: Pick<GpuixRenderer, 'requiresTick' | 't
 	}
 
 	let stopped = false;
+	let waking = false;
 	let timer: ReturnType<typeof setTimeout> | null = null;
+	let due = 0;
+	let started = 0;
+	let last_wake = -Infinity;
+	let last_active = -Infinity;
 
-	const loop = () => {
+	/** Never pushes a pending tick back, only forward. */
+	const schedule = (delay: number) => {
+		const at = performance.now() + delay;
+		if (timer !== null) {
+			if (due <= at) return;
+			clearTimeout(timer);
+		}
+		due = at;
+		timer = setTimeout(loop, delay);
+	};
+	const soon = () => schedule(Math.max(0, FRAME_MS - (performance.now() - started)));
+
+	const frame_ms = () => {
+		if (voiceover_running(started)) return VOICEOVER_FRAME_MS;
+		if (!waking) return FRAME_MS;
+		if (started - last_wake < WAKE_WAIT_MS) return WAKE_WAIT_MS;
+		return started - last_active < ACTIVE_MS ? FRAME_MS : IDLE_FRAME_MS;
+	};
+
+	const stop = () => {
+		stopped = true;
+		running_loop = null;
+		set_on_dirty(null);
+		if (waking) native.setFrameWakeCallback?.(null);
+		if (timer !== null) clearTimeout(timer);
+		timer = null;
+		for (const resolve of frame_waiters.splice(0)) resolve();
+	};
+
+	function loop() {
 		if (stopped) return;
+		if (timer !== null) clearTimeout(timer);
+		timer = null;
 
-		const started = performance.now();
+		started = performance.now();
+		// The reschedule below is the only thing keeping the window alive, so neither a bad
+		// mutation nor a failing pump may escape past it.
 		try {
 			if (is_dirty()) commit();
 		} catch (error) {
-			// The reschedule below is the only thing keeping the window alive, so a
-			// bad mutation must not escape past it.
 			console.error('[gpuix-svelte] commit failed:', error);
 		}
-
-		if (native.tick() === false) {
-			stopped = true;
+		let open = true;
+		try {
+			open = native.tick();
+		} catch (error) {
+			console.error('[gpuix-svelte] tick failed:', error);
+		}
+		if (open === false) {
+			stop();
 			process.exit(0);
+			return;
 		}
 		for (const resolve of frame_waiters.splice(0)) resolve();
 
-		const frame_ms = voiceover_running(started) ? VOICEOVER_FRAME_MS : FRAME_MS;
-		timer = setTimeout(loop, Math.max(0, frame_ms - (performance.now() - started)));
-	};
+		schedule(Math.max(0, frame_ms() - (performance.now() - started)));
+	}
 
-	looping = true;
-	loop();
-
-	return {
-		stop() {
-			stopped = true;
-			looping = false;
-			if (timer !== null) clearTimeout(timer);
-			for (const resolve of frame_waiters.splice(0)) resolve();
+	// Only macOS has the wake, which arrives once the display link has queued a frame, and the link stops while nothing draws.
+	waking =
+		native.setFrameWakeCallback?.(() => {
+			last_wake = last_active = performance.now();
+			loop();
+		}) === true;
+	running_loop = {
+		soon,
+		input() {
+			last_active = performance.now();
+			soon();
 		}
 	};
+	// A timer or a fetch changes the tree between wakes, and an idle window's next tick may be a long way off.
+	set_on_dirty(soon);
+	loop();
+
+	return { stop };
 }
 
 /**
@@ -168,11 +232,17 @@ export function focus_dim_on_render(option: boolean | undefined, applied: boolea
 	return created || enabled !== applied ? enabled : null;
 }
 
-/** The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by. */
-export function window_options_for(options: WindowOptions, app: AppOptions | undefined): WindowOptions {
+/**
+ * The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by,
+ * and an automated run opens behind what the person at the machine is typing into unless the app asks for focus.
+ */
+export function window_options_for(options: WindowOptions, app: AppOptions | undefined, automated = false): WindowOptions {
 	const merged = { ...options };
 	if (merged.title == null && app?.name) merged.title = app.name;
+	// Native takes the "Hide" and "Quit" menu items' name from the title otherwise.
+	if (merged.appName == null && app?.name) merged.appName = app.name;
 	if (merged.appId == null && app?.identifier) merged.appId = app.identifier;
+	if (merged.focus == null && automated) merged.focus = false;
 	return merged;
 }
 
@@ -201,7 +271,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		app,
 		...own_window_options
 	} = options;
-	const window_options = window_options_for(own_window_options, app);
+	const automated = typeof process !== 'undefined' && !!process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0';
+	const window_options = window_options_for(own_window_options, app, automated);
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -220,7 +291,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
-		// Spelled out, not read through env(), so build()'s define folds the branch and its import away.
+		// Spelled out again, not read through `automated` or env(): only then does build()'s define fold the branch and its import away.
 		if (typeof process !== 'undefined' && process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');
 	}
