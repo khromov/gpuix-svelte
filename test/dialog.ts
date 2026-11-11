@@ -6,7 +6,7 @@
  */
 
 import { debug_overlay, debug_overlay_stats, elements_at, focused_element, prompt_for_paths, read_native, set_image, set_image_pixels, type ShadowNode } from 'gpuix-svelte';
-import { all_text, bounds, check, find_test_id, finish, focus, mount_headless, wait, wheel, center } from 'gpuix-svelte/test';
+import { all_text, bounds, check, find_test_id, finish, focus, mount_headless, mouse_down, mouse_up, wait, wheel, center } from 'gpuix-svelte/test';
 
 type Fake = Record<string, (...args: never[]) => unknown>;
 
@@ -56,7 +56,7 @@ function block_ui_thread(native: object) {
 	return { counts, close: (result: { paths?: string[] | null; error?: Error } = {}) => settle(result) };
 }
 
-// Longer than a virtual list's 250 ms timer and a size poll, both of which must stay quiet.
+// Longer than a size poll, which must stay quiet.
 const WHILE_OPEN_MS = 400;
 const THUMB_MS = 80;
 
@@ -68,11 +68,12 @@ for (const virtual of [false, true]) {
 	const { native } = mount_headless(Fixture, { props: { virtual }, width: 400, height: 300 });
 	const { counts, close } = block_ui_thread(native);
 	const label = virtual ? 'a virtual' : 'a plain';
-	// A virtual list's thumb measures on a timer, so give the first one time to happen.
-	await wait(virtual ? 300 : THUMB_MS);
-	const thumb_before = bounds(find_test_id('list-thumb')!)!;
+	// GPUI paints a virtual list's thumb itself, from the colour the list's style names.
+	const thumb = () => (virtual ? find_test_id('list')!.style!.scrollbarColor : Math.round(bounds(find_test_id('list-thumb')!)!.height));
+	await wait(THUMB_MS);
+	const thumb_before = thumb();
 	const size_before = size_text();
-	check(`${label} Scroller has drawn its thumb before the dialog`, thumb_before.height > 0, true);
+	check(`${label} Scroller has drawn its thumb before the dialog`, Boolean(thumb_before), true);
 
 	const prompt = prompt_for_paths({ directories: true });
 	await wait(WHILE_OPEN_MS);
@@ -81,25 +82,8 @@ for (const virtual of [false, true]) {
 
 	close({ paths: ['C:\\picked'] });
 	check(`${label} Scroller's prompt still resolves to the picked paths`, await prompt, ['C:\\picked']);
-	await wait(virtual ? 300 : THUMB_MS);
-	check(`${label} Scroller's thumb is intact afterwards`, Math.round(bounds(find_test_id('list-thumb')!)!.height), Math.round(thumb_before.height));
-}
-
-// --- the thumb catches up on what happened while it could not measure -----------------------------
-{
-	const { native } = mount_headless(Fixture, { props: { virtual: true }, width: 400, height: 300 });
-	await wait(300);
-	const column = find_test_id('list')!;
-	const { close } = block_ui_thread(native);
-	const before = bounds(find_test_id('list-thumb')!)!;
-	const prompt = prompt_for_paths();
-	await wait(50);
-	native.scrollToItem(column.id, 30);
-	await wait(WHILE_OPEN_MS);
-	close();
-	await prompt;
-	await wait(300);
-	check('a virtual thumb moves to where the list went while the dialog was up', bounds(find_test_id('list-thumb')!)!.y > before.y, true);
+	await wait(THUMB_MS);
+	check(`${label} Scroller's thumb is intact afterwards`, thumb(), thumb_before);
 }
 
 // --- the wrappers in window.ts answer without reaching native -------------------------------------
@@ -275,7 +259,7 @@ for (const virtual of [false, true]) {
 // --- no dialog we opened, and the UI thread still can't answer -------------------------------------
 {
 	const { native } = mount_headless(Fixture, { props: { virtual: true }, width: 400, height: 300 });
-	await wait(300);
+	await wait(THUMB_MS);
 	const stalled = native as unknown as Fake;
 	const real = stalled.getListScrollTop!;
 	let stalls = 0;
@@ -283,7 +267,10 @@ for (const virtual of [false, true]) {
 		stalls++;
 		throw new Error('Timed out after 2 seconds waiting for the GPUI list scroll query');
 	}) as never;
-	await wait(300);
+	// A press on the strip is the one time a virtual Scroller reads the list.
+	const strip = center(find_test_id('list-strip')!);
+	mouse_down(strip);
+	mouse_up(strip);
 	check('a virtual Scroller rides out a stall it did not cause', stalls > 0, true);
 	stalled.getListScrollTop = real;
 
@@ -466,4 +453,4 @@ for (const virtual of [false, true]) {
 	check('the thumb follows the wheel again', bounds(find_test_id('list-thumb')!)!.y > before, true);
 }
 
-finish('dialog', 49);
+finish('dialog', 48);
