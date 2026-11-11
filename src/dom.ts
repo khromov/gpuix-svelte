@@ -14,7 +14,7 @@ import { RESET_CSS } from './reset.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
-export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
+export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 
 /** False here; the GPUI entries answer true. Decided per build, so it can be read before anything is mounted. */
 export const IS_GPUIX: boolean = false;

@@ -50,6 +50,30 @@ elements that carry the `highlight`, so rows a virtual list has not rendered are
 returns the `[start, end)` pairs that `highlight={{ ranges }}` takes. Use it for text that is not
 on screen.
 
+For a virtual list, count the matches yourself with `find_ranges` and set `matches` (or pass it to
+the constructor): `total` is every match, and `index_offset` how many come before the first row
+the list has rendered, counted in matches rather than rows. `total` and `active` then follow it,
+`next()` and `prev()` wrap at it, and the active match is painted on the right row. Setting it to
+`null` hands the count back to native. `find_ranges` takes the search itself as its options, which
+keeps the flags in step:
+
+```svelte
+<script lang="ts">
+  import { TextSearch, find_ranges } from 'gpuix-svelte';
+  const search = new TextSearch();
+  const per_row = $derived(rows.map((row) => find_ranges(row.text, search.query, search).length));
+
+  $effect(() => {
+    search.matches = {
+      total: per_row.reduce((n, count) => n + count, 0),
+      index_offset: per_row.slice(0, first_visible_row).reduce((n, count) => n + count, 0)
+    };
+  });
+</script>
+```
+
+Moving the list to the active match is up to you, for example with `scrollToItem`.
+
 ## Keyboard shortcuts and focus
 
 `keydown` on an element needs that element focused (`tabindex="0"` or `autofocus`). A key reaches

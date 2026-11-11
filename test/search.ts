@@ -4,16 +4,16 @@
  */
 
 import { TextSearch, find_ranges, type GpuixEvent } from 'gpuix-svelte';
-import { mount_headless, settle, drain, click_text, find, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, settle, drain, click_text, find, painted_highlights, check, finish } from 'gpuix-svelte/test';
 
 // The emoji puts UTF-16 units, code points and UTF-8 bytes at different offsets; 'o' has three matches, so next and prev differ.
 const TEXT = 'the quick 🦊 fox jumps over the lazy fox';
 
 const search = new TextSearch({ color: '#f9e2af55', active_color: '#f9e2af' });
 const Search = (await import('./Search.svelte')).default;
-const { native } = mount_headless(Search, { props: { search, text: TEXT } });
+const { native, unmount } = mount_headless(Search, { props: { search, text: TEXT } });
 
-const painted = () => native.getPaintedHighlights().map((h) => [h.text.slice(h.start, h.end), h.active]);
+const painted = () => painted_highlights().map((h) => [h.text.slice(h.start, h.end), h.active]);
 const counter = () => find((n) => n.type === 'text' && /^\d+\/\d+$/.test(n.text ?? ''))?.text;
 
 // The `highlight` event is queued while GPUI paints, so it is drained like a click's.
@@ -109,6 +109,20 @@ back.prev();
 jump.go_to(2);
 check('next, prev and go_to count against a query set since the last read, with nothing rendering it', [forward.active, back.active, jump.active], [1, 2, 2]);
 
+const capped = new TextSearch({ matches: { total: 4, index_offset: 0 } });
+capped.on_highlight({ matchCount: 2 } as GpuixEvent);
+capped.query = 'x';
+const capped_total = capped.total;
+const offsets = [capped.spec?.matchIndexOffset];
+capped.matches = { total: 4, index_offset: 1 };
+offsets.push(capped.spec?.matchIndexOffset);
+capped.matches = null;
+check(
+	'the constructor takes matches, a new index_offset alone reaches the spec, and null hands the count back to native',
+	[capped_total, offsets, capped.total],
+	[4, [0, 1], 2]
+);
+
 const FOX = [
 	[13, 16],
 	[37, 40]
@@ -132,4 +146,26 @@ check(
 	]
 );
 
-finish('search', 17);
+// Three foxes a virtual list has not mounted come before the two native paints.
+unmount();
+const windowed = new TextSearch({ active_color: '#f9e2af' });
+mount_headless(Search, { props: { search: windowed, text: TEXT, above: 'fox, fox and fox' } });
+windowed.query = 'fox';
+sync();
+check('matches.total stands in for the count native reports, which covers only what is mounted', [windowed.total, counter(), painted()], [5, '1/5', [['fox', false], ['fox', false]]]);
+windowed.go_to(3);
+sync();
+check('and index_offset puts the active match on the right painted one', [counter(), painted()], ['4/5', [['fox', true], ['fox', false]]]);
+click_text('next');
+const last = painted();
+click_text('next');
+check('next walks onto the last match and then wraps at matches.total', [last, windowed.active, counter()], [[['fox', false], ['fox', true]], 0, '1/5']);
+windowed.query = 'o';
+sync();
+check('an effect deriving them from the query keeps up with it, and comes to rest', [windowed.matches, windowed.total, counter()], [{ total: 6, index_offset: 3 }, 6, '1/6']);
+windowed.query = 'FOX';
+windowed.case_sensitive = true;
+sync();
+check('find_ranges takes the search itself as its options, so the count keeps to its flags', [windowed.matches, windowed.total], [{ total: 0, index_offset: 0 }, 0]);
+
+finish('search', 23);

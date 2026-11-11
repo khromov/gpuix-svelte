@@ -1,7 +1,14 @@
 <script lang="ts">
-	import type { TextSearch } from 'gpuix-svelte';
+	import { find_ranges, type TextSearch } from 'gpuix-svelte';
 
-	let { search, text }: { search: TextSearch; text: string } = $props();
+	let { search, text, above = null }: { search: TextSearch; text: string; above?: string | null } = $props();
+
+	// `above` stands in for the rows a virtual list has not mounted, counted the way an app would.
+	$effect(() => {
+		if (above === null) return;
+		const before = find_ranges(above, search.query, search).length;
+		search.matches = { total: before + find_ranges(text, search.query, search).length, index_offset: before };
+	});
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 8px; color: #cdd6f4">
