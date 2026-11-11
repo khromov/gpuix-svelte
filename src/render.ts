@@ -232,11 +232,17 @@ export function focus_dim_on_render(option: boolean | undefined, applied: boolea
 	return created || enabled !== applied ? enabled : null;
 }
 
-/** The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by. */
-export function window_options_for(options: WindowOptions, app: AppOptions | undefined): WindowOptions {
+/**
+ * The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by,
+ * and an automated run opens behind what the person at the machine is typing into unless the app asks for focus.
+ */
+export function window_options_for(options: WindowOptions, app: AppOptions | undefined, automated = false): WindowOptions {
 	const merged = { ...options };
 	if (merged.title == null && app?.name) merged.title = app.name;
+	// Native takes the "Hide" and "Quit" menu items' name from the title otherwise.
+	if (merged.appName == null && app?.name) merged.appName = app.name;
 	if (merged.appId == null && app?.identifier) merged.appId = app.identifier;
+	if (merged.focus == null && automated) merged.focus = false;
 	return merged;
 }
 
@@ -265,7 +271,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		app,
 		...own_window_options
 	} = options;
-	const window_options = window_options_for(own_window_options, app);
+	const automated = typeof process !== 'undefined' && !!process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0';
+	const window_options = window_options_for(own_window_options, app, automated);
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -284,7 +291,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
-		// Spelled out, not read through env(), so build()'s define folds the branch and its import away.
+		// Spelled out again, not read through `automated` or env(): only then does build()'s define fold the branch and its import away.
 		if (typeof process !== 'undefined' && process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');
 	}

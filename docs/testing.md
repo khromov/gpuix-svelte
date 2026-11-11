@@ -142,7 +142,9 @@ is the one switch for the automation server; `0` or an empty value leaves it off
 **stdout carries the protocol**. `console.log`, `info` and `debug` move to stderr, which
 `launch()` passes through, so don't write to `process.stdout` yourself. When stdin ends, the app
 answers whatever is in flight and exits. Each input replies after two more frames, so a read
-straight after a click sees the result.
+straight after a click sees the result. The window opens without taking focus (`focus: false`),
+behind whatever you are typing into, unless the app's `render()` sets `focus` itself: clicks,
+typing and screenshots all work on it, and on Linux, which ignores `focus`, it opens focused anyway.
 
 Any language can drive it. Requests and replies are SSE `data:` frames of JSON with numeric ids
 (the method names are exported as `methods` from `@gpuix/native/automation`), and a request that

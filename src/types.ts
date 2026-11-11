@@ -154,8 +154,8 @@ export type WindowNative = Partial<
 
 /**
  * What `gpuix-svelte/build` packages the executable with: the `.app` bundle on macOS, the
- * version info on Windows. At runtime `name` is the window title's fallback and `identifier` the
- * app id Linux desktops see; nothing else is read.
+ * version info on Windows. At runtime `name` is the window title's fallback and the name in macOS's
+ * Hide and Quit menu items, and `identifier` the app id Linux desktops see; nothing else is read.
  */
 export interface AppOptions {
 	/** The Dock, menu bar and bundle name; defaults to the window `title`. */
@@ -183,7 +183,7 @@ export interface AppUpdateOptions {
 
 export interface RenderOptions extends WindowOptions {
 	props?: Record<string, unknown>;
-	/** Read by `gpuix-svelte/build`; the window takes only its title fallback and app id from it. See `AppOptions`. */
+	/** Read by `gpuix-svelte/build`; the window takes only its title fallback, macOS menu name and app id from it. See `AppOptions`. */
 	app?: AppOptions;
 	rootStyle?: GpuiStyle;
 	onEvent?: (event: EventPayload) => void;

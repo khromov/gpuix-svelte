@@ -208,12 +208,25 @@ check(
 check('a quoted key reads like a bare one', read_app_options(`${head}render(App, { app: { 'name': 'Q' } });`), { name: 'Q' });
 
 check(
-	'the window takes its title fallback and app id from app',
+	'the window takes its title fallback, menu name and app id from app',
 	window_options_for({ width: 10 }, { name: 'Named', identifier: 'com.x.y' }),
-	{ width: 10, title: 'Named', appId: 'com.x.y' }
+	{ width: 10, title: 'Named', appName: 'Named', appId: 'com.x.y' }
 );
-check('what the window is given directly wins', window_options_for({ title: 'T', appId: 'a.b' }, { name: 'Named', identifier: 'com.x.y' }), { title: 'T', appId: 'a.b' });
+check("a title of the window's own leaves macOS's Hide and Quit items to the app's name", window_options_for({ title: 'Inbox — Mail' }, { name: 'Mail' }), {
+	title: 'Inbox — Mail',
+	appName: 'Mail'
+});
+check(
+	'what the window is given directly wins',
+	window_options_for({ title: 'T', appName: 'N', appId: 'a.b' }, { name: 'Named', identifier: 'com.x.y' }),
+	{ title: 'T', appName: 'N', appId: 'a.b' }
+);
 check('no app adds nothing', window_options_for({ width: 10 }, undefined), { width: 10 });
+check(
+	'under automation the window opens without taking focus, unless the app asks for it',
+	[window_options_for({}, undefined, true), window_options_for({ focus: true }, undefined, true), window_options_for({}, undefined, false)],
+	[{ focus: false }, { focus: true }, {}]
+);
 
 // An aot or trim build resolves @gpuix/native to this file and searches the executable for its bytes.
 const addon = native_addon();
@@ -221,4 +234,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 40 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 42 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
