@@ -5,11 +5,12 @@
  */
 
 import type { PathPromptOptions } from '@gpuix/native';
-import { get_native, node_of, with_native_id } from './renderer.ts';
+import { get_native, node_of, on_selection_change, with_native_id } from './renderer.ts';
 import { set_titlebar_title } from './titlebar.ts';
 import type { Native, PixelFormat, ShadowNode, WindowNative } from './types.ts';
 import { createSubscriber } from 'svelte/reactivity';
 import {
+	observeSelectedText,
 	observeWindowInsets,
 	observeWindowSize,
 	readWindowInsets,
@@ -161,6 +162,31 @@ export const register_font = (bytes: Uint8Array) => win()?.registerFont?.(bytes)
 /** The elements painted under a window point, topmost first, like the DOM's `elementsFromPoint`. */
 export const elements_at = (x: number, y: number): ShadowNode[] =>
 	(read_native((n) => (n as WindowNative).getElementsAt?.(x, y)) ?? []).map(node_of).filter((n) => n !== null);
+
+const selection_host = { getSelectedText: () => read_native((n) => (n as WindowNative).getSelectedText?.() ?? null) };
+let selection: string | null = null;
+let selection_live = false;
+const selection_read = createSubscriber((update) => {
+	// The first read lands inside the reading effect, which must not rerun for it.
+	const stop = observeSelectedText(selection_host, on_selection_change, (text) => {
+		selection = text;
+		if (selection_live) update();
+	});
+	selection_live = true;
+	return () => {
+		stop();
+		selection_live = false;
+	};
+});
+
+/** The window's selected text, joined in document order, or null; reactive in a template or effect, which hear every change and never poll. */
+export function selected_text(): string | null {
+	selection_read();
+	return selection_live ? selection : selection_host.getSelectedText();
+}
+
+/** Drops the window's text selection; `selected_text()` follows once the next frame reports it. */
+export const clear_selection = () => win()?.clearSelection?.();
 
 const OVERLAY_MODES = new Set<string>(['hidden', 'minimal', 'full']);
 const warned_overlays = new Set<string>();

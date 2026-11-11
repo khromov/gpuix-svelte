@@ -133,6 +133,8 @@ export type WindowNative = Partial<
 		| 'focusNextWithin'
 		| 'focusPreviousWithin'
 		| 'getElementsAt'
+		| 'getSelectedText'
+		| 'clearSelection'
 	>
 > & {
 	// napi's `Buffer` parameters take any Uint8Array, and the wasm build declares Uint8Array.
