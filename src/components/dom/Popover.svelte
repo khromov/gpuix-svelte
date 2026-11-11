@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { on_window_key } from 'gpuix-svelte';
+	import { dismiss_layer } from 'gpuix-svelte';
 	import Anchored from './Anchored.svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
@@ -47,9 +47,8 @@
 	$effect(() => {
 		if (!open) return;
 		document.addEventListener('mousedown', outside, true);
-		const off = on_window_key('keydown', (e) => {
-			if (e.key === 'escape') onclose();
-		});
+		// Read on Escape, not here, or a parent passing a new closure would re-push the layer on top.
+		const off = dismiss_layer({ onEscape: () => onclose() });
 		return () => {
 			document.removeEventListener('mousedown', outside, true);
 			off();

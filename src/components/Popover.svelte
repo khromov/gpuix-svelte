@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { on_window_key, read_native, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
+	import { dismiss_layer, read_native, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
@@ -58,9 +58,8 @@
 
 	$effect(() => {
 		if (!open) return;
-		return on_window_key('keydown', (e) => {
-			if (e.key === 'escape') onclose();
-		});
+		// Read on Escape, not here, or a parent passing a new closure would re-push the layer on top.
+		return dismiss_layer({ onEscape: () => onclose() });
 	});
 </script>
 

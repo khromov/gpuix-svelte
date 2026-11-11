@@ -5,11 +5,24 @@
  */
 
 import type { EventPayload } from '@gpuix/native';
+import { BUILT_IN_TYPES, UNIVERSAL_PROPS } from '@gpuix/native/host';
+import type {
+	AnchoredProps,
+	CodeProps,
+	DiffProps,
+	ElementType,
+	ImgProps,
+	MarkdownProps,
+	SvgProps,
+	TextareaProps,
+	VirtualListProps
+} from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
-import { build_style, define_css_vars, flush_var_warnings, used_css_vars } from './style.ts';
+import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import type {
 	ClassRule,
+	DismissLayer,
 	EventHandler,
 	GpuiStyle,
 	GpuixEvent,
@@ -23,7 +36,7 @@ import type {
 } from './types.ts';
 
 /** Anything not listed here degrades to `div`; that includes `canvas`, which native 0.11 lacks and would paint nothing for. */
-const GPUI_TAGS = new Set([
+const GPUI_TAGS = set_of<Exclude<ElementType, 'canvas'>>()([
 	'div',
 	'text',
 	'img',
@@ -37,22 +50,40 @@ const GPUI_TAGS = new Set([
 	'virtual-list'
 ]);
 
-/** GPUI only forwards a handful of props to `div`/`text`. */
-const BUILT_IN_TAGS = new Set(['div', 'text']);
-const UNIVERSAL_PROPS = new Set([
+/** Every element's props as native types them (`TextareaProps` holds `InputProps` and `HostProps`). */
+type NativeProps = TextareaProps | CodeProps | DiffProps | MarkdownProps | ImgProps | SvgProps | AnchoredProps | VirtualListProps;
+type Value<T, K extends keyof T> = Exclude<T[K], undefined>;
+/** The props of any element whose every value is a `V`; `itemCount?: never` is no prop of either kind. */
+type PropsOf<V, T = NativeProps> = T extends unknown
+	? { [K in keyof T]-?: [Value<T, K>] extends [never] ? never : [Value<T, K>] extends [V] ? K : never }[keyof T]
+	: never;
+
+/** A static attribute reaches the renderer as text (a bare one as `''`), and native ignores a prop whose JSON type is wrong. */
+const BOOLEAN_PROPS = set_of<PropsOf<boolean>>()([
 	'autoFocus',
-	'tabIndex',
-	'testId',
-	'motion',
-	'highlight',
-	'role',
-	'aria-label',
-	'aria-description',
-	'aria-id',
 	'aria-expanded',
 	'aria-selected',
-	'aria-valuetext',
-	'aria-level'
+	'readOnly',
+	'showLineNumbers',
+	'wordDiff',
+	'scroll',
+	'deferred',
+	'occlude',
+	'followTail'
+]);
+const NUMBER_PROPS = set_of<PropsOf<number>>()([
+	'tabIndex',
+	'aria-level',
+	'minRows',
+	'maxRows',
+	'maxLines',
+	'gap',
+	'snapMargin',
+	'priority',
+	'overdraw',
+	'estimatedItemHeight',
+	'itemCount',
+	'windowStart'
 ]);
 
 /** Attributes that feed `setStyle`; `class` does so through the component's `<style>` rules. */
@@ -73,12 +104,10 @@ const PASSIVE_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'hig
 /** Always listen for focus/blur on these, so window key handlers can tell typing from a shortcut. */
 const TEXT_INPUTS = new Set(['input', 'textarea']);
 
-/** Svelte lowercases some attributes; GPUI wants them camelCased. */
-const PROP_ALIASES = new Map([
-	['autofocus', 'autoFocus'],
-	['tabindex', 'tabIndex'],
-	['testid', 'testId']
-]);
+/** HTML spells these lowercase (`readonly`, `tabindex`); GPUI wants them camelCased. */
+const PROP_ALIASES = new Map([...BOOLEAN_PROPS, ...NUMBER_PROPS, 'testId'].map((name) => [name.toLowerCase(), name]));
+
+const warned_props = new Set<string>();
 
 /** The live GpuixRenderer (or TestGpuixRenderer). */
 let native: NativeSink | null = null;
@@ -146,6 +175,9 @@ type KeystrokeFlags = { id: number | undefined; prevented: boolean; stopped: boo
 // Native emits one keystroke's element events and then its window event back to back,
 // so only the latest keystroke needs flags.
 let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: false };
+
+/** Open overlays, the top one last. */
+let layers: DismissLayer[] = [];
 
 /** scope class -> that component's `<style>` rules, weakest first (see compile.ts). */
 const stylesheets = new Map<string, ClassRule[]>();
@@ -369,16 +401,22 @@ function reparent(el: ShadowNode) {
 
 const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 
+/** As HTML reads a boolean attribute, `readonly`, `readonly=""` and `readonly="readonly"` are all true; `"false"` is not. */
 function normalize_prop(name: string, value: unknown) {
-	// Svelte hands `aria-expanded={open}` over as is but `aria-expanded="true"` as text, and native reads JSON types.
-	if (name === 'autoFocus' || name === 'aria-expanded' || name === 'aria-selected') return value !== false && value !== 'false';
-	if (name === 'tabIndex' || name === 'aria-level') return Number(value);
-	return value;
+	if (BOOLEAN_PROPS.has(name)) return typeof value === 'string' ? value !== 'false' : Boolean(value);
+	if (!NUMBER_PROPS.has(name)) return value;
+	const number = typeof value === 'string' && value.trim() === '' ? NaN : Number(value);
+	if (Number.isFinite(number)) return number;
+	if (!warned_props.has(name)) {
+		warned_props.add(name);
+		console.warn(`[gpuix-svelte] ${name}="${String(value)}" is not a number, so it is left unset`);
+	}
+	return null;
 }
 
 function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	const name = prop_name(key);
-	if (BUILT_IN_TAGS.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
+	if (BUILT_IN_TYPES.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
 	if (el.nativeId === null) return;
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
@@ -725,6 +763,7 @@ export function set_native(instance: NativeSink) {
 	portals = new Set();
 	pending_portals = [];
 	after_commit = [];
+	layers = [];
 	dirty = false;
 	commit_scheduled = false;
 
@@ -749,7 +788,7 @@ function sync_window_events() {
 	if (window_node.nativeId === null) window_node.nativeId = ++next_id;
 	by_id.set(window_node.nativeId, window_node);
 	native?.setWindowKeyEvents?.(
-		tab_navigation || window_node.listeners.has('windowKeyDown'),
+		tab_navigation || layers.length > 0 || window_node.listeners.has('windowKeyDown'),
 		window_node.listeners.has('windowKeyUp'),
 		window_node.nativeId
 	);
@@ -790,6 +829,22 @@ export function on_window_key(type: WindowKeyType, handler: (event: GpuixEvent) 
 
 /** Fires once per change of the window's text selection, a clear included; `event.value` is the selected text. */
 export const on_selection_change = (handler: (event: GpuixEvent) => void) => on_window_event('selectionChange', handler);
+
+/**
+ * Puts an open overlay on top of the window's stack until the returned function runs. An Escape that
+ * no key handler prevented reaches the top layer's `onEscape` alone, so a tip in a popover closes first.
+ */
+export function dismiss_layer(layer: DismissLayer): () => void {
+	const entry = { ...layer };
+	layers.push(entry);
+	if (layers.length === 1) sync_window_events();
+	return () => {
+		const index = layers.indexOf(entry);
+		if (index === -1) return;
+		layers.splice(index, 1);
+		if (layers.length === 0) sync_window_events();
+	};
+}
 
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
 export const get_native = (): Native | null => native as Native | null;
@@ -883,8 +938,6 @@ export function commit() {
 		by_id.delete(id);
 	}
 
-	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
-	native!.commitMutations?.();
 	run_after_commit();
 }
 
@@ -1010,7 +1063,12 @@ function flags_for(payload: EventPayload): KeystrokeFlags {
 /** Runs on the window event, which native sends after every element's, so any handler could have prevented it. */
 function key_default(payload: EventPayload) {
 	const modifiers = payload.modifiers;
-	if (!tab_navigation || payload.key !== 'tab' || modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	if (modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	if (payload.key === 'escape') {
+		layers.at(-1)?.onEscape();
+		return;
+	}
+	if (!tab_navigation || payload.key !== 'tab') return;
 	const host = native as WindowNative | null;
 	if (modifiers?.shift) host?.focusPrevious?.();
 	else host?.focusNext?.();

@@ -110,6 +110,26 @@ The order is the tab stops of the last painted frame, so a stop that an `{#if}` 
 joins it once it has painted. To focus a particular new element, give it `autofocus` or call
 `focus_element(node)`.
 
+An overlay that Escape closes, such as a menu, a popover or a modal, goes on the window's layer
+stack with `dismiss_layer`, which returns the function that takes it off again:
+
+```svelte
+<script>
+  import { dismiss_layer } from 'gpuix-svelte';
+  let { open, onclose } = $props();
+
+  $effect(() => {
+    if (!open) return;
+    return dismiss_layer({ onEscape: () => onclose() });
+  });
+</script>
+```
+
+Escape reaches only the layer on top, the one that opened last, so a tooltip inside a popover
+closes before the popover does. Like the Tab move, it runs after every key handler for that
+keystroke, so `e.preventDefault()` in any of them keeps the layer open, and Escape with Ctrl, Alt
+or Cmd is left alone. `Tooltip` and `Popover` both use it.
+
 `:focus-visible` rules and the `focus-visible="..."` attribute style an element while it has
 keyboard focus (not after a click), and `outline-width`, `outline-color` and `outline-offset` draw
 the ring outside its border. GPUI can also dim every other focusable element to 40% opacity while

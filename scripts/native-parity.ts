@@ -3,8 +3,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EVENT_PROPS } from '@gpuix/native/host';
-import { GPUI_EVENTS } from '../src/events.ts';
 
 interface Source {
 	path: string;
@@ -70,12 +68,3 @@ for (const [name, methods, counts] of [
 const functions = [...dts.matchAll(/^export declare function (\w+)/gm)].map((m) => m[1]);
 const unreferenced = functions.filter((f) => !src.some((s) => new RegExp(String.raw`\b${f}\b`).test(s.text)));
 console.log(`Functions not referenced from src/: ${unreferenced.join(', ') || 'none'}`);
-
-const host_events = EVENT_PROPS.map(([, event]) => event as string);
-const missing = host_events.filter((e) => !GPUI_EVENTS.includes(e));
-const extra = GPUI_EVENTS.filter((e) => !host_events.includes(e));
-console.log(
-	missing.length + extra.length === 0
-		? `Events: GPUI_EVENTS matches @gpuix/native/host's EVENT_PROPS (${host_events.length})`
-		: `Events: EVENT_PROPS has ${missing.join(', ') || 'nothing'} GPUI_EVENTS lacks; GPUI_EVENTS has ${extra.join(', ') || 'nothing'} EVENT_PROPS lacks`
-);

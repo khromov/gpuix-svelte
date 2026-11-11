@@ -25,7 +25,8 @@ import {
 } from 'gpuix-svelte/test';
 
 const Fixture = (await import('./Floating.svelte')).default;
-const { native } = mount_headless(Fixture, { width: 600, height: 400 });
+const mounted = mount_headless(Fixture, { width: 600, height: 400 });
+const { native } = mounted;
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -214,4 +215,41 @@ function move(x: number, y: number) {
 	check('a right click outside closes it too', [counts(), shown('menu-panel')], ['1-1-3-1-1', false]);
 }
 
-finish('tooltip', 36);
+// --- the dismiss stack -----------------------------------------------------------
+{
+	click_test_id('outer-trigger');
+	focus(find_test_id('inner-trigger')!);
+	const opened = [shown('outer-panel'), shown('inner-tip')];
+	press('escape');
+	check('Escape closes only the top layer, the tip inside the popover', [opened, shown('inner-tip'), shown('outer-panel')], [[true, true], false, true]);
+	press('escape');
+	check('and the next one the popover under it', shown('outer-panel'), false);
+
+	click_test_id('outer-trigger');
+	focus(find_test_id('keep')!);
+	press('escape');
+	check("a key handler's preventDefault keeps it open", shown('outer-panel'), true);
+	press('cmd-escape');
+	check('and so does a command modifier', shown('outer-panel'), true);
+	press('shift-escape');
+	check('while the same key that handler lets through closes it', shown('outer-panel'), false);
+
+	click_test_id('menu-trigger');
+	const pinned = box(element_of('pinned'));
+	move(mid_x(pinned), mid_y(pinned));
+	await wait(350);
+	press('escape');
+	check('a tip that open forces, hovered after the popover opened, takes no Escape from it', shown('menu-panel'), false);
+	move(2, 2);
+}
+
+// Without Tab navigation nothing else asks native for window key events, so an open layer has to.
+{
+	await mounted.unmount();
+	mount_headless(Fixture, { width: 600, height: 400, tabNavigation: false });
+	click_test_id('menu-trigger');
+	press('escape');
+	check('Escape still reaches a layer with tabNavigation off', shown('menu-panel'), false);
+}
+
+finish('tooltip', 43);

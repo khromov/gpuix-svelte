@@ -397,6 +397,46 @@ check('reversing a keyed {#each} of portals leaves every layer in <body>', toast
 unmount(toasts as never);
 toasts_host.remove();
 
+writeFileSync(
+	join(tmp, 'Nested.svelte'),
+	`<script>
+	import Popover from 'gpuix-svelte/components/Popover.svelte';
+	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
+	let open = $state(false);
+</script>
+<Popover {open} onclose={() => (open = false)} testid="nest">
+	<div onclick={() => (open = !open)} testid="nest-trigger">Nest</div>
+	{#snippet content()}
+		<Tooltip content="Inner" testid="nest-inner">
+			{#snippet children(hover, focus)}<div tabindex="0" {...hover} {...focus} testid="nest-inner-trigger">Inner</div>{/snippet}
+		</Tooltip>
+		<div tabindex="0" onkeydown={(e) => e.key === 'Escape' && e.preventDefault()} testid="nest-keep">Keep</div>
+	{/snippet}
+</Popover>
+`
+);
+const Nested = (await import(compile_for_dom(join(tmp, 'Nested.svelte')))).default;
+const nested_host = document.createElement('div');
+document.body.append(nested_host);
+const nested = mount(Nested, { target: nested_host });
+flushSync();
+click(by_id('nest-trigger'));
+by_id('nest-inner-trigger')!.dispatchEvent(new FocusEvent('focus'));
+flushSync();
+const opened = [by_id('nest-panel') !== null, by_id('nest-inner-tip') !== null];
+key('Escape');
+check('Escape closes only the top layer, the tip inside the popover', [opened, by_id('nest-inner-tip'), by_id('nest-panel') !== null], [[true, true], null, true]);
+key('Escape');
+check('and the next one the popover under it', by_id('nest-panel'), null);
+click(by_id('nest-trigger'));
+by_id('nest-keep')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+flushSync();
+const kept = by_id('nest-panel') !== null;
+key('Escape');
+check("a key handler's preventDefault keeps it open, where the same key unprevented closes it", [kept, by_id('nest-panel')], [true, null]);
+unmount(nested as never);
+nested_host.remove();
+
 dom.render(CrossTarget, { title: 'again', rootStyle: { padding: 4 } });
 check(
 	'a second render() replaces the first, rootStyle replacing the root box',
@@ -414,4 +454,4 @@ check(
 );
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 74);
+finish('dom', 77);

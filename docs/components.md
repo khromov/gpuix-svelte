@@ -203,8 +203,10 @@ a deferred layer.
 A hover tip beside its trigger, built on `<anchored>`. It shows after `delay` ms of hover and stays
 open while the pointer crosses onto the tip, with an 80 ms grace for the gap. A trigger that spreads
 the snippet's focus handlers also shows it at once on keyboard focus and hides it on blur, until the
-pointer takes over. Escape hides it either way. The tip takes no clicks, so they land on whatever
-lies beneath it.
+pointer takes over. Escape hides it either way, unless another layer opened after it, such as a
+popover, is still open (see `dismiss_layer` in the [guide](guide.md#keyboard-shortcuts-and-focus)).
+A tip that `open` forces ignores Escape. The tip takes no clicks, so they land on whatever lies
+beneath it.
 
 Props:
 
@@ -289,8 +291,10 @@ focusable, so a click on it would take focus away from a text field.
 ## Popover
 
 A controlled panel beside its trigger. You own `open`, and the trigger toggles it. `onclose` fires
-on a press outside both the panel and the trigger (any mouse button) and on Escape. A press on the
-trigger is left to the trigger's own click, so it closes the panel without reopening it.
+on a press outside both the panel and the trigger (any mouse button) and on Escape. Escape closes
+only the top layer, so a tooltip open inside the panel goes first and the panel on the next press,
+and a key handler that calls `e.preventDefault()` keeps it open. A press on the trigger is left to
+the trigger's own click, so it closes the panel without reopening it.
 
 Props:
 
