@@ -6,7 +6,17 @@
 
 import type { EventPayload } from '@gpuix/native';
 import { BUILT_IN_TYPES, UNIVERSAL_PROPS } from '@gpuix/native/host';
-import type { ElementType } from '@gpuix/native/host';
+import type {
+	AnchoredProps,
+	CodeProps,
+	DiffProps,
+	ElementType,
+	ImgProps,
+	MarkdownProps,
+	SvgProps,
+	TextareaProps,
+	VirtualListProps
+} from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
 import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
@@ -39,6 +49,42 @@ const GPUI_TAGS = set_of<Exclude<ElementType, 'canvas'>>()([
 	'virtual-list'
 ]);
 
+/** Every element's props as native types them (`TextareaProps` holds `InputProps` and `HostProps`). */
+type NativeProps = TextareaProps | CodeProps | DiffProps | MarkdownProps | ImgProps | SvgProps | AnchoredProps | VirtualListProps;
+type Value<T, K extends keyof T> = Exclude<T[K], undefined>;
+/** The props of any element whose every value is a `V`; `itemCount?: never` is no prop of either kind. */
+type PropsOf<V, T = NativeProps> = T extends unknown
+	? { [K in keyof T]-?: [Value<T, K>] extends [never] ? never : [Value<T, K>] extends [V] ? K : never }[keyof T]
+	: never;
+
+/** A static attribute reaches the renderer as text (a bare one as `''`), and native ignores a prop whose JSON type is wrong. */
+const BOOLEAN_PROPS = set_of<PropsOf<boolean>>()([
+	'autoFocus',
+	'aria-expanded',
+	'aria-selected',
+	'readOnly',
+	'showLineNumbers',
+	'wordDiff',
+	'scroll',
+	'deferred',
+	'occlude',
+	'followTail'
+]);
+const NUMBER_PROPS = set_of<PropsOf<number>>()([
+	'tabIndex',
+	'aria-level',
+	'minRows',
+	'maxRows',
+	'maxLines',
+	'gap',
+	'snapMargin',
+	'priority',
+	'overdraw',
+	'estimatedItemHeight',
+	'itemCount',
+	'windowStart'
+]);
+
 /** Attributes that feed `setStyle`; `class` does so through the component's `<style>` rules. */
 const STYLE_ATTRS = new Set(['style', 'hover', 'active', 'focus-visible', 'class']);
 
@@ -57,12 +103,10 @@ const PASSIVE_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'hig
 /** Always listen for focus/blur on these, so window key handlers can tell typing from a shortcut. */
 const TEXT_INPUTS = new Set(['input', 'textarea']);
 
-/** Svelte lowercases some attributes; GPUI wants them camelCased. */
-const PROP_ALIASES = new Map([
-	['autofocus', 'autoFocus'],
-	['tabindex', 'tabIndex'],
-	['testid', 'testId']
-]);
+/** HTML spells these lowercase (`readonly`, `tabindex`); GPUI wants them camelCased. */
+const PROP_ALIASES = new Map([...BOOLEAN_PROPS, ...NUMBER_PROPS, 'testId'].map((name) => [name.toLowerCase(), name]));
+
+const warned_props = new Set<string>();
 
 /** The live GpuixRenderer (or TestGpuixRenderer). */
 let native: NativeSink | null = null;
@@ -353,11 +397,17 @@ function reparent(el: ShadowNode) {
 
 const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 
+/** As HTML reads a boolean attribute, `readonly`, `readonly=""` and `readonly="readonly"` are all true; `"false"` is not. */
 function normalize_prop(name: string, value: unknown) {
-	// Svelte hands `aria-expanded={open}` over as is but `aria-expanded="true"` as text, and native reads JSON types.
-	if (name === 'autoFocus' || name === 'aria-expanded' || name === 'aria-selected') return value !== false && value !== 'false';
-	if (name === 'tabIndex' || name === 'aria-level') return Number(value);
-	return value;
+	if (BOOLEAN_PROPS.has(name)) return typeof value === 'string' ? value !== 'false' : Boolean(value);
+	if (!NUMBER_PROPS.has(name)) return value;
+	const number = typeof value === 'string' && value.trim() === '' ? NaN : Number(value);
+	if (Number.isFinite(number)) return number;
+	if (!warned_props.has(name)) {
+		warned_props.add(name);
+		console.warn(`[gpuix-svelte] ${name}="${String(value)}" is not a number, so it is left unset`);
+	}
+	return null;
 }
 
 function apply_prop(el: ShadowNode, key: string, value: unknown) {
