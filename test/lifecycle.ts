@@ -125,6 +125,11 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	const root = create_root();
 	commit();
 	let loop = start_frame_loop(native);
+	check('by default a window whose display link stopped keeps the 8 ms pace, as accessibility clients need', (await ticks_during(150)) >= 5, true);
+	loop.stop();
+
+	// The rest runs the 100 ms idle pace upstream uses, so the machinery stays proven for when it comes back on.
+	loop = start_frame_loop(native, 100);
 	check('where nothing happens, the loop ticks on the 100 ms fallback, not every 8 ms', (await ticks_during(350)) <= 5, true);
 
 	await after_tick();
@@ -147,7 +152,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	check('and keeps the 8 ms pace for a while, since the next key reaches JS only on a tick', (await ticks_during(150)) >= 5, true);
 	loop.stop();
 
-	loop = start_frame_loop(native);
+	loop = start_frame_loop(native, 100);
 	await after_tick();
 	const before_pair = ticks;
 	wake();
@@ -484,4 +489,4 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 
 set_auto_commit(false);
 
-finish('lifecycle', 47);
+finish('lifecycle', 48);

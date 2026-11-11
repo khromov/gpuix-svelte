@@ -33,8 +33,12 @@ const FRAME_MS = 8;
 /** Native answers one accessibility request per `tick()`, and at 8 ms each VoiceOver gives up on the app ("not responding"). */
 const VOICEOVER_FRAME_MS = 1;
 
-/** Where display-link wakes drive the ticks (macOS), the timer only pumps a window whose link has stopped: hidden, minimised or occluded. */
-const IDLE_FRAME_MS = 100;
+/**
+ * The pace of a window whose display link has stopped (hidden, minimised or occluded). Native answers one
+ * accessibility request per tick, so upstream's 100 ms took AltTab-style window queries from ~96 ms to ~630 ms.
+ * TODO: come back to a slower idle pace once native wakes JS for accessibility requests, or for a middle value.
+ */
+const IDLE_FRAME_MS = FRAME_MS;
 
 /** Input reaches JS only on a tick and never wakes it, so the loop keeps `FRAME_MS` this long after the last input or drawn frame. */
 const ACTIVE_MS = 2000;
@@ -115,7 +119,8 @@ function start_automation(native: GpuixRenderer) {
 }
 
 export function start_frame_loop(
-	native: Pick<GpuixRenderer, 'requiresTick' | 'tick'> & Partial<Pick<GpuixRenderer, 'setFrameWakeCallback'>>
+	native: Pick<GpuixRenderer, 'requiresTick' | 'tick'> & Partial<Pick<GpuixRenderer, 'setFrameWakeCallback'>>,
+	idle_ms = IDLE_FRAME_MS
 ): { stop(): void } {
 	if (!native.requiresTick()) {
 		// Only the wasm build, which drives its own frames off the canvas: with no loop
@@ -162,7 +167,7 @@ export function start_frame_loop(
 		if (voiceover_running(started)) return VOICEOVER_FRAME_MS;
 		if (!waking) return FRAME_MS;
 		if (started - last_wake < WAKE_WAIT_MS) return WAKE_WAIT_MS;
-		return started - last_active < ACTIVE_MS ? FRAME_MS : IDLE_FRAME_MS;
+		return started - last_active < ACTIVE_MS ? FRAME_MS : idle_ms;
 	};
 
 	const stop = () => {

@@ -394,7 +394,7 @@ after each input, which is not enough here — the napi callback carrying the ev
 loop turn, so a `getTree` right after a `click` could miss a just-shown `{#if}` node. So the
 server hides `tick` from it and wraps the backend (`frame_synced`): requests run one at a time and
 every input replies only after two of the frame loop's own ticks (`next_frame()` in `render.ts`,
-which brings each one forward, so an idle macOS window's 100 ms fallback never delays a reply);
+which brings each one forward, so a slower idle pace could never delay a reply);
 reads and `screenshot` do not wait.
 
 ### Measuring frame cost
@@ -1080,11 +1080,16 @@ way to `eval`), and a frame loop of its own calling `native.tick()`, not `@gpuix
 `startFrameLoop`, which has no room for the commit, the frame waiters or VoiceOver's pace. On macOS
 it ticks on native's display-link wakes (`setFrameWakeCallback`), with a timer that steps aside
 (25 ms) while wakes keep coming, ticks every 8 ms for 2 s after the last input event or wake (input
-never wakes JS), and every 100 ms (`IDLE_FRAME_MS`) after that. A visible window's display link
-wakes every frame, idle or not (measured on a 120 Hz Mac: ~120 wakes/s focused or unfocused, about
-the old timer's rate and CPU), so the saving is only for a hidden, minimised or covered window, where
-the link stops: 0 wakes, 10 ticks/s, ~0.3–0.5% CPU against the old ~2.5–3%. Upstream's docs say the
-same ("it does not eliminate idle CPU use while the display link is running"). Elsewhere it ticks
+never wakes JS), and at `IDLE_FRAME_MS` after that, which is 8 ms for now, so idle CPU is what it was
+on `main` everywhere. A visible window's display link wakes every frame, idle or not (measured on a
+120 Hz Mac: ~120 wakes/s focused or unfocused, about the old timer's rate and CPU); only a hidden,
+minimised or covered window's link stops, and upstream's 100 ms there took it from ~2% CPU to ~0.7%
+but made accessibility queries against it (System Events, AltTab, tiling managers) ~630 ms instead of
+~96 ms, since native answers one request per tick; 33 ms measured 1.35% and ~260 ms. Upstream's docs
+say the same of visible windows ("it does not eliminate idle CPU use while the display link is
+running"). `start_frame_loop(native, idle_ms)` takes the idle pace, which `test:lifecycle` sets to
+100 ms so the machinery stays proven for when native wakes JS for accessibility input and a slower
+pace can come back (a TODO on the constant). Elsewhere it ticks
 every 8 ms (~125fps, since `setImmediate` burns most of a core at idle). A clean→dirty `mark_dirty`
 (`set_on_dirty`) and `next_frame()` bring the next tick forward to 8 ms after the last, so a timer's
 or a fetch's update commits as fast as before and automation waits frames, not the fallback; while
@@ -1093,14 +1098,12 @@ drew ~190 ticks/s against the old timer's 125, and a wake within 2 ms of a tick'
 pumping, since a busy loop turn (and Windows' 15.6 ms timers, under `test:lifecycle`) runs a due
 timer's tick and a wake back to back. A throw from `tick()` is logged once per run and the
 loop goes on; 100 in a row (`TICK_FAILURES`) end the process with 1, as an uncaught throw did,
-rather than logging every tick forever. Input that reaches a window whose link has
-stopped waits for the next fallback tick (≤100 ms), as it does under upstream's `startFrameLoop`.
+rather than logging every tick forever.
 On macOS native answers one accessibility request per
 `tick()`, so at 8 ms a read costs 8 ms and VoiceOver reports the app as not responding; while
 VoiceOver runs the loop ticks every 1 ms instead (`src/screen-reader.ts` asks `pgrep -x VoiceOver`
 every 2 s, since native has no signal for an assistive client and `defaults` misses a VoiceOver
-started without its shortcut). Other accessibility clients get the loop's own pace (100 ms in an
-idle macOS window), until
+started without its shortcut). Other accessibility clients get the loop's own pace (8 ms), until
 native wakes JS for run-loop input the way `setFrameWakeCallback` does for frames. `requiresTick()` is true on every desktop platform —
 on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether that thread
 is still alive — and `tick()` returns false once the last window closes, which ends the loop and
