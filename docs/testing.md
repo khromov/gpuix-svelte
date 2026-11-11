@@ -35,9 +35,11 @@ effects and lets GPUI paint again. For timers and promises, `await wait(ms)` let
 delivering what native reported (`onlayout`, for one) on both sides of it, as a window would.
 
 To find elements, `find_text` (an exact match on one text node), `find_test_id` and `element_of`
-look them up, and `tree()` returns the whole element tree. `painted()` returns everything GPUI
-drew as one string, `all_text()` the text nodes as an array, `bounds()` an element's
-`{ x, y, width, height }`, and `screenshot(path)` writes a PNG.
+look them up, and `tree()` returns the whole element tree. `text_content(target)` reads an
+element's text as the DOM's `textContent` does: its own and every descendant's, joined in document
+order, from the tree as it is now (it throws if the element is gone). `painted()` returns everything
+GPUI drew as one string, `all_text()` the text nodes as an array, `bounds()` an element's
+`{ x, y, width, height }`, and `screenshot(path)` settles, then writes a PNG.
 
 For input, `click`, `click_text`, `click_test_id`, `click_at` and `drop_files(target, paths)` go
 through GPUI's real hit testing, so they pass only when the real window would. `press(keystroke)`
@@ -62,6 +64,8 @@ Pointer helpers take a node (aimed at its centre) or a `{ x, y }` point in windo
 
 - `hover(target)`, `mouse_move(target, { pressed_button })` (a move with a button held is a drag
   move), `mouse_down` and `mouse_up`.
+- `mouse_exit(at)`: the pointer leaves the window at `at` (the top-left corner if you leave it out),
+  with no move after it, which ends every hover and fires `onmouseleave`.
 - `wheel(target, dx, dy)`, where a negative `dy` scrolls down.
 - `drag(from, to, { steps })`: a press, `steps` moves with the button held, then a release.
 - `drag_select(from, to)`, which returns the selected text.
@@ -89,15 +93,17 @@ passes.
 
 ## Accessibility
 
-`native.getA11yTree()` returns, as JSON, the accessibility tree GPUI built from the last painted
-frame. Each entry in its `nodes` has an `aria` object: the role as AccessKit names it (`Button`,
-`Heading`, `Label`, `Switch`, `ListBoxOption`), and `label`, `value` (a text's string),
-`expanded`, `selected` and `level` where they are set. The dump lists no parents, so assert that a
-node with the fields you expect exists:
+`a11y()` returns the accessibility tree GPUI built from the last painted frame. Each entry in its
+`nodes` has an `aria` object: the role as AccessKit names it (`Button`, `Heading`, `Label`,
+`Switch`, `ListBoxOption`), and `label`, `value` (a text's string), `expanded`, `selected` and
+`level` where they are set. The keys of `nodes` (`a`, `b`, …) name a node for that one dump only,
+so assert that a node with the fields you expect exists:
 
 ```ts
-const a11y = () => Object.values(JSON.parse(native.getA11yTree()).nodes).map((n) => n.aria);
-check('the switch is labelled', a11y().some((a) => a?.role === 'Switch' && a.label === 'Wi-Fi'), true);
+import { a11y } from 'gpuix-svelte/test';
+
+const roles = () => Object.values(a11y().nodes ?? {}).map((n) => n.aria);
+check('the switch is labelled', roles().some((a) => a?.role === 'Switch' && a.label === 'Wi-Fi'), true);
 ```
 
 Call `settle()` after a change and before reading the tree again. A button named by the text inside
