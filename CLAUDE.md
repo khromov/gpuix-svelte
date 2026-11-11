@@ -75,7 +75,8 @@ npm run test:style         # CSS shorthand expansion, and what must never reach 
 npm run test:props         # static boolean/number props reach native typed, lowercase spellings map,
                            # a non-number is left unset
 npm run test:teardown      # removal marks dirty, blank text demotes, listeners survive
-npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch; when the focus
+npm run test:lifecycle     # throws (commit or tick) don't kill the frame loop; the macOS wake pacing
+                           # against a stub; remount is one batch; when the focus
                            # dim ships; render_hot outlives a save that does not compile
 npm run test:compile       # the ?v=N cache-buster reaches every child specifier, and a reload
                            # picks up an edited child and root on the runtime running it
@@ -99,7 +100,8 @@ npm run test:titlebar      # render's titlebar option through mount_headless: ti
 npm run test:tab           # Tab/Shift+Tab move focus, preventDefault keeps it, stopPropagation skips
                            # the ancestor and window handlers; ctrl-tab and tabNavigation: false
                            # leave focus alone
-npm run test:window        # window_size / window_insets: polled only while read, restarted on remount
+npm run test:window        # window_size / window_insets: polled only while read, restarted on remount;
+                           # selected_text() follows the selection event without polling
 npm run test:portal        # <Portal> paints on top, tears down with its {#if}, orders by mount
 npm run test:host          # aria props in GPUI's a11y tree, file drop, motionComplete,
                            # on_selection_change, focus walk, scroll_into_view, image uploads
@@ -275,7 +277,7 @@ and `deliver()` drops native's repeat of it when focus later moves on.
 
 `src/window.ts` (window title/activate/minimize/zoom/fullscreen, `prompt_for_paths`, `blur`, the
 focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, `register_font`,
-`elements_at`, the debug-overlay wrappers)
+`elements_at`, `selected_text`/`clear_selection`, the debug-overlay wrappers)
 no-ops wherever the renderer lacks the method, so app code never needs `get_native()?.x?.()`
 guards. Its node-taking helpers go through `with_native_id`, which defers the call past the next
 commit while mutations are queued — from an `{@attach}` the element's `createElement` has not
@@ -362,7 +364,8 @@ An unknown mode from either warns once (native would throw out of `render()`).
 `@gpuix/native/automation`'s `App` / `Locator` / `AutomationError` rather than porting them.
 `launch({ entry, bun?, args?, cwd?, env? })` spawns `process.execPath bin/gpuix-svelte.js entry`
 with `GPUIX_AUTOMATION=1` and stderr inherited (upstream's own `launch` pipes stderr and never
-drains it, and its `close()` SIGTERMs), connects with upstream's `connectStdio`, and its `close()`
+drains it, its `close()` SIGTERMs, an app that dies before `initialize` hangs it, and it decodes
+each chunk on its own, splitting a multi-byte character), connects with upstream's `connectStdio`, and its `close()`
 ends the app's stdin. `test_app()` is the same `App` over `TestGpuixRenderer`, through
 `headless_renderer()`, upstream's `TestAutomationRenderer` written with test.ts's simulate → drain
 → settle discipline; its reads settle first, so `waitFor` sees a timer's update.
@@ -370,12 +373,15 @@ ends the app's stdin. `test_app()` is the same `App` over `TestGpuixRenderer`, t
 `GPUIX_AUTOMATION=1` (`0` or empty is off) is deliberately explicit, not upstream
 `createNativeRenderer`'s stdin-is-not-a-TTY sniffing: stdin is not a TTY under CI, `nohup`, an
 agent's shell or `demo-all.ts`'s four children, and the env var is what lets stdin ending mean
-"exit". Under it `render()` rebinds `console.log`/`info`/`debug` to stderr before creating the
-window (stdout is the wire, and a write without a trailing newline would swallow the next frame)
-and imports `src/automation-server.ts` through a computed specifier, so the normal app path never
+"exit". Under it `render()` defaults `focus` to false unless the app sets it (upstream's rule for
+live automation, so a launched window doesn't take focus; `scripts/shots.ts` captures byte-identical
+images that way) and rebinds `console.log`/`info`/`debug` to stderr before creating the window
+(stdout is the wire, and a logged line starting with `data:` merges into the next reply, which is
+then lost) and imports `src/automation-server.ts` through a computed specifier, so the normal app path never
 loads it. Bun inlines that `const` and keeps the `import()` for run time, and `aot` compiles any path
 written out as a string, server and zod included, so `build()` defines `process.env.GPUIX_AUTOMATION`
-to `""` and `render.ts` reads it spelled out: the branch and its import fold away and a compiled
+to `""` and `render.ts` reads it spelled out (inside the `if` itself: a local const holding it
+leaves the import in): the branch and its import fold away and a compiled
 binary cannot serve. The server is started where the
 window is created, so `render_hot` remounts reuse it. It owns its stdio loop (upstream's
 `createSseDecoder` + `handleAutomationRequest`) to answer an unparseable request that has an id
@@ -386,7 +392,8 @@ capture after a click goes move, read, move (`scripts/shots.ts`). Upstream's `li
 after each input, which is not enough here — the napi callback carrying the event runs on a later
 loop turn, so a `getTree` right after a `click` could miss a just-shown `{#if}` node. So the
 server hides `tick` from it and wraps the backend (`frame_synced`): requests run one at a time and
-every input replies only after two of the frame loop's own ticks (`next_frame()` in `render.ts`);
+every input replies only after two of the frame loop's own ticks (`next_frame()` in `render.ts`,
+which brings each one forward, so an idle macOS window's 100 ms fallback never delays a reply);
 reads and `screenshot` do not wait.
 
 ### Measuring frame cost
@@ -469,9 +476,10 @@ from 922 to 1,498, but the compiled program grew with them.
 
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
-place that names the app. The window reads `name` as the `title` fallback and `identifier` as
+place that names the app. The window reads `name` as the `title` fallback and as `appName` (macOS's
+Hide and Quit items, which native otherwise names after the title), and `identifier` as
 `appId`, which GPUI hands to Wayland and X11 (`WM_CLASS`) and a desktop matches a `.desktop` file by;
-an explicit `title` or `appId` wins (`window_options_for` in `render.ts`). `build()` reads everything
+an explicit `title`, `appName` or `appId` wins (`window_options_for` in `render.ts`). `build()` reads everything
 from the entry's source: `Bun.Transpiler` strips the types and
 `read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for
 the one top-level `render()` imported from `gpuix-svelte` (renamed or not, as a statement or a
@@ -1067,12 +1075,23 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
 **`render.ts`** owns the `GpuixRenderer`, a `globalThis.__gpuix_svelte_host` slot for the window
 (so remounts reuse it; a named property, since Bun's `trim` reads a computed key on `globalThis` as a
-way to `eval`), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
-`setImmediate` burns most of a core at idle. On macOS native answers one accessibility request per
+way to `eval`), and a frame loop of its own calling `native.tick()`, not `@gpuix/native/runtime`'s
+`startFrameLoop`, which has no room for the commit, the frame waiters or VoiceOver's pace. On macOS
+it ticks on native's display-link wakes (`setFrameWakeCallback`), with a timer that steps aside
+(25 ms) while wakes keep coming, ticks every 8 ms for 2 s after the last input event or wake (input
+never wakes JS, and the display link stops a few seconds after the last draw), and every 100 ms
+(`IDLE_FRAME_MS`) after that, which took an idle window from ~3.8% CPU to ~0.3%; elsewhere it ticks
+every 8 ms (~125fps, since `setImmediate` burns most of a core at idle). A clean→dirty `mark_dirty`
+(`set_on_dirty`) and `next_frame()` bring the next tick forward to 8 ms after the last, so a timer's
+or a fetch's update commits as fast as before and automation waits frames, not the fallback. A
+throw from `tick()` is logged and the loop goes on. The cost is the first key after 2 s idle on
+macOS, which can wait up to 100 ms, as it does under upstream's `startFrameLoop` on every idle key.
+On macOS native answers one accessibility request per
 `tick()`, so at 8 ms a read costs 8 ms and VoiceOver reports the app as not responding; while
 VoiceOver runs the loop ticks every 1 ms instead (`src/screen-reader.ts` asks `pgrep -x VoiceOver`
 every 2 s, since native has no signal for an assistive client and `defaults` misses a VoiceOver
-started without its shortcut). Other accessibility clients still get 8 ms, until
+started without its shortcut). Other accessibility clients get the loop's own pace (100 ms in an
+idle macOS window), until
 native wakes JS for run-loop input the way `setFrameWakeCallback` does for frames. `requiresTick()` is true on every desktop platform —
 on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether that thread
 is still alive — and `tick()` returns false once the last window closes, which ends the loop and
@@ -1284,7 +1303,10 @@ are the ones that bite most often, and the renderer behaviour behind them.
   The host object resolves `get_native()` on every call, so a poll that outlives a remount follows
   the new native. Insets keep upstream's camelCase fields (`safeArea`, `keyboardVisible`, …), like
   every other native payload. Headlessly the size is the real viewport and the insets are zero; with
-  no native at all it is upstream's 800×600 fallback.
+  no native at all it is upstream's 800×600 fallback. `selected_text()` is reactive the same way but
+  event-driven: `observeSelectedText` over `on_selection_change` inside `createSubscriber`, reading
+  native (through `read_native`) only when a subscription starts or outside an effect;
+  `clear_selection()` and `is_terminal` (native's `isTerminal`; false in `dom.ts`) sit beside it.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component. The root
   becomes a column, the bar is its first child, and the app mounts into a `position: relative` box
   below it, which a given `rootStyle` styles (through a class rule, so the box's defaults merge
