@@ -34,8 +34,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 		applyBatch: () => {
 			batches++;
 			throw new Error('boom');
-		},
-		commitMutations: () => {}
+		}
 	};
 
 	set_native(exploding);
