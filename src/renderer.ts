@@ -151,8 +151,16 @@ let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: fals
 const stylesheets = new Map<string, ClassRule[]>();
 const NO_RULES: readonly ClassRule[] = [];
 
+let on_dirty: (() => void) | null = null;
+
+/** How the frame loop hears of a mutation made between its ticks (a timer, a fetch), which a display-link wake never reports. */
+export function set_on_dirty(callback: (() => void) | null) {
+	on_dirty = callback;
+}
+
 /** Removals queue no op of their own, so they have to raise the flag themselves. */
 function mark_dirty() {
+	if (!dirty) on_dirty?.();
 	dirty = true;
 
 	if (!auto_commit || commit_scheduled) return;
