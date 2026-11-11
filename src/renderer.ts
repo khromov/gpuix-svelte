@@ -22,6 +22,7 @@ import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import type {
 	ClassRule,
+	DismissLayer,
 	EventHandler,
 	GpuiStyle,
 	GpuixEvent,
@@ -174,6 +175,9 @@ type KeystrokeFlags = { id: number | undefined; prevented: boolean; stopped: boo
 // Native emits one keystroke's element events and then its window event back to back,
 // so only the latest keystroke needs flags.
 let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: false };
+
+/** Open overlays, the top one last. */
+let layers: DismissLayer[] = [];
 
 /** scope class -> that component's `<style>` rules, weakest first (see compile.ts). */
 const stylesheets = new Map<string, ClassRule[]>();
@@ -759,6 +763,7 @@ export function set_native(instance: NativeSink) {
 	portals = new Set();
 	pending_portals = [];
 	after_commit = [];
+	layers = [];
 	dirty = false;
 	commit_scheduled = false;
 
@@ -783,7 +788,7 @@ function sync_window_events() {
 	if (window_node.nativeId === null) window_node.nativeId = ++next_id;
 	by_id.set(window_node.nativeId, window_node);
 	native?.setWindowKeyEvents?.(
-		tab_navigation || window_node.listeners.has('windowKeyDown'),
+		tab_navigation || layers.length > 0 || window_node.listeners.has('windowKeyDown'),
 		window_node.listeners.has('windowKeyUp'),
 		window_node.nativeId
 	);
@@ -824,6 +829,22 @@ export function on_window_key(type: WindowKeyType, handler: (event: GpuixEvent) 
 
 /** Fires once per change of the window's text selection, a clear included; `event.value` is the selected text. */
 export const on_selection_change = (handler: (event: GpuixEvent) => void) => on_window_event('selectionChange', handler);
+
+/**
+ * Puts an open overlay on top of the window's stack until the returned function runs. An Escape that
+ * no key handler prevented reaches the top layer's `onEscape` alone, so a tip in a popover closes first.
+ */
+export function dismiss_layer(layer: DismissLayer): () => void {
+	const entry = { ...layer };
+	layers.push(entry);
+	if (layers.length === 1) sync_window_events();
+	return () => {
+		const index = layers.indexOf(entry);
+		if (index === -1) return;
+		layers.splice(index, 1);
+		if (layers.length === 0) sync_window_events();
+	};
+}
 
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
 export const get_native = (): Native | null => native as Native | null;
@@ -1042,7 +1063,12 @@ function flags_for(payload: EventPayload): KeystrokeFlags {
 /** Runs on the window event, which native sends after every element's, so any handler could have prevented it. */
 function key_default(payload: EventPayload) {
 	const modifiers = payload.modifiers;
-	if (!tab_navigation || payload.key !== 'tab' || modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	if (modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	if (payload.key === 'escape') {
+		layers.at(-1)?.onEscape();
+		return;
+	}
+	if (!tab_navigation || payload.key !== 'tab') return;
 	const host = native as WindowNative | null;
 	if (modifiers?.shift) host?.focusPrevious?.();
 	else host?.focusNext?.();

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy, type Snippet } from 'svelte';
-	import { on_window_key } from 'gpuix-svelte';
+	import { dismiss_layer } from 'gpuix-svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
@@ -98,11 +98,10 @@
 		}
 	};
 
+	// A tip that `open` forces can't be dismissed, so it must not take an Escape meant for a layer below.
 	$effect(() => {
-		if (!shown) return;
-		return on_window_key('keydown', (e) => {
-			if (e.key === 'escape') hide();
-		});
+		if (open != null || !shown) return;
+		return dismiss_layer({ onEscape: hide });
 	});
 
 	onDestroy(() => clearTimeout(timer));

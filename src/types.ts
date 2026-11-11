@@ -104,6 +104,12 @@ export interface GpuixEvent extends EventPayload {
 
 export type WindowKeyType = 'keydown' | 'keyup';
 
+/** One open overlay on the window's stack: a popover, a menu, a tooltip or a modal. */
+export interface DismissLayer {
+	/** Escape reached the window, no key handler called `preventDefault()`, and this is the top layer. */
+	onEscape: () => void;
+}
+
 /** The least the renderer needs from a native: `test/lifecycle.ts` hands in a stub this small. */
 export interface NativeSink {
 	applyBatch(json: string): number[];

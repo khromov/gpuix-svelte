@@ -20,7 +20,8 @@ export {
 	set_css_vars,
 	set_keyboard_focus_dim,
 	on_window_key,
-	on_selection_change
+	on_selection_change,
+	dismiss_layer
 } from './renderer.ts';
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
@@ -62,6 +63,7 @@ export type {
 	RenderOptions,
 	AppOptions,
 	WindowKeyType,
+	DismissLayer,
 	PixelFormat,
 	AnyComponent
 } from './types.ts';
