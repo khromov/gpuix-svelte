@@ -5,8 +5,10 @@
  */
 
 import type { EventPayload } from '@gpuix/native';
+import { BUILT_IN_TYPES, UNIVERSAL_PROPS } from '@gpuix/native/host';
+import type { ElementType } from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
-import { build_style, define_css_vars, flush_var_warnings, used_css_vars } from './style.ts';
+import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import type {
 	ClassRule,
@@ -23,7 +25,7 @@ import type {
 } from './types.ts';
 
 /** Anything not listed here degrades to `div`; that includes `canvas`, which native 0.11 lacks and would paint nothing for. */
-const GPUI_TAGS = new Set([
+const GPUI_TAGS = set_of<Exclude<ElementType, 'canvas'>>()([
 	'div',
 	'text',
 	'img',
@@ -35,24 +37,6 @@ const GPUI_TAGS = new Set([
 	'diff',
 	'markdown',
 	'virtual-list'
-]);
-
-/** GPUI only forwards a handful of props to `div`/`text`. */
-const BUILT_IN_TAGS = new Set(['div', 'text']);
-const UNIVERSAL_PROPS = new Set([
-	'autoFocus',
-	'tabIndex',
-	'testId',
-	'motion',
-	'highlight',
-	'role',
-	'aria-label',
-	'aria-description',
-	'aria-id',
-	'aria-expanded',
-	'aria-selected',
-	'aria-valuetext',
-	'aria-level'
 ]);
 
 /** Attributes that feed `setStyle`; `class` does so through the component's `<style>` rules. */
@@ -378,7 +362,7 @@ function normalize_prop(name: string, value: unknown) {
 
 function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	const name = prop_name(key);
-	if (BUILT_IN_TAGS.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
+	if (BUILT_IN_TYPES.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
 	if (el.nativeId === null) return;
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
@@ -883,8 +867,6 @@ export function commit() {
 		by_id.delete(id);
 	}
 
-	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
-	native!.commitMutations?.();
 	run_after_commit();
 }
 

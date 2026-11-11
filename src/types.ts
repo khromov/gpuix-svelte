@@ -107,7 +107,6 @@ export type WindowKeyType = 'keydown' | 'keyup';
 /** The least the renderer needs from a native: `test/lifecycle.ts` hands in a stub this small. */
 export interface NativeSink {
 	applyBatch(json: string): number[];
-	commitMutations?(): void;
 	setWindowKeyEvents?(keyDown: boolean, keyUp: boolean, eventId: number): void;
 	setWindowSelectionChange?(enabled: boolean, eventId: number): void;
 }
