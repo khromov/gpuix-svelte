@@ -222,11 +222,6 @@ check(
 	{ title: 'T', appName: 'N', appId: 'a.b' }
 );
 check('no app adds nothing', window_options_for({ width: 10 }, undefined), { width: 10 });
-check(
-	'under automation the window opens without taking focus, unless the app asks for it',
-	[window_options_for({}, undefined, true), window_options_for({ focus: true }, undefined, true), window_options_for({}, undefined, false)],
-	[{ focus: false }, { focus: true }, {}]
-);
 
 // An aot or trim build resolves @gpuix/native to this file and searches the executable for its bytes.
 const addon = native_addon();
@@ -234,4 +229,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 42 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 41 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));

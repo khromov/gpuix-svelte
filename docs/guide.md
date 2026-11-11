@@ -151,8 +151,9 @@ stack with `dismiss_layer`, which returns the function that takes it off again:
 
 Escape reaches only the layer on top, the one that opened last, so a tooltip inside a popover
 closes before the popover does. Like the Tab move, it runs after every key handler for that
-keystroke, so `e.preventDefault()` in any of them keeps the layer open, and Escape with Ctrl, Alt
-or Cmd is left alone. `Tooltip` and `Popover` both use it.
+keystroke, so `e.preventDefault()` in any of them keeps the layer open, and so does
+`e.stopPropagation()`, which says the handler used the key. A held key's repeats and Escape with
+Ctrl, Alt or Cmd are left alone. `Tooltip` and `Popover` both use it.
 
 `:focus-visible` rules and the `focus-visible="..."` attribute style an element while it has
 keyboard focus (not after a click), and `outline-width`, `outline-color` and `outline-offset` draw

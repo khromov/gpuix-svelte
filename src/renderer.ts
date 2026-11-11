@@ -1058,7 +1058,7 @@ export function dispatch(payload: EventPayload) {
 	if (button && payload.eventType === 'keyDown' && !payload.isHeld && !flags?.prevented && (payload.key === 'enter' || payload.key === 'space')) {
 		dispatch({ ...payload, eventType: 'click' });
 	}
-	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload);
+	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload, flags?.stopped ?? false);
 }
 
 /** A key event without an id is synthetic and never shares flags with another. */
@@ -1069,11 +1069,12 @@ function flags_for(payload: EventPayload): KeystrokeFlags {
 }
 
 /** Runs on the window event, which native sends after every element's, so any handler could have prevented it. */
-function key_default(payload: EventPayload) {
+function key_default(payload: EventPayload, stopped: boolean) {
 	const modifiers = payload.modifiers;
 	if (modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
 	if (payload.key === 'escape') {
-		layers.at(-1)?.onEscape();
+		// A handler that stopped Escape has used it, and a held key would close one layer per repeat.
+		if (!stopped && !payload.isHeld) layers.at(-1)?.onEscape();
 		return;
 	}
 	if (!tab_navigation || payload.key !== 'tab') return;

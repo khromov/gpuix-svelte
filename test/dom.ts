@@ -351,6 +351,8 @@ click(by_id('menu-trigger'));
 click(by_id('menu-trigger'));
 check('a click on the trigger while open closes it without reopening', by_id('menu-panel'), null);
 click(by_id('menu-trigger'));
+key('Escape', { repeat: true });
+check('a repeat of a held Escape leaves it open', by_id('menu-panel') !== null, true);
 key('Escape');
 check('so does Escape', by_id('menu-panel'), null);
 box_of(by_id('menu')!, 900, 50, 80, 30);
@@ -467,4 +469,4 @@ check(
 );
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 79);
+finish('dom', 80);

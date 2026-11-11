@@ -42,6 +42,9 @@ const ACTIVE_MS = 2000;
 /** Longer than a frame at 60 Hz, so while the display link runs its next wake comes before this timer does. */
 const WAKE_WAIT_MS = 25;
 
+/** A pump that throws this many times in a row has died with its window, and the process ends as an uncaught throw would. */
+const TICK_FAILURES = 100;
+
 /** Events a paint sends, which say nothing about anyone using the window. */
 const PAINT_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'highlight', 'visibleRange']);
 
@@ -132,7 +135,9 @@ export function start_frame_loop(
 	let due = 0;
 	let started = 0;
 	let last_wake = -Infinity;
+	let wake_gap = WAKE_WAIT_MS;
 	let last_active = -Infinity;
+	let failing = 0;
 
 	/** Never pushes a pending tick back, only forward. */
 	const schedule = (delay: number) => {
@@ -144,7 +149,13 @@ export function start_frame_loop(
 		due = at;
 		timer = setTimeout(loop, delay);
 	};
-	const soon = () => schedule(Math.max(0, FRAME_MS - (performance.now() - started)));
+	const soon = () => {
+		const now = performance.now();
+		const delay = Math.max(0, FRAME_MS - (now - started));
+		// A tick of our own just before the display link's would double the rate while the pointer moves.
+		if (waking && now - last_wake < WAKE_WAIT_MS && last_wake + wake_gap <= now + delay + FRAME_MS / 2) return;
+		schedule(delay);
+	};
 
 	const frame_ms = () => {
 		if (voiceover_running(started)) return VOICEOVER_FRAME_MS;
@@ -179,8 +190,15 @@ export function start_frame_loop(
 		let open = true;
 		try {
 			open = native.tick();
+			failing = 0;
 		} catch (error) {
-			console.error('[gpuix-svelte] tick failed:', error);
+			if (failing === 0) console.error('[gpuix-svelte] tick failed:', error);
+			if (++failing === TICK_FAILURES) {
+				console.error(`[gpuix-svelte] tick failed ${TICK_FAILURES} times in a row, giving up`);
+				stop();
+				process.exit(1);
+				return;
+			}
 		}
 		if (open === false) {
 			stop();
@@ -195,7 +213,9 @@ export function start_frame_loop(
 	// Only macOS has the wake, which arrives once the display link has queued a frame, and the link stops while nothing draws.
 	waking =
 		native.setFrameWakeCallback?.(() => {
-			last_wake = last_active = performance.now();
+			const now = performance.now();
+			wake_gap = Math.min(WAKE_WAIT_MS, now - last_wake);
+			last_wake = last_active = now;
 			loop();
 		}) === true;
 	running_loop = {
@@ -232,17 +252,13 @@ export function focus_dim_on_render(option: boolean | undefined, applied: boolea
 	return created || enabled !== applied ? enabled : null;
 }
 
-/**
- * The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by,
- * and an automated run opens behind what the person at the machine is typing into unless the app asks for focus.
- */
-export function window_options_for(options: WindowOptions, app: AppOptions | undefined, automated = false): WindowOptions {
+/** The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by. */
+export function window_options_for(options: WindowOptions, app: AppOptions | undefined): WindowOptions {
 	const merged = { ...options };
 	if (merged.title == null && app?.name) merged.title = app.name;
 	// Native takes the "Hide" and "Quit" menu items' name from the title otherwise.
 	if (merged.appName == null && app?.name) merged.appName = app.name;
 	if (merged.appId == null && app?.identifier) merged.appId = app.identifier;
-	if (merged.focus == null && automated) merged.focus = false;
 	return merged;
 }
 
@@ -271,8 +287,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		app,
 		...own_window_options
 	} = options;
-	const automated = typeof process !== 'undefined' && !!process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0';
-	const window_options = window_options_for(own_window_options, app, automated);
+	const window_options = window_options_for(own_window_options, app);
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -291,7 +306,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		});
 
 		slot.native.init(window_options);
-		// Spelled out again, not read through `automated` or env(): only then does build()'s define fold the branch and its import away.
+		// Spelled out, not read through env() or a local const, so build()'s define folds the branch and its import away.
 		if (typeof process !== 'undefined' && process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');
 	}

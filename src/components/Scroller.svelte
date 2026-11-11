@@ -231,7 +231,7 @@
 	.content.fixed { flex-grow: 1; min-height: 0; }
 	.inset { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
 	.frame { position: relative; display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
-	.list { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; scrollbar-color: var(--scroller-thumb, #404040); scrollbar-width: 8px; }
+	.list { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; padding-right: 12px; scrollbar-color: var(--scroller-thumb, #404040); scrollbar-width: 8px; }
 	.list.hot { scrollbar-color: var(--scroller-thumb-hover, #5a5a5a); }
 	.strip { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; user-select: none; }
 	.gutter { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; pointer-events: none; }

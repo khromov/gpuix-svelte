@@ -234,6 +234,19 @@ function move(x: number, y: number) {
 	press('shift-escape');
 	check('while the same key that handler lets through closes it', shown('outer-panel'), false);
 
+	click_test_id('outer-trigger');
+	focus(find_test_id('stopper')!);
+	press('escape');
+	check("a key handler's stopPropagation keeps it open too", shown('outer-panel'), true);
+
+	focus(find_test_id('inner-trigger')!);
+	press('escape');
+	press('escape', { held: true });
+	press('escape', { held: true });
+	check('a held Escape closes the top layer once, not one per repeat', [shown('inner-tip'), shown('outer-panel')], [false, true]);
+	press('escape');
+	check('and a fresh press closes the next', shown('outer-panel'), false);
+
 	click_test_id('menu-trigger');
 	const pinned = box(element_of('pinned'));
 	move(mid_x(pinned), mid_y(pinned));
@@ -252,4 +265,4 @@ function move(x: number, y: number) {
 	check('Escape still reaches a layer with tabNavigation off', shown('menu-panel'), false);
 }
 
-finish('tooltip', 43);
+finish('tooltip', 46);

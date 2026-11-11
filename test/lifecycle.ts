@@ -51,21 +51,48 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	check('and it reaches the log rather than vanishing', logged, ['[gpuix-svelte] commit failed: Error: boom']);
 }
 
-// --- nor a throwing tick -----------------------------------------------------
+// --- nor a throwing tick, though one that never stops throwing ends the process --
 {
+	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 	let ticks = 0;
+	let throwing = true;
 	const logged = await errors_during(async () => {
 		const loop = start_frame_loop({
 			requiresTick: () => true,
 			tick: () => {
 				ticks++;
+				if (throwing) throw new Error('pump blew up');
+				return true;
+			}
+		});
+		await sleep(60);
+		throwing = false;
+		await sleep(40);
+		throwing = true;
+		await sleep(40);
+		loop.stop();
+	});
+	const once = '[gpuix-svelte] tick failed: Error: pump blew up';
+	check('the loop keeps ticking after tick() throws, and logs each run of throws once', [ticks > 5, logged], [true, [once, once]]);
+
+	const exit = process.exit;
+	let exit_code: unknown = 'not called';
+	process.exit = ((code?: number) => void (exit_code = code)) as typeof process.exit;
+	let dead = 0;
+	const gave_up = await errors_during(async () => {
+		start_frame_loop({
+			requiresTick: () => true,
+			tick: () => {
+				dead++;
 				throw new Error('pump blew up');
 			}
 		});
-		await new Promise((resolve) => setTimeout(resolve, 60));
-		loop.stop();
+		for (let waited = 0; exit_code === 'not called' && waited < 5000; waited += 50) await sleep(50);
 	});
-	check('the loop keeps ticking after tick() throws, logging each throw', [ticks > 1, logged.length === ticks, logged[0]], [true, true, '[gpuix-svelte] tick failed: Error: pump blew up']);
+	process.exit = exit;
+	const at_exit = dead;
+	await sleep(50);
+	check('a tick that never stops throwing ends the process with 1 after 100, and ticks no more', [exit_code, at_exit, dead, gave_up.length], [1, 100, 100, 2]);
 }
 
 // --- with display-link wakes (macOS), the timer covers only what they don't ---
@@ -130,6 +157,24 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	});
 	check('while wakes keep coming, the timer stays out of their way', ticks - before_stream <= wakes + 3, true);
 	check('and once they stop, it keeps the 8 ms pace for a while', (await ticks_during(150)) >= 5, true);
+
+	const times: number[] = [];
+	const pump = native.tick;
+	let timing = false;
+	native.tick = () => (timing && times.push(performance.now()), pump());
+	await new Promise<void>((resolve) => {
+		let n = 0;
+		const input = setInterval(() => handle_event({ elementId: -1, eventType: 'mouseMove' }), 2);
+		const stream = setInterval(() => {
+			wake();
+			// The loop learns the gap between wakes from the wakes themselves.
+			timing = ++n > 3;
+			if (n === 24) resolve((clearInterval(stream), clearInterval(input)));
+		}, 8);
+	});
+	native.tick = pump;
+	const gaps = times.slice(1).map((t, i) => t - times[i]);
+	check('input between wakes adds no tick of its own just before the next one', [gaps.length > 10, Math.min(...gaps) >= 2], [true, true]);
 	loop.stop();
 	check('stop() takes the wake back', hooks.wake, null);
 }
@@ -430,4 +475,4 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 
 set_auto_commit(false);
 
-finish('lifecycle', 43);
+finish('lifecycle', 45);

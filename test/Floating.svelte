@@ -70,6 +70,16 @@
 				>
 					Keep
 				</div>
+				<div
+					class="item"
+					tabindex="0"
+					onkeydown={(e) => {
+						if (e.key === 'escape') e.stopPropagation();
+					}}
+					testId="stopper"
+				>
+					Stop
+				</div>
 			{/snippet}
 		</Popover>
 	</div>

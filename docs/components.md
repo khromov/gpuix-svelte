@@ -109,13 +109,14 @@ creates every row; only the layout and paint are skipped.
   their content, and space rows with padding inside them: `gap` applies only to the plain column.
 - `estimate` (default `80`) is the height hint for rows GPUI hasn't measured yet.
 - `follow` becomes the list's own tail-following.
-- `pad` pads the box around the list, so it does not scroll with the rows. No gutter is reserved,
-  so the thumb paints over the rows' right edge. `scroll={false}` is ignored.
+- `pad` pads the box around the list, so it does not scroll with the rows. The list keeps a
+  12 px gutter on its right, as the plain column does, so the thumb never paints over a row.
+  `scroll={false}` is ignored.
 - The thumb is GPUI's own (`scrollbar-color` on the list), painted from the heights the list has
   measured in the frame it scrolls, so nothing polls the list.
-- GPUI's thumb takes no pointer, so an invisible 8 px strip along the list's right edge does the
-  dragging, with the same pointer capture. It takes the clicks on the rows' right 8 px, and while
-  it is hovered or dragged the thumb turns `--scroller-thumb-hover`. A press reads the list's
+- GPUI's thumb takes no pointer, so an invisible 8 px strip over the gutter does the dragging,
+  with the same pointer capture. While it is hovered or dragged the thumb turns
+  `--scroller-thumb-hover`. A press reads the list's
   position once and estimates its length from the rows above the top one, or from `estimate` at
   the very top, so rows far from `estimate` make the thumb run ahead of or behind the pointer. A
   drag let go past the end settles on the last row.
@@ -301,8 +302,8 @@ focusable, so a click on it would take focus away from a text field.
 A controlled panel beside its trigger. You own `open`, and the trigger toggles it. `onclose` fires
 on a press outside both the panel and the trigger (any mouse button) and on Escape. Escape closes
 only the top layer, so a tooltip open inside the panel goes first and the panel on the next press,
-and a key handler that calls `e.preventDefault()` keeps it open. A press on the trigger is left to
-the trigger's own click, so it closes the panel without reopening it.
+and a key handler that calls `e.preventDefault()` or `e.stopPropagation()` keeps it open. A press
+on the trigger is left to the trigger's own click, so it closes the panel without reopening it.
 
 Props:
 

@@ -373,9 +373,10 @@ ends the app's stdin. `test_app()` is the same `App` over `TestGpuixRenderer`, t
 `GPUIX_AUTOMATION=1` (`0` or empty is off) is deliberately explicit, not upstream
 `createNativeRenderer`'s stdin-is-not-a-TTY sniffing: stdin is not a TTY under CI, `nohup`, an
 agent's shell or `demo-all.ts`'s four children, and the env var is what lets stdin ending mean
-"exit". Under it `render()` defaults `focus` to false unless the app sets it (upstream's rule for
-live automation, so a launched window doesn't take focus; `scripts/shots.ts` captures byte-identical
-images that way) and rebinds `console.log`/`info`/`debug` to stderr before creating the window
+"exit". The window takes focus as usual: upstream's docs make `focus: false` the rule for live
+automation, but a window that is not key gets no input focus, so a clicked `<input>` hears no
+`focus`/`blur`, draws no caret and leaves `e.editing` false, which a test of shortcuts would get
+wrong. Under it `render()` rebinds `console.log`/`info`/`debug` to stderr before creating the window
 (stdout is the wire, and a logged line starting with `data:` merges into the next reply, which is
 then lost) and imports `src/automation-server.ts` through a computed specifier, so the normal app path never
 loads it. Bun inlines that `const` and keeps the `import()` for run time, and `aot` compiles any path
@@ -1086,8 +1087,11 @@ the link stops: 0 wakes, 10 ticks/s, ~0.3–0.5% CPU against the old ~2.5–3%. 
 same ("it does not eliminate idle CPU use while the display link is running"). Elsewhere it ticks
 every 8 ms (~125fps, since `setImmediate` burns most of a core at idle). A clean→dirty `mark_dirty`
 (`set_on_dirty`) and `next_frame()` bring the next tick forward to 8 ms after the last, so a timer's
-or a fetch's update commits as fast as before and automation waits frames, not the fallback. A
-throw from `tick()` is logged and the loop goes on. Input that reaches a window whose link has
+or a fetch's update commits as fast as before and automation waits frames, not the fallback; while
+the link runs they stand aside for a wake due within half a frame of that tick, or a moving pointer
+drew ~190 ticks/s against the old timer's 125. A throw from `tick()` is logged once per run and the
+loop goes on; 100 in a row (`TICK_FAILURES`) end the process with 1, as an uncaught throw did,
+rather than logging every tick forever. Input that reaches a window whose link has
 stopped waits for the next fallback tick (≤100 ms), as it does under upstream's `startFrameLoop`.
 On macOS native answers one accessibility request per
 `tick()`, so at 8 ms a read costs 8 ms and VoiceOver reports the app as not responding; while
@@ -1173,8 +1177,10 @@ demos"). Each has a DOM version under
   needs `width: 100%`; `follow` → `followTail`). There GPUI paints the thumb itself
   (`scrollbar-color` / `scrollbar-width` on the list, from the rows it has measured, in the frame it
   scrolls), so nothing polls; native hover never reaches that thumb (`ThumbStyle::of` reads the base
-  style), so a `hot` class swaps the colour. An invisible 8 px strip (`<testid>-strip`) over the
-  list's right edge drags it under the same capture: it reads `getListScrollTop` + `getScrollOffset`
+  style), so a `hot` class swaps the colour. The list has a 12 px `padding-right`, which
+  `<virtual-list>` honours and GPUI paints its thumb in, so rows stop short of an invisible 8 px
+  strip (`<testid>-strip`) that drags it under the same capture (without the gutter the strip took
+  every row's right-edge clicks, scroll or no scroll): it reads `getListScrollTop` + `getScrollOffset`
   once per press and estimates the length as row count × the average height of the rows above the
   anchor (`estimate` at the top), each move is a `scrollTo` that native clamps at the real end, and
   a release past the estimated end `scrollToItem(count)`s onto it. JS can't read the measured total,
@@ -1280,7 +1286,9 @@ are the ones that bite most often, and the renderer behaviour behind them.
   the focusable ancestors, then the window's — and `key_default` runs on the `windowKeyDown`,
   which native sends last: for a key without ctrl/alt/cmd that nobody prevented, Escape calls the
   top `dismiss_layer`'s `onEscape` (upstream's `pushDismissLayer` stack, ordered by opening, without
-  its `parent` nesting or focus restore) and Tab calls `focusNext`/`focusPrevious`. That needs
+  its `parent` nesting or focus restore) unless a handler stopped it or it is a held key's repeat,
+  and Tab calls `focusNext`/`focusPrevious`. Upstream runs Escape past a `stopPropagation()`, but
+  Popover and Tooltip listened on the window before, where that skipped them, and apps rely on it. That needs
   window key events on whether or not anything subscribed, so `sync_window_events` keeps `keyDown`
   on while `tab_navigation` is (`render`/`mount_headless`'s `tabNavigation`, default true) or a
   layer is open. The walk is the tab stops as of the last painted frame (a stop
@@ -1363,8 +1371,8 @@ are the ones that bite most often, and the renderer behaviour behind them.
   `<anchored>` they build on; its child sizes to content, so it is no use for a scrim.
 - An overlay that Escape closes goes on `dismiss_layer({ onEscape })` from an `$effect` (it
   returns the remove function, like `on_window_key`); only the top layer, the last to open, hears
-  an Escape that no key handler prevented. The DOM build keeps the same stack on a `window`
-  listener added as the first layer opens.
+  an Escape that no key handler prevented or stopped, and never a held key's repeat. The DOM build
+  keeps the same stack on a `window` listener added as the first layer opens.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role` and
   `aria-label` / `-description` / `-id` / `-expanded` / `-selected` / `-valuetext` / `-level` as
   props; other attributes are dropped for built-ins and forwarded for custom element types.

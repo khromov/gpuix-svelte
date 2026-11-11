@@ -113,7 +113,7 @@ export function on_selection_change(handler: (event: GpuixEvent) => void): () =>
 const layers: DismissLayer[] = [];
 
 function escape(e: KeyboardEvent) {
-	if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || key_name(e) !== 'escape') return;
+	if (e.defaultPrevented || e.repeat || e.ctrlKey || e.altKey || e.metaKey || key_name(e) !== 'escape') return;
 	layers.at(-1)?.onEscape();
 }
 

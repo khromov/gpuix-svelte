@@ -206,6 +206,11 @@ const list_top = () => native.getListScrollTop(column().id)!;
 check('a virtual list keeps every row in the tree', all_text().filter((t) => t.startsWith('row ')).length, 200);
 check('but paints only the rows near the viewport', painted().includes('row 0') && !painted().includes('row 150'), true);
 check('and has GPUI paint its thumb, in the package colour', [column().style!.scrollbarColor, column().style!.scrollbarWidth], ['#404040', 8]);
+{
+	const row = bounds(find_test_id('row-0')!)!;
+	const strip = bounds(find_test_id('list-strip')!)!;
+	check("rows stop short of the drag strip, so it never takes a row's clicks", [row.width > 200, row.x + row.width <= strip.x], [true, true]);
+}
 // The list host itself has no tracked bounds; the box around it and the anchor it reports do.
 const { x: vx, y: vy, width: vw } = bounds(find((n) => n.children?.some((c) => c.type === 'virtual-list') ?? false)!)!;
 const vh = list_top()[2];
@@ -260,4 +265,4 @@ await wait(THUMB_MS);
 	check('a virtual list asks native for nothing while idle or wheeled, only when the strip is pressed', [idle, asked], [[], ['getListScrollTop', 'getScrollOffset']]);
 }
 
-finish('scroller', 38);
+finish('scroller', 39);
