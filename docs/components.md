@@ -22,7 +22,9 @@ come from `set_css_vars`.
 
 GPUI's own scrollbar (`scrollbar-color`, see [Styling](styling.md)) can't be dragged, so
 `Scroller` is a scroll column that draws its own thumb in a gutter, follows the wheel and lets you
-drag the thumb.
+drag the thumb. The thumb listens for both `mousedown` and `mousemove`, which makes GPUI capture
+the pointer, so a drag keeps going when the pointer leaves the thumb or the window and ends
+wherever you let go.
 
 Props:
 
@@ -31,8 +33,7 @@ Props:
 - `scroll={false}` clips the content and draws no thumb.
 - `follow` keeps the bottom in view while content grows, as in a streaming reply.
 - `virtual` and `estimate` make it a [virtual list](#virtual-lists).
-- `testid` goes on the scroll column. The thumb gets `<testid>-thumb` and the drag overlay
-  `<testid>-overlay`.
+- `testid` goes on the scroll column. The thumb gets `<testid>-thumb`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
 fallbacks.

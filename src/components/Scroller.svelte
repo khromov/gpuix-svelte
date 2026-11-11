@@ -3,7 +3,7 @@
 	import { get_native, read_native, type GpuixEvent, type Native, type ShadowNode } from 'gpuix-svelte';
 
 	// GPUI's own thumb can't be dragged, so the column draws a thumb sized from the heights
-	// and offset native reports, and drags it on a panel-sized overlay.
+	// and offset native reports.
 	let {
 		children,
 		gap = 8,
@@ -112,8 +112,8 @@
 		if (m) drag = { y: e.y!, offset: m.offset };
 	}
 
-	// GPUI does not capture the pointer, so the drag runs on a panel-sized overlay
-	// and a move with no button held is a release that landed elsewhere.
+	// Listening for mousedown and mousemove makes GPUI capture the pointer, so the release reaches the
+	// thumb wherever it lands; a move with no button held is a release native never saw.
 	function drag_to(e: GpuixEvent) {
 		if (drag === null) return;
 		if (e.pressedButton == null) {
@@ -208,13 +208,11 @@
 			style:top="{thumb.top}px"
 			style:height="{thumb.height}px"
 			onmousedown={grab}
+			onmousemove={drag_to}
+			onmouseup={() => (drag = null)}
 			testId={testid && `${testid}-thumb`}
 		></div>
 	</div>
-
-	{#if drag !== null}
-		<div class="overlay" onmousemove={drag_to} onmouseup={() => (drag = null)} testId={testid && `${testid}-overlay`}></div>
-	{/if}
 </div>
 
 <style>
@@ -229,5 +227,4 @@
 	.thumb { position: absolute; left: 0; width: 8px; border-radius: 4px; cursor: default; user-select: none; background-color: var(--scroller-thumb, #404040); }
 	.thumb:hover { background-color: var(--scroller-thumb-hover, #5a5a5a); }
 	.thumb.dragging { background-color: var(--scroller-thumb-hover, #5a5a5a); }
-	.overlay { position: absolute; inset: 0; user-select: none; }
 </style>

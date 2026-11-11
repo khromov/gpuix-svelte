@@ -1,6 +1,6 @@
 /**
- * The shipped Scroller draws its own thumb from the heights and offset GPUI reports and
- * drags it on an overlay, because GPUI's own scrollbar takes no pointer.
+ * The shipped Scroller draws its own thumb from the heights and offset GPUI reports, because
+ * GPUI's own scrollbar takes no pointer.
  * This runs the wheel, the drag and `follow` through the real hit testing.
  */
 
@@ -52,12 +52,31 @@ check('and the thumb moves down', t1.y > t0.y, true);
 
 const grip = center(thumb());
 mouse_down(grip);
-check('a mousedown on the thumb shows the drag overlay', find_test_id('list-overlay') != null, true);
+check('a mousedown on the thumb lights it for the drag', thumb().style!.backgroundColor, '#5a5a5a');
 const before = offset();
 mouse_move({ x: grip.x, y: grip.y + 40 }, { pressed_button: 0 });
 check('dragging scrolls further', offset() < before, true);
-mouse_up({ x: grip.x, y: grip.y + 40 });
-check('and the release takes the overlay away', find_test_id('list-overlay'), null);
+// Native captures the pointer for the thumb, so its moves keep coming once the pointer leaves the Scroller and the window.
+mouse_move({ x: 2000, y: 1500 }, { pressed_button: 0 });
+check('a drag far below the window scrolls to the end', Math.round(offset()), 200 - 30 * 40);
+mouse_move({ x: -500, y: -400 }, { pressed_button: 0 });
+check('and far above it back to the top', Math.round(offset()), 0);
+mouse_up({ x: -500, y: -400 });
+check('a release out there ends the drag', thumb().style!.backgroundColor, '#404040');
+{
+	const at = center(thumb());
+	mouse_move({ x: at.x, y: at.y + 10 }, { pressed_button: 0 });
+	check('so a later move over the thumb scrolls nothing', Math.round(offset()), 0);
+
+	// A release the OS kept from the window arrives as a move with no button held.
+	mouse_down(at);
+	mouse_move({ x: at.x, y: at.y + 20 }, { pressed_button: 0 });
+	const held = offset();
+	mouse_move({ x: at.x, y: at.y + 40 });
+	mouse_move({ x: at.x, y: at.y + 80 }, { pressed_button: 0 });
+	check('a move with no button held ends a drag whose release never came', [held < 0, offset()], [true, held]);
+	mouse_up({ x: at.x, y: at.y + 80 });
+}
 
 // Reading bounds makes GPUI draw a frame on Windows and Linux, so a plain column may never ask.
 ({ native, component } = mount_headless(Tall, { width: 400, height: 300 }));
@@ -227,4 +246,4 @@ await wait(300);
 	check('a thumb update still pending at unmount reaches nothing, and neither does the poll', reads, 0);
 }
 
-finish('scroller', 31);
+finish('scroller', 35);
