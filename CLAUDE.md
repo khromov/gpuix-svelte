@@ -1292,7 +1292,10 @@ are the ones that bite most often, and the renderer behaviour behind them.
   which native sends last: for a key without ctrl/alt/cmd that nobody prevented, Escape calls the
   top `dismiss_layer`'s `onEscape` (upstream's `pushDismissLayer` stack without focus restore)
   unless an element's handler stopped it or it is a held key's repeat, and Tab calls
-  `focusNext`/`focusPrevious`. Upstream runs Escape past any `stopPropagation()`, but Popover and
+  `focusNext`/`focusPrevious`. GPUI's X11 client sends a repeat as a fresh press (`isHeld` false, no
+  release in between; Windows and Wayland set it), so on Linux `sync_window_events` also asks for
+  window `keyUp` while a layer is open and an Escape within a second of the last, with no release
+  since, counts as held (`escape_down`). A `<button>`'s Enter and Space have no such guard there. Upstream runs Escape past any `stopPropagation()`, but Popover and
   Tooltip listened on the window before, where an element's stop skipped them and a window
   handler's did not (both sat on one target), so `dispatch` reads `flags.stopped` before the window
   handlers run, which is also how the DOM build's window listener behaves. A layer goes on top, or

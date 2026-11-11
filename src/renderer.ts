@@ -180,6 +180,14 @@ let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: fals
 /** Open overlays, the top one last. */
 let layers: DismissLayer[] = [];
 
+/**
+ * GPUI's X11 client reports a held key's repeats as fresh presses, with no release in between. So on Linux an
+ * Escape with none since the last one is a repeat; only for this long, in case the release went to another window.
+ */
+const REPEAT_MS = 1000;
+let escape_down = -Infinity;
+const untold_repeats = () => globalThis.process?.platform === 'linux';
+
 /** scope class -> that component's `<style>` rules, weakest first (see compile.ts). */
 const stylesheets = new Map<string, ClassRule[]>();
 const NO_RULES: readonly ClassRule[] = [];
@@ -776,6 +784,7 @@ export function set_native(instance: NativeSink) {
 	pending_portals = [];
 	after_commit = [];
 	layers = [];
+	escape_down = -Infinity;
 	dirty = false;
 	commit_scheduled = false;
 
@@ -801,7 +810,7 @@ function sync_window_events() {
 	by_id.set(window_node.nativeId, window_node);
 	native?.setWindowKeyEvents?.(
 		tab_navigation || layers.length > 0 || window_node.listeners.has('windowKeyDown'),
-		window_node.listeners.has('windowKeyUp'),
+		(layers.length > 0 && untold_repeats()) || window_node.listeners.has('windowKeyUp'),
 		window_node.nativeId
 	);
 	native?.setWindowSelectionChange?.(window_node.listeners.has('selectionChange'), window_node.nativeId);
@@ -854,7 +863,10 @@ export function dismiss_layer(layer: DismissLayer): () => void {
 		const index = layers.indexOf(entry);
 		if (index === -1) return;
 		layers.splice(index, 1);
-		if (layers.length === 0) sync_window_events();
+		if (layers.length > 0) return;
+		// The release that would clear it is no longer listened for.
+		escape_down = -Infinity;
+		sync_window_events();
 	};
 }
 
@@ -1065,6 +1077,7 @@ export function dispatch(payload: EventPayload) {
 		dispatch({ ...payload, eventType: 'click' });
 	}
 	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload, element_stopped);
+	if (payload.eventType === 'windowKeyUp' && payload.key === 'escape') escape_down = -Infinity;
 }
 
 /** A key event without an id is synthetic and never shares flags with another. */
@@ -1080,7 +1093,11 @@ function key_default(payload: EventPayload, stopped: boolean) {
 	if (modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
 	if (payload.key === 'escape') {
 		// A handler that stopped Escape has used it, and a held key would close one layer per repeat.
-		if (!stopped && !payload.isHeld) layers.at(-1)?.onEscape();
+		if (layers.length === 0) return;
+		const now = performance.now();
+		const held = payload.isHeld || (untold_repeats() && now - escape_down < REPEAT_MS);
+		escape_down = now;
+		if (!stopped && !held) layers.at(-1)?.onEscape();
 		return;
 	}
 	if (!tab_navigation || payload.key !== 'tab') return;

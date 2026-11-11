@@ -16,6 +16,7 @@ import {
 	click_at,
 	click_test_id,
 	press,
+	key_up,
 	focus,
 	unfocus,
 	all_text,
@@ -286,6 +287,25 @@ function move(x: number, y: number) {
 	check('two popovers opened in one commit close inner first', [both, nested.read()], [[true, true], [true, false]]);
 	press('escape');
 	check('and the outer one on the next Escape', nested.read(), [false, false]);
+
+	// GPUI's X11 client sends a held key's repeats as presses with isHeld false and no release between them.
+	const platform = process.platform;
+	Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+	nested.open_both();
+	settle();
+	press('escape');
+	press('escape');
+	press('escape');
+	check('on Linux a press with no release since the last is a repeat, and closes nothing more', nested.read(), [true, false]);
+	key_up('escape');
+	press('escape');
+	check('while one after the release closes the next layer', nested.read(), [false, false]);
+
+	nested.open_both();
+	settle();
+	press('escape');
+	check('and the layers a hold left closed keep no press from the next ones opened', nested.read(), [true, false]);
+	Object.defineProperty(process, 'platform', { value: platform, configurable: true });
 }
 
-finish('tooltip', 49);
+finish('tooltip', 52);
