@@ -23,6 +23,10 @@ resolves to its server build and `mount()` does not exist; the `--import` instal
 loader, resolved through the package's own `exports` (so `src/register.ts` here and
 `lib/register.js` once packed), and Node strips the types of every `.ts` itself — or, under
 `--bun` / when invoked by Bun, `bun` with the same conditions and `--preload gpuix-svelte/plugin`.
+Under Bun that is `process.execPath`, except on the copy of Bun named `node` that `bun run` puts
+first on PATH where Node is not installed (and always under `bun --bun run`): Bun by that name
+takes `--conditions` but resolves without them (oven-sh/bun#44611), so the bin runs the copy named
+`bun` beside it instead, or `bun` from PATH (`test:launcher`).
 Flags before the entry are forwarded to the runtime (`demo:glass-ffi` passes `--experimental-ffi`
 that way).
 
@@ -133,6 +137,9 @@ npm run test:update        # gpuix-svelte/update: version order, manifest signin
                            # back as the new version, leaving the swept leftovers behind; the
                            # Windows and Linux branches also run everywhere on a faked
                            # process.platform, which proves their logic and not their renames
+npm run test:launcher      # the bin on a copy of Bun named `node` (what `bun run` uses where Node
+                           # is not installed): svelte still resolves to its custom-renderer build,
+                           # through the `bun` beside it or from PATH; `bun` on PATH under Node
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -304,8 +311,8 @@ CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows 
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
 launched; plain, then `--aot --trim`), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
-a check that the binding loads (see the `@gpuix/native` constraint), the five suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:docs`), the Vite
+a check that the binding loads (see the `@gpuix/native` constraint), the six suites that need no
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:dom`, `test:docs`), the Vite
 build of the cross-target example (`demo:dom -- --build-only`) and `test:automation-live` under
 `xvfb-run`, all on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and
 DirectX on Windows.
