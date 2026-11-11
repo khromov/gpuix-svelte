@@ -139,21 +139,25 @@ stack with `dismiss_layer`, which returns the function that takes it off again:
 
 ```svelte
 <script>
-  import { dismiss_layer } from 'gpuix-svelte';
+  import { dismiss_layer, dismiss_scope } from 'gpuix-svelte';
   let { open, onclose } = $props();
+  const scope = dismiss_scope();
 
   $effect(() => {
     if (!open) return;
-    return dismiss_layer({ onEscape: () => onclose() });
+    return dismiss_layer({ onEscape: () => onclose(), scope });
   });
 </script>
 ```
 
 Escape reaches only the layer on top, the one that opened last, so a tooltip inside a popover
-closes before the popover does. Like the Tab move, it runs after every key handler for that
-keystroke, so `e.preventDefault()` in any of them keeps the layer open, and so does
-`e.stopPropagation()`, which says the handler used the key. A held key's repeats and Escape with
-Ctrl, Alt or Cmd are left alone. `Tooltip` and `Popover` both use it.
+closes before the popover does. `dismiss_scope()` keeps that true when both open at once: it ties
+the overlay to the ones mounted inside it, so call it while the component initialises, not in the
+effect. Like the Tab move, Escape runs after every key handler for that keystroke, so
+`e.preventDefault()` in any of them keeps the layer open, and so does `e.stopPropagation()` on the
+focused element or one of its ancestors, which says that handler used the key (one in an
+`on_window_key` handler does not, as other window listeners still hear it). A held key's repeats
+and Escape with Ctrl, Alt or Cmd are left alone. `Tooltip` and `Popover` both use it.
 
 `:focus-visible` rules and the `focus-visible="..."` attribute style an element while it has
 keyboard focus (not after a click), and `outline-width`, `outline-color` and `outline-offset` draw

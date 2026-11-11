@@ -108,6 +108,13 @@ export type WindowKeyType = 'keydown' | 'keyup';
 export interface DismissLayer {
 	/** Escape reached the window, no key handler called `preventDefault()`, and this is the top layer. */
 	onEscape: () => void;
+	/** From `dismiss_scope()`, so a layer opened in the same commit as one mounted inside it goes under that one. */
+	scope?: DismissScope;
+}
+
+/** Where an overlay sits among the ones mounted inside it; opaque. */
+export interface DismissScope {
+	readonly parent: DismissScope | null;
 }
 
 /** The least the renderer needs from a native: `test/lifecycle.ts` hands in a stub this small. */

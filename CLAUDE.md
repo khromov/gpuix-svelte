@@ -1089,7 +1089,9 @@ every 8 ms (~125fps, since `setImmediate` burns most of a core at idle). A clean
 (`set_on_dirty`) and `next_frame()` bring the next tick forward to 8 ms after the last, so a timer's
 or a fetch's update commits as fast as before and automation waits frames, not the fallback; while
 the link runs they stand aside for a wake due within half a frame of that tick, or a moving pointer
-drew ~190 ticks/s against the old timer's 125. A throw from `tick()` is logged once per run and the
+drew ~190 ticks/s against the old timer's 125, and a wake within 2 ms of a tick's end returns without
+pumping, since a busy loop turn (and Windows' 15.6 ms timers, under `test:lifecycle`) runs a due
+timer's tick and a wake back to back. A throw from `tick()` is logged once per run and the
 loop goes on; 100 in a row (`TICK_FAILURES`) end the process with 1, as an uncaught throw did,
 rather than logging every tick forever. Input that reaches a window whose link has
 stopped waits for the next fallback tick (≤100 ms), as it does under upstream's `startFrameLoop`.
@@ -1285,10 +1287,16 @@ are the ones that bite most often, and the renderer behaviour behind them.
   shares one flags object (`flags_for`), `stopPropagation()` skips the handlers still to come —
   the focusable ancestors, then the window's — and `key_default` runs on the `windowKeyDown`,
   which native sends last: for a key without ctrl/alt/cmd that nobody prevented, Escape calls the
-  top `dismiss_layer`'s `onEscape` (upstream's `pushDismissLayer` stack, ordered by opening, without
-  its `parent` nesting or focus restore) unless a handler stopped it or it is a held key's repeat,
-  and Tab calls `focusNext`/`focusPrevious`. Upstream runs Escape past a `stopPropagation()`, but
-  Popover and Tooltip listened on the window before, where that skipped them, and apps rely on it. That needs
+  top `dismiss_layer`'s `onEscape` (upstream's `pushDismissLayer` stack without focus restore)
+  unless an element's handler stopped it or it is a held key's repeat, and Tab calls
+  `focusNext`/`focusPrevious`. Upstream runs Escape past any `stopPropagation()`, but Popover and
+  Tooltip listened on the window before, where an element's stop skipped them and a window
+  handler's did not (both sat on one target), so `dispatch` reads `flags.stopped` before the window
+  handlers run, which is also how the DOM build's window listener behaves. A layer goes on top, or
+  under the first open one whose `dismiss_scope()` (Svelte context, taken while the component
+  initialises) descends from its own (`place_layer` in `src/layers.ts`, shared by both builds),
+  because Svelte runs a child's effect before its parent's and two layers opened in one commit
+  would otherwise put the outer one on top. That needs
   window key events on whether or not anything subscribed, so `sync_window_events` keeps `keyDown`
   on while `tab_navigation` is (`render`/`mount_headless`'s `tabNavigation`, default true) or a
   layer is open. The walk is the tab stops as of the last painted frame (a stop
@@ -1369,10 +1377,11 @@ are the ones that bite most often, and the renderer behaviour behind them.
   goes inside `<Portal>`, rendered from wherever it is needed; its children position against the
   window. Content that should sit beside a trigger goes in `Tooltip` / `Popover`, or the native
   `<anchored>` they build on; its child sizes to content, so it is no use for a scrim.
-- An overlay that Escape closes goes on `dismiss_layer({ onEscape })` from an `$effect` (it
-  returns the remove function, like `on_window_key`); only the top layer, the last to open, hears
-  an Escape that no key handler prevented or stopped, and never a held key's repeat. The DOM build
-  keeps the same stack on a `window` listener added as the first layer opens.
+- An overlay that Escape closes goes on `dismiss_layer({ onEscape, scope })` from an `$effect` (it
+  returns the remove function, like `on_window_key`), with `scope` from `dismiss_scope()` called
+  while the component initialises; only the top layer hears an Escape that no key handler prevented
+  and no element's handler stopped, and never a held key's repeat. The DOM build keeps the same
+  stack on a `window` listener added as the first layer opens.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role` and
   `aria-label` / `-description` / `-id` / `-expanded` / `-selected` / `-valuetext` / `-level` as
   props; other attributes are dropped for built-ins and forwarded for custom element types.

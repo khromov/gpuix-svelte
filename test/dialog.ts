@@ -68,8 +68,8 @@ for (const virtual of [false, true]) {
 	const { native } = mount_headless(Fixture, { props: { virtual }, width: 400, height: 300 });
 	const { counts, close } = block_ui_thread(native);
 	const label = virtual ? 'a virtual' : 'a plain';
-	// GPUI paints a virtual list's thumb itself, from the colour the list's style names.
-	const thumb = () => (virtual ? find_test_id('list')!.style!.scrollbarColor : Math.round(bounds(find_test_id('list-thumb')!)!.height));
+	// GPUI paints a virtual list's thumb itself, so the position native reports for the list stands in for it.
+	const thumb = () => (virtual ? native.getListScrollTop(find_test_id('list')!.id) : Math.round(bounds(find_test_id('list-thumb')!)!.height));
 	await wait(THUMB_MS);
 	const thumb_before = thumb();
 	const size_before = size_text();

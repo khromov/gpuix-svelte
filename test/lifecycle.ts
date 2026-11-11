@@ -138,12 +138,21 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	await after_tick();
 	handle_event({ elementId: -1, eventType: 'layout' });
 	check('an event a paint sends leaves the pace alone', (await ticks_during(150)) <= 3, true);
+	await after_tick();
+	const ticked = after_tick();
+	const sent = performance.now();
 	handle_event({ elementId: -1, eventType: 'keyDown' });
-	check('input keeps the 8 ms pace for a while, since the next key reaches JS only on a tick', (await ticks_during(150)) >= 5, true);
+	await ticked;
+	check('input brings the next tick forward rather than leaving it to the 100 ms fallback', performance.now() - sent < 50, true);
+	check('and keeps the 8 ms pace for a while, since the next key reaches JS only on a tick', (await ticks_during(150)) >= 5, true);
 	loop.stop();
 
 	loop = start_frame_loop(native);
 	await after_tick();
+	const before_pair = ticks;
+	wake();
+	check('a wake straight after a tick, as a busy loop turn runs them, does not pump again', ticks - before_pair, 0);
+	await sleep(4);
 	const before_wake = ticks;
 	wake();
 	check('a wake ticks at once', ticks - before_wake, 1);
@@ -475,4 +484,4 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 
 set_auto_commit(false);
 
-finish('lifecycle', 45);
+finish('lifecycle', 47);

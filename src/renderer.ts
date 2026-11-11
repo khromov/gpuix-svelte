@@ -20,6 +20,7 @@ import type {
 import { createRenderer } from 'svelte/renderer';
 import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
+import { place_layer } from './layers.ts';
 import type {
 	ClassRule,
 	DismissLayer,
@@ -413,7 +414,10 @@ const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 function normalize_prop(name: string, value: unknown) {
 	if (BOOLEAN_PROPS.has(name)) return typeof value === 'string' ? value !== 'false' : Boolean(value);
 	if (!NUMBER_PROPS.has(name)) return value;
-	const number = typeof value === 'string' && value.trim() === '' ? NaN : Number(value);
+	const blank = typeof value === 'string' && value.trim() === '';
+	// A bare `tabindex` has always meant a tab stop here, and a `<button>` that carries one skips its default 0.
+	if (blank && name === 'tabIndex') return 0;
+	const number = blank ? NaN : Number(value);
 	if (Number.isFinite(number)) return number;
 	if (!warned_props.has(name)) {
 		warned_props.add(name);
@@ -844,7 +848,7 @@ export const on_selection_change = (handler: (event: GpuixEvent) => void) => on_
  */
 export function dismiss_layer(layer: DismissLayer): () => void {
 	const entry = { ...layer };
-	layers.push(entry);
+	place_layer(layers, entry);
 	if (layers.length === 1) sync_window_events();
 	return () => {
 		const index = layers.indexOf(entry);
@@ -1023,6 +1027,8 @@ export function dispatch(payload: EventPayload) {
 	if (button && payload.eventType === 'click' && is_disabled(target)) return;
 
 	const flags = KEY_EVENTS.has(payload.eventType) ? flags_for(payload) : null;
+	// Window handlers sit beside the overlays' old window listeners, where their stopPropagation never reached them.
+	const element_stopped = flags?.stopped ?? false;
 	const handlers = target.listeners.get(payload.eventType);
 	if (handlers && handlers.length > 0 && !flags?.stopped) {
 		let immediate = false;
@@ -1058,7 +1064,7 @@ export function dispatch(payload: EventPayload) {
 	if (button && payload.eventType === 'keyDown' && !payload.isHeld && !flags?.prevented && (payload.key === 'enter' || payload.key === 'space')) {
 		dispatch({ ...payload, eventType: 'click' });
 	}
-	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload, flags?.stopped ?? false);
+	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload, element_stopped);
 }
 
 /** A key event without an id is synthetic and never shares flags with another. */

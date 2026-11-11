@@ -21,6 +21,8 @@
 		<code testId="lines-false" code={source} showLineNumbers="false"></code>
 		<input class="field" testId="readonly" readonly />
 		<diff testId="diff" wordDiff scroll="false" maxLines="5"></diff>
+		<div testId="tab-bare" tabindex>tab</div>
+		<button testId="tab-button" tabindex>button</button>
 	</div>
 	<virtual-list testId="list" followTail estimatedItemHeight="20" class="list"></virtual-list>
 	<div class="raw">

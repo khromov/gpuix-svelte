@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { dismiss_layer, read_native, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
+	import { dismiss_layer, dismiss_scope, read_native, type GpuixEvent, type ShadowNode } from 'gpuix-svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
@@ -45,6 +45,7 @@
 	const y = $derived(side === 'top' ? 'start' : side === 'bottom' ? 'end' : align);
 
 	let anchor: ShadowNode | null = null;
+	const scope = dismiss_scope();
 
 	// The trigger's own click closes it, and closing here first would let that click reopen it.
 	function outside(e: GpuixEvent) {
@@ -59,7 +60,7 @@
 	$effect(() => {
 		if (!open) return;
 		// Read on Escape, not here, or a parent passing a new closure would re-push the layer on top.
-		return dismiss_layer({ onEscape: () => onclose() });
+		return dismiss_layer({ onEscape: () => onclose(), scope });
 	});
 </script>
 

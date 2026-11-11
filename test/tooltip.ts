@@ -23,6 +23,7 @@ import {
 	finish,
 	type TreeNode
 } from 'gpuix-svelte/test';
+import { on_window_key } from 'gpuix-svelte';
 
 const Fixture = (await import('./Floating.svelte')).default;
 const mounted = mount_headless(Fixture, { width: 600, height: 400 });
@@ -247,6 +248,14 @@ function move(x: number, y: number) {
 	press('escape');
 	check('and a fresh press closes the next', shown('outer-panel'), false);
 
+	const off = on_window_key('keydown', (e) => {
+		if (e.key === 'escape') e.stopPropagation();
+	});
+	click_test_id('outer-trigger');
+	press('escape');
+	off();
+	check("a window handler's stopPropagation does not, as it never reached the overlays' own window listeners", shown('outer-panel'), false);
+
 	click_test_id('menu-trigger');
 	const pinned = box(element_of('pinned'));
 	move(mid_x(pinned), mid_y(pinned));
@@ -259,10 +268,24 @@ function move(x: number, y: number) {
 // Without Tab navigation nothing else asks native for window key events, so an open layer has to.
 {
 	await mounted.unmount();
-	mount_headless(Fixture, { width: 600, height: 400, tabNavigation: false });
+	const again = mount_headless(Fixture, { width: 600, height: 400, tabNavigation: false });
 	click_test_id('menu-trigger');
 	press('escape');
 	check('Escape still reaches a layer with tabNavigation off', shown('menu-panel'), false);
+	await again.unmount();
 }
 
-finish('tooltip', 46);
+// Svelte runs the inner popover's effect first when both open in one commit, so only dismiss_scope keeps it on top.
+{
+	const Nested = (await import('./NestedPopovers.svelte')).default;
+	const nested = mount_headless(Nested, { width: 500, height: 400 }).component as unknown as { open_both(): void; read(): boolean[] };
+	nested.open_both();
+	settle();
+	const both = nested.read();
+	press('escape');
+	check('two popovers opened in one commit close inner first', [both, nested.read()], [[true, true], [true, false]]);
+	press('escape');
+	check('and the outer one on the next Escape', nested.read(), [false, false]);
+}
+
+finish('tooltip', 49);

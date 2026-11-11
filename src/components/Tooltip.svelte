@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy, type Snippet } from 'svelte';
-	import { dismiss_layer } from 'gpuix-svelte';
+	import { dismiss_layer, dismiss_scope } from 'gpuix-svelte';
 
 	type Side = 'top' | 'right' | 'bottom' | 'left';
 	type Align = 'start' | 'center' | 'end';
@@ -98,10 +98,12 @@
 		}
 	};
 
+	const scope = dismiss_scope();
+
 	// A tip that `open` forces can't be dismissed, so it must not take an Escape meant for a layer below.
 	$effect(() => {
 		if (open != null || !shown) return;
-		return dismiss_layer({ onEscape: hide });
+		return dismiss_layer({ onEscape: hide, scope });
 	});
 
 	onDestroy(() => clearTimeout(timer));

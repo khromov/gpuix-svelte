@@ -58,7 +58,8 @@ interface GpuixAttributes extends GpuixEvents {
 	/** Paint natively from the root, on top of everything mounted before it. */
 	portal?: Flag;
 	testid?: Text;
-	tabindex?: Count;
+	/** A bare `tabindex` is a tab stop, as `0`. */
+	tabindex?: Count | true | '';
 	autofocus?: Flag;
 	motion?: MotionProps | null | undefined;
 	highlight?: HighlightSpec | HighlightSpec[] | null | undefined;

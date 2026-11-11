@@ -11,6 +11,8 @@ import type { EventPayload, PathPromptOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode, DebugFrameOverlayStats, EdgeInsets, WindowInsets, WindowSize } from '@gpuix/native/host';
 import type { AnyComponent, DismissLayer, GpuixEvent, GpuiStyle, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
 import { RESET_CSS } from './reset.ts';
+import { place_layer } from './layers.ts';
+export { dismiss_scope } from './layers.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
@@ -126,7 +128,8 @@ export function dismiss_layer(layer: DismissLayer): () => void {
 	const target = win();
 	if (!target) return noop;
 	const entry = { ...layer };
-	if (layers.push(entry) === 1) target.addEventListener('keydown', escape);
+	place_layer(layers, entry);
+	if (layers.length === 1) target.addEventListener('keydown', escape);
 	return () => {
 		const index = layers.indexOf(entry);
 		if (index === -1) return;
@@ -433,6 +436,7 @@ export type {
 	AppOptions,
 	WindowKeyType,
 	DismissLayer,
+	DismissScope,
 	PixelFormat,
 	AnyComponent
 } from './types.ts';

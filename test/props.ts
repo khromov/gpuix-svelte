@@ -26,6 +26,7 @@ check(
 check('readonly, as HTML spells it, reaches native as readOnly', props('readonly'), { readOnly: true });
 check('diff takes its flags and its count', [props('diff').wordDiff, props('diff').scroll, props('diff').maxLines], [true, false, 5]);
 check('so does a virtual list', [props('list').followTail, props('list').estimatedItemHeight], [true, 20]);
+check('a bare tabindex is a tab stop, on a div and on a <button> that carries it', [props('tab-bare').tabIndex, props('tab-button').tabIndex], [0, 0]);
 check(
 	'and an anchored layer',
 	[props('layer').priority, props('layer').occlude, props('layer').deferred, props('layer').snapMargin],
@@ -44,4 +45,4 @@ settle();
 check('and a blank one leaves the prop unset rather than 0', 'minRows' in props('rows-live'), false);
 console.warn = warn;
 
-finish('props', 12);
+finish('props', 13);

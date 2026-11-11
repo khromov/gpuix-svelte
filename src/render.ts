@@ -138,6 +138,7 @@ export function start_frame_loop(
 	let wake_gap = WAKE_WAIT_MS;
 	let last_active = -Infinity;
 	let failing = 0;
+	let ended = -Infinity;
 
 	/** Never pushes a pending tick back, only forward. */
 	const schedule = (delay: number) => {
@@ -208,6 +209,7 @@ export function start_frame_loop(
 		for (const resolve of frame_waiters.splice(0)) resolve();
 
 		schedule(Math.max(0, frame_ms() - (performance.now() - started)));
+		ended = performance.now();
 	}
 
 	// Only macOS has the wake, which arrives once the display link has queued a frame, and the link stops while nothing draws.
@@ -216,6 +218,8 @@ export function start_frame_loop(
 			const now = performance.now();
 			wake_gap = Math.min(WAKE_WAIT_MS, now - last_wake);
 			last_wake = last_active = now;
+			// A busy loop turn can run a due timer's tick and then this wake back to back, and the tick has just pumped.
+			if (now - ended < 2) return;
 			loop();
 		}) === true;
 	running_loop = {
