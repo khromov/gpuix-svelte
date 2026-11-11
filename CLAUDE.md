@@ -1079,13 +1079,16 @@ way to `eval`), and a frame loop of its own calling `native.tick()`, not `@gpuix
 `startFrameLoop`, which has no room for the commit, the frame waiters or VoiceOver's pace. On macOS
 it ticks on native's display-link wakes (`setFrameWakeCallback`), with a timer that steps aside
 (25 ms) while wakes keep coming, ticks every 8 ms for 2 s after the last input event or wake (input
-never wakes JS, and the display link stops a few seconds after the last draw), and every 100 ms
-(`IDLE_FRAME_MS`) after that, which took an idle window from ~3.8% CPU to ~0.3%; elsewhere it ticks
+never wakes JS), and every 100 ms (`IDLE_FRAME_MS`) after that. A visible window's display link
+wakes every frame, idle or not (measured on a 120 Hz Mac: ~120 wakes/s focused or unfocused, about
+the old timer's rate and CPU), so the saving is only for a hidden, minimised or covered window, where
+the link stops: 0 wakes, 10 ticks/s, ~0.3–0.5% CPU against the old ~2.5–3%. Upstream's docs say the
+same ("it does not eliminate idle CPU use while the display link is running"). Elsewhere it ticks
 every 8 ms (~125fps, since `setImmediate` burns most of a core at idle). A clean→dirty `mark_dirty`
 (`set_on_dirty`) and `next_frame()` bring the next tick forward to 8 ms after the last, so a timer's
 or a fetch's update commits as fast as before and automation waits frames, not the fallback. A
-throw from `tick()` is logged and the loop goes on. The cost is the first key after 2 s idle on
-macOS, which can wait up to 100 ms, as it does under upstream's `startFrameLoop` on every idle key.
+throw from `tick()` is logged and the loop goes on. Input that reaches a window whose link has
+stopped waits for the next fallback tick (≤100 ms), as it does under upstream's `startFrameLoop`.
 On macOS native answers one accessibility request per
 `tick()`, so at 8 ms a read costs 8 ms and VoiceOver reports the app as not responding; while
 VoiceOver runs the loop ticks every 1 ms instead (`src/screen-reader.ts` asks `pgrep -x VoiceOver`

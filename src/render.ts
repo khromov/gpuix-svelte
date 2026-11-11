@@ -33,7 +33,7 @@ const FRAME_MS = 8;
 /** Native answers one accessibility request per `tick()`, and at 8 ms each VoiceOver gives up on the app ("not responding"). */
 const VOICEOVER_FRAME_MS = 1;
 
-/** Where display-link wakes drive the ticks (macOS), the timer only pumps a window that is not drawing: idle, hidden or occluded. */
+/** Where display-link wakes drive the ticks (macOS), the timer only pumps a window whose link has stopped: hidden, minimised or occluded. */
 const IDLE_FRAME_MS = 100;
 
 /** Input reaches JS only on a tick and never wakes it, so the loop keeps `FRAME_MS` this long after the last input or drawn frame. */
