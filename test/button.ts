@@ -4,22 +4,21 @@
  */
 
 import { focused_element } from 'gpuix-svelte';
-import { mount_headless, find_test_id, click_test_id, focus, press, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, click_test_id, focus, press, a11y, text_content, check, finish } from 'gpuix-svelte/test';
 
 const warnings: string[] = [];
 const warn = console.warn;
 console.warn = (...args: unknown[]) => void warnings.push(args.join(' '));
 
 const Button = (await import('./Button.svelte')).default;
-const { native } = mount_headless(Button);
+mount_headless(Button);
 console.warn = warn;
 
-type A11yNode = { aria?: { role?: string }; children?: string[] };
 const roles = () =>
-	Object.values((JSON.parse(native.getA11yTree()) as { nodes?: Record<string, A11yNode> }).nodes ?? {})
+	Object.values(a11y().nodes ?? {})
 		.map((n) => n.aria?.role)
 		.filter((role) => role === 'Button' || role === 'Tab');
-const clicks = () => find_test_id('clicks')!.children?.[0]?.text;
+const clicks = () => text_content(find_test_id('clicks')!);
 const at = () => focused_element()?.attrs.testId;
 
 check('a <button> is no unknown tag', warnings.filter((w) => w.includes('<button>')).length, 0);

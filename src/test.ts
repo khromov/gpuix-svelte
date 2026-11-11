@@ -5,6 +5,7 @@
  */
 
 import { TestGpuixRenderer, hasTestGpuixRenderer, type ElementBounds, type EventPayload, type HighlightMatch } from '@gpuix/native';
+import type { A11yTreeDump, A11yTreeNode } from '@gpuix/native/testing';
 import { mount, unmount, flushSync, type Component } from 'svelte';
 import renderer, { set_native, set_tab_navigation, get_native, commit, dispatch, unwrap_text } from './renderer.ts';
 import { create_window_root } from './titlebar.ts';
@@ -103,7 +104,7 @@ export function mount_headless<Exports extends Record<string, unknown> = Record<
 	Component: Component<any, Exports, any>,
 	{ props = {}, width, height, rootStyle, keyboardFocusDim, tabNavigation = true, titlebar }: MountHeadlessOptions = {}
 ) {
-	if (typeof hasTestGpuixRenderer === 'function' && !hasTestGpuixRenderer()) {
+	if (!hasTestGpuixRenderer()) {
 		throw new Error('[gpuix-svelte/test] this @gpuix/native build has no TestGpuixRenderer (the Linux prebuild ships without one)');
 	}
 
@@ -205,6 +206,17 @@ export function find(pred: (node: TreeNode, parent: TreeNode | null) => boolean,
 
 export const find_text = (text: string, opts?: FindOptions) => find((n) => n.type === 'text' && n.text === text, opts);
 export const find_test_id = (id: string, opts?: FindOptions) => find((n) => n.testId === id, opts);
+
+// Upstream's `collectText`, which `@gpuix/native/automation` keeps to itself.
+const collect_text = (node: TreeNode): string => (node.text ?? '') + (node.children ?? []).map(collect_text).join('');
+
+/** Its own text and every descendant's in document order, as `Locator.textContent()` reads it, from the tree as it is now. */
+export function text_content(target: Target): string {
+	const id = id_of(target);
+	const node = find((n) => n.id === id);
+	if (!node) throw new Error(`[gpuix-svelte/test] element ${id} is not in the tree`);
+	return collect_text(node);
+}
 
 /** The element around the text node with this content, as GPUI holds it. */
 export function element_of(text: string, { last = false }: FindOptions = {}): TreeNode | null {
@@ -318,6 +330,13 @@ export function mouse_down(target: PointTarget, { button, modifiers }: MouseOpti
 export function mouse_up(target: PointTarget, { button, modifiers }: MouseOptions = {}) {
 	const { x, y } = point_of(target);
 	native().simulateMouseUp(x, y, button, modifiers);
+	pump();
+}
+
+/** The pointer leaving the window at that point with no move after it, as a platform reports it, which ends every hover. */
+export function mouse_exit(at: PointTarget = { x: 0, y: 0 }) {
+	const { x, y } = point_of(at);
+	native().simulateMouseExit(x, y);
 	pump();
 }
 
@@ -445,7 +464,12 @@ export function type(keystrokes: string) {
 export const painted = () => native().getPaintedText().join('\n');
 export const all_text = () => native().getAllText();
 
+/** The accessibility tree GPUI built from the last painted frame. */
+export const a11y = (): A11yTreeDump => JSON.parse(native().getA11yTree()) as A11yTreeDump;
+
 export function screenshot(path: string) {
+	// Native captures what it already holds, so a change still queued on the JS side would miss the picture.
+	settle();
 	native().captureScreenshot(path);
 	return path;
 }
@@ -485,4 +509,4 @@ export function finish(name: string, expected?: number): never {
 	process.exit(0);
 }
 
-export type { ShadowNode, HighlightMatch };
+export type { ShadowNode, HighlightMatch, A11yTreeDump, A11yTreeNode };

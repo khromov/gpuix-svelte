@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import type { GpuixEvent } from 'gpuix-svelte';
+	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
 
 	let { trail }: { trail: string[] } = $props();
 
@@ -15,6 +16,7 @@
 	let landed = $state('no');
 	let wheeled = $state('none');
 	let status = $state('waiting');
+	let swatch = $state('#333');
 	const focusables = ['a', 'b'] as const;
 	const focus_count = $state({ a: [0, 0], b: [0, 0] });
 	const rows = Array.from({ length: 10 }, (_, i) => i);
@@ -39,6 +41,8 @@
 
 	const timer = setTimeout(() => (status = 'ready'), 200);
 	onDestroy(() => clearTimeout(timer));
+
+	export const paint_swatch = (colour: string) => (swatch = colour);
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; width: 380px">
@@ -87,6 +91,7 @@
 		<text>{`landed: ${landed}`}</text>
 		<text>{`wheeled: ${wheeled}`}</text>
 		<text>{`held: ${key_held}`}</text>
+		<div testid="content">one <text>two</text><div><text>three</text> four</div></div>
 	</div>
 	<div testid="far" style="position: absolute; top: 5000px; left: 0; width: 20px; height: 20px"></div>
 	<div testid="far-right" style="position: absolute; top: 0; left: 5000px; width: 20px; height: 20px"></div>
@@ -102,4 +107,10 @@
 		<div testid="covered" style="width: 20px; height: 20px; background-color: #333" onmouseenter={() => (covered = 'yes')}></div>
 		<div style="position: absolute; top: 0; left: 0; width: 20px; height: 20px; background-color: #555"></div>
 	</div>
+	<div style="position: absolute; top: 440px; left: 200px; display: flex">
+		<Tooltip content="tip" delay={0} testid="exit">
+			<text>tooltip</text>
+		</Tooltip>
+	</div>
+	<div style="position: absolute; top: 470px; left: 300px; width: 20px; height: 20px" style:background-color={swatch}></div>
 </div>

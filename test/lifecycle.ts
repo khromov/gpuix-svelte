@@ -9,7 +9,7 @@ import { GpuixRenderer, TestGpuixRenderer } from '@gpuix/native';
 import renderer, { set_native, create_root, commit, queue_destroy, set_auto_commit, set_keyboard_focus_dim } from '../src/renderer.ts';
 import { focus_dim_on_render, handle_event, render, start_frame_loop } from '../src/render.ts';
 import { render_hot } from '../src/hot.ts';
-import { check, finish } from 'gpuix-svelte/test';
+import { text_content, check, finish } from 'gpuix-svelte/test';
 import type { GpuiStyle, Mutation, RenderOptions, ShadowNode } from '../src/types.ts';
 
 async function errors_during(body: (logged: string[]) => unknown): Promise<string[]> {
@@ -114,7 +114,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	console.error = error;
 	check(
 		'a string cut mid-emoji reaches native as U+FFFD, in text and props alike, and nothing is refused',
-		[first()?.children?.[0]?.children?.[0]?.text, JSON.parse(native.getTreeJson()).children?.[1]?.testId, refusals_of_text],
+		[text_content(first()), JSON.parse(native.getTreeJson()).children?.[1]?.testId, refusals_of_text],
 		['whole \u{1F600} cut \uFFFD literal \\ud83d', '\uFFFD', []]
 	);
 	check('while the shadow node keeps the string Svelte gave it, for its own diffing', text.data === wording, true);

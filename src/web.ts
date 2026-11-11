@@ -46,7 +46,7 @@ export {
 	register_font,
 	elements_at
 } from './window.ts';
-export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
+export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 export type {
 	ShadowNode,
 	ShadowAttrs,
