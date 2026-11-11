@@ -139,7 +139,8 @@ npm run test:update        # gpuix-svelte/update: version order, manifest signin
                            # process.platform, which proves their logic and not their renames
 npm run test:launcher      # the bin on a copy of Bun named `node` (what `bun run` uses where Node
                            # is not installed): svelte still resolves to its custom-renderer build,
-                           # through the `bun` beside it or from PATH; `bun` on PATH under Node
+                           # through the `bun` beside it or from PATH, and with neither the bin
+                           # says so rather than throwing; needs `bun` on PATH
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb

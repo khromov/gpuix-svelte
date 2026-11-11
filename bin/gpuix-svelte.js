@@ -46,10 +46,7 @@ const runtime = (() => {
 	if (!bun) return process.execPath;
 	// From Node, `bun` is whatever PATH has, which on Windows is a shim only a shell can run.
 	if (process.versions.bun == null) return 'bun';
-	// Launched by Bun, this process is the runtime, unless it is the copy of Bun named `node` that
-	// `bun run` puts on PATH where Node is not installed (and under `bun --bun run`): Bun by that
-	// name accepts `--conditions` but resolves without them (oven-sh/bun#44611), so `svelte` would
-	// load its server build. A copy named `bun` sits beside it.
+	// Bun named `node`, as `bun run` puts it on PATH where Node is not installed, ignores `--conditions` (oven-sh/bun#44611).
 	if (!/^node(\.exe)?$/i.test(basename(process.execPath))) return process.execPath;
 	const beside = join(dirname(process.execPath), process.platform === 'win32' ? 'bun.exe' : 'bun');
 	return existsSync(beside) ? beside : 'bun';
@@ -66,4 +63,8 @@ const child = spawn(runtime, [...flags.filter((flag) => flag !== '--bun'), ...co
 const stop = () => child.kill();
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
+child.on('error', (error) => {
+	console.error(`gpuix-svelte: could not start ${runtime}: ${error.message}${runtime === 'bun' ? '; install Bun and put `bun` on PATH' : ''}`);
+	process.exit(1);
+});
 child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
