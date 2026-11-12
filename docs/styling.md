@@ -68,6 +68,13 @@ work for class rules, which are translated the same way.
   `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select` and
   `selection-color`. An `<svg>` gets its parent's `color` from the renderer, but not the parent's
   `:hover` colour.
+- Whitespace in the text of your markup collapses as it does in HTML, so a sentence wrapped over
+  several indented lines is drawn with single spaces (from the next release, 0.6.0; before it the
+  line break and the indentation are drawn too). The compiler does this, and only for text written
+  in the template: a string that comes from an expression (`{message}`) is drawn as written, line
+  breaks included, as is the text inside `<pre>` and `<textarea>`. A no-break space is kept, as in
+  HTML. `<svelte:options preserveWhitespace />` turns the collapsing off for a component, whose
+  text is then drawn exactly as written. `white-space: pre` and `pre-wrap` do not exist.
 - Assume the rest of CSS is missing too.
 
 <details>
@@ -152,8 +159,8 @@ These are accepted, but they mean something different from what CSS would.
   on its badges, icons and images pass straight through to it. Descendants that take input keep
   their own hitbox: a child with its own handler (other than `onlayout`, `onscrollchange`,
   `onmotioncomplete` and `onhighlight`, which take no pointer), focusable elements (`tabindex` or
-  `autofocus`), scroll containers, and the input-taking elements (`input`, `textarea`, `code`,
-  `diff`, `markdown`, `virtual-list`, `anchored`). A `pointer-events` you set yourself still wins.
+  `autofocus`), scroll containers, and the input-taking elements (`button`, `input`, `textarea`,
+  `code`, `diff`, `markdown`, `virtual-list`, `anchored`). A `pointer-events` you set yourself still wins.
 - `onclick` is the primary button alone, as in the DOM. A right or middle click is `onauxclick`,
   where `e.isRightClick` tells the two apart and `e.x` / `e.y` are window coordinates, so a menu
   rendered through `<Portal>` can be placed right at them. macOS's ctrl+click arrives as an

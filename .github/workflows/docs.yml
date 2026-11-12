@@ -1,12 +1,12 @@
 name: docs
 
 # Renders README.md and docs/*.md to static HTML (scripts/docs.ts), bundles the pages' live demos for
-# the DOM with Vite (a dev dependency, hence the install), puts the homepage (homepage/) at the
-# root and deploys the result to GitHub Pages. Settings → Pages → Source must be "GitHub Actions".
+# the DOM and the playground (playground/) for both renderers with Vite (a dev dependency, hence the
+# install), puts the homepage (homepage/) at the root and deploys the result to GitHub Pages. Settings → Pages → Source must be "GitHub Actions".
 on:
   push:
     branches: [main]
-    paths: [README.md, package.json, docs/**, homepage/**, .github/resources/**, scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts, src/media.ts, src/style.ts, src/events.ts, src/search.ts, src/components/dom/**, packages/ui/src/**, .github/workflows/docs.yml]
+    paths: [README.md, package.json, bun.lock, docs/**, homepage/**, playground/**, .github/resources/**, scripts/docs.ts, scripts/playground.ts, scripts/vite-dom.ts, src/**, packages/ui/src/**, .github/workflows/docs.yml]
   workflow_dispatch:
 
 permissions:

@@ -3,13 +3,15 @@
 /**
  * `gpuix-svelte [--bun] [runtime flags] <entry> [args]` — runs the entry with the
  * conditions Svelte's custom renderer needs and the `.svelte` loader installed.
- * `bun run <script>` runs a body that starts with `node` on real Node (Bun only
- * symlinks node→bun under `--bun`), so the runtime is read off how this launcher
- * was invoked rather than off the script text.
+ * `bun run <script>` runs a body that starts with `node` on real Node (Bun puts a
+ * copy of itself named `node` first on PATH only under `--bun`, or where Node is not
+ * installed), so the runtime is read off how this launcher was invoked rather than
+ * off the script text.
  */
 
 import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
@@ -40,9 +42,15 @@ const loader = bun
 	? ['--preload', fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'))]
 	: ['--import', import.meta.resolve('gpuix-svelte/register')];
 
-// Launched by Bun, this process is the runtime; from Node, `bun` is whatever PATH has, which
-// on Windows is a shim only a shell can run.
-const runtime = bun ? (process.versions.bun ? process.execPath : 'bun') : process.execPath;
+const runtime = (() => {
+	if (!bun) return process.execPath;
+	// From Node, `bun` is whatever PATH has, which on Windows is a shim only a shell can run.
+	if (process.versions.bun == null) return 'bun';
+	// Bun named `node`, as `bun run` puts it on PATH where Node is not installed, ignores `--conditions` (oven-sh/bun#44611).
+	if (!/^node(\.exe)?$/i.test(basename(process.execPath))) return process.execPath;
+	const beside = join(dirname(process.execPath), process.platform === 'win32' ? 'bun.exe' : 'bun');
+	return existsSync(beside) ? beside : 'bun';
+})();
 const shell = runtime === 'bun' && process.platform === 'win32';
 // cmd.exe receives one string, so each argument is quoted by hand or a path with a space splits.
 const quote = (/** @type {string} */ arg) => (shell ? `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"` : arg);
@@ -55,4 +63,8 @@ const child = spawn(runtime, [...flags.filter((flag) => flag !== '--bun'), ...co
 const stop = () => child.kill();
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
+child.on('error', (error) => {
+	console.error(`gpuix-svelte: could not start ${runtime}: ${error.message}${runtime === 'bun' ? '; install Bun and put `bun` on PATH' : ''}`);
+	process.exit(1);
+});
 child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));

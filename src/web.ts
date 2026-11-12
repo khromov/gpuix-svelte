@@ -20,8 +20,10 @@ export {
 	set_css_vars,
 	set_keyboard_focus_dim,
 	on_window_key,
-	on_selection_change
+	on_selection_change,
+	dismiss_layer
 } from './renderer.ts';
+export { dismiss_scope } from './layers.ts';
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
 export {
@@ -43,9 +45,13 @@ export {
 	set_image,
 	set_image_pixels,
 	register_font,
-	elements_at
+	elements_at,
+	selected_text,
+	clear_selection
 } from './window.ts';
-export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
+/** Whether native 0.11's terminal mode draws the app inside the terminal, where there is no title bar; false until `render()` opened the window. */
+export { isTerminal as is_terminal } from '@gpuix/native';
+export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 export type {
 	ShadowNode,
 	ShadowAttrs,
@@ -62,6 +68,8 @@ export type {
 	RenderOptions,
 	AppOptions,
 	WindowKeyType,
+	DismissLayer,
+	DismissScope,
 	PixelFormat,
 	AnyComponent
 } from './types.ts';

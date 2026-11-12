@@ -4,9 +4,12 @@
  * in `GPUIX_RELAUNCH_READY`, then waits for the sentinel before it exits (and rolls the update
  * back if it never comes). The new instance, here, writes the sentinel as soon as it runs this
  * code, then waits for the old pid to be gone before it opens a window, so the two never overlap
- * and a single-instance app never sees its predecessor. No imports: render.ts calls it and has to
- * stay bundleable for the browser, where there is no process at all.
+ * and a single-instance app never sees its predecessor. render.ts calls it and has to stay
+ * bundleable for the browser, where there is no process at all: Bun's browser build stubs
+ * `node:fs`, and nothing writes the sentinel there.
  */
+
+import { writeFileSync } from 'node:fs';
 
 export type PreviousInstance = 'exited' | 'timed-out' | false;
 
@@ -43,7 +46,7 @@ export function wait_for_previous_instance(timeout_ms = 10000): PreviousInstance
 	const { previous, ready } = handshake();
 	if (ready) {
 		try {
-			(proc.getBuiltinModule('node:fs') as typeof import('node:fs')).writeFileSync(ready, String(proc.pid));
+			writeFileSync(ready, String(proc.pid));
 		} catch {
 			// The old instance then rolls back after its timeout; nothing more to do here.
 		}

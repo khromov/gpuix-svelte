@@ -30,6 +30,8 @@ export interface ShadowNode {
 	listeners: Map<string, EventHandler[]>;
 	/** Allocated lazily, when the node first becomes reachable from the root. */
 	nativeId: number | null;
+	/** The inner native node holding a text node's string, when `nativeId` is the `text` around it. */
+	textId: number | null;
 	/** Its style read a `var()`, so `set_css_vars` has to restyle it. */
 	uses_vars: boolean;
 	/** One of its rules sits under an `@media` query, so a window resize has to restyle it. */
@@ -112,10 +114,22 @@ export interface GpuixEvent extends EventPayload {
 
 export type WindowKeyType = 'keydown' | 'keyup';
 
+/** One open overlay on the window's stack: a popover, a menu, a tooltip or a modal. */
+export interface DismissLayer {
+	/** Escape reached the window, no key handler called `preventDefault()`, and this is the top layer. */
+	onEscape: () => void;
+	/** From `dismiss_scope()`, so a layer opened in the same commit as one mounted inside it goes under that one. */
+	scope?: DismissScope;
+}
+
+/** Where an overlay sits among the ones mounted inside it; opaque. */
+export interface DismissScope {
+	readonly parent: DismissScope | null;
+}
+
 /** The least the renderer needs from a native: `test/lifecycle.ts` hands in a stub this small. */
 export interface NativeSink {
 	applyBatch(json: string): number[];
-	commitMutations?(): void;
 	setWindowKeyEvents?(keyDown: boolean, keyUp: boolean, eventId: number): void;
 	setWindowSelectionChange?(enabled: boolean, eventId: number): void;
 }
@@ -141,6 +155,8 @@ export type WindowNative = Partial<
 		| 'focusNextWithin'
 		| 'focusPreviousWithin'
 		| 'getElementsAt'
+		| 'getSelectedText'
+		| 'clearSelection'
 	>
 > & {
 	// napi's `Buffer` parameters take any Uint8Array, and the wasm build declares Uint8Array.
@@ -162,8 +178,8 @@ export type WindowNative = Partial<
 
 /**
  * What `gpuix-svelte/build` packages the executable with: the `.app` bundle on macOS, the
- * version info on Windows. At runtime `name` is the window title's fallback and `identifier` the
- * app id Linux desktops see; nothing else is read.
+ * version info on Windows. At runtime `name` is the window title's fallback and the name in macOS's
+ * Hide and Quit menu items, and `identifier` the app id Linux desktops see; nothing else is read.
  */
 export interface AppOptions {
 	/** The Dock, menu bar and bundle name; defaults to the window `title`. */
@@ -191,7 +207,7 @@ export interface AppUpdateOptions {
 
 export interface RenderOptions extends WindowOptions {
 	props?: Record<string, unknown>;
-	/** Read by `gpuix-svelte/build`; the window takes only its title fallback and app id from it. See `AppOptions`. */
+	/** Read by `gpuix-svelte/build`; the window takes only its title fallback, macOS menu name and app id from it. See `AppOptions`. */
 	app?: AppOptions;
 	rootStyle?: GpuiStyle;
 	onEvent?: (event: EventPayload) => void;

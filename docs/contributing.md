@@ -71,7 +71,7 @@ single demo for that, since several would all write to the same file.
 
 The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
 the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
 
@@ -81,6 +81,42 @@ script skips.
 
 The headless renderer and every window crash under Claude Code's Bash sandbox, so run tests and
 demos with it disabled.
+
+## Developing in a devcontainer
+
+[`.devcontainer/`](../.devcontainer) is a Linux machine with everything CI's Linux job has: Node 26,
+Bun 1.4.4, the X11 libraries the binding links, Xvfb with Mesa's software Vulkan, `xwd`, Chrome,
+the GitHub CLI, Claude Code and Docker-in-Docker. Open the folder in VS Code's Dev Containers or
+run `devcontainer up --workspace-folder .`; it runs `bun install` when it is created.
+Docker-in-Docker makes the container run `--privileged`, with the host kernel's capabilities and
+devices, so remove that feature from `devcontainer.json` if you don't need Docker inside it.
+
+The container is always `linux/amd64`, because `@gpuix/native` has no linux-arm64 prebuild. On
+Apple Silicon that means Docker Desktop emulates it (Rosetta when enabled, QEMU otherwise), so the
+first build and everything after it are noticeably slower than on the host.
+
+Xvfb runs on `:99` (1920×1080) and `DISPLAY` points at it, so a window opens without extra steps.
+To watch it, open port 6080 in a browser: noVNC shows the display live and takes the mouse and
+keyboard. VS Code forwards it, and so does code-server's `/proxy/6080/`. It has no password, so
+anyone who can reach the port controls the display. There is no window manager, so windows open
+centred on top of each other.
+
+```bash
+npm run demo:counter                                      # draws on :99
+xwd -root -silent | xwdtopnm | pnmtopng > /tmp/x.png      # the Linux addon can't take screenshots, so read X11
+xdotool mousemove 960 540 click 1 type 'hello'            # poke a window by hand
+npm run test:automation-live                              # a real window, driven through gpuix-svelte/automation
+```
+
+The browser previews listen on every interface, because the container sets `HOST=0.0.0.0`:
+`npm run demo:web` (4173), `npm run demo:dom` (4174) and `npm run docs:serve` (4321). It also sets
+`BROWSER=none`, so they don't try to open a browser inside the container. `demo:dom` only loads on
+its own origin (a forwarded or published port), not behind a path prefix such as `/proxy/4174/`.
+
+Linux has no headless renderer, so `npm test` fails right after `typecheck`. Run the suites CI's Linux
+job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:dom`,
+`test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only` and
+`demo:dom -- --build-only`.
 
 ## Moving the Svelte build
 
@@ -116,7 +152,7 @@ markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for codin
 copies the homepage (`homepage/`) to the root, so the README renders as `overview.html`. The
 `docs` workflow publishes it to GitHub Pages on every push to `main` that touches any of them. A
 new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts). `npm run docs:serve`
-builds it the same way, then serves it at http://127.0.0.1:4321 and opens it in your browser, and
+builds it the same way, then serves it at http://127.0.0.1:4321 (`HOST` changes the address) and opens it in your browser, and
 rebuilds whenever the README, `docs/`, `homepage/`, the DOM versions of the components or the script itself changes
 (reload the page to see it).
 

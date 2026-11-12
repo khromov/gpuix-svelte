@@ -6,7 +6,7 @@
  */
 
 import { focused_element } from 'gpuix-svelte';
-import { mount_headless, find, find_test_id, all_text, focus, press, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find, find_test_id, all_text, text_content, focus, press, check, finish } from 'gpuix-svelte/test';
 
 const Tab = (await import('./Tab.svelte')).default;
 const { unmount } = mount_headless(Tab);
@@ -17,7 +17,7 @@ const id = (testid: string) => find_test_id(testid)!.id;
 let seen = 0;
 /** The log entries since the last call. */
 function fresh() {
-	const text = find_test_id('log')!.children?.[0]?.text ?? '';
+	const text = text_content(find_test_id('log')!);
 	const all = text ? text.split(' ') : [];
 	const out = all.slice(seen).join(' ');
 	seen = all.length;

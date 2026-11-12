@@ -4,11 +4,15 @@
  * through the real hit testing against a fixture that reports what it received.
  */
 
+import { readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
 	mount_headless,
 	find_test_id,
 	find_text,
 	all_text,
+	text_content,
 	bounds,
 	click,
 	click_test_id,
@@ -20,6 +24,7 @@ import {
 	mouse_down,
 	mouse_move,
 	mouse_up,
+	mouse_exit,
 	wheel,
 	drag,
 	drag_select,
@@ -39,6 +44,7 @@ import {
 	point_of,
 	pump,
 	automation_tree,
+	screenshot,
 	check,
 	finish,
 	type AutomationNode
@@ -46,7 +52,7 @@ import {
 
 const Helpers = (await import('./Helpers.svelte')).default;
 const trail: string[] = [];
-const { native } = mount_headless(Helpers, { props: { trail }, width: 400, height: 500 });
+const { native, component } = mount_headless(Helpers, { props: { trail }, width: 400, height: 500 });
 
 const node = (id: string) => find_test_id(id)!;
 const has = (text: string) => all_text().includes(text);
@@ -92,8 +98,17 @@ const auto_pad = find_auto('pad')!;
 check('automation_tree carries the painted bounds the tree JSON lacks', [auto_pad.bounds, 'bounds' in node('pad')], [bounds(node('pad')), false]);
 hover(find_auto('hover')!);
 check('and its nodes are targets too', has('hover: in'), true);
+mouse_exit();
+check('mouse_exit ends the hover, as the pointer leaving the window does', has('hover: out'), true);
 
-const pad_log = () => node('pad-log').children?.[0]?.text;
+hover(find_text('tooltip')!);
+await wait(30);
+const tip_shown = find_test_id('exit-tip') !== null;
+mouse_exit();
+await wait(120);
+check('so a Tooltip shown by hover hides', [tip_shown, find_test_id('exit-tip')], [true, null]);
+
+const pad_log = () => text_content(node('pad-log'));
 const pad = center(node('pad'));
 const from = { x: pad.x - 80, y: pad.y - 8 };
 const to = { x: pad.x + 80, y: pad.y + 8 };
@@ -146,7 +161,7 @@ const not_held = has('held: no');
 press('y', { held: true });
 check('press carries held, off by default', [not_held, has('held: yes')], [true, true]);
 
-const focus_log = () => node('focus-log').children?.[0]?.text;
+const focus_log = () => text_content(node('focus-log'));
 focus(node('focus-a'));
 focus(node('focus-b'));
 check('focus reports one focus and one blur per move, from native', focus_log(), 'a:1/1 b:1/0');
@@ -190,4 +205,22 @@ check(
 	['[gpuix-svelte/test] no text "no such text" in the tree', '[gpuix-svelte/test] no testId "no-such-id" in the tree', '[gpuix-svelte/test] element 999999 has no painted bounds']
 );
 
-finish('helpers', 31);
+check('text_content joins its own text and every descendant text in document order', text_content(node('content')), 'one twothree four');
+check(
+	'it takes a text node or an id too, and throws for what is not in the tree',
+	[text_content(find_text('two')!), text_content(node('content').id), refusal(() => text_content(999_999))],
+	['two', 'one twothree four', '[gpuix-svelte/test] element 999999 is not in the tree']
+);
+
+const shot_path = join(tmpdir(), `gpuix-svelte-helpers-${process.pid}.png`);
+const shot = () => readFileSync(screenshot(shot_path)).toString('base64');
+// The resumed clock keeps the mover's motion running, which would make no two pictures alike.
+clock_pause();
+const before = shot();
+const again = shot();
+(component as { paint_swatch(colour: string): void }).paint_swatch('#e0e0e0');
+const after = shot();
+rmSync(shot_path, { force: true });
+check('screenshot settles first, so a change Svelte has not flushed is in the picture', [again === before, after === before], [true, false]);
+
+finish('helpers', 36);

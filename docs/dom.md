@@ -54,6 +54,8 @@ render(App, { title: 'My app' });
 `render()` mounts into `document.body` and sets the page title. `<body>` gets the box GPUI gives
 its root, a flex row filling the viewport with `position: relative` and no margin, or `rootStyle`
 in its place, so a root with `width: 100%; height: 100%` fills the page as it fills the window.
+It also gets `line-height: 1.618`, GPUI's default, so a line of text is as tall on both; a
+browser's own default follows the font and is tighter. A `font` shorthand on an element resets it.
 `width`, `height`, `titlebar`, `tabNavigation`, `keyboardFocusDim`, `debugFrameOverlay` and
 `onEvent` are ignored. A second `render()` replaces the first. `render_hot` exists only to reject
 with a message naming the bin, which is what an entry that lands here by mistake has skipped;
@@ -146,6 +148,12 @@ is the DOM element.
   textarea or a contenteditable has focus, and `e.preventDefault()` reaches the browser event.
   `render()`'s `onKeyDown` / `onKeyUp` go through it too.
 - `on_selection_change(handler)` hears `selectionchange`; `e.value` is the selected text.
+  `selected_text()` is `document.getSelection()` as text, reactive through the same event, and
+  `clear_selection()` empties it. `is_terminal()` is false.
+- `dismiss_layer({ onEscape })` keeps the same stack, with a `window` `keydown` listener added as
+  the first layer opens: a handler on the focused element, or a window one subscribed before that,
+  can still call `e.preventDefault()` to keep the top layer open, as can a handler on the focused
+  element that calls `e.stopPropagation()`. A held key's repeats are ignored.
 - `window_size` is `innerWidth` × `innerHeight`, reactive through the resize event (no polling).
   `window_insets` reads as zero, since the page already sits inside the browser's insets.
 - `media_query('(max-width: 700px)')` is `matchMedia`, so every query a browser knows works here,

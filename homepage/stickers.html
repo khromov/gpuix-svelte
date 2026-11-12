@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stickers · gpuix-svelte</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M28.4 18.3 15.4 32l13 13.7' fill='none' stroke='%23fff' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34.9 18.3 50 32 34.9 45.7Z' fill='%23ff3e00' stroke='%23ff3e00' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preload" href="assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:Geist;src:url(assets/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{
+--bg:#000;--s1:#0a0a0a;--s3:#171717;
+--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.13);--line-3:rgba(255,255,255,.22);
+--text:#ededed;--text-2:#a1a1a1;--text-3:#8f8f8f;
+--accent:#ff3e00;
+--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+a{color:inherit}
+p,figure,h2{margin:0}
+
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;height:56px;padding:0 32px;background:var(--bg);border-bottom:1px solid var(--line)}
+.home{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.home svg{width:22px;height:22px}
+.home span{margin-left:4px;font-weight:400;color:var(--text-3)}
+main{max-width:1280px;margin:0 auto;padding:32px}
+.lead{max-width:68ch;color:var(--text-2);text-wrap:pretty}
+section{margin-top:40px}
+h2{font-size:15px;font-weight:600;letter-spacing:-.015em}
+.note{max-width:68ch;margin-top:2px;color:var(--text-2);text-wrap:pretty}
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:32px 28px;margin-top:16px}
+.slot{display:grid;place-items:center;padding:clamp(20px,6%,40px);border-radius:12px;background:repeating-conic-gradient(#262626 0 25%,#1c1c1c 0 50%) 0 0/20px 20px;box-shadow:0 0 0 1px var(--line-2)}
+.slot svg{display:block;width:100%;height:auto}
+.slot.fit{display:block;aspect-ratio:2/1;padding:clamp(24px,10%,48px)}
+.slot.fit svg{height:100%}
+figcaption{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+figcaption b{margin-right:auto;font-weight:600;letter-spacing:-.015em}
+.save{appearance:none;height:30px;padding:0 12px;font:500 12.5px/1 var(--sans);color:var(--text);background:var(--s3);border:1px solid var(--line-2);border-radius:7px;white-space:nowrap;cursor:pointer}
+.save:hover{background:#1f1f1f;border-color:var(--line-3)}
+.save:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.save:disabled{color:var(--text-3);cursor:progress}
+@media (max-width:640px){
+.top{padding:0 16px}
+main{padding:24px 16px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+<a class="home" href="./"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte<span>stickers</span></a>
+</header>
+<main>
+<p class="lead">Stickers and their parts. Every PNG is transparent outside the artwork, with its print size at 300 DPI on hover; every SVG is the same artwork in vector, at the PNG’s size, with the text as outlines.</p>
+<div id="sections"></div>
+</main>
+<script>
+// Geist 600 with the lockup's -0.03em tracking as outlines, so no download needs a font: the wordmark as placed on the rounded sticker, and each word at 100 units on a baseline at 0.
+const WORDMARK = 'M305.16 204.52Q296.9 204.52 291 202.27Q285.1 200.03 281.51 195.96Q277.91 191.89 276.49 186.58L292.07 185.52Q293.25 189.06 296.14 191.06Q299.03 193.07 305.16 193.07Q312.13 193.07 315.9 189.94Q319.68 186.82 319.68 180.21L319.68 172.18Q317.44 176.79 312.48 179.56Q307.52 182.33 301.39 182.33Q293.6 182.33 287.52 178.5Q281.45 174.66 278.02 167.76Q274.6 160.86 274.6 151.77Q274.6 142.68 277.96 135.78Q281.33 128.88 287.35 124.93Q293.36 120.97 301.15 120.97Q308 120.97 312.95 124.04Q317.91 127.11 320.15 132.18L320.15 122.39L334.9 122.39L334.9 179.85Q334.9 187.88 331.18 193.42Q327.47 198.97 320.8 201.74Q314.13 204.52 305.16 204.52ZM304.93 170.53Q311.65 170.53 315.67 165.52Q319.68 160.5 319.8 151.65Q319.91 145.75 318.08 141.56Q316.26 137.37 312.89 135.07Q309.53 132.77 304.93 132.77Q297.97 132.77 294.13 137.91Q290.3 143.04 290.3 151.65Q290.3 160.27 294.25 165.4Q298.2 170.53 304.93 170.53ZM347.93 203.1L347.93 122.39L362.44 122.39L362.8 135.84L361.26 135.13Q363.62 128.17 368.99 124.57Q374.36 120.97 381.56 120.97Q390.53 120.97 396.48 125.46Q402.44 129.94 405.39 137.37Q408.34 144.81 408.34 153.89Q408.34 162.98 405.33 170.41Q402.33 177.85 396.37 182.33Q390.41 186.82 381.44 186.82Q376.72 186.82 372.65 185.16Q368.58 183.51 365.69 180.44Q362.8 177.38 361.62 173.25L363.03 172.07L363.03 203.1ZM377.9 174.54Q384.74 174.54 388.7 169.06Q392.65 163.57 392.65 153.89Q392.65 144.22 388.7 138.73Q384.74 133.24 377.9 133.24Q373.3 133.24 369.99 135.55Q366.69 137.85 364.86 142.45Q363.03 147.05 363.03 153.89Q363.03 160.74 364.8 165.34Q366.57 169.94 369.93 172.24Q373.3 174.54 377.9 174.54ZM437.25 186.82Q427.7 186.82 422.09 180.5Q416.49 174.19 416.49 162.98L416.49 122.39L431.59 122.39L431.59 159.2Q431.59 167.11 434.24 170.83Q436.9 174.54 442.33 174.54Q448.46 174.54 451.83 170.47Q455.19 166.4 455.19 158.61L455.19 122.39L470.29 122.39L470.29 185.4L456.49 185.4L456.13 168.05L458.02 168.64Q456.61 177.61 451.3 182.21Q445.99 186.82 437.25 186.82ZM482.09 185.4L482.09 122.39L497.2 122.39L497.2 185.4ZM481.86 114.01L481.86 100.56L497.55 100.56L497.55 114.01ZM501.54 185.4L524.2 153.3L502.37 122.39L518.77 122.39L533.16 143.86L547.32 122.39L563.96 122.39L542.25 153.42L564.79 185.4L548.39 185.4L533.4 162.74L518.3 185.4ZM563.99 157.32L563.99 144.57L604.11 144.57L604.11 157.32ZM639.01 186.82Q629.45 186.82 623.14 184.1Q616.83 181.39 613.52 176.55Q610.22 171.71 609.75 165.58L625.2 164.87Q626.03 169.82 629.22 172.54Q632.4 175.25 639.13 175.25Q644.44 175.25 647.21 173.54Q649.98 171.83 649.98 168.17Q649.98 166.05 648.98 164.63Q647.98 163.22 645.09 162.15Q642.2 161.09 636.65 160.03Q627.09 158.38 621.66 155.96Q616.24 153.54 614.05 149.88Q611.87 146.22 611.87 140.8Q611.87 131.95 618.65 126.46Q625.44 120.97 638.54 120.97Q647.62 120.97 653.46 123.86Q659.31 126.75 662.31 131.53Q665.32 136.31 665.8 142.21L650.46 142.92Q650.34 139.97 649.04 137.61Q647.74 135.25 645.15 133.89Q642.55 132.54 638.3 132.54Q632.99 132.54 630.22 134.66Q627.45 136.78 627.45 140.32Q627.45 142.8 628.57 144.45Q629.69 146.11 632.4 147.11Q635.12 148.11 639.84 148.94Q649.51 150.35 655.18 152.83Q660.84 155.31 663.26 159.03Q665.68 162.74 665.68 167.94Q665.68 177.02 658.42 181.92Q651.16 186.82 639.01 186.82ZM689.09 185.4L666.08 122.39L682.01 122.39L698.06 170.18L714.1 122.39L730.03 122.39L707.02 185.4ZM761.28 186.82Q751.84 186.82 744.88 182.75Q737.92 178.67 734.14 171.24Q730.37 163.81 730.37 153.89Q730.37 143.98 734.14 136.61Q737.92 129.23 744.82 125.1Q751.72 120.97 760.93 120.97Q769.9 120.97 776.68 124.98Q783.47 129 787.12 136.55Q790.78 144.1 790.78 154.72L790.78 158.14L746.06 158.14Q746.53 166.4 750.6 170.59Q754.67 174.78 761.4 174.78Q766.47 174.78 769.84 172.48Q773.2 170.18 774.5 166.05L789.96 166.99Q787.36 176.2 779.75 181.51Q772.14 186.82 761.28 186.82ZM746.06 147.99L775.21 147.99Q774.73 140.32 770.84 136.61Q766.95 132.89 760.93 132.89Q754.91 132.89 750.96 136.78Q747 140.68 746.06 147.99ZM814.69 185.4Q807.84 185.4 803.71 181.86Q799.58 178.32 799.58 170.53L799.58 101.62L814.69 101.62L814.69 169Q814.69 171.36 815.93 172.54Q817.17 173.72 819.41 173.72L824.01 173.72L824.01 185.4ZM850.96 185.4Q841.52 185.4 837.1 181.03Q832.67 176.67 832.67 167.35L832.67 107.64L847.78 107.64L847.78 165.93Q847.78 170.3 849.66 172.01Q851.55 173.72 855.56 173.72L864.41 173.72L864.41 185.4ZM822.76 134.07L822.76 122.39L864.41 122.39L864.41 134.07ZM898.14 186.82Q888.7 186.82 881.74 182.75Q874.77 178.67 871 171.24Q867.22 163.81 867.22 153.89Q867.22 143.98 871 136.61Q874.77 129.23 881.68 125.1Q888.58 120.97 897.78 120.97Q906.75 120.97 913.54 124.98Q920.32 129 923.98 136.55Q927.64 144.1 927.64 154.72L927.64 158.14L882.92 158.14Q883.39 166.4 887.46 170.59Q891.53 174.78 898.26 174.78Q903.33 174.78 906.69 172.48Q910.06 170.18 911.35 166.05L926.81 166.99Q924.22 176.2 916.6 181.51Q908.99 186.82 898.14 186.82ZM882.92 147.99L912.06 147.99Q911.59 140.32 907.7 136.61Q903.8 132.89 897.78 132.89Q891.77 132.89 887.81 136.78Q883.86 140.68 882.92 147.99Z';
+const GPUIX = 'M29.8 16.2Q22.8 16.2 17.8 14.3Q12.8 12.4 9.75 8.95Q6.7 5.5 5.5 1L18.7 0.1Q19.7 3.1 22.15 4.8Q24.6 6.5 29.8 6.5Q35.7 6.5 38.9 3.85Q42.1 1.2 42.1-4.4L42.1-11.2Q40.2-7.3 36-4.95Q31.8-2.6 26.6-2.6Q20-2.6 14.85-5.85Q9.7-9.1 6.8-14.95Q3.9-20.8 3.9-28.5Q3.9-36.2 6.75-42.05Q9.6-47.9 14.7-51.25Q19.8-54.6 26.4-54.6Q32.2-54.6 36.4-52Q40.6-49.4 42.5-45.1L42.5-53.4L55-53.4L55-4.7Q55 2.1 51.85 6.8Q48.7 11.5 43.05 13.85Q37.4 16.2 29.8 16.2ZM29.6-12.6Q35.3-12.6 38.7-16.85Q42.1-21.1 42.2-28.6Q42.3-33.6 40.75-37.15Q39.2-40.7 36.35-42.65Q33.5-44.6 29.6-44.6Q23.7-44.6 20.45-40.25Q17.2-35.9 17.2-28.6Q17.2-21.3 20.55-16.95Q23.9-12.6 29.6-12.6ZM66.04 15L66.04-53.4L78.34-53.4L78.64-42L77.34-42.6Q79.34-48.5 83.89-51.55Q88.44-54.6 94.54-54.6Q102.14-54.6 107.19-50.8Q112.24-47 114.74-40.7Q117.24-34.4 117.24-26.7Q117.24-19 114.69-12.7Q112.14-6.4 107.09-2.6Q102.04 1.2 94.44 1.2Q90.44 1.2 86.99-0.2Q83.54-1.6 81.09-4.2Q78.64-6.8 77.64-10.3L78.84-11.3L78.84 15ZM91.44-9.2Q97.24-9.2 100.59-13.85Q103.94-18.5 103.94-26.7Q103.94-34.9 100.59-39.55Q97.24-44.2 91.44-44.2Q87.54-44.2 84.74-42.25Q81.94-40.3 80.39-36.4Q78.84-32.5 78.84-26.7Q78.84-20.9 80.34-17Q81.84-13.1 84.69-11.15Q87.54-9.2 91.44-9.2ZM141.74 1.2Q133.64 1.2 128.89-4.15Q124.14-9.5 124.14-19L124.14-53.4L136.94-53.4L136.94-22.2Q136.94-15.5 139.19-12.35Q141.44-9.2 146.04-9.2Q151.24-9.2 154.09-12.65Q156.94-16.1 156.94-22.7L156.94-53.4L169.74-53.4L169.74 0L158.04 0L157.74-14.7L159.34-14.2Q158.14-6.6 153.64-2.7Q149.14 1.2 141.74 1.2ZM179.74 0L179.74-53.4L192.54-53.4L192.54 0ZM179.54-60.5L179.54-71.9L192.84-71.9L192.84-60.5ZM196.22 0L215.42-27.2L196.92-53.4L210.82-53.4L223.02-35.2L235.02-53.4L249.12-53.4L230.72-27.1L249.82 0L235.92 0L223.22-19.2L210.42 0Z';
+const SVELTE = 'M28.7 1.2Q20.6 1.2 15.25-1.1Q9.9-3.4 7.1-7.5Q4.3-11.6 3.9-16.8L17-17.4Q17.7-13.2 20.4-10.9Q23.1-8.6 28.8-8.6Q33.3-8.6 35.65-10.05Q38-11.5 38-14.6Q38-16.4 37.15-17.6Q36.3-18.8 33.85-19.7Q31.4-20.6 26.7-21.5Q18.6-22.9 14-24.95Q9.4-27 7.55-30.1Q5.7-33.2 5.7-37.8Q5.7-45.3 11.45-49.95Q17.2-54.6 28.3-54.6Q36-54.6 40.95-52.15Q45.9-49.7 48.45-45.65Q51-41.6 51.4-36.6L38.4-36Q38.3-38.5 37.2-40.5Q36.1-42.5 33.9-43.65Q31.7-44.8 28.1-44.8Q23.6-44.8 21.25-43Q18.9-41.2 18.9-38.2Q18.9-36.1 19.85-34.7Q20.8-33.3 23.1-32.45Q25.4-31.6 29.4-30.9Q37.6-29.7 42.4-27.6Q47.2-25.5 49.25-22.35Q51.3-19.2 51.3-14.8Q51.3-7.1 45.15-2.95Q39 1.2 28.7 1.2ZM71.14 0L51.64-53.4L65.14-53.4L78.74-12.9L92.34-53.4L105.84-53.4L86.34 0ZM132.32 1.2Q124.32 1.2 118.42-2.25Q112.52-5.7 109.32-12Q106.12-18.3 106.12-26.7Q106.12-35.1 109.32-41.35Q112.52-47.6 118.37-51.1Q124.22-54.6 132.02-54.6Q139.62-54.6 145.37-51.2Q151.12-47.8 154.22-41.4Q157.32-35 157.32-26L157.32-23.1L119.42-23.1Q119.82-16.1 123.27-12.55Q126.72-9 132.42-9Q136.72-9 139.57-10.95Q142.42-12.9 143.52-16.4L156.62-15.6Q154.42-7.8 147.97-3.3Q141.52 1.2 132.32 1.2ZM119.42-31.7L144.12-31.7Q143.72-38.2 140.42-41.35Q137.12-44.5 132.02-44.5Q126.92-44.5 123.57-41.2Q120.22-37.9 119.42-31.7ZM177.58 0Q171.78 0 168.28-3Q164.78-6 164.78-12.6L164.78-71L177.58-71L177.58-13.9Q177.58-11.9 178.63-10.9Q179.68-9.9 181.58-9.9L185.48-9.9L185.48 0ZM208.32 0Q200.32 0 196.57-3.7Q192.82-7.4 192.82-15.3L192.82-65.9L205.62-65.9L205.62-16.5Q205.62-12.8 207.22-11.35Q208.82-9.9 212.22-9.9L219.72-9.9L219.72 0ZM184.42-43.5L184.42-53.4L219.72-53.4L219.72-43.5ZM248.3 1.2Q240.3 1.2 234.4-2.25Q228.5-5.7 225.3-12Q222.1-18.3 222.1-26.7Q222.1-35.1 225.3-41.35Q228.5-47.6 234.35-51.1Q240.2-54.6 248-54.6Q255.6-54.6 261.35-51.2Q267.1-47.8 270.2-41.4Q273.3-35 273.3-26L273.3-23.1L235.4-23.1Q235.8-16.1 239.25-12.55Q242.7-9 248.4-9Q252.7-9 255.55-10.95Q258.4-12.9 259.5-16.4L272.6-15.6Q270.4-7.8 263.95-3.3Q257.5 1.2 248.3 1.2ZM235.4-31.7L260.1-31.7Q259.7-38.2 256.4-41.35Q253.1-44.5 248-44.5Q242.9-44.5 239.55-41.2Q236.2-37.9 235.4-31.7Z';
+const [WIDTH, HEIGHT, RADIUS] = [1000, 300, 72];
+const [INSET, LINE] = [26, 10];
+const ELEMENT_SCALE = 10;
+const DPI = 300;
+const COLOURS = [
+	{ id: 'dark', name: 'Dark', bg: '#000', body: '#fff', tip: '#ff3e00', text: '#fff' },
+	{ id: 'light', name: 'Light', bg: '#fff', body: '#0a0a0a', tip: '#ff3e00', text: '#0a0a0a' },
+	{ id: 'orange', name: 'Orange', bg: '#ff3e00', body: '#000', tip: '#000', text: '#000' }
+];
+
+// Ink bounds as [left, top, right, bottom]: the logo in its 64-unit box, each word as outlined above.
+const INK = { logo: [6, 10, 59.5, 54], gpuix: [3.9, -71.9, 249.82, 16.2], svelte: [3.9, -71, 273.3, 1.2] };
+// svelte starts under gpuix's u, one line down.
+const [OFFSET, LEADING, MARGIN] = [120.2, 88, 130];
+
+const r = (n) => Math.round(n * 100) / 100;
+const around = ([left, top, right, bottom]) => [Math.floor(left), Math.floor(top), Math.ceil(right) - Math.floor(left), Math.ceil(bottom) - Math.floor(top)];
+const mark = (body, tip) => `<path d="M27 13 9 32l18 19" fill="none" stroke="${body}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="${tip}" stroke="${tip}" stroke-width="5" stroke-linejoin="round"/>`;
+
+const rounded = (c) => `<rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}" fill="${c.bg}"/><rect x="${INSET}" y="${INSET}" width="${WIDTH - 2 * INSET}" height="${HEIGHT - 2 * INSET}" rx="${RADIUS - INSET}" fill="none" stroke="${c.body}" stroke-width="${LINE}"/><g transform="translate(56 64) scale(2.68)">${mark(c.body, c.tip)}</g><path transform="translate(-13 -2)" d="${WORDMARK}" fill="${c.text}"/>`;
+
+function stacked() {
+	const [left, top] = INK.gpuix;
+	const [right, bottom] = [OFFSET + INK.svelte[2], LEADING + INK.svelte[3]];
+	const scale = (1000 - 2 * MARGIN) / (right - left);
+	const y = (1000 - (bottom - top) * scale) / 2 - top * scale;
+	return `<rect width="1000" height="1000" fill="#000"/><g transform="translate(${r(MARGIN - left * scale)} ${r(y)}) scale(${r(scale * 1000) / 1000})"><path d="${GPUIX}" fill="#fff"/><path transform="translate(${OFFSET} ${LEADING})" d="${SVELTE}" fill="#ff3e00"/></g>`;
+}
+
+const SECTIONS = [
+	{ title: 'Rounded', items: COLOURS.map((c) => ({ id: `sticker-${c.id}`, name: c.name, box: [0, 0, WIDTH, HEIGHT], scale: 4.8, body: rounded(c) })) },
+	// Safari refuses a canvas over 16.7 megapixels, so the square gets 4 px a unit where the rounded ones get 4.8.
+	{ title: 'Square', items: [{ id: 'sticker-square', name: 'Stacked', box: [0, 0, 1000, 1000], scale: 4, body: stacked() }] },
+	{
+		title: 'Elements',
+		note: 'Cropped to the artwork and at one scale, the words at a 1000 px font size and the logo sized to them as on the rounded stickers, so they fit back together.',
+		items: [
+			{ id: 'logo', name: 'Logo', box: around(INK.logo), scale: ELEMENT_SCALE * 2.68 * 100 / 118, body: mark('#fff', '#ff3e00'), fit: true },
+			{ id: 'gpuix', name: 'gpuix', box: around(INK.gpuix), scale: ELEMENT_SCALE, body: `<path d="${GPUIX}" fill="#fff"/>`, fit: true },
+			{ id: 'svelte', name: 'svelte', box: around(INK.svelte), scale: ELEMENT_SCALE, body: `<path d="${SVELTE}" fill="#ff3e00"/>`, fit: true }
+		]
+	}
+];
+const ITEMS = SECTIONS.flatMap((s) => s.items);
+
+const size = (item) => [Math.round(item.box[2] * item.scale), Math.round(item.box[3] * item.scale)];
+const svg = (item, [width, height] = item.box.slice(2)) => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${item.box.join(' ')}" role="img"><title>gpuix-svelte</title>${item.body}</svg>`;
+const inches = (px) => Math.round(px / DPI * 10) / 10;
+
+const sections = document.getElementById('sections');
+sections.innerHTML = SECTIONS.map((s) => `
+	<section>
+		<h2>${s.title}</h2>${s.note ? `<p class="note">${s.note}</p>` : ''}
+		<div class="sheet">${s.items.map((item) => {
+			const [width, height] = size(item);
+			return `
+			<figure>
+				<div class="slot${item.fit ? ' fit' : ''}">${svg(item)}</div>
+				<figcaption><b>${item.name}</b><button class="save" type="button" data-id="${item.id}" data-format="png" title="${inches(width)} × ${inches(height)} in at ${DPI} DPI">PNG, ${width} × ${height}</button><button class="save" type="button" data-id="${item.id}" data-format="svg">SVG</button></figcaption>
+			</figure>`;
+		}).join('')}</div>
+	</section>`).join('');
+
+async function png(item) {
+	const [width, height] = size(item);
+	const url = URL.createObjectURL(new Blob([svg(item, [width, height])], { type: 'image/svg+xml' }));
+	try {
+		const image = new Image();
+		image.src = url;
+		await image.decode();
+		const canvas = Object.assign(document.createElement('canvas'), { width, height });
+		canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+		return await new Promise((done, fail) => canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('the canvas produced no PNG'))), 'image/png'));
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
+
+function save(blob, name) {
+	const url = URL.createObjectURL(blob);
+	Object.assign(document.createElement('a'), { href: url, download: name }).click();
+	setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+sections.addEventListener('click', async (e) => {
+	const button = e.target.closest('.save');
+	if (!button) return;
+	const item = ITEMS.find((i) => i.id === button.dataset.id);
+	const name = `gpuix-svelte-${item.id}.${button.dataset.format}`;
+	if (button.dataset.format === 'svg') {
+		save(new Blob([svg(item, size(item))], { type: 'image/svg+xml' }), name);
+		return;
+	}
+	const label = button.textContent;
+	button.disabled = true;
+	button.textContent = 'Rendering…';
+	try {
+		save(await png(item), name);
+		button.textContent = label;
+	} catch (error) {
+		console.error(error);
+		button.textContent = 'Failed, see console';
+	}
+	button.disabled = false;
+});
+</script>
+</body>
+</html>

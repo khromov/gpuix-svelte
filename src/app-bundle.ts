@@ -8,6 +8,7 @@ import { Parser, type CallExpression, type Expression, type Literal, type Node, 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppOptions, AppUpdateOptions } from './types.ts';
@@ -173,6 +174,15 @@ export function resolve_app_info(declared: EntryApp, entry: string): AppInfo {
 		description: declared.description,
 		update: declared.update
 	};
+}
+
+/** The host's `.node` prebuild, which one of `@gpuix/native`'s optional dependencies carries. */
+export function native_addon(): string {
+	const from_native = createRequire(createRequire(import.meta.url).resolve('@gpuix/native'));
+	const prebuilds = Object.keys(from_native('./package.json').optionalDependencies ?? {});
+	const prebuild = prebuilds.find((name) => name.startsWith(`@gpuix/native-${process.platform}-${process.arch}`));
+	if (!prebuild) throw new Error(`@gpuix/native has no prebuild for ${process.platform}-${process.arch}`);
+	return from_native.resolve(prebuild);
 }
 
 /** `update-<platform>.json`'s platform key, the same string `gpuix-svelte/update` looks its asset up by. */

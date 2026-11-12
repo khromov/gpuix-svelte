@@ -58,7 +58,8 @@ interface GpuixAttributes extends GpuixEvents {
 	/** Paint natively from the root, on top of everything mounted before it. */
 	portal?: Flag;
 	testid?: Text;
-	tabindex?: Count;
+	/** A bare `tabindex` is a tab stop, as `0`. */
+	tabindex?: Count | true | '';
 	autofocus?: Flag;
 	motion?: MotionProps | null | undefined;
 	highlight?: HighlightSpec | HighlightSpec[] | null | undefined;
@@ -72,6 +73,13 @@ interface GpuixAttributes extends GpuixEvents {
 	'aria-level'?: Count;
 	// Svelte drops a return that is not a function, so `(node) => (x = node)` is fine.
 	[key: symbol]: ((node: ShadowNode) => unknown) | false | null | undefined;
+}
+
+interface ButtonAttributes extends GpuixAttributes {
+	/** No tab stop, and neither a click nor Enter or Space reaches `onclick`. */
+	disabled?: Flag;
+	/** Accepted so a component shared with the DOM typechecks; GPUI has no forms. */
+	type?: Text;
 }
 
 interface InputAttributes extends GpuixAttributes {
@@ -190,6 +198,7 @@ declare global {
 		interface IntrinsicElements extends SvelteTags {
 			div: GpuixAttributes;
 			text: GpuixAttributes;
+			button: ButtonAttributes;
 			img: ImgAttributes;
 			svg: SvgAttributes;
 			input: InputAttributes;

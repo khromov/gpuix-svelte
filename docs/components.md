@@ -22,7 +22,9 @@ come from `set_css_vars`.
 
 GPUI's own scrollbar (`scrollbar-color`, see [Styling](styling.md)) can't be dragged, so
 `Scroller` is a scroll column that draws its own thumb in a gutter, follows the wheel and lets you
-drag the thumb.
+drag the thumb. The thumb listens for both `mousedown` and `mousemove`, which makes GPUI capture
+the pointer, so a drag keeps going when the pointer leaves the thumb or the window and ends
+wherever you let go.
 
 Props:
 
@@ -31,8 +33,8 @@ Props:
 - `scroll={false}` clips the content and draws no thumb.
 - `follow` keeps the bottom in view while content grows, as in a streaming reply.
 - `virtual` and `estimate` make it a [virtual list](#virtual-lists).
-- `testid` goes on the scroll column. The thumb gets `<testid>-thumb` and the drag overlay
-  `<testid>-overlay`.
+- `testid` goes on the scroll column (the `<virtual-list>` with `virtual`). The thumb gets
+  `<testid>-thumb`, and a virtual list's drag strip `<testid>-strip`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
 fallbacks.
@@ -107,10 +109,17 @@ creates every row; only the layout and paint are skipped.
   their content, and space rows with padding inside them: `gap` applies only to the plain column.
 - `estimate` (default `80`) is the height hint for rows GPUI hasn't measured yet.
 - `follow` becomes the list's own tail-following.
-- `pad` pads the box around the list, so it does not scroll with the rows. No gutter is reserved,
-  so the thumb paints over the rows' right edge. `scroll={false}` is ignored.
-- Nothing reports a change in row count, so the thumb re-reads the list's position every 250 ms
-  (100 ms with `follow`).
+- `pad` pads the box around the list, so it does not scroll with the rows. The list keeps a
+  12 px gutter on its right, as the plain column does, so the thumb never paints over a row.
+  `scroll={false}` is ignored.
+- The thumb is GPUI's own (`scrollbar-color` on the list), painted from the heights the list has
+  measured in the frame it scrolls, so nothing polls the list.
+- GPUI's thumb takes no pointer, so an invisible 8 px strip over the gutter does the dragging,
+  with the same pointer capture. While it is hovered or dragged the thumb turns
+  `--scroller-thumb-hover`. A press reads the list's
+  position once and estimates its length from the rows above the top one, or from `estimate` at
+  the very top, so rows far from `estimate` make the thumb run ahead of or behind the pointer. A
+  drag let go past the end settles on the last row.
 
 ## Portal
 
@@ -201,15 +210,19 @@ a deferred layer.
 ## Tooltip
 
 A hover tip beside its trigger, built on `<anchored>`. It shows after `delay` ms of hover and stays
-open while the pointer crosses onto the tip, with an 80 ms grace for the gap. The tip takes no
-clicks, so they land on whatever lies beneath it.
+open while the pointer crosses onto the tip, with an 80 ms grace for the gap. A trigger that spreads
+the snippet's focus handlers also shows it at once on keyboard focus and hides it on blur, until the
+pointer takes over. Escape hides it either way, unless another layer opened after it, such as a
+popover, is still open (see `dismiss_layer` in the [guide](guide.md#keyboard-shortcuts-and-focus)).
+A tip that `open` forces ignores Escape. The tip takes no clicks, so they land on whatever lies
+beneath it.
 
 Props:
 
 - `content`: a string or a snippet.
 - `side` (default `top`), `align` (default `center`), `gap` (default `6`) and `delay` (default
   `300`).
-- `open` forces the tip shown or hidden. `null`, the default, leaves it to hover.
+- `open` forces the tip shown or hidden. `null`, the default, leaves it to hover and focus.
 - `style`: inline CSS for one tip, which wins over the tip's own rules
   (`style="padding: 8px 12px; border-radius: 0; background-color: #ff3e00"`).
 - `testid` goes on the wrapper around the trigger. The tip gets `<testid>-tip`.
@@ -217,14 +230,17 @@ Props:
 Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you set for the whole
 app with `set_css_vars`.
 
-A decorative trigger (text, an icon, a badge) needs nothing more. A trigger with a handler of its
-own, such as a button, takes the hover for itself, so spread the handlers the `children` snippet
-receives onto it:
+A decorative trigger (text, an icon, a badge) needs nothing more, but a keyboard can't reach it, so
+put nothing in its tip that isn't on screen elsewhere. A trigger with a handler of its own, such as
+a button, takes the hover for itself, so spread the hover handlers the `children` snippet receives
+onto it. A trigger that takes keyboard focus (one with `tabindex`) spreads the second argument, the
+focus handlers, too. Leave those off anything else: on GPUI, listening for focus makes an element
+focusable, so a click on it would take focus away from a text field.
 
 ```svelte
 <Tooltip content="Save (⌘S)">
-  {#snippet children(hover)}
-    <div class="btn" {...hover} onclick={save}>Save</div>
+  {#snippet children(hover, focus)}
+    <div class="btn" role="button" tabindex="0" {...hover} {...focus} onclick={save}>Save</div>
   {/snippet}
 </Tooltip>
 ```
@@ -284,8 +300,10 @@ receives onto it:
 ## Popover
 
 A controlled panel beside its trigger. You own `open`, and the trigger toggles it. `onclose` fires
-on a press outside both the panel and the trigger (any mouse button) and on Escape. A press on the
-trigger is left to the trigger's own click, so it closes the panel without reopening it.
+on a press outside both the panel and the trigger (any mouse button) and on Escape. Escape closes
+only the top layer, so a tooltip open inside the panel goes first and the panel on the next press,
+and a key handler that calls `e.preventDefault()` or `e.stopPropagation()` keeps it open. A press
+on the trigger is left to the trigger's own click, so it closes the panel without reopening it.
 
 Props:
 

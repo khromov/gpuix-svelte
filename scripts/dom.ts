@@ -27,7 +27,7 @@ if (args.includes('--build-only')) {
 
 const server = await createServer({
 	...config,
-	server: { port: Number(process.env.PORT || 4174), open: !args.includes('--no-open') }
+	server: { host: process.env.HOST, port: Number(process.env.PORT || 4174), open: !args.includes('--no-open') }
 });
 await server.listen();
 server.printUrls();

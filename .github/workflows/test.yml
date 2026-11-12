@@ -80,6 +80,8 @@ jobs:
       - run: npm run bun:test:bundle
       - run: npm run test:update
       - run: npm run bun:test:update
+      - run: npm run test:launcher
+      - run: npm run bun:test:launcher
       # The browser bundle, which the `browser` condition of every export has to keep buildable.
       - run: npm run demo:web -- --build-only
       # The DOM side of the package: the happy-dom suite needs no headless renderer, and Vite builds the example on it.
@@ -125,3 +127,5 @@ jobs:
         env:
           # Git Bash would rewrite a key starting with `/` into a Windows path.
           MSYS_NO_PATHCONV: 1
+      # A Bun without the experimental options has to say so and build as usual; one with them gets the direct prebuild and the byte check.
+      - run: npm run compile -- --aot --trim

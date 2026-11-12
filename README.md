@@ -102,8 +102,9 @@ files, spawn processes, open SQLite databases and load native addons directly.
 ## Coming from Svelte on the web
 
 - **HTML elements are mapped to GPUI primitives**: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
-  `markdown`, `virtual-list` and `anchored`. Any other tag renders as a `div`, with a one-time
-  warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
+  `markdown`, `virtual-list` and `anchored`. `button` works too: an unstyled `div` that is a tab
+  stop with the button role, clicked by Enter and Space. Any other tag renders as a `div`, with a
+  one-time warning. `<img src>` takes a file path, a `data:` URL or an http(s) URL.
 - **Styling is CSS, laid out with flexbox.** Lengths are `px` or `rem` (16 px), and sizes
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
   with `:hover`, `:active` and `:focus-visible`. Values GPUI can't use are dropped with a warning.
@@ -147,13 +148,17 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
 | [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
 | [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
+| [Accessibility](docs/accessibility.md) | What reaches a screen reader, what GPUI lacks and what to use instead, keyboard patterns for menus, dialogs and lists |
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 | [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
 | [UI toolkit](docs/ui.md) | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
-For real code, the [examples](examples) are the best reference (see [Examples](#examples)).
+For real code, the [examples](examples) are the best reference (see [Examples](#examples)). To try
+a component without installing anything, the [playground](https://gpuix-svelte.stanislav.garden/playground.html)
+compiles one in the browser and runs it on GPUI's WebAssembly build or in the DOM, with the
+element tree, the mutations and the compiled JavaScript beside it.
 
 ## Adding it to an existing project
 

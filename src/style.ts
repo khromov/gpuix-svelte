@@ -4,7 +4,20 @@
  * know, handed a string it can't parse, throws out of `applyBatch`.
  */
 
+import type { StyleDesc } from '@gpuix/native/host';
 import type { GpuiStyle, ShadowAttrs, StyleRule, StyleValue } from './types.ts';
+
+/** A set that has to name every one of `K`, so a key a native bump adds, or a typo, fails typecheck. */
+export const set_of =
+	<K extends string>() =>
+	<const T extends readonly K[]>(keys: T & ([Exclude<K, T[number]>] extends [never] ? unknown : { missing: Exclude<K, T[number]> })): ReadonlySet<string> =>
+		new Set<string>(keys);
+
+type Value<K extends keyof StyleDesc> = Exclude<StyleDesc[K], undefined>;
+/** `StyleDesc` keys every value of which is a `V`. */
+type Only<V> = { [K in keyof StyleDesc]-?: [Value<K>] extends [V] ? K : never }[keyof StyleDesc];
+/** `StyleDesc` keys some value of which is a `V`. */
+type Takes<V> = { [K in keyof StyleDesc]-?: [Extract<Value<K>, V>] extends [never] ? never : K }[keyof StyleDesc];
 
 const PX = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)px$/i;
 const NUM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
@@ -22,7 +35,7 @@ const INTRINSIC = /^(?:max-content|min-content|fit-content)(?:\(.*\))?$/;
 const OVERFLOW = new Set(['overflow', 'overflowX', 'overflowY']);
 
 /** GPUI reads these as a bare `f64`, so any string at all fails to deserialize. */
-const NUMBER_ONLY = new Set([
+const NUMBER_ONLY = set_of<Only<number>>()([
 	'flexGrow',
 	'flexShrink',
 	'flexBasis',
@@ -66,7 +79,7 @@ const NUMBER_ONLY = new Set([
 ]);
 
 /** Rust `String`s (`background` an enum of one or a gradient), so `color: 123456` must not coerce into a number. */
-const TEXT_ONLY = new Set([
+const TEXT_ONLY = set_of<Exclude<Takes<string>, Takes<number>>>()([
 	'display',
 	'visibility',
 	'flexDirection',
@@ -100,7 +113,7 @@ const TEXT_ONLY = new Set([
 ]);
 
 /** Rust `bool`s: the string CSS text hands over would fail to deserialize. */
-const BOOLEAN = new Set(['keyboardFocusDim']);
+const BOOLEAN = set_of<Only<boolean>>()(['keyboardFocusDim']);
 
 /** A unitless `aspect-ratio`, `1.5` or `16 / 9`; a length is no ratio, so it must not coerce like one. */
 const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(?:\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+)))?$/;
@@ -108,8 +121,8 @@ const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(?:\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|
 /** GPUI paints a thumb and no track, so only the first colour of `scrollbar-color: thumb track` applies. */
 const FIRST_COLOR = /^(?:[^\s(]+\([^)]*\)|\S+)/;
 
-/** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive. */
-const DIMENSION = new Set(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
+/** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive; `fontWeight` is typed the same, but for weight names. */
+const DIMENSION = set_of<Exclude<Extract<Takes<string>, Takes<number>>, 'fontWeight'>>()(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
 
 const PSEUDO_ATTRS = [
 	['hover', 'hover'],
@@ -118,7 +131,7 @@ const PSEUDO_ATTRS = [
 ] as const;
 
 /** A struct on the Rust side — CSS text can never produce one. */
-const NEVER = new Set(['boxShadow', 'hover', 'active', 'focusVisible']);
+const NEVER = set_of<Exclude<keyof StyleDesc, Takes<string | number | boolean>>>()(['boxShadow', 'hover', 'active', 'focusVisible']);
 
 /** GPUI has no `inset` field, so that one expands even when it holds one value. */
 const BOX: Record<string, string[] | undefined> = {
@@ -160,6 +173,9 @@ const FILL = [
 ];
 
 const warned = new Set<string>();
+
+/** The docs' playground recompiles one source on every edit and has to hear a dropped value each time. */
+export const forget_style_warnings = () => warned.clear();
 
 /** `var(--name)` values, set from JS; every rule or inline style that reads one re-resolves on change. */
 const css_vars = new Map<string, string>();

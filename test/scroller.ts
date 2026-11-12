@@ -1,7 +1,7 @@
 /**
- * The shipped Scroller draws its own thumb from the heights and offset GPUI reports and
- * drags it on an overlay, because GPUI's own scrollbar takes no pointer.
- * This runs the wheel, the drag and `follow` through the real hit testing.
+ * The shipped Scroller draws its own thumb from the heights and offset GPUI reports, because
+ * GPUI's own scrollbar takes no pointer; a virtual Scroller keeps GPUI's thumb and drags it
+ * through a strip. This runs the wheel, the drag and `follow` through the real hit testing.
  */
 
 import {
@@ -52,12 +52,31 @@ check('and the thumb moves down', t1.y > t0.y, true);
 
 const grip = center(thumb());
 mouse_down(grip);
-check('a mousedown on the thumb shows the drag overlay', find_test_id('list-overlay') != null, true);
+check('a mousedown on the thumb lights it for the drag', thumb().style!.backgroundColor, '#5a5a5a');
 const before = offset();
 mouse_move({ x: grip.x, y: grip.y + 40 }, { pressed_button: 0 });
 check('dragging scrolls further', offset() < before, true);
-mouse_up({ x: grip.x, y: grip.y + 40 });
-check('and the release takes the overlay away', find_test_id('list-overlay'), null);
+// Native captures the pointer for the thumb, so its moves keep coming once the pointer leaves the Scroller and the window.
+mouse_move({ x: 2000, y: 1500 }, { pressed_button: 0 });
+check('a drag far below the window scrolls to the end', Math.round(offset()), 200 - 30 * 40);
+mouse_move({ x: -500, y: -400 }, { pressed_button: 0 });
+check('and far above it back to the top', Math.round(offset()), 0);
+mouse_up({ x: -500, y: -400 });
+check('a release out there ends the drag', thumb().style!.backgroundColor, '#404040');
+{
+	const at = center(thumb());
+	mouse_move({ x: at.x, y: at.y + 10 }, { pressed_button: 0 });
+	check('so a later move over the thumb scrolls nothing', Math.round(offset()), 0);
+
+	// A release the OS kept from the window arrives as a move with no button held.
+	mouse_down(at);
+	mouse_move({ x: at.x, y: at.y + 20 }, { pressed_button: 0 });
+	const held = offset();
+	mouse_move({ x: at.x, y: at.y + 40 });
+	mouse_move({ x: at.x, y: at.y + 80 }, { pressed_button: 0 });
+	check('a move with no button held ends a drag whose release never came', [held < 0, offset()], [true, held]);
+	mouse_up({ x: at.x, y: at.y + 80 });
+}
 
 // Reading bounds makes GPUI draw a frame on Windows and Linux, so a plain column may never ask.
 ({ native, component } = mount_headless(Tall, { width: 400, height: 300 }));
@@ -155,6 +174,26 @@ await wait(THUMB_MS);
 await wait(THUMB_MS);
 check('and keeps it pinned while content grows', Math.round(offset()), 200 - 40 * 40);
 
+// The throttle must not outlive the component: a column that is gone has nothing to follow.
+{
+	const mounted = mount_headless(Tall, { props: { follow: true }, width: 400, height: 300 });
+	await wait(THUMB_MS);
+	mounted.component.grow(10);
+	// Long enough for the layout that reports the growth to arrive, not for the throttled update it starts.
+	await wait(10);
+	const own = column().id;
+	let scrolls = 0;
+	const scroll_to = mounted.native.scrollTo.bind(mounted.native);
+	mounted.native.scrollTo = (id, x, y) => {
+		if (id === own) scrolls++;
+		return scroll_to(id, x, y);
+	};
+	void mounted.unmount();
+	// A plain timer, since `wait` would commit the unmount and hide a late call behind a cleared id.
+	await new Promise((resolve) => setTimeout(resolve, 120));
+	check('a thumb update still pending at unmount reaches nothing', scrolls, 0);
+}
+
 ({ native } = mount_headless(Tall, { props: { scroll: false }, width: 400, height: 300 }));
 await wait(THUMB_MS);
 check('scroll={false} clips instead', column().style!.overflowY, 'hidden');
@@ -162,69 +201,68 @@ check('and draws no thumb', Math.round(bounds(thumb())!.height), 0);
 
 // --- virtual: a native <virtual-list> builds only rows near the viewport -------
 ({ native } = mount_headless(Tall, { props: { virtual: true, rows: 200 }, width: 400, height: 300 }));
-// Nothing reports a list's rows, so its thumb is still measured on a 250 ms timer.
-await wait(300);
+await wait(THUMB_MS);
+const list_top = () => native.getListScrollTop(column().id)!;
 check('a virtual list keeps every row in the tree', all_text().filter((t) => t.startsWith('row ')).length, 200);
 check('but paints only the rows near the viewport', painted().includes('row 0') && !painted().includes('row 150'), true);
-// The list host itself has no tracked bounds; its wrapper and the anchor it reports do.
+check('and has GPUI paint its thumb, in the package colour', [column().style!.scrollbarColor, column().style!.scrollbarWidth], ['#404040', 8]);
+{
+	const row = bounds(find_test_id('row-0')!)!;
+	const strip = bounds(find_test_id('list-strip')!)!;
+	check("rows stop short of the drag strip, so it never takes a row's clicks", [row.width > 200, row.x + row.width <= strip.x], [true, true]);
+}
+// The list host itself has no tracked bounds; the box around it and the anchor it reports do.
 const { x: vx, y: vy, width: vw } = bounds(find((n) => n.children?.some((c) => c.type === 'virtual-list') ?? false)!)!;
-const vh = native.getListScrollTop(column().id)![2];
+const vh = list_top()[2];
 const list_at = { x: vx + vw / 2, y: vy + vh / 2 };
-const v0 = bounds(thumb())!;
-check('this many rows put the thumb at its minimum', Math.round(v0.height), 24);
 wheel(list_at, 0, -400);
 await wait(120);
-check('a wheel scrolls the list', native.getListScrollTop(column().id)![0] > 0, true);
-const v1 = bounds(thumb())!;
-check('and the thumb moves down', v1.y > v0.y, true);
-const v_grip = center(thumb());
-mouse_down(v_grip);
-const before_index = native.getListScrollTop(column().id)![0];
+check('a wheel scrolls the list', list_top()[0] > 0, true);
+
+// GPUI's thumb takes no pointer, so a strip over it does the dragging, under the same capture as the plain thumb.
+const strip_x = center(find_test_id('list-strip')!).x;
+mouse_move({ x: strip_x, y: vy + 100 });
+check('hovering the strip lights the thumb', column().style!.scrollbarColor, '#5a5a5a');
+mouse_down({ x: strip_x, y: vy + 10 });
+check('a press on the strip lights the thumb', column().style!.scrollbarColor, '#5a5a5a');
+const before_index = list_top()[0];
 const painted_rows = () => painted().split('\n');
 const was_in_view = painted_rows().includes(`row ${before_index}`);
-mouse_move({ x: v_grip.x, y: v_grip.y + 60 }, { pressed_button: 0 });
-check('dragging the thumb scrolls by row', native.getListScrollTop(column().id)![0] > before_index, true);
-mouse_up({ x: v_grip.x, y: v_grip.y + 60 });
+mouse_move({ x: strip_x, y: vy + 70 }, { pressed_button: 0 });
+check('dragging the strip scrolls the list', list_top()[0] > before_index, true);
 check('and the rows it left are no longer painted', [was_in_view, painted_rows().includes(`row ${before_index}`), painted_rows().includes('row 0')], [true, false, false]);
+mouse_move({ x: -500, y: -400 }, { pressed_button: 0 });
+check('a drag far above the window goes back to the first row', list_top().slice(0, 2), [0, 0]);
+mouse_up({ x: -500, y: -400 });
+await wait(THUMB_MS);
+check('and a release out there ends it where it is', [column().style!.scrollbarColor, list_top().slice(0, 2)], ['#404040', [0, 0]]);
 
-// At that minimum the thumb's length says nothing, so reading it takes few enough rows to stay above it.
-({ native, component } = mount_headless(Tall, { props: { virtual: true, rows: 10 }, width: 400, height: 300 }));
-await wait(300);
+// Rows the list has not reached are measured at the hint, so a release past the end has to settle on the true one.
+mouse_down({ x: strip_x, y: vy + 10 });
+mouse_move({ x: 2000, y: 1500 }, { pressed_button: 0 });
+mouse_up({ x: 2000, y: 1500 });
+await wait(THUMB_MS);
+// The last rows are 30 and 90 px tall, so a 200 px viewport resting on the end starts 10 px into row 197.
+check('a drag let go far below the window lands on the last row', list_top().slice(0, 2), [197, 10]);
+
+// Nothing reads the list but a press on the strip, so an idle or wheeled list asks native for nothing.
+({ native } = mount_headless(Tall, { props: { virtual: true, rows: 200 }, width: 400, height: 300 }));
+await wait(THUMB_MS);
 {
-	const ten = bounds(thumb())!.height;
-	component.grow(10);
-	await wait(300);
-	check('the thumb is drawn from the row count', Math.abs(ten / bounds(thumb())!.height - 2) < 0.2, true);
-
-	// Rows alternate 30/90 px, so GPUI reports 3 to 5 rows in view as the list moves; the
-	// thumb's length must not follow that report around (it swung by 40% before).
-	const lengths: number[] = [];
-	for (let i = 0; i < 12; i++) {
-		wheel(list_at, 0, -(15 + (i % 4) * 10));
-		await wait(60);
-		lengths.push(bounds(thumb())!.height);
-	}
-	// The running mean settles by about 5 px over these; following each report swings it by 20.
-	check('the thumb keeps its length while the rows in view vary', Math.max(...lengths) - Math.min(...lengths) <= 10, true);
+	const asked: string[] = [];
+	const read_top = native.getListScrollTop.bind(native);
+	const read_offset = native.getScrollOffset.bind(native);
+	native.getListScrollTop = (id) => (asked.push('getListScrollTop'), read_top(id));
+	native.getScrollOffset = (id) => (asked.push('getScrollOffset'), read_offset(id));
+	await wait(400);
+	wheel(list_at, 0, -400);
+	await wait(THUMB_MS);
+	const idle = asked.splice(0);
+	mouse_down({ x: strip_x, y: vy + 10 });
+	mouse_up({ x: strip_x, y: vy + 10 });
+	native.getListScrollTop = read_top;
+	native.getScrollOffset = read_offset;
+	check('a virtual list asks native for nothing while idle or wheeled, only when the strip is pressed', [idle, asked], [[], ['getListScrollTop', 'getScrollOffset']]);
 }
 
-// The throttle must not outlive the component: a list that is gone has nothing to measure.
-{
-	const mounted = mount_headless(Tall, { props: { virtual: true, rows: 200 }, width: 400, height: 300 });
-	await wait(120);
-	wheel(list_at, 0, -100);
-	const own = column().id;
-	void mounted.unmount();
-	let reads = 0;
-	const read = mounted.native.getListScrollTop.bind(mounted.native);
-	// Only this list's, since the list an earlier section left mounted still polls the current native.
-	mounted.native.getListScrollTop = (id) => {
-		if (id === own) reads++;
-		return read(id);
-	};
-	// A plain timer, since `wait` would commit the unmount and hide a late read behind a cleared id; long enough for the list's 250 ms poll too.
-	await new Promise((resolve) => setTimeout(resolve, 300));
-	check('a thumb update still pending at unmount reaches nothing, and neither does the poll', reads, 0);
-}
-
-finish('scroller', 31);
+finish('scroller', 39);

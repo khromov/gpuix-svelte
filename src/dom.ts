@@ -9,12 +9,15 @@ import { mount, unmount, flushSync } from 'svelte';
 import { createSubscriber } from 'svelte/reactivity';
 import type { EventPayload, PathPromptOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode, DebugFrameOverlayStats, EdgeInsets, WindowInsets, WindowSize } from '@gpuix/native/host';
-import type { AnyComponent, GpuixEvent, GpuiStyle, MediaQueryState, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
+import type { AnyComponent, DismissLayer, GpuixEvent, GpuiStyle, MediaQueryState, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
+import { RESET_CSS } from './reset.ts';
+import { place_layer } from './layers.ts';
+import { media_matches, parse_media_query } from './media.ts';
+export { dismiss_scope } from './layers.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
-export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
-import { media_matches, parse_media_query } from './media.ts';
+export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 
 /** False here; the GPUI entries answer true. Decided per build, so it can be read before anything is mounted. */
 export const IS_GPUIX: boolean = false;
@@ -109,6 +112,33 @@ export function on_selection_change(handler: (event: GpuixEvent) => void): () =>
 	return () => document.removeEventListener('selectionchange', listener);
 }
 
+/** Open overlays, the top one last. */
+const layers: DismissLayer[] = [];
+
+function escape(e: KeyboardEvent) {
+	if (e.defaultPrevented || e.repeat || e.ctrlKey || e.altKey || e.metaKey || key_name(e) !== 'escape') return;
+	layers.at(-1)?.onEscape();
+}
+
+/**
+ * Puts an open overlay on top of the page's stack until the returned function runs; an Escape that no key handler
+ * prevented reaches the top layer's `onEscape` alone. The window listener is added as the first layer opens, so a
+ * window handler subscribed after that hears the key too late to prevent it.
+ */
+export function dismiss_layer(layer: DismissLayer): () => void {
+	const target = win();
+	if (!target) return noop;
+	const entry = { ...layer };
+	place_layer(layers, entry);
+	if (layers.length === 1) target.addEventListener('keydown', escape);
+	return () => {
+		const index = layers.indexOf(entry);
+		if (index === -1) return;
+		layers.splice(index, 1);
+		if (layers.length === 0) target.removeEventListener('keydown', escape);
+	};
+}
+
 /** `var(--name)` resolves against `:root` here, which is where the DOM keeps a palette. A bare number stays bare, so give lengths a unit. */
 export function set_css_vars(vars: Record<string, string | number | null>) {
 	const root = doc()?.documentElement;
@@ -134,8 +164,8 @@ function apply_style(target: HTMLElement, style: GpuiStyle) {
 
 /** GPUI's default root (`create_root`). */
 const ROOT_BOX: GpuiStyle = { display: 'flex', position: 'relative', width: '100%', height: '100%' };
-/** What a `<body>` needs on top to be the window, whatever the root box: no margin, and the viewport for its height. */
-const PAGE: GpuiStyle = { margin: 0, height: '100vh' };
+/** What a `<body>` needs on top to be the window, whatever the root box: no margin, the viewport for its height, and GPUI's default line height (the golden ratio), where a browser's `normal` follows the font. */
+const PAGE: GpuiStyle = { margin: 0, height: '100vh', lineHeight: '1.618' };
 
 let mounted: Record<string, unknown> | null = null;
 let kept: Array<() => void> = [];
@@ -169,11 +199,17 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	if (root.height === '100vh') body.style.height = '100dvh';
 	root_keys = Object.keys(root);
 
+	if (!document.head.querySelector('style[data-gpuix-svelte]')) {
+		const reset = document.createElement('style');
+		reset.setAttribute('data-gpuix-svelte', '');
+		reset.textContent = RESET_CSS;
+		document.head.prepend(reset);
+	}
+
 	mounted = mount(Component, { target: body, props }) as Record<string, unknown>;
 	flushSync();
 	return mounted;
 }
-
 /** Hot reload belongs to the GPUI window; an entry that calls this landed in a DOM build, usually by skipping the bin. */
 export const render_hot: (entry: string | URL, options?: RenderOptions) => Promise<void> = () =>
 	Promise.reject(new Error(`[gpuix-svelte] render_hot() opens a GPUI window and this build resolved gpuix-svelte to its DOM build: ${BIN_HINT}; a browser entry calls render() with an imported component`));
@@ -315,6 +351,24 @@ export const register_font: (bytes: Uint8Array) => void = noop;
 /** `document.elementsFromPoint`, typed as GPUI nodes for a shared signature. */
 export const elements_at = (x: number, y: number): ShadowNode[] => (doc()?.elementsFromPoint?.(x, y) ?? []) as unknown as ShadowNode[];
 
+const selection_changed = createSubscriber((update) => {
+	const document = doc();
+	if (!document) return;
+	document.addEventListener('selectionchange', update);
+	return () => document.removeEventListener('selectionchange', update);
+});
+
+/** The document's selection as text, or null when it is empty; reactive through `selectionchange`. */
+export function selected_text(): string | null {
+	selection_changed();
+	return doc()?.getSelection()?.toString() || null;
+}
+
+export const clear_selection = () => doc()?.getSelection()?.removeAllRanges();
+
+/** A page is never drawn in a terminal. */
+export const is_terminal = (): boolean => false;
+
 // GPUI's draw-time overlay has no counterpart; the browser's own profiler does.
 export const set_debug_overlay: (mode: DebugFrameOverlayMode) => DebugFrameOverlayMode | undefined = () => undefined;
 export const cycle_debug_overlay = (): DebugFrameOverlayMode | undefined => undefined;
@@ -417,6 +471,8 @@ export type {
 	RenderOptions,
 	AppOptions,
 	WindowKeyType,
+	DismissLayer,
+	DismissScope,
 	PixelFormat,
 	AnyComponent
 } from './types.ts';

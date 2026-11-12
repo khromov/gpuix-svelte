@@ -47,6 +47,9 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   already builds all of them in a matrix.
 - `standalone.ts` mounts `App.svelte` with `render` and a static import, since a binary has no
   source files to hot-reload. Keep its window options in step with `app.ts`.
+- `bun build.ts --aot --trim` turns on Bun's experimental compile options, which make the
+  executable smaller (on macOS, about 80 MB, against 110 MB from Bun 1.4.4 without them). They need a Bun canary for now, and
+  on any other Bun the build says they have no effect. Run the executable itself before shipping it.
 - macOS keeps a downloaded, unsigned app from opening until it is allowed under System Settings →
   Privacy & Security. With `CODESIGN_IDENTITY` set (a `.env` beside package.json), the build signs
   the `.app`, and with `NOTARY_PROFILE` as well (or `APPLE_ID`, `APPLE_PASSWORD` and
@@ -65,8 +68,9 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
 ## Writing components
 
 - HTML elements are mapped to GPUI primitives: `div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
-  `markdown`, `virtual-list`, `anchored`. Any other tag (`span`, `button`, `p`) fails the
-  typecheck and renders as a `div`. `<img src>` takes a file path, a `data:` URL or an http(s) URL;
+  `markdown`, `virtual-list`, `anchored`. `button` is an unstyled `div` that is a tab stop with the
+  button role, and Enter and Space call its `onclick`; `disabled` turns that off. Use it for
+  anything clickable. Any other tag (`span`, `p`, `a`) fails the typecheck and renders as a `div`. `<img src>` takes a file path, a `data:` URL or an http(s) URL;
   give it a `width` and `height` in its style, or it takes the image's size once loaded and the
   layout jumps.
 - Style with `<style>` class rules (`.btn`, `.btn.primary`, `.btn:hover`, `.btn:active`,

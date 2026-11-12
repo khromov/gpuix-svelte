@@ -3,12 +3,12 @@
  * component on the DOM. Same test ids, same clicks, through the real pipeline.
  */
 
-import { mount_headless, find_test_id, find_text, click_test_id, click_text, click_at, hover, press, wait, all_text, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, find_text, click_test_id, click_text, click_at, hover, press, wait, all_text, text_content, check, finish } from 'gpuix-svelte/test';
 
 const CrossTarget = (await import('../examples/cross-target/CrossTarget.svelte')).default;
 const { native } = mount_headless(CrossTarget, { width: 720, height: 520 });
 
-const text_of = (id: string) => (find_test_id(id)?.children ?? []).map((c) => c.text ?? '').join('');
+const text_of = (id: string) => text_content(find_test_id(id)!);
 const bg = () => find_test_id('app')?.style?.backgroundColor;
 const rows = () => all_text().filter((t) => /^Row \d+$/.test(t)).length;
 

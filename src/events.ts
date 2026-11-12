@@ -3,41 +3,10 @@
  * Svelte emits, which the compiler has already lowercased.
  */
 
-export const GPUI_EVENTS: readonly string[] = [
-	// custom elements (<diff>, <markdown>, <input>, <textarea>)
-	'toggleFile',
-	'showMore',
-	'lineClick',
-	'linkClick',
-	'change',
-	'submit',
-	'click',
-	'auxClick',
-	'mouseDown',
-	'mouseUp',
-	'mouseEnter',
-	'mouseLeave',
-	'mouseMove',
-	'mouseDownOutside',
-	// keyboard — require focus (tabIndex or autofocus)
-	'keyDown',
-	'keyUp',
-	'focus',
-	'blur',
-	'scroll',
-	// the offset after any scroll (wheel, `scrollTo`, `scrollIntoView`); `scroll` is wheel input only
-	'scrollChange',
-	// the border box after the first paint and on every size change
-	'layout',
-	// a Finder / OS file drop on this element; `paths` are absolute
-	'fileDrop',
-	// a native `motion` track reached its target
-	'motionComplete',
-	// `highlight={{ query }}` on div/text reports its match count
-	'highlight',
-	// `<virtual-list>` reports the range of rows it has in view
-	'visibleRange'
-];
+import { EVENT_PROPS } from '@gpuix/native/host';
+
+/** Every element event native reports, as `@gpuix/native/host` lists them for every adapter. */
+export const GPUI_EVENTS: readonly string[] = EVENT_PROPS.map(([, event]) => event);
 
 /** Not element events: they arrive on the id handed to `setWindowKeyEvents` (see `on_window_key`). */
 export const WINDOW_KEY_EVENTS: Partial<Record<string, 'windowKeyDown' | 'windowKeyUp'>> = {

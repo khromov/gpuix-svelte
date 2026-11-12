@@ -144,6 +144,19 @@ document.dispatchEvent(new Event('selectionchange'));
 off_selection();
 document.dispatchEvent(new Event('selectionchange'));
 check('on_selection_change hears selectionchange until unsubscribed', selections, 1);
+{
+	const words = document.createElement('p');
+	words.textContent = 'Pick these words';
+	document.body.append(words);
+	const range = document.createRange();
+	range.selectNodeContents(words);
+	document.getSelection()!.addRange(range);
+	const picked = dom.selected_text();
+	dom.clear_selection();
+	check('selected_text reads the document selection, and clear_selection empties it to null', [picked, dom.selected_text()], ['Pick these words', null]);
+	words.remove();
+}
+check('a page is never a terminal', dom.is_terminal(), false);
 
 {
 	const [a, b] = inputs('text', 'text');
@@ -268,6 +281,7 @@ dom.render(CrossTarget, { title: 'Cross-target test' });
 const live_keydown = keydown_listeners;
 check('render() mounts into <body> and titles the page', [document.title, by_id('app') !== null], ['Cross-target test', true]);
 check("<body> gets GPUI's root box", [document.body.style.display, document.body.style.position, document.body.style.margin], ['flex', 'relative', '0px']);
+check("<body> gets GPUI's line height", document.body.style.lineHeight, '1.618');
 check('the badge says DOM', text('target'), 'DOM');
 check('window_size renders', text('size'), '1024 × 768');
 const viewport = (width: number, height: number) => {
@@ -306,6 +320,25 @@ mouse(by_id('theme'), 'mouseleave');
 await sleep(120);
 flushSync();
 check('and hides once the pointer leaves', tooltip(), null);
+by_id('theme')!.dispatchEvent(new FocusEvent('focus'));
+flushSync();
+check('keyboard focus shows it at once', tooltip()?.textContent, 'Toggle the theme (T)');
+key('Escape');
+check('and Escape hides it', tooltip(), null);
+by_id('theme')!.dispatchEvent(new FocusEvent('blur'));
+mouse(by_id('theme'), 'mouseenter');
+await sleep(350);
+flushSync();
+const hovered = tooltip() !== null;
+key('Escape');
+check('Escape hides a tip that hover showed too', [hovered, tooltip()], [true, null]);
+by_id('theme')!.dispatchEvent(new FocusEvent('blur'));
+await sleep(350);
+flushSync();
+check('and focus leaving while the pointer stays does not bring it back', tooltip(), null);
+mouse(by_id('theme'), 'mouseleave');
+await sleep(120);
+flushSync();
 
 box_of(by_id('menu')!, 100, 50, 80, 30);
 click(by_id('menu-trigger'));
@@ -326,6 +359,8 @@ click(by_id('menu-trigger'));
 click(by_id('menu-trigger'));
 check('a click on the trigger while open closes it without reopening', by_id('menu-panel'), null);
 click(by_id('menu-trigger'));
+key('Escape', { repeat: true });
+check('a repeat of a held Escape leaves it open', by_id('menu-panel') !== null, true);
 key('Escape');
 check('so does Escape', by_id('menu-panel'), null);
 box_of(by_id('menu')!, 900, 50, 80, 30);
@@ -385,14 +420,61 @@ check('reversing a keyed {#each} of portals leaves every layer in <body>', toast
 unmount(toasts as never);
 toasts_host.remove();
 
+writeFileSync(
+	join(tmp, 'Nested.svelte'),
+	`<script>
+	import Popover from 'gpuix-svelte/components/Popover.svelte';
+	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
+	let open = $state(false);
+</script>
+<Popover {open} onclose={() => (open = false)} testid="nest">
+	<div onclick={() => (open = !open)} testid="nest-trigger">Nest</div>
+	{#snippet content()}
+		<Tooltip content="Inner" testid="nest-inner">
+			{#snippet children(hover, focus)}<div tabindex="0" {...hover} {...focus} testid="nest-inner-trigger">Inner</div>{/snippet}
+		</Tooltip>
+		<div tabindex="0" onkeydown={(e) => e.key === 'Escape' && e.preventDefault()} testid="nest-keep">Keep</div>
+	{/snippet}
+</Popover>
+`
+);
+const Nested = (await import(compile_for_dom(join(tmp, 'Nested.svelte')))).default;
+const nested_host = document.createElement('div');
+document.body.append(nested_host);
+const nested = mount(Nested, { target: nested_host });
+flushSync();
+click(by_id('nest-trigger'));
+by_id('nest-inner-trigger')!.dispatchEvent(new FocusEvent('focus'));
+flushSync();
+const opened = [by_id('nest-panel') !== null, by_id('nest-inner-tip') !== null];
+key('Escape');
+check('Escape closes only the top layer, the tip inside the popover', [opened, by_id('nest-inner-tip'), by_id('nest-panel') !== null], [[true, true], null, true]);
+key('Escape');
+check('and the next one the popover under it', by_id('nest-panel'), null);
+click(by_id('nest-trigger'));
+by_id('nest-keep')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+flushSync();
+const kept = by_id('nest-panel') !== null;
+key('Escape');
+check("a key handler's preventDefault keeps it open, where the same key unprevented closes it", [kept, by_id('nest-panel')], [true, null]);
+unmount(nested as never);
+nested_host.remove();
+
 dom.render(CrossTarget, { title: 'again', rootStyle: { padding: 4 } });
 check(
 	'a second render() replaces the first, rootStyle replacing the root box',
 	[document.querySelectorAll('[testid="app"]').length, document.title, document.body.style.display, document.body.style.padding],
 	[1, 'again', '', '4px']
 );
+check('the line height stays under a rootStyle that sets none', document.body.style.lineHeight, '1.618');
 key('t');
 check("the first instance's window key handler went with it", [keydown_listeners, css_var('bg')], [live_keydown, '#fafafa']);
+const resets = [...document.head.querySelectorAll('style[data-gpuix-svelte]')];
+check(
+	"render() takes the browser's button look off once, under any rule of the app's",
+	[resets.length, document.head.firstElementChild === resets[0], resets[0]?.textContent?.startsWith(':where(button){')],
+	[1, true, true]
+);
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 70);
+finish('dom', 83);

@@ -5,13 +5,27 @@
  */
 
 import type { EventPayload } from '@gpuix/native';
+import { BUILT_IN_TYPES, UNIVERSAL_PROPS } from '@gpuix/native/host';
+import type {
+	AnchoredProps,
+	CodeProps,
+	DiffProps,
+	ElementType,
+	ImgProps,
+	MarkdownProps,
+	SvgProps,
+	TextareaProps,
+	VirtualListProps
+} from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
 import { observeWindowSize, type WindowSizeHost } from '@gpuix/native/host';
-import { build_style, define_css_vars, flush_var_warnings, used_css_vars } from './style.ts';
+import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
+import { place_layer } from './layers.ts';
 import type {
 	ClassRule,
+	DismissLayer,
 	EventHandler,
 	GpuiStyle,
 	GpuixEvent,
@@ -25,7 +39,7 @@ import type {
 } from './types.ts';
 
 /** Anything not listed here degrades to `div`; that includes `canvas`, which native 0.11 lacks and would paint nothing for. */
-const GPUI_TAGS = new Set([
+const GPUI_TAGS = set_of<Exclude<ElementType, 'canvas'>>()([
 	'div',
 	'text',
 	'img',
@@ -39,22 +53,40 @@ const GPUI_TAGS = new Set([
 	'virtual-list'
 ]);
 
-/** GPUI only forwards a handful of props to `div`/`text`. */
-const BUILT_IN_TAGS = new Set(['div', 'text']);
-const UNIVERSAL_PROPS = new Set([
+/** Every element's props as native types them (`TextareaProps` holds `InputProps` and `HostProps`). */
+type NativeProps = TextareaProps | CodeProps | DiffProps | MarkdownProps | ImgProps | SvgProps | AnchoredProps | VirtualListProps;
+type Value<T, K extends keyof T> = Exclude<T[K], undefined>;
+/** The props of any element whose every value is a `V`; `itemCount?: never` is no prop of either kind. */
+type PropsOf<V, T = NativeProps> = T extends unknown
+	? { [K in keyof T]-?: [Value<T, K>] extends [never] ? never : [Value<T, K>] extends [V] ? K : never }[keyof T]
+	: never;
+
+/** A static attribute reaches the renderer as text (a bare one as `''`), and native ignores a prop whose JSON type is wrong. */
+const BOOLEAN_PROPS = set_of<PropsOf<boolean>>()([
 	'autoFocus',
-	'tabIndex',
-	'testId',
-	'motion',
-	'highlight',
-	'role',
-	'aria-label',
-	'aria-description',
-	'aria-id',
 	'aria-expanded',
 	'aria-selected',
-	'aria-valuetext',
-	'aria-level'
+	'readOnly',
+	'showLineNumbers',
+	'wordDiff',
+	'scroll',
+	'deferred',
+	'occlude',
+	'followTail'
+]);
+const NUMBER_PROPS = set_of<PropsOf<number>>()([
+	'tabIndex',
+	'aria-level',
+	'minRows',
+	'maxRows',
+	'maxLines',
+	'gap',
+	'snapMargin',
+	'priority',
+	'overdraw',
+	'estimatedItemHeight',
+	'itemCount',
+	'windowStart'
 ]);
 
 /** Attributes that feed `setStyle`; `class` does so through the component's `<style>` rules. */
@@ -75,12 +107,10 @@ const PASSIVE_EVENTS = new Set(['layout', 'scrollChange', 'motionComplete', 'hig
 /** Always listen for focus/blur on these, so window key handlers can tell typing from a shortcut. */
 const TEXT_INPUTS = new Set(['input', 'textarea']);
 
-/** Svelte lowercases some attributes; GPUI wants them camelCased. */
-const PROP_ALIASES = new Map([
-	['autofocus', 'autoFocus'],
-	['tabindex', 'tabIndex'],
-	['testid', 'testId']
-]);
+/** HTML spells these lowercase (`readonly`, `tabindex`); GPUI wants them camelCased. */
+const PROP_ALIASES = new Map([...BOOLEAN_PROPS, ...NUMBER_PROPS, 'testId'].map((name) => [name.toLowerCase(), name]));
+
+const warned_props = new Set<string>();
 
 /** The live GpuixRenderer (or TestGpuixRenderer). */
 let native: NativeSink | null = null;
@@ -169,12 +199,31 @@ type KeystrokeFlags = { id: number | undefined; prevented: boolean; stopped: boo
 // so only the latest keystroke needs flags.
 let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: false };
 
+/** Open overlays, the top one last. */
+let layers: DismissLayer[] = [];
+
+/**
+ * GPUI's X11 client reports a held key's repeats as fresh presses, with no release in between. So on Linux an
+ * Escape with none since the last one is a repeat; only for this long, in case the release went to another window.
+ */
+const REPEAT_MS = 1000;
+let escape_down = -Infinity;
+const untold_repeats = () => globalThis.process?.platform === 'linux';
+
 /** scope class -> that component's `<style>` rules, weakest first (see compile.ts). */
 const stylesheets = new Map<string, ClassRule[]>();
 const NO_RULES: readonly ClassRule[] = [];
 
+let on_dirty: (() => void) | null = null;
+
+/** How the frame loop hears of a mutation made between its ticks (a timer, a fetch), which a display-link wake never reports. */
+export function set_on_dirty(callback: (() => void) | null) {
+	on_dirty = callback;
+}
+
 /** Removals queue no op of their own, so they have to raise the flag themselves. */
 function mark_dirty() {
+	if (!dirty) on_dirty?.();
 	dirty = true;
 
 	if (!auto_commit || commit_scheduled) return;
@@ -205,6 +254,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		attrs: {},
 		listeners: new Map(),
 		nativeId: null,
+		textId: null,
 		uses_vars: false,
 		uses_media: false,
 		own_color: undefined,
@@ -267,8 +317,20 @@ function first_native_after(cursor: ShadowNode | null) {
 	return null;
 }
 
+const BUTTON_ATTRS = new Set(['role', 'tabindex', 'tabIndex', 'disabled']);
+
+const is_disabled = (el: ShadowNode) => el.attrs.disabled != null && el.attrs.disabled !== false && el.attrs.disabled !== 'false';
+
+/** `<button>` is a div with what a browser's has for free: the role, a tab stop, and Enter or Space as a click. */
+function button_defaults(el: ShadowNode) {
+	if (el.name !== 'button' || el.nativeId === null) return;
+	if (!('role' in el.attrs)) emit(['setCustomProp', el.nativeId, 'role', 'button']);
+	if (!('tabindex' in el.attrs) && !('tabIndex' in el.attrs)) emit(['setCustomProp', el.nativeId, 'tabIndex', is_disabled(el) ? null : 0]);
+}
+
 function map_tag(name: string) {
 	if (GPUI_TAGS.has(name)) return name;
+	if (name === 'button') return 'div';
 	if (!warned_tags.has(name)) {
 		warned_tags.add(name);
 		console.warn(`[gpuix-svelte] <${name}> has no GPUI equivalent — rendering it as <div>.`);
@@ -351,7 +413,7 @@ function descends(n: ShadowNode, ancestor: ShadowNode) {
  * scrolls must not occlude it — a painted badge or thumbnail would swallow the click.
  */
 function shielded(el: ShadowNode, style: GpuiStyle) {
-	if (INTERACTIVE_TAGS.has(el.name)) return false;
+	if (INTERACTIVE_TAGS.has(el.name) || el.name === 'button') return false;
 	for (const event of el.listeners.keys()) if (!PASSIVE_EVENTS.has(event)) return false;
 	if ('tabIndex' in el.attrs || 'tabindex' in el.attrs || 'autoFocus' in el.attrs || 'autofocus' in el.attrs) return false;
 	if (style.overflow === 'scroll' || style.overflowY === 'scroll' || style.overflowX === 'scroll') return false;
@@ -419,23 +481,63 @@ function reparent(el: ShadowNode) {
 	if (el.nativeId === null || !el.attached || !el.live) return;
 	attach(el);
 	attach_portals();
+	rewrap_beside(el.prev, el.next);
 }
 
 const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 
+/** As HTML reads a boolean attribute, `readonly`, `readonly=""` and `readonly="readonly"` are all true; `"false"` is not. */
 function normalize_prop(name: string, value: unknown) {
-	// Svelte hands `aria-expanded={open}` over as is but `aria-expanded="true"` as text, and native reads JSON types.
-	if (name === 'autoFocus' || name === 'aria-expanded' || name === 'aria-selected') return value !== false && value !== 'false';
-	if (name === 'tabIndex' || name === 'aria-level') return Number(value);
-	return value;
+	if (BOOLEAN_PROPS.has(name)) return typeof value === 'string' ? value !== 'false' : Boolean(value);
+	if (!NUMBER_PROPS.has(name)) return value;
+	const blank = typeof value === 'string' && value.trim() === '';
+	// A bare `tabindex` has always meant a tab stop here, and a `<button>` that carries one skips its default 0.
+	if (blank && name === 'tabIndex') return 0;
+	const number = blank ? NaN : Number(value);
+	if (Number.isFinite(number)) return number;
+	if (!warned_props.has(name)) {
+		warned_props.add(name);
+		console.warn(`[gpuix-svelte] ${name}="${String(value)}" is not a number, so it is left unset`);
+	}
+	return null;
 }
 
 function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	const name = prop_name(key);
-	if (BUILT_IN_TAGS.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
+	if (BUILT_IN_TYPES.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
 	if (el.nativeId === null) return;
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }
+
+function real_sibling(from: ShadowNode | null, dir: 'prev' | 'next') {
+	for (let s = from; s; s = s[dir]) {
+		if (s.kind === 'comment' || (s.kind === 'text' && is_blank(s.data)) || is_portal(s)) continue;
+		return s;
+	}
+	return null;
+}
+
+// Native searches, selects and copies adjacent text leaves as one run, which a wrapper would split, so text beside text stays bare and unlabelled.
+const wants_wrapper = (n: ShadowNode) =>
+	n.parent?.name !== 'text' && real_sibling(n.prev, 'prev')?.kind !== 'text' && real_sibling(n.next, 'next')?.kind !== 'text';
+
+/** Rebuilds a live text node whose neighbours changed, so its wrapper matches `wants_wrapper` again. */
+function rewrap(n: ShadowNode | null) {
+	if (n === null || n.kind !== 'text' || n.nativeId === null || !n.attached || !n.live) return;
+	if ((n.textId !== null) === wants_wrapper(n)) return;
+	emit(['destroyElement', n.nativeId]);
+	by_id.delete(n.nativeId);
+	n.nativeId = null;
+	n.textId = null;
+	n.attached = false;
+	materialize(n);
+	attach(n);
+}
+
+const rewrap_beside = (prev: ShadowNode | null, next: ShadowNode | null) => {
+	rewrap(real_sibling(prev, 'prev'));
+	rewrap(real_sibling(next, 'next'));
+};
 
 /** Idempotent. */
 function materialize(n: ShadowNode) {
@@ -450,7 +552,15 @@ function materialize(n: ShadowNode) {
 			n.nativeId = ++next_id;
 			by_id.set(n.nativeId, n);
 			emit(['createElement', n.nativeId, 'text']);
-			emit(['setText', n.nativeId, n.data]);
+			if (!wants_wrapper(n)) {
+				emit(['setText', n.nativeId, n.data]);
+				return;
+			}
+			// Native labels only a `text` holding no string of its own, so text outside a `<text>` gets one around it or screen readers never hear it.
+			n.textId = ++next_id;
+			emit(['createElement', n.textId, 'text']);
+			emit(['setText', n.textId, n.data]);
+			emit(['appendChild', n.nativeId, n.textId]);
 			return;
 		}
 
@@ -471,6 +581,10 @@ function materialize(n: ShadowNode) {
 			for (const type of ['focus', 'blur']) {
 				if (!n.listeners.has(type)) emit(['setEventListener', n.nativeId, type, true]);
 			}
+		}
+		if (n.name === 'button') {
+			button_defaults(n);
+			if (!n.listeners.has('keyDown')) emit(['setEventListener', n.nativeId, 'keyDown', true]);
 		}
 	}
 
@@ -559,6 +673,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		else if (RENDERER_ATTRS.has(key)) restyle_subtree(el);
 		else {
 			apply_prop(el, key, value);
+			if (BUTTON_ATTRS.has(key)) button_defaults(el);
 			if (FOCUS_ATTRS.has(key) && hitbox_root(el) !== null) apply_style(el);
 		}
 	},
@@ -572,6 +687,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		else if (RENDERER_ATTRS.has(name)) restyle_subtree(el);
 		else {
 			apply_prop(el, name, null);
+			if (BUTTON_ATTRS.has(name)) button_defaults(el);
 			if (FOCUS_ATTRS.has(name) && hitbox_root(el) !== null) apply_style(el);
 		}
 	},
@@ -593,17 +709,20 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 				emit(['destroyElement', n.nativeId]);
 				by_id.delete(n.nativeId);
 				n.nativeId = null;
+				n.textId = null;
 				n.attached = false;
+				rewrap_beside(n.prev, n.next);
 				return;
 			}
 
-			emit(['setText', n.nativeId, text]);
+			emit(['setText', n.textId ?? n.nativeId, text]);
 			return;
 		}
 
 		if (n.kind !== 'text' || is_blank(text) || !n.live) return;
 		materialize(n);
 		attach(n);
+		rewrap_beside(n.prev, n.next);
 	},
 
 	getFirstChild: (n) => n.first,
@@ -621,8 +740,10 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
+		const [left, right, was_live] = [n.prev, n.next, n.live];
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
+		if (was_live) rewrap_beside(left, right);
 
 		set_live(n, parent.live === true);
 
@@ -631,6 +752,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
 			attach_portals();
+			rewrap(n);
+			rewrap_beside(n.prev, n.next);
 		} else if (n.nativeId !== null && n.attached) {
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
@@ -642,12 +765,14 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	remove(n) {
 		if (n.parent === null) return;
 
+		const [left, right, was_live] = [n.prev, n.next, n.live];
 		unlink(n);
 		// Never destroy here: Svelte removes and re-inserts the same node in
 		// consecutive statements (see `each.js`'s controlled-anchor reset).
 		set_live(n, false);
 		pending_destroy.add(n);
 		mark_dirty();
+		if (was_live) rewrap_beside(left, right);
 	},
 
 	addEventListener(target, type, handler: EventHandler) {
@@ -682,7 +807,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		if (handlers.length === 0) {
 			target.listeners.delete(event);
 			// A text field keeps reporting focus and blur: `focused_input` depends on it.
-			const tracked = TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur');
+			const tracked =
+				(TEXT_INPUTS.has(target.name) && (event === 'focus' || event === 'blur')) || (target.name === 'button' && event === 'keyDown');
 			if (target.nativeId !== null) {
 				if (!tracked) emit(['setEventListener', target.nativeId, event, false]);
 				if (hitbox_root(target) !== null) apply_style(target);
@@ -735,6 +861,8 @@ export function set_native(instance: NativeSink) {
 	portals = new Set();
 	pending_portals = [];
 	after_commit = [];
+	layers = [];
+	escape_down = -Infinity;
 	dirty = false;
 	commit_scheduled = false;
 
@@ -759,8 +887,8 @@ function sync_window_events() {
 	if (window_node.nativeId === null) window_node.nativeId = ++next_id;
 	by_id.set(window_node.nativeId, window_node);
 	native?.setWindowKeyEvents?.(
-		tab_navigation || window_node.listeners.has('windowKeyDown'),
-		window_node.listeners.has('windowKeyUp'),
+		tab_navigation || layers.length > 0 || window_node.listeners.has('windowKeyDown'),
+		(layers.length > 0 && untold_repeats()) || window_node.listeners.has('windowKeyUp'),
 		window_node.nativeId
 	);
 	native?.setWindowSelectionChange?.(window_node.listeners.has('selectionChange'), window_node.nativeId);
@@ -801,10 +929,41 @@ export function on_window_key(type: WindowKeyType, handler: (event: GpuixEvent) 
 /** Fires once per change of the window's text selection, a clear included; `event.value` is the selected text. */
 export const on_selection_change = (handler: (event: GpuixEvent) => void) => on_window_event('selectionChange', handler);
 
+/**
+ * Puts an open overlay on top of the window's stack until the returned function runs. An Escape that
+ * no key handler prevented reaches the top layer's `onEscape` alone, so a tip in a popover closes first.
+ */
+export function dismiss_layer(layer: DismissLayer): () => void {
+	const entry = { ...layer };
+	place_layer(layers, entry);
+	if (layers.length === 1) sync_window_events();
+	return () => {
+		const index = layers.indexOf(entry);
+		if (index === -1) return;
+		layers.splice(index, 1);
+		if (layers.length > 0) return;
+		// The release that would clear it is no longer listened for.
+		escape_down = -Infinity;
+		sync_window_events();
+	};
+}
+
 /** For components that need GPUI's answers back, e.g. scroll offsets and painted bounds. */
 export const get_native = (): Native | null => native as Native | null;
 
 export const node_of = (id: number | null | undefined): ShadowNode | null => (id == null ? null : (by_id.get(id) ?? null));
+
+/** A tree read from native, with each wrapper `materialize` put around plain text folded back into that text, as the app wrote it. */
+export function unwrap_text<T extends { id: number; children?: T[] }>(node: T): T {
+	const inner = by_id.get(node.id)?.kind === 'text' && node.children?.length === 1 ? node.children[0] : null;
+	if (inner) return { ...inner, id: node.id };
+	return node.children ? { ...node, children: node.children.map(unwrap_text) } : node;
+}
+
+export function unwrap_text_json(json: string) {
+	const tree = json ? (JSON.parse(json) as { id: number } | null) : null;
+	return tree ? JSON.stringify(unwrap_text(tree)) : json;
+}
 
 /** `position: relative`, so a portal's `inset: 0` means the window; a `null` dim leaves native's flag as it is. */
 export function create_root(
@@ -872,6 +1031,7 @@ export function commit() {
 		const n = by_id.get(id);
 		if (n) {
 			n.nativeId = null;
+			n.textId = null;
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
 			if (n.uses_media) media_nodes.delete(n);
@@ -882,8 +1042,6 @@ export function commit() {
 	}
 	if (media_nodes.size === 0) stop_viewport_observer();
 
-	// 0.6 removed commitMutations — applyBatch invalidates on its own there.
-	native!.commitMutations?.();
 	run_after_commit();
 }
 
@@ -957,7 +1115,12 @@ export function dispatch(payload: EventPayload) {
 		else if (payload.eventType === 'blur' && focused_input === target) focused_input = null;
 	}
 
+	const button = target.name === 'button';
+	if (button && payload.eventType === 'click' && is_disabled(target)) return;
+
 	const flags = KEY_EVENTS.has(payload.eventType) ? flags_for(payload) : null;
+	// Window handlers sit beside the overlays' old window listeners, where their stopPropagation never reached them.
+	const element_stopped = flags?.stopped ?? false;
 	const handlers = target.listeners.get(payload.eventType);
 	if (handlers && handlers.length > 0 && !flags?.stopped) {
 		let immediate = false;
@@ -990,7 +1153,11 @@ export function dispatch(payload: EventPayload) {
 		}
 	}
 
-	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload);
+	if (button && payload.eventType === 'keyDown' && !payload.isHeld && !flags?.prevented && (payload.key === 'enter' || payload.key === 'space')) {
+		dispatch({ ...payload, eventType: 'click' });
+	}
+	if (payload.eventType === 'windowKeyDown' && !flags?.prevented) key_default(payload, element_stopped);
+	if (payload.eventType === 'windowKeyUp' && payload.key === 'escape') escape_down = -Infinity;
 }
 
 /** A key event without an id is synthetic and never shares flags with another. */
@@ -1001,9 +1168,19 @@ function flags_for(payload: EventPayload): KeystrokeFlags {
 }
 
 /** Runs on the window event, which native sends after every element's, so any handler could have prevented it. */
-function key_default(payload: EventPayload) {
+function key_default(payload: EventPayload, stopped: boolean) {
 	const modifiers = payload.modifiers;
-	if (!tab_navigation || payload.key !== 'tab' || modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	if (modifiers?.ctrl || modifiers?.alt || modifiers?.cmd) return;
+	if (payload.key === 'escape') {
+		// A handler that stopped Escape has used it, and a held key would close one layer per repeat.
+		if (layers.length === 0) return;
+		const now = performance.now();
+		const held = payload.isHeld || (untold_repeats() && now - escape_down < REPEAT_MS);
+		escape_down = now;
+		if (!stopped && !held) layers.at(-1)?.onEscape();
+		return;
+	}
+	if (!tab_navigation || payload.key !== 'tab') return;
 	const host = native as WindowNative | null;
 	if (modifiers?.shift) host?.focusPrevious?.();
 	else host?.focusNext?.();

@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { Marked, type Tokens } from 'marked';
 import { build as vite_build } from 'vite';
 import { dom_plugins } from './vite-dom.ts';
+import { PLAYGROUND_BODY, PLAYGROUND_CSS, PLAYGROUND_ISOLATE, build_playground } from './playground.ts';
 
 const REPO = 'https://github.com/khromov/gpuix-svelte';
 const RAW = REPO.replace('https://github.com/', 'https://raw.githubusercontent.com/');
@@ -29,6 +30,7 @@ const PAGES = [
 	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var() and set_css_vars' },
 	{ source: 'docs/components.md', name: 'components', nav: 'Components', about: 'Scroller (scrollbars, virtual lists), Portal (modals, menus, toasts), Tooltip, Popover and the native <anchored> they build on' },
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
+	{ source: 'docs/accessibility.md', name: 'accessibility', nav: 'Accessibility', about: 'what reaches a screen reader (text, roles, aria-* attributes), what GPUI lacks and what to use instead, keyboard and focus patterns for menus, dialogs and lists' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
 	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },
@@ -183,7 +185,7 @@ function render({ source, name }: Page, demos: Demo[]) {
 const CSS = `
 @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
-:root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #8f8f8f; --link: #ededed; --accent: #ff3e00; --gut: 32px; --corner: 80px; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
+:root { color-scheme: dark; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --bg: #000; --surface: #0a0a0a; --chip: #1a1a1a; --line: #242424; --line-strong: #404040; --fg: #ededed; --text: #d4d4d4; --muted: #a1a1a1; --faint: #8f8f8f; --link: #ededed; --accent: #ff3e00; --gut: 32px; --corner: 56px; --note: #52a8ff; --tip: #4cc38a; --important: #a78bfa; --warning: #f5a524; --caution: #ff6166; --t-comment: #8f8f8f; --t-punct: #a1a1a1; --t-keyword: #e9a5c7; --t-string: #abd09f; --t-fn: #c1b1f1; --t-tag: #97cdd8; --t-attr: #e1c398; --t-num: #94bff0; }
 :root { --paper: #111111; --ink: #ededed; --panel: #1f1f1f; --raised: #2c2c2c; --dim: #a1a1a1; --tooltip-surface: #ededed; --tooltip-ink: #000; --popover-surface: #1f1f1f; --popover-border: #404040; --popover-ink: #ededed; --scroller-thumb: #404040; --scroller-thumb-hover: #5a5a5a; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: 80px; }
@@ -205,9 +207,11 @@ a { color: var(--link); }
 .links a:hover, .links a[aria-current] { color: var(--fg); }
 .links a[aria-current] { text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--accent); }
 .github-corner { position: absolute; top: 0; right: 0; z-index: 20; display: block; width: var(--corner); height: var(--corner); pointer-events: none; }
-.github-corner svg { display: block; width: 100%; height: 100%; fill: #1c1c1c; color: #ededed; pointer-events: none; transition: fill 0.15s ease; }
+.github-corner svg { display: block; width: 100%; height: 100%; fill: var(--surface); color: var(--muted); pointer-events: none; transition: fill 0.15s ease, color 0.15s ease; }
+.github-corner .edge { fill: none; stroke: var(--line); stroke-width: 1px; transition: stroke 0.15s ease; }
 .github-corner path { pointer-events: auto; }
-.github-corner:hover svg { fill: #262626; }
+.github-corner:hover svg { fill: #111; color: var(--fg); }
+.github-corner:hover .edge { stroke: var(--line-strong); }
 .github-corner:focus-visible { outline: none; }
 .github-corner:focus-visible svg { fill: #ededed; color: #000; }
 .octo-arm { transform-origin: 130px 106px; }
@@ -318,7 +322,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .pager .next { grid-column: 2; text-align: right; }
 @media (max-width: 1180px) { .layout { grid-template-columns: 200px minmax(0, 760px); gap: 56px; } }
 @media (max-width: 860px) {
-  :root { --gut: 16px; --corner: 60px; }
+  :root { --gut: 16px; --corner: 52px; }
   html { scroll-padding-top: 16px; }
   .top { position: static; }
   .top-inner { height: 52px; }
@@ -340,6 +344,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
   .table :is(th, td) { padding: 9px 12px; }
   .page-end { margin-top: 56px; }
 }
+@media (max-width: 480px) { .links { gap: 16px; } .links a:last-child { display: none; } }
 @media (max-width: 400px) { .version { display: none; } }
 `;
 
@@ -379,7 +384,7 @@ strip.scrollLeft += current.getBoundingClientRect().left - strip.getBoundingClie
 const MARK_PATHS = '<path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/>';
 const MARK = `<svg class="mark" viewBox="0 0 64 64" aria-hidden="true">${MARK_PATHS}</svg>`;
 const ICON = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#000"/><g transform="translate(32 32) scale(.72) translate(-32 -32)" color="#fff">${MARK_PATHS}</g></svg>`)}`;
-const CORNER = `<a href="${REPO}" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>`;
+const CORNER = `<a href="${REPO}" class="github-corner" aria-label="View source on GitHub"><svg width="56" height="56" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L250,250 L250,0 Z"></path><path class="edge" d="M0,0 L250,250" vector-effect="non-scaling-stroke"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>`;
 const OG_IMAGE = `${SITE}og-docs.png`;
 const OG_ALT = 'The Overview page of the gpuix-svelte docs: page list, opening paragraph and a screenshot of the Hacker News, tic-tac-toe and control center demos.';
 
@@ -387,15 +392,15 @@ const OG_ALT = 'The Overview page of the gpuix-svelte docs: page list, opening p
 const description = (p: Page) =>
 	`${p.name === 'overview' ? 'A Svelte custom renderer for GPUI, the UI framework behind Zed. ' : ''}${p.about[0].toUpperCase()}${p.about.slice(1)}.`;
 
-function page(current: Page, body: string, live: boolean) {
-	const heading = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
-	const title = escape(heading === 'gpuix-svelte' ? heading : `${heading} · gpuix-svelte`);
-	const about = escape(description(current));
-	const url = `${SITE}${current.name}.html`;
-	const i = PAGES.indexOf(current);
-	const [prev, next] = [PAGES[i - 1], PAGES[i + 1]];
-	const nav = PAGES.map((p) => `<li><a href="${p.name}.html"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a></li>`).join('\n');
-	return `<!doctype html>
+interface Head {
+	title: string;
+	about: string;
+	url: string;
+	/** Markup for the end of `<head>`, after the site's stylesheet. */
+	extra: string;
+}
+
+const head = ({ title, about, url, extra }: Head) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -421,24 +426,48 @@ function page(current: Page, body: string, live: boolean) {
 <meta name="twitter:description" content="${about}">
 <meta name="twitter:image" content="${OG_IMAGE}">
 <meta name="twitter:image:alt" content="${OG_ALT}">
-<link rel="alternate" type="text/markdown" href="${current.name}.md">
 <style>${CSS}</style>
 <script src="prism.js" defer></script>
-${live ? '<script type="module" src="demos.js"></script>\n' : ''}<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
+${extra}<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
 </head>
 <body>
-<a class="skip" href="#content">Skip to content</a>
-<header class="top">
+<a class="skip" href="#content">Skip to content</a>`;
+
+const top = (section: 'docs' | 'playground') => `<header class="top">
 <div class="wrap top-inner">
 <a class="wordmark" href="index.html">${MARK}gpuix-svelte</a>
 <a class="version" href="${REPO}/blob/main/CHANGELOG.md" title="Changelog">v${version}</a>
 <nav class="links" aria-label="Site">
-<a href="overview.html" aria-current="true">Docs</a>
+<a href="overview.html"${section === 'docs' ? ' aria-current="true"' : ''}>Docs</a>
+<a href="playground.html"${section === 'playground' ? ' aria-current="page"' : ''}>Playground</a>
 <a href="index.html#examples">Examples</a>
 </nav>
 </div>
 </header>
-${CORNER}
+${CORNER}`;
+
+const FOOT = `<footer class="foot">
+<div class="wrap foot-inner">
+<p><b>gpuix-svelte</b> · MIT license · <a href="https://stanislav.garden">Stanislav Khromov</a></p>
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="${REPO}">GitHub</a></li>
+<li><a href="${NPM}">npm</a></li>
+<li><a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a></li>
+</ul>
+<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
+</div>
+</footer>`;
+
+function page(current: Page, body: string, live: boolean) {
+	const heading = body.match(/<h1[^>]*>(.*?)<\/h1>/s)?.[1].replace(/<[^>]+>/g, '') ?? 'gpuix-svelte';
+	const title = escape(heading === 'gpuix-svelte' ? heading : `${heading} · gpuix-svelte`);
+	const i = PAGES.indexOf(current);
+	const [prev, next] = [PAGES[i - 1], PAGES[i + 1]];
+	const nav = PAGES.map((p) => `<li><a href="${p.name}.html"${p === current ? ' aria-current="page"' : ''}>${p.nav}</a></li>`).join('\n');
+	const extra = `<link rel="alternate" type="text/markdown" href="${current.name}.md">\n${live ? '<script type="module" src="demos.js"></script>\n' : ''}`;
+	return `${head({ title, about: escape(description(current)), url: `${SITE}${current.name}.html`, extra })}
+${top('docs')}
 <div class="wrap layout">
 <nav class="sidebar" aria-label="Pages">
 <ul>
@@ -462,23 +491,28 @@ ${next ? `<a class="next" href="${next.name}.html" rel="next"><span>Next</span>$
 </div>
 </main>
 </div>
-<footer class="foot">
-<div class="wrap foot-inner">
-<p><b>gpuix-svelte</b> · MIT license · <a href="https://stanislav.garden">Stanislav Khromov</a></p>
-<ul>
-<li><a href="index.html">Home</a></li>
-<li><a href="${REPO}">GitHub</a></li>
-<li><a href="${NPM}">npm</a></li>
-<li><a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a></li>
-</ul>
-<p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>
-</div>
-</footer>
+${FOOT}
 <script>${SCRIPT}</script>
 </body>
 </html>
 `;
 }
+
+const PLAYGROUND_ABOUT = 'Edit a Svelte component and watch gpuix-svelte render it in the browser: on GPUI compiled to WebAssembly or in the DOM, with the element tree, the mutations and the compiled JavaScript beside it.';
+
+// The isolation script comes first in <head>, since its reload should cost as little of the first load as it can.
+const playground_page = () => `${head({
+	title: 'Playground · gpuix-svelte',
+	about: escape(PLAYGROUND_ABOUT),
+	url: `${SITE}playground.html`,
+	extra: `<script>${PLAYGROUND_ISOLATE}</script>\n<style>${PLAYGROUND_CSS}</style>\n<script type="module" src="playground/main.js"></script>\n`
+})}
+${top('playground')}
+${PLAYGROUND_BODY}
+${FOOT}
+</body>
+</html>
+`;
 
 // One bundle for every page, built as a consumer's Vite would build it, so `gpuix-svelte` and its components
 // resolve to the DOM versions of the components; its entry mounts each demo into the `data-demo` element of the same id.
@@ -547,6 +581,8 @@ async function build() {
 		writeFileSync(join(out_dir, `${p.name}.md`), markdown(p.source));
 	}
 	if (demos.length) await bundle_demos(demos);
+	writeFileSync(join(out_dir, 'playground.html'), playground_page());
+	await build_playground(out_dir);
 	writeFileSync(join(out_dir, 'llms.txt'), llms_txt());
 	writeFileSync(join(out_dir, 'llms-full.txt'), PAGES.map((p) => markdown(p.source).trim()).join('\n\n---\n\n') + '\n');
 	copyFileSync(join(root, 'docs/assets/prism.js'), join(out_dir, 'prism.js'));
@@ -556,7 +592,7 @@ async function build() {
 		if (existsSync(join(out_dir, entry))) throw new Error(`[docs] homepage/${entry} collides with the docs output`);
 		cpSync(join(root, 'homepage', entry), join(out_dir, entry), { recursive: true, filter: (src) => !basename(src).startsWith('.') });
 	}
-	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, ${demos.length} live demos in demos.js, with homepage/ at the root → ${out_dir}`);
+	console.log(`[docs] ${PAGES.length} pages, their markdown and llms.txt, ${demos.length} live demos in demos.js, the playground, with homepage/ at the root → ${out_dir}`);
 }
 
 if (process.argv.includes('--serve')) {
@@ -600,7 +636,7 @@ function supervise() {
 		clearTimeout(timer);
 		timer = setTimeout(cycle, 300);
 	};
-	for (const path of ['README.md', 'docs', 'homepage', 'scripts/docs.ts', 'scripts/vite-dom.ts', 'src/dom.ts', 'src/components/dom', 'packages/ui/src']) {
+	for (const path of ['README.md', 'docs', 'homepage', 'playground', 'scripts/docs.ts', 'scripts/playground.ts', 'scripts/vite-dom.ts', 'src', 'packages/ui/src']) {
 		const target = join(root, path);
 		watch(target, { recursive: statSync(target).isDirectory() }, (_, file) => {
 			if (!file || !basename(file).startsWith('.')) restart();
@@ -629,7 +665,9 @@ function serve(open: boolean) {
 		'.webp': 'image/webp',
 		'.json': 'application/json',
 		'.svg': 'image/svg+xml',
-		'.woff2': 'font/woff2'
+		'.woff2': 'font/woff2',
+		// instantiateStreaming rejects a wasm response typed as anything else.
+		'.wasm': 'application/wasm'
 	};
 	const server = createServer((req, res) => {
 		const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
@@ -641,10 +679,11 @@ function serve(open: boolean) {
 		res.writeHead(200, { 'Content-Type': types[extname(file)] ?? 'application/octet-stream' });
 		createReadStream(file).pipe(res);
 	});
-	server.listen(Number(process.env.PORT || 4321), '127.0.0.1', () => {
+	server.listen(Number(process.env.PORT || 4321), process.env.HOST || '127.0.0.1', () => {
 		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
 		console.log(`[docs] ${url}`);
-		if (!open) return;
+		// Vite's convention; xdg-open would ignore it and fall back to x-www-browser.
+		if (!open || process.env.BROWSER === 'none') return;
 		// `start` is a cmd.exe builtin, and its first quoted argument is the window title.
 		const [command, ...args] =
 			process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '', url] : ['xdg-open', url];

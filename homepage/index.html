@@ -35,7 +35,7 @@
 --accent:#ff3e00;--wash:rgba(255,62,0,.1);
 --sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
 --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
---max:1200px;--gut:32px;--corner:80px;
+--max:1200px;--gut:32px;--corner:56px;
 --c-p:#a1a1a1;--c-t:#97cdd8;--c-a:#e1c398;--c-s:#abd09f;--c-k:#e9a5c7;--c-n:#94bff0;--c-id:#d4d4d4;--c-ln:#5e5e5e;
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -57,9 +57,11 @@ ul[role=list]{list-style:none}
 .dim{color:var(--text-3)}
 
 .github-corner{position:absolute;top:0;right:0;z-index:20;display:block;width:var(--corner);height:var(--corner);pointer-events:none}
-.github-corner svg{display:block;width:100%;height:100%;fill:#1c1c1c;color:#ededed;pointer-events:none;transition:fill .15s ease}
+.github-corner svg{display:block;width:100%;height:100%;fill:#0a0a0a;color:#a1a1a1;pointer-events:none;transition:fill .15s ease,color .15s ease}
+.github-corner .edge{fill:none;stroke:var(--line);stroke-width:1px;transition:stroke .15s ease}
 .github-corner path{pointer-events:auto}
-.github-corner:hover svg{fill:#262626}
+.github-corner:hover svg{fill:#111;color:#ededed}
+.github-corner:hover .edge{stroke:var(--line-3)}
 .github-corner:focus-visible{outline:none}
 .github-corner:focus-visible svg{fill:#ededed;color:#000}
 .octo-arm{transform-origin:130px 106px}
@@ -77,6 +79,12 @@ ul[role=list]{list-style:none}
 .nav ul a{font-size:14px;color:var(--text-2);text-decoration:none;white-space:nowrap}
 .nav ul a:hover,.nav ul a[aria-current]{color:var(--text)}
 .nav ul a[aria-current]{text-decoration:underline;text-underline-offset:5px;text-decoration-color:var(--accent)}
+
+.banner{display:flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:10px var(--gut);background:var(--s1);border-bottom:1px solid var(--line);font-size:15px;line-height:1.4;color:var(--text);text-decoration:none;text-align:center}
+.banner b{font-weight:600}
+.banner:hover{background:var(--s2)}
+.banner-arrow{flex:none;color:var(--accent);transition:transform .15s ease}
+.banner:hover .banner-arrow{transform:translateX(3px)}
 
 .hero{padding:30px 0 80px}
 h1{font-size:clamp(38px,4.75vw,66px);line-height:1.02;letter-spacing:-.046em;text-wrap:balance}
@@ -721,7 +729,6 @@ main,.foot{background:linear-gradient(var(--line),var(--line)) calc(50% - var(--
 .show{gap:28px 12px}
 }
 @media (max-width:560px){
-:root{--corner:64px}
 .nav ul{gap:16px}
 .brand{gap:8px}
 .hero{padding-top:28px}
@@ -734,6 +741,9 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 @media (max-width:560px) and (hover:hover){
 .h-more{display:none}
 }
+@media (max-width:480px){
+.nav ul li:last-child{display:none}
+}
 @media (max-width:380px){
 .nav ul{gap:14px}
 .bar .hint{display:none}
@@ -742,7 +752,7 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 .h-fine{display:none}
 .h-touch{display:inline}
 }
-:root:has(#og:target) :is(.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
+:root:has(#og:target) :is(.banner,.nav ul,.github-corner,.copy,.bar .hint,.links,.osw-seg){display:none}
 :root:has(#og:target) .hero{padding:0}
 :root:has(#og:target) .hero .wrap{grid-template-columns:minmax(0,1fr) 600px;gap:0 48px;padding:0 72px;min-height:574px}
 :root:has(#og:target) h1{font-size:54px}
@@ -752,15 +762,17 @@ h1{font-size:clamp(34px,10.4vw,44px)}
 </head>
 <body>
 <i id="og" hidden></i>
+<a class="banner" href="https://www.youtube.com/live/GvjlR90cJOo?t=1890"><span>Watch the video presentation of gpuix-svelte on <b class="nw">This Week in Svelte</b></span><span class="banner-arrow" aria-hidden="true">→</span></a>
 <header class="top">
 <nav class="wrap nav" aria-label="Main">
 <div class="brand"><a href="./"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 13 9 32l18 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 13 57 32 36 51Z" fill="#ff3e00" stroke="#ff3e00" stroke-width="5" stroke-linejoin="round"/></svg>gpuix-svelte</a></div>
 <ul>
 <li><a href="overview.html">Docs</a></li>
+<li><a href="playground.html">Playground</a></li>
 <li><a href="#examples">Examples</a></li>
 </ul>
 </nav>
-<a href="https://github.com/khromov/gpuix-svelte" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+<a href="https://github.com/khromov/gpuix-svelte" class="github-corner" aria-label="View source on GitHub"><svg width="56" height="56" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L250,250 L250,0 Z"></path><path class="edge" d="M0,0 L250,250" vector-effect="non-scaling-stroke"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
 </header>
 
 <main id="top">
@@ -1239,6 +1251,7 @@ Created my-app. Next:
 <li><a href="https://github.com/khromov/gpuix-svelte">GitHub</a></li>
 <li><a href="https://www.npmjs.com/package/gpuix-svelte">npm</a></li>
 <li><a href="overview.html">Docs</a></li>
+<li><a href="playground.html">Playground</a></li>
 <li><a href="https://github.com/khromov/gpuix-svelte/blob/main/CHANGELOG.md">Changelog</a></li>
 </ul>
 <p class="fine">An independent project, not part of Svelte, Zed or GPUI.</p>

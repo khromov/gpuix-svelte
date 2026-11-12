@@ -1,6 +1,9 @@
 # dependencies
 node_modules
 
+# a Bun canary kept beside the repo for `--aot` / `--trim` builds, see CLAUDE.md
+.bun-canary
+
 
 # test:coverage working copy of svelte's sample suite
 test/.samples-tmp

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { IS_GPUIX, media_query, on_window_key, set_css_vars, window_size } from 'gpuix-svelte';
+	import { IS_GPUIX, focus_element, media_query, on_window_key, set_css_vars, window_size, type ShadowNode } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
@@ -67,6 +67,18 @@
 		})
 	);
 
+	let opener: ShadowNode | undefined;
+
+	// A dialog takes focus while it is open and hands it back to what opened it.
+	function hold_focus(node: ShadowNode) {
+		focus_element(node);
+		return () => opener && focus_element(opener);
+	}
+
+	const keep_tab = (e: { key?: string | null; preventDefault(): void }) => {
+		if (e.key === 'tab' || e.key === 'Tab') e.preventDefault();
+	};
+
 	function choose(item: string) {
 		picked = item;
 		menu = false;
@@ -81,19 +93,21 @@
 		<div class="size" testid="layout">{narrow.current ? 'narrow' : 'wide'}</div>
 		<div class="spacer"></div>
 		<Tooltip content="Toggle the theme (T)">
-			{#snippet children(hover)}
-				<div class="btn" {...hover} onclick={() => (dark = !dark)} testid="theme">{dark ? 'Light' : 'Dark'}</div>
+			{#snippet children(hover, focus)}
+				<button class="btn" {...hover} {...focus} onclick={() => (dark = !dark)} testid="theme">
+					{dark ? 'Light' : 'Dark'}
+				</button>
 			{/snippet}
 		</Tooltip>
 		<Popover open={menu} onclose={() => (menu = false)} testid="menu">
-			<div class="btn" onclick={() => (menu = !menu)} testid="menu-trigger">Menu</div>
+			<button class="btn" onclick={() => (menu = !menu)} testid="menu-trigger">Menu</button>
 			{#snippet content()}
 				{#each ['Rename', 'Duplicate', 'Delete'] as item (item)}
-					<div class="item" onclick={() => choose(item)} testid="item-{item.toLowerCase()}">{item}</div>
+					<button class="item" onclick={() => choose(item)} testid="item-{item.toLowerCase()}">{item}</button>
 				{/each}
 			{/snippet}
 		</Popover>
-		<div class="btn primary" onclick={() => (dialog = true)} testid="open">Dialog</div>
+		<button class="btn primary" onclick={() => (dialog = true)} {@attach (node: ShadowNode) => void (opener = node)} testid="open">Dialog</button>
 	</div>
 
 	<div class="muted" testid="picked">Picked: {picked}. Click a row to remove it.</div>
@@ -110,10 +124,17 @@
 	{#if dialog}
 		<Portal>
 			<div class="scrim" onclick={() => (dialog = false)}>
-				<div class="dialog" onclick={(e) => e.stopPropagation()} testid="dialog">
+				<div
+					class="dialog"
+					role="dialog"
+					aria-label="A dialog in a Portal"
+					aria-description="Escape, the button or a click outside closes it."
+					onclick={(e) => e.stopPropagation()}
+					testid="dialog"
+				>
 					<div class="title">A dialog in a Portal</div>
 					<div class="muted">Escape, the button or a click outside closes it.</div>
-					<div class="btn primary" onclick={() => (dialog = false)} testid="close">Close</div>
+					<button class="btn primary" onclick={() => (dialog = false)} onkeydown={keep_tab} {@attach hold_focus} testid="close">Close</button>
 				</div>
 			</div>
 		</Portal>
@@ -136,7 +157,7 @@
 	.btn:hover { border-color: var(--border-strong); background-color: var(--raised); }
 	.btn.primary { border-color: var(--ink); background-color: var(--ink); color: var(--bg); }
 	.btn.primary:hover { border-color: var(--ink); background-color: var(--ink); opacity: 0.88; }
-	.item { padding: 6px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+	.item { display: flex; padding: 6px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 	.item:hover { background-color: var(--raised-hover); }
 	.row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; border-width: 1px; border-style: solid; border-color: var(--border); cursor: pointer; background-color: var(--panel); }
 	.row:hover { border-color: var(--border-strong); background-color: var(--raised); }

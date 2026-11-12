@@ -10,7 +10,7 @@ webview, no browser. Built on Svelte's unreleased custom renderer API
 ([sveltejs/svelte#18511](https://github.com/sveltejs/svelte/pull/18511)).
 
 User-facing documentation lives in `README.md` and `docs/` (`styling.md`, `guide.md`,
-`components.md`, `testing.md`, `shipping.md`, `contributing.md`); this file is the internals and
+`components.md`, `accessibility.md`, `testing.md`, `shipping.md`, `contributing.md`); this file is the internals and
 the constraints behind them, and points there rather than repeating them.
 
 ## Commands
@@ -23,6 +23,10 @@ resolves to its server build and `mount()` does not exist; the `--import` instal
 loader, resolved through the package's own `exports` (so `src/register.ts` here and
 `lib/register.js` once packed), and Node strips the types of every `.ts` itself — or, under
 `--bun` / when invoked by Bun, `bun` with the same conditions and `--preload gpuix-svelte/plugin`.
+Under Bun that is `process.execPath`, except on the copy of Bun named `node` that `bun run` puts
+first on PATH where Node is not installed (and always under `bun --bun run`): Bun by that name
+takes `--conditions` but resolves without them (oven-sh/bun#44611), so the bin runs the copy named
+`bun` beside it instead, or `bun` from PATH (`test:launcher`).
 Flags before the entry are forwarded to the runtime (`demo:glass-ffi` passes `--experimental-ffi`
 that way).
 
@@ -60,7 +64,8 @@ npm run demo:cross         # one component on both renderers (examples/cross-tar
 npm run demo:dom           # Vite dev server for examples/cross-target in the DOM (scripts/dom.ts
                            # holds the Vite config and serves homepage/assets/fonts as the public dir
                            # for the page's Geist; -- --build-only writes dist/dom-cross-target,
-                           # -- --no-open skips the browser). Runs Vite on Node; no bun: twin
+                           # -- --no-open skips the browser; HOST/PORT override). Runs Vite on Node;
+                           # no bun: twin
 npm run demo:ui            # the UI toolkit's showcase (packages/ui/showcase) in a GPUI window, and
 npm run demo:ui-dom        # the same through Vite, as demo:dom (scripts/dom.ts --root; -- --build-only
                            # writes dist/dom-showcase). See "The UI toolkit"
@@ -75,8 +80,11 @@ npm run test:reorder       # keyed {#each} reordering, and a node re-inserted or
 npm run test:smoke         # mount + click Counter headlessly
 npm run test:autocommit    # the microtask drain used where there is no frame loop
 npm run test:style         # CSS shorthand expansion, and what must never reach serde
+npm run test:props         # static boolean/number props reach native typed, lowercase spellings map,
+                           # a non-number is left unset
 npm run test:teardown      # removal marks dirty, blank text demotes, listeners survive
-npm run test:lifecycle     # throws don't kill the frame loop; remount is one batch; when the focus
+npm run test:lifecycle     # throws (commit or tick) don't kill the frame loop; the macOS wake pacing
+                           # against a stub; remount is one batch; when the focus
                            # dim ships; render_hot outlives a save that does not compile
 npm run test:compile       # the ?v=N cache-buster reaches every child specifier, and a reload
                            # picks up an edited child and root on the runtime running it
@@ -84,20 +92,24 @@ npm run test:css           # <style> class rules: specificity, inline wins, :hov
 npm run test:module        # a .svelte.ts runes module compiles and is one shared instance
 npm run test:vars          # var() in class rules and inline styles, set_css_vars restyles in one
                            # batch, an undefined var warns at commit rather than where it was read
-npm run test:scroller      # the shipped Scroller: wheel, thumb drag, follow, scroll={false}, virtual,
-                           # and that a plain column never asks native for bounds
+npm run test:scroller      # the shipped Scroller: wheel, thumb drag under pointer capture (out of the
+                           # window and back), follow, scroll={false}, virtual's native thumb and drag
+                           # strip, and that neither a plain column nor an idle virtual list asks native
+                           # anything
 npm run test:dialog        # a file picker open on a faked-blocked UI thread: no native call gets
                            # through, window_size holds, uploads wait, nothing throws from a timer
 npm run test:hitbox        # hitbox="self" shielding through real hit testing, <svg> colour inheritance
 npm run test:auxclick      # a right click is onauxclick, ctrl+click is not
 npm run test:window-keys   # on_window_key, the editing flag, remount survival
+npm run test:button        # <button>: the Button role, a tab stop, Enter/Space as a click, disabled
 npm run test:titlebar      # render's titlebar option through mount_headless: title, buttons, layout
                            # below the bar, rootStyle on the box below it, set_window_title, close
                            # unmounts once; and where wants_titlebar's 'auto' default draws it
 npm run test:tab           # Tab/Shift+Tab move focus, preventDefault keeps it, stopPropagation skips
                            # the ancestor and window handlers; ctrl-tab and tabNavigation: false
                            # leave focus alone
-npm run test:window        # window_size / window_insets: polled only while read, restarted on remount
+npm run test:window        # window_size / window_insets: polled only while read, restarted on remount;
+                           # selected_text() follows the selection event without polling
 npm run test:media         # @media in <style> and media_query(): the parser, the compiler keeping the
                            # query on the rule, the renderer restyling only the dependent elements
                            # within a poll of a faked window size, and the poll stopping with the last
@@ -108,9 +120,11 @@ npm run test:host          # aria props in GPUI's a11y tree, file drop, motionCo
 npm run test:overlay       # the debug frame overlay wrappers, and how render() picks between
                            # GPUIX_FPS and the debugFrameOverlay option across remounts
 npm run test:helpers       # every gpuix-svelte/test input helper through real hit testing
-npm run test:search        # TextSearch: native match count, next/prev wrap, flags, find_ranges
+npm run test:search        # TextSearch: native match count, next/prev wrap, flags, find_ranges,
+                           # and matches over a virtual list's unmounted rows
 npm run test:tooltip       # native <anchored> placement and its center quirk; Tooltip hover
-                           # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal
+                           # (delay, grace, jumping onto the tip, spread handlers); Popover dismissal;
+                           # Escape closing only the top dismiss_layer
 npm run test:cross-target  # the cross-target example on GPUI: the palette through set_css_vars and the
                            # T shortcut, Scroller, Tooltip, Popover and Portal, all by test id
 npm run test:dom           # the same example in the DOM in happy-dom, the stubs of dom.ts and a
@@ -124,12 +138,15 @@ npm run test:ui-dom        # the same showcase bundled by Vite (scripts/ui-bundl
                            # runs on Linux too
 npm run test:docs          # builds the docs site (always on Node, since Vite runs there) and mounts
                            # every ```svelte demo``` from the built dist/docs/demos.js into each built
-                           # page under happy-dom, clicking through a few; runs on Linux too
+                           # page under happy-dom, clicking through a few; then the playground up
+                           # to the browser: both frames built, every example compiled for both
+                           # renderers into imports of built files, the tree mirror; runs on Linux too
 npm run test:automation    # gpuix-svelte/automation's Locator over test_app(), and the live
                            # server's two-frame reply against a stub frame loop
 npm run test:bundle        # gpuix-svelte/build's Node half: the app options read from an entry's
                            # source (both real entries, what is accepted and what fails), app
                            # metadata defaults, what the window takes from them, the Info.plist,
+                           # the host prebuild an aot/trim build embeds,
                            # the .ico container, and real .ico/.icns where the platform has a
                            # scaler, under a path with a space and a ’
 npm run test:update        # gpuix-svelte/update: version order, manifest signing and merging,
@@ -141,6 +158,10 @@ npm run test:update        # gpuix-svelte/update: version order, manifest signin
                            # back as the new version, leaving the swept leftovers behind; the
                            # Windows and Linux branches also run everywhere on a faked
                            # process.platform, which proves their logic and not their renames
+npm run test:launcher      # the bin on a copy of Bun named `node` (what `bun run` uses where Node
+                           # is not installed): svelte still resolves to its custom-renderer build,
+                           # through the `bun` beside it or from PATH, and with neither the bin
+                           # says so rather than throwing; needs `bun` on PATH
 npm run test:automation-live  # opens a window: launch()es the counter, clicks + three times, waits
                            # for "3 clicks", screenshots (not on Linux), close()s; NOT part of
                            # `npm test`, but CI's linux job runs it under Xvfb
@@ -161,12 +182,15 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # A ```svelte demo <name>``` block is a live demo: written to
                            # dist/docs-demos/<page>-<name>.svelte and bundled by Vite for the DOM
                            # into dist/docs/demos.js, which only pages with a demo load;
-                           # one that does not compile fails the build. See "The docs' live demos"
+                           # one that does not compile fails the build. See "The docs' live demos".
+                           # Also builds the playground (playground/, scripts/playground.ts) into
+                           # dist/docs/playground.html, playground/ and playground-sw.js. See
+                           # "The docs' playground"
 npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
-                           # (PORT overrides) and opens it in the browser (-- --no-open skips
+                           # (HOST/PORT override) and opens it in the browser (-- --no-open skips
                            # that); rebuilds on any change to README.md, docs/, homepage/,
-                           # scripts/docs.ts, scripts/vite-dom.ts, src/dom.ts or src/components/dom
-                           # by restarting a child that builds and serves
+                           # playground/, src/, scripts/docs.ts, scripts/playground.ts or
+                           # scripts/vite-dom.ts by restarting a child that builds and serves
 npm run og                 # retakes homepage/og.png: headless Chrome over CDP (scripts/og.ts,
                            # $CHROME overrides the path) on index.html#og at 1200x630, device
                            # scale 2. og:docs does docs/assets/og-docs.png from the built overview.
@@ -190,8 +214,7 @@ npm run wallpapers         # macOS only: Apple's wallpapers for the share cards,
 npm run vendor             # re-vendor svelte: downloads pkg.svelte.dev's build of the PR
                            # head; see "Hard constraints"
 npm run parity             # the @gpuix/native methods nothing in src/ calls (--all: every method,
-                           # the classes that have it, its callers) plus a GPUI_EVENTS diff
-                           # against upstream's EVENT_PROPS; run it after a native bump
+                           # the classes that have it, its callers); run it after a native bump
 npm run pack -- <dir>      # the npm tarball, with svelte bundled, the published spec and
                            # JS + declarations in lib/ — scripts/publish.ts wraps `npm pack`;
                            # `publish:npm` wraps `npm publish` the same way (release workflow)
@@ -212,7 +235,8 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build, the call a 
                            # build.ts makes: dist/Tic-tac-toe.app with its icon on macOS,
                            # dist/tic-tac-toe.exe (no console, version info) on Windows,
                            # dist/tic-tac-toe on Linux; signs/notarizes with CODESIGN_IDENTITY /
-                           # NOTARY_PROFILE. Refuses to run under Node
+                           # NOTARY_PROFILE. Refuses to run under Node. -- --aot / -- --trim turn
+                           # on Bun's experimental compile options (see "Standalone binary")
 ```
 
 Every script that goes through the bin has a `bun:`-prefixed twin (`npm run bun:test`,
@@ -251,10 +275,13 @@ three hooks a refactor can break with no change in behaviour: the `SharedArrayBu
 allocates between the swap's two renames, the `process.cwd()` read right after the swap, and the
 `process.platform` reads during extraction.
 
-`docs/testing.md` is the helper reference (`mount_headless`, `settle`/`wait`, `find_*`/`tree()`,
-`click*`/`press`/`type`/`drop_files`, `hover`/`mouse_*`/`wheel`/`drag`/`drag_select`/`key_up`,
-`focus`/`unfocus`, `painted`/`all_text`/`bounds`/`screenshot`, the `clock_*` and `advance_time`
-controls, `wait_for`). The input helpers run GPUI's real hit testing and input pipeline
+`docs/testing.md` is the helper reference (`mount_headless`, `settle`/`wait`,
+`find_*`/`tree()`/`text_content`, `click*`/`press`/`type`/`drop_files`,
+`hover`/`mouse_*` (`mouse_exit` included)/`wheel`/`drag`/`drag_select`/`key_up`, `focus`/`unfocus`,
+`painted`/`all_text`/`bounds`/`a11y`/`screenshot` (which settles first), the `clock_*` and
+`advance_time` controls, `wait_for`). The pointer helpers pass a point through unchecked, and the
+headless renderer delivers a move or release past the viewport to an element holding pointer capture,
+so a drag that leaves the window is testable (`test/scroller.ts`). The input helpers run GPUI's real hit testing and input pipeline
 (`simulateClick` → `drainEvents()` → `dispatch()`) and end in `pump()`, which drains and settles
 until a paint queues nothing more; `wait()` pumps on both sides of its sleep, because a window hands
 over what a paint queued (`layout`, say) right after that paint, and `Scroller`'s thumb depends on
@@ -274,7 +301,7 @@ and `deliver()` drops native's repeat of it when focus later moves on.
 
 `src/window.ts` (window title/activate/minimize/zoom/fullscreen, `prompt_for_paths`, `blur`, the
 focus helpers, `scroll_into_view`, `set_image`/`set_image_pixels`, `register_font`,
-`elements_at`, the debug-overlay wrappers)
+`elements_at`, `selected_text`/`clear_selection`, the debug-overlay wrappers)
 no-ops wherever the renderer lacks the method, so app code never needs `get_native()?.x?.()`
 guards. Its node-taking helpers go through `with_native_id`, which defers the call past the next
 commit while mutations are queued — from an `{@attach}` the element's `createElement` has not
@@ -310,12 +337,12 @@ once.
 CI (`.github/workflows/test.yml`): `npm test` on macOS, Windows x64 and Windows arm64
 (`windows-11-arm`) × Node 24 and 26, `npm run bun:test` on those three, `consume` + `bun:consume`
 on those three and Linux × Node 24 and 26, `compile` on those three and Linux (build only, never
-launched), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
-a check that the binding loads (see the `@gpuix/native` constraint), the six suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:dom`, `test:ui-dom`,
-`test:docs`), the Vite builds of the cross-target example and the toolkit's showcase (`demo:dom`
-and `demo:ui-dom` with `-- --build-only`) and `test:automation-live` under `xvfb-run`, all on both
-runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and
+launched; plain, then `--aot --trim`), and a Linux job that runs `typecheck`, `lint`, a `npm pack --dry-run` of the scaffolder,
+a check that the binding loads (see the `@gpuix/native` constraint), the seven suites that need no
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:dom`,
+`test:ui-dom`, `test:docs`), the Vite builds of the cross-target example and the toolkit's showcase
+(`demo:dom` and `demo:ui-dom` with `-- --build-only`) and `test:automation-live` under `xvfb-run`,
+all on both runtimes where they have twins. `TestGpuixRenderer` is Metal on macOS and
 DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
@@ -351,6 +378,23 @@ pixel, not 32). Behaviour goes through `launch()`, which needs no pixels. For th
 `XDG_RUNTIME_DIR` under `/run/user`, or the socket path overflows, and point clients at it with the
 same variable), and `WAYLAND_DEBUG=1` shows what a window told the compositor.
 
+`.devcontainer/` is that setup ready-made: the linux job's packages plus `x11-apps` and Chrome,
+Bun pinned in its `Dockerfile` (CI's `setup-bun` takes the latest, so bump it with a Bun release),
+Docker-in-Docker (which makes the container `--privileged` and `/tmp` a tmpfs), and Xvfb on
+`:99` at 1920×1080 (four demo windows are 820–860 px tall) from `postStartCommand`
+(`start-display.sh`) with `DISPLAY` set, so `test:automation-live` needs no `xvfb-run`. The same
+script serves the display as noVNC on 6080 (x11vnc on loopback 5900, noVNC and websockify from
+upstream tags, since Ubuntu's packages pull in nodejs and numpy); `index.html` there hands noVNC a
+relative websocket path so it works behind code-server's `/proxy/6080/`. `xwd -root -silent |
+xwdtopnm | pnmtopng` makes a PNG and `xdotool` clicks and types into a window by hand (there is no
+window manager: windows open centred and stack). `containerEnv` sets `HOST=0.0.0.0`, which
+`docs:serve`, `demo:dom` and websockify bind to (Bun.serve in `demo:web` already does), and
+`BROWSER=none`, which Vite and `docs:serve` read as "open nothing" (xdg-open alone ignores it and
+starts a real Chrome on `:99`). Behind a prefix-stripping proxy demo:dom does not load (Vite's
+absolute `/@vite/client` and its Host check). It is forced to `linux/amd64` (build `options` and
+`runArgs`), since there is no linux-arm64 prebuild; on Apple Silicon that runs emulated.
+`docs/contributing.md` has the user-facing side.
+
 From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
 applies once per window; the option is re-applied only when a later `render()` changes it, since
 `render_hot` remounts with the same options and must not undo a runtime `cycle_debug_overlay()`.
@@ -362,7 +406,8 @@ An unknown mode from either warns once (native would throw out of `render()`).
 `@gpuix/native/automation`'s `App` / `Locator` / `AutomationError` rather than porting them.
 `launch({ entry, bun?, args?, cwd?, env? })` spawns `process.execPath bin/gpuix-svelte.js entry`
 with `GPUIX_AUTOMATION=1` and stderr inherited (upstream's own `launch` pipes stderr and never
-drains it, and its `close()` SIGTERMs), connects with upstream's `connectStdio`, and its `close()`
+drains it, its `close()` SIGTERMs, an app that dies before `initialize` hangs it, and it decodes
+each chunk on its own, splitting a multi-byte character), connects with upstream's `connectStdio`, and its `close()`
 ends the app's stdin. `test_app()` is the same `App` over `TestGpuixRenderer`, through
 `headless_renderer()`, upstream's `TestAutomationRenderer` written with test.ts's simulate → drain
 → settle discipline; its reads settle first, so `waitFor` sees a timer's update.
@@ -370,10 +415,17 @@ ends the app's stdin. `test_app()` is the same `App` over `TestGpuixRenderer`, t
 `GPUIX_AUTOMATION=1` (`0` or empty is off) is deliberately explicit, not upstream
 `createNativeRenderer`'s stdin-is-not-a-TTY sniffing: stdin is not a TTY under CI, `nohup`, an
 agent's shell or `demo-all.ts`'s four children, and the env var is what lets stdin ending mean
-"exit". Under it `render()` rebinds `console.log`/`info`/`debug` to stderr before creating the
-window (stdout is the wire, and a write without a trailing newline would swallow the next frame)
-and imports `src/automation-server.ts` through a computed specifier, so neither the web bundle nor
-the normal app path loads it, and a compiled binary cannot serve. The server is started where the
+"exit". The window takes focus as usual: upstream's docs make `focus: false` the rule for live
+automation, but a window that is not key gets no input focus, so a clicked `<input>` hears no
+`focus`/`blur`, draws no caret and leaves `e.editing` false, which a test of shortcuts would get
+wrong. Under it `render()` rebinds `console.log`/`info`/`debug` to stderr before creating the window
+(stdout is the wire, and a logged line starting with `data:` merges into the next reply, which is
+then lost) and imports `src/automation-server.ts` through a computed specifier, so the normal app path never
+loads it. Bun inlines that `const` and keeps the `import()` for run time, and `aot` compiles any path
+written out as a string, server and zod included, so `build()` defines `process.env.GPUIX_AUTOMATION`
+to `""` and `render.ts` reads it spelled out (inside the `if` itself: a local const holding it
+leaves the import in): the branch and its import fold away and a compiled
+binary cannot serve. The server is started where the
 window is created, so `render_hot` remounts reuse it. It owns its stdio loop (upstream's
 `createSseDecoder` + `handleAutomationRequest`) to answer an unparseable request that has an id
 with a `Protocol` error (upstream drops it, and the driver waits forever) and to answer what is in
@@ -383,7 +435,8 @@ capture after a click goes move, read, move (`scripts/shots.ts`). Upstream's `li
 after each input, which is not enough here — the napi callback carrying the event runs on a later
 loop turn, so a `getTree` right after a `click` could miss a just-shown `{#if}` node. So the
 server hides `tick` from it and wraps the backend (`frame_synced`): requests run one at a time and
-every input replies only after two of the frame loop's own ticks (`next_frame()` in `render.ts`);
+every input replies only after two of the frame loop's own ticks (`next_frame()` in `render.ts`,
+which brings each one forward, so a slower idle pace could never delay a reply);
 reads and `screenshot` do not wait.
 
 ### Measuring frame cost
@@ -426,11 +479,50 @@ from `bunfig.toml`, so it wires `src/plugin.ts`'s exported hooks in itself:
 `autoloadBunfig` and `autoloadDotenv` are off, so a `bunfig.toml` or `.env` beside the binary can't
 reconfigure it. `GPUIX_SVELTE_RENDERER` is a build-time variable on this path.
 
+`build({ aot, trim })` passes Bun's experimental `compile.aot` / `compile.trim`, both off by
+default; `trim` may also be Bun's `{ allow, remove }` object, passed through as it is. A Bun
+without them ignores them silently (1.4.4 builds the same 108.5 MB either way) and `Bun.version`
+can't tell a canary apart (1.4.4-canary.1 reports `1.4.4`), so `supported_flags` asks
+`bun build --help` for each flag and logs the ones it drops. With either one on, two things change:
+the size floor gives way to a search for the host prebuild's bytes in the executable, since both
+shrink the runtime below bare Bun; and `@gpuix/native` resolves to a one-line `require()` of that
+prebuild instead of napi-rs's loader. Bun's trim report blames the loader for its
+`require(process.env.NAPI_RS_NATIVE_LIBRARY_PATH)` and for `eval` at a
+`Object.prototype.hasOwnProperty.call`, though it has no `new Function`, and both keep Bun's module
+loader and interpreter in. The default build keeps the loader, since no CI job launches a compiled
+binary. `native_addon()` (`app-bundle.ts`, so `test:bundle` checks it on every CI platform) finds
+the prebuild; the embedded copy was verbatim on macOS, and CI's `compile` job runs `--aot --trim`
+after the plain build, which on a stable Bun without the options only proves the fallback, until
+one ships them. On macOS with 1.4.4-canary.1, tic-tac-toe is 138.7 MB plain, 88.4 with
+`trim`, 125.4 with `aot` and 79.9 with both, down from 82.3 before the trim fixes.
+
+To see what stops `trim`, add `aotExplain: ['trim']` to an `aot` build's `compile` and read the
+`trim:` lines in `result.logs`: `blocked by` names the cause and where. Fixed so far, each worth
+measuring again after a change near it: a computed key on `globalThis` (the window slot, now
+`__gpuix_svelte_host`, since `globalThis[x]` could be `eval` or any `Bun.*` API), the automation
+`import()`, `previous-instance.ts`'s and `screen-reader.ts`'s `process.getBuiltinModule` (now static
+`node:fs` / `node:child_process` imports, which Bun's browser build stubs) and the napi-rs loader. An app without updates, the counter, is then at
+74.6 MB with only the addon's own `process.dlopen` left. Tic-tac-toe still reports `Function` at
+`update.ts`'s `new AppUpdate`, which keeps the interpreter and makes the compiler assume every Bun
+API is reachable (`used (Bun.build)` and the like, with no location). Bisecting found two
+triggers that edits in our code don't clear. One is adm-zip's read path: `new AdmZip(path)` plus
+`getEntries()` alone, not its `fs` / `decoder` options. The other is the `AppUpdate` instance
+reaching the component (`$state.raw` doesn't change it). Without both, the build is 75.3 MB.
+`trim: { remove: [...] }` gets past them: with `bundler`, `plugin`, `sql`, `redis`, `sqlite`,
+`image`, `s3`, `test`, `fs-router`, `profiler`, `inspector`, `http2` and `http3` removed it is
+73.3 MB, and adding `interpreter`, `serve`, `worker`, `webassembly`, `source-maps` and `temporal`
+makes 66.8 MB. Both mount, and the update check runs. It stays opt-in, since `remove` overrides
+the compiler and an app that uses one of those throws `ERR_FEATURE_REMOVED`. Typing doesn't help
+`trim`: narrowing `typeof fetch` changed nothing, and shipping the TypeScript under an `"aot"` export
+condition made the executable 1 MB larger. Bun type-checked the 15 files and typed accesses rose
+from 922 to 1,498, but the compiled program grew with them.
+
 **App metadata comes from `render()`'s `app` option** (`AppOptions` in `types.ts`: `name`,
 `identifier`, `version`, `icon`, `copyright`, `publisher`, `description`), so the entry is the one
-place that names the app. The window reads `name` as the `title` fallback and `identifier` as
+place that names the app. The window reads `name` as the `title` fallback and as `appName` (macOS's
+Hide and Quit items, which native otherwise names after the title), and `identifier` as
 `appId`, which GPUI hands to Wayland and X11 (`WM_CLASS`) and a desktop matches a `.desktop` file by;
-an explicit `title` or `appId` wins (`window_options_for` in `render.ts`). `build()` reads everything
+an explicit `title`, `appName` or `appId` wins (`window_options_for` in `render.ts`). `build()` reads everything
 from the entry's source: `Bun.Transpiler` strips the types and
 `read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for
 the one top-level `render()` imported from `gpuix-svelte` (renamed or not, as a statement or a
@@ -468,7 +560,12 @@ a white background).
 `docs/updating.md` is the user-facing page. `gpuix-svelte/update` (`src/update.ts`) is in-house
 (adm-zip is its one dependency), after a survey found nothing on npm that fits a Bun-compiled app: Velopack
 needs the .NET `vpk` toolchain, a second napi addon and its own installer formats, and the rest are
-Electron- or CLI-shaped. The design:
+Electron- or CLI-shaped. `@gpuix/native`'s own `checkUpdate` (since 0.10, a port of
+cargo-packager-updater) was rejected too: it installs only cargo-packager artifacts (`.app.tar.gz`,
+an NSIS/MSI installer it starts before exiting, an AppImage), verifies minisign over the artifact but
+not the feed's version, holds the download in memory with no progress or abort, never relaunches or
+rolls back, and has no dev-run, translocation or writability guard — outside a `.app` its extract
+path is the executable's own directory. The design:
 
 - **The build embeds what the app knows about itself.** `build()` defines
   `process.env.GPUIX_APP_INFO` as the JSON of `EmbeddedAppInfo` (`name`, `slug`, `identifier`,
@@ -546,8 +643,8 @@ Electron- or CLI-shaped. The design:
   Node throws ENOEXEC (a
   wrong-architecture build) from `spawn` itself and puts ENOENT and the like on the event, and
   `test:update` goes through the first, since its fake executables can't exec. The new instance's
-  `wait_for_previous_instance()` (`src/previous-instance.ts`, no imports so render.ts can call it
-  before creating the window; `process.getBuiltinModule('node:fs')` for the sentinel) writes the
+  `wait_for_previous_instance()` (`src/previous-instance.ts`, which render.ts calls before
+  creating the window; its static `node:fs` import is stubbed by Bun's browser build) writes the
   sentinel first, then polls `process.kill(pid, 0)` with `Atomics.wait` until ESRCH and returns
   `'exited'`, or `'timed-out'` with a warning after 10 s; the pid must match `^[1-9]\d*$`, and
   all three variables are taken out of the environment on the first call so children don't inherit
@@ -620,7 +717,7 @@ sizes the canvas; and it has no `captureScreenshot`, `activateWindow`, `minimize
 `cycleDebugFrameOverlay`, or `resetDebugFrameOverlayStats`/`getDebugFrameOverlayStats` — so
 frame-cost measurement is desktop-only (`set_debug_overlay` still shows the overlay). Like the napi
 window it has `getAutomationTree()` but no `getTreeJson()` (that is test-renderer only). Everything
-`Scroller` needs (`getListScrollTop`, `scrollTo`, `scrollToItem`) is present.
+`Scroller` needs (`getListScrollTop`, `getScrollOffset`, `scrollTo`, `scrollToItem`) is present.
 
 There is no automated test: `gpuix-svelte/test` is built on `TestGpuixRenderer`, which is napi-only.
 Verify by hand with headless Chrome over CDP — `--headless=new --enable-unsafe-swiftshader
@@ -653,7 +750,10 @@ building. The design:
   absent; `render_hot` is there only to reject with a message naming the bin, because an entry
   run as plain `node app.ts` lands here and would otherwise die on a missing-export SyntaxError.
   `render()` gives `<body>` `create_root`'s box (flex, `100%` × viewport, relative, no margin), or
-  `rootStyle` in its place as on GPUI, and clears what the previous call set. Key names follow
+  `rootStyle` in its place as on GPUI, and clears what the previous call set. Under either it sets
+  `line-height: 1.618`, GPUI's default (`phi()`, and native takes `lineHeight` in px only, so the
+  GPUI side cannot be given a relative one): a browser's `normal` follows the font (1.3 for Geist,
+  1.15 for the system font), which made every text line on GPUI about a quarter taller. Key names follow
   GPUI's `press()` spelling, with the physical key (`e.code`) standing in under Alt or Shift once
   the layout has turned the key into a symbol (⌥T is `†`), and `editing` means a text field, not a
   checkbox. Every `document`/`window` read goes through `doc()`/`win()`, so SvelteKit's server pass
@@ -710,6 +810,45 @@ building. The design:
   which no demo may name, do not. `test/docs.ts` runs the build on Node whatever runtime runs it
   (`node` from PATH under Bun), imports the bundle under happy-dom with an empty body, then calls
   `mount_demos()` per built page with the page's inline script stripped.
+- **The docs' playground** (`playground/`, built by `scripts/playground.ts`, at `/playground.html`
+  with a link in the site's top nav and the homepage's). The page (`main.ts`: a CodeMirror editor,
+  `examples/*.svelte` read with `?raw` and typechecked as GPUI markup) compiles the source in the
+  browser and runs it in one same-origin iframe per renderer, because GPUI's wasm appends its canvas
+  to `<body>` and can never be torn down, and the DOM `render()` takes `<body>` too. `compile.ts`
+  calls `src/compile-core.ts` for GPUI (the package's compile step with no `node:*` or `process`,
+  which `compile.ts` wraps with the file read and the cache-buster) and `svelte/compiler` with
+  `css: 'injected'` for the DOM, then `link()` rewrites every import to a URL. That is the trick the
+  whole thing rests on: each frame is a Vite build whose entries are the frame script plus one tiny
+  re-exporting module per specifier in `modules.ts` (`preserveEntrySignatures: 'strict'`, file
+  names from `file_of`), so the blob module the frame imports shares the frame's chunks: one Svelte
+  runtime, one renderer, live bindings intact. An import outside that list is a compile error
+  naming it; a new shipped component or svelte entry point goes in `modules.ts`. The GPUI frame is
+  the first wasm build here made by Vite, not Bun: a plugin compiles `.svelte` with
+  `compile_svelte`, points `gpuix-svelte`, `/renderer` and `/components/*` at `src/`, and replaces
+  `@gpuix/native` with a virtual module that imports `wasm/gpuix-web.js` and the `.wasm` through
+  `?url` (the package's `browser.mjs` uses `with { type: 'file' }`, which only Bun reads), under
+  the conditions `custom-renderer` + `browser`; `base: './'` keeps the wasm and the preloaded
+  chunks relative. `frame-gpui.ts` wraps `GpuixRenderer.prototype.applyBatch` and posts every
+  batch to the page, where `tree.ts`'s `Mirror` rebuilds GPUI's element tree from the operations
+  alone (the wasm has no `getTreeJson`), text wrappers included; that is the Render tree and
+  Mutations views, and Compiled JS is the compiler's output before linking. The GPUI frame is
+  remounted through `render()` on every edit (so `set_css_vars` values outlive a run), the DOM
+  frame is reloaded. Both frames pass `render()` the same `rootStyle` (`ROOT_STYLE` in `frame.ts`:
+  the default box plus a black background and `#ededed` text), because GPUI's default text is black
+  on an unpainted, black window, so a bare `<div>Hello</div>` was invisible. **Fonts**: the wasm cannot reach system fonts and has no `registerFont`, so
+  the canvas draws everything in the eight faces it embeds (IBM Plex Sans 400/600 and Lilex
+  400/700, each with an italic), and the DOM frame loads the same faces from
+  `homepage/assets/fonts/gpui/` instead of the site's Geist. Those files were cut out of
+  `gpuix-web_bg.wasm` itself (scan for sfnt headers, length from the table directory) and
+  compressed with fontTools; redo that if a native bump changes the embedded fonts. **Isolation**: GitHub Pages cannot send COOP/COEP, so an inline script
+  registers `playground/sw.js` (published as `playground-sw.js`, scope `./playground`, which covers
+  the page and the frames and nothing else) and reloads once; the worker re-serves every response
+  with `credentialless`, or `require-corp` where the page says Safari, which has no
+  `credentialless` and so loses the cross-origin analytics script on that page. Without isolation
+  (no service worker, plain `http:` off localhost) the page falls back to the DOM renderer with a
+  note. `docs:serve` sends no headers of its own, so local runs take the same path. Checking the
+  wasm side is by hand in headless Chrome over CDP, as for `demo:web`; here it needs
+  `--enable-unsafe-webgpu` or `--enable-unsafe-swiftshader`.
 - **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the
   DOM components and the example with `svelte/compiler` (no `customRenderer`, `css: 'injected'`)
   into `test/.dom-tmp/`, and rewrites their `'gpuix-svelte'` and component specifiers to
@@ -870,7 +1009,8 @@ design:
   recommends an exact pin for its own adapters) and the renderer speaks its mutation contract:
   applyBatch only — no `removeChild` op (reinserts reparent implicitly; nodes that leave the live
   tree are destroyed at commit and re-materialize if shown again), `setCustomProp` not
-  `setCustomPropValue`, and `commitMutations?.()` only where it exists. The package is ESM with an
+  `setCustomPropValue`, and no `commitMutations` (0.6 removed it; `applyBatch` invalidates on its
+  own). The package is ESM with an
   `index.cjs` under the `require` condition. Prebuilds exist for darwin-arm64 / linux-x64 /
   win32-x64 / win32-arm64 only; since 0.11 the Linux one links
   `libxcb`, `libxkbcommon` and `libxkbcommon-x11`, which CI's linux job installs. On Linux
@@ -878,9 +1018,16 @@ design:
   builds it with `--no-default-features` until wgpu grows image readback — so CI there runs only
   the suites that don't mount headlessly, plus a real window under Xvfb. Its `/host`, `/runtime` and
   `/testing` entry points are the framework-neutral layer `@gpuix/react` and `@gpuix/solid` share;
-  this renderer takes `/host`'s window observers, text search and types, and `/automation`, but
-  keeps its own `render.ts` / `renderer.ts` / `test.ts`, because that layer's event map and
-  mutation queue would replace the batching here rather than simplify it. **Moving the range:** read the new tag's `CHANGELOG.md`,
+  this renderer takes `/host`'s window observers, text search, types and its `EVENT_PROPS` /
+  `UNIVERSAL_PROPS` / `BUILT_IN_TYPES` tables, `/testing`'s `A11yTreeDump` type, and `/automation`.
+  It keeps its own `render.ts` / `renderer.ts`, because that layer's event map and mutation queue
+  would replace the batching here rather than simplify it (its `createMutationQueue` also resends a
+  refused op on every flush, freezing the window, and ships lone surrogates native refuses), and
+  ports `createRendererState`'s keystroke flags, Tab default and dismiss-layer stack into
+  `renderer.ts`, since its `attach` throws on a second root. It keeps its own `test.ts` because
+  upstream's `TestRenderer` never paints between the rounds of `dispatchNativeEvents` (so a `layout`
+  a paint queued stays queued), its key simulation forces focus, its raw native methods are private,
+  and its `findBy*` reads the raw tree, which knows nothing of the text wrappers. **Moving the range:** read the new tag's `CHANGELOG.md`,
   the `index.d.ts` diff and the Rust (`renderer.rs`, `custom_elements/*.rs`, `style.rs`) at that
   tag; get `npm test` and `npm run bun:test` passing on the new version before anything uses the
   new surface; and in the same change go through `npm run parity`'s output and redo
@@ -904,11 +1051,13 @@ Three layers, `src/`:
 render.ts    window lifecycle + frame loop  ─┐
 renderer.ts  shadow tree → GPUI projection   ├─ style.ts / events.ts are its translation helpers
 compile.ts   .svelte → JS, runtime-agnostic  ─┘
+  compile-core.ts  the compile step alone, no node:* ─ what the docs' playground runs in the browser
   types.ts     ShadowNode, GpuixEvent, GpuiStyle, Mutation, … ─ re-exported as types from `gpuix-svelte`
-  media.ts     @media / media_query() parsing and matching against a size ─ no imports, so compile.ts and both entries share it
-  hot.ts       render_hot's fs.watch reload         ─ the only node:* in the mount path
+  media.ts     @media / media_query() parsing and matching against a size ─ no imports, so compile-core.ts and both entries share it
+  hot.ts       render_hot's fs.watch reload         ─ node:* stays out of render.ts but for node:fs and node:child_process
   web.ts       the `browser` condition's entry      ─ everything index.ts has but render_hot; IS_GPUIX → true
   dom.ts       the entry without `custom-renderer`  ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
+  reset.ts     the DOM build's CSS reset, one `:where()` rule per tag GPUI draws bare  ─ a new alias tag adds its entry here
   register.ts  Node loader (module.registerHooks)   ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks  ─ the `bun:*` scripts, build.ts, scripts/web.ts
   build.ts     Bun.build({ compile }) + per-platform packaging  ─ `gpuix-svelte/build`; Bun-only
@@ -932,6 +1081,22 @@ resolve from the `.svelte` file's own location. `async: true` rides along becaus
 `pending`/`failed` snippet in a `<svelte:boundary>` crashes the compiler without it
 (`SvelteBoundary.js` reads through the `renderer_snippet` wrapper; still present in the vendored
 build). Reported upstream on #18511; drop the flag once it lands.
+
+Before compiling, `collapse_whitespace` (`compile-core.ts`) does to the template's text what an
+HTML parser would: GPUI draws a text node as written and the compiler leaves interior whitespace to
+the browser, so a sentence wrapped over indented lines showed its line break and tabs. It parses
+the source and rewrites runs of HTML's whitespace (`[ \t\r\n]`, as the compiler's own patterns
+have it, never `\s`: a no-break space is content) in `Text` nodes that sit directly in a fragment
+(not attribute values, not under `<pre>`, `<textarea>`, or a `<script>`/`<style>` in the markup,
+whose one `Text` is raw), including a run at a text's edge when the neighbour is an `{expression}`,
+which is the one edge the compiler does not collapse itself. The neighbour is found the way
+`clean_nodes` finds it, past comments and the nodes it hoists (`UNSEEN`). A component with
+`<svelte:options preserveWhitespace />` is left alone, which is the way back to text drawn as
+written. A run
+with a line break becomes `<!--run--> `, because the compiler drops comments and joins the text
+around them, and that keeps every line's number for errors and warnings (columns on that line
+shift). Strings from expressions are never touched, so a deliberate `\n` in data still breaks the
+line. A source that does not parse is handed to `compile` unchanged, which reports it.
 
 It is also where `<style>` blocks go. The compiler refuses `css: 'injected'` under a custom
 renderer and hands the scoped CSS back instead, so `compile_svelte` walks the block's AST
@@ -997,6 +1162,21 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 - Elements and non-blank text get a `nativeId`; comments, blank text and fragments never do —
   they are ordering-only. That holds in both directions: text set to `''` at runtime gives its id
   back, or it would keep a slot in GPUI's flex/gap layout.
+- Native gives the accessibility `Label` role only to a `text` element holding no string of its
+  own (`is_text_host` in upstream's `renderer.rs`), so that React's text instances inside a
+  `<text>` aren't heard twice. Svelte puts text anywhere, so a text node whose parent is not a
+  `<text>` ships as two native nodes: `nativeId` is the outer `text` (what attaches, anchors and is
+  destroyed) and `textId` the inner one holding the string, which every `setText` targets and which
+  stays out of `by_id`, so `elements_at` reports the text once. Without it VoiceOver heard none of a
+  plain-text app and a `role="button"` div had no name. Layout is unchanged (every example's
+  headless screenshot was byte-identical), but each such text costs one more native node; upstream
+  labelling a content `text` whose parent is no `text` would make the wrapper unnecessary. Native's
+  search, highlight ranges, selection and copy treat adjacent text leaves under one parent as one
+  run (`text/search.rs`, `text/selection.rs`), so text beside other text (`Hello {#if}there{/if}`)
+  stays bare and unlabelled: `wants_wrapper` reads the nearest real siblings, and `insert`,
+  `remove` and the blank transitions in `setText` call `rewrap` on the ones either side, which
+  rebuilds a node whose wrapping no longer fits. `unwrap_text` folds the wrappers back out of what
+  `tree()`, `automation_tree()`, `test_app()` and the live automation server read.
 - Ids are allocated lazily, when a node first becomes reachable from the root (`live`). Svelte
   renders offscreen constantly, and eager creation would leak a Rust node per abandoned render.
 - Because virtual nodes are always leaves, "the next native node" is a flat scan of following
@@ -1007,8 +1187,7 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   loop (or the auto-commit microtask) that there is anything to ship.
 - `next_id` is monotonic across remounts, so a stale tree's ids can't collide with the new one's.
   A remount queues the old root's `destroyElement` after the new `setRoot`, in the same batch.
-- Mutations queue as tuples and ship as **one** `applyBatch(json)` per commit, then
-  `commitMutations()`. `applyBatch` returns the ids Rust destroyed (whole subtrees), which is how
+- Mutations queue as tuples and ship as **one** `applyBatch(json)` per commit. `applyBatch` returns the ids Rust destroyed (whole subtrees), which is how
   the id map learns what to purge. Native decodes a whole batch and resolves its styles before it
   applies anything (`apply_batch_to_tree`'s phases; the apply phase cannot fail), so a rejected batch
   applied nothing and, in `ship`, is resent one op at a time without double-applying: only the op native
@@ -1027,9 +1206,37 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   the shadow node has to keep Svelte's exact string. The node's `listeners` map survives that purge, like `attrs`
   does, so `materialize()` can re-emit `setEventListener` if the node ever becomes live again.
 
-**`render.ts`** owns the `GpuixRenderer`, a `globalThis` symbol slot for the window (so remounts
-reuse it), and a ~125fps `setTimeout` loop calling `native.tick()` — paced deliberately, since
-`setImmediate` burns most of a core at idle. `requiresTick()` is true on every desktop platform —
+**`render.ts`** owns the `GpuixRenderer`, a `globalThis.__gpuix_svelte_host` slot for the window
+(so remounts reuse it; a named property, since Bun's `trim` reads a computed key on `globalThis` as a
+way to `eval`), and a frame loop of its own calling `native.tick()`, not `@gpuix/native/runtime`'s
+`startFrameLoop`, which has no room for the commit, the frame waiters or VoiceOver's pace. On macOS
+it ticks on native's display-link wakes (`setFrameWakeCallback`), with a timer that steps aside
+(25 ms) while wakes keep coming, ticks every 8 ms for 2 s after the last input event or wake (input
+never wakes JS), and at `IDLE_FRAME_MS` after that, which is 8 ms for now, so idle CPU is what it was
+on `main` everywhere. A visible window's display link wakes every frame, idle or not (measured on a
+120 Hz Mac: ~120 wakes/s focused or unfocused, about the old timer's rate and CPU); only a hidden,
+minimised or covered window's link stops, and upstream's 100 ms there took it from ~2% CPU to ~0.7%
+but made accessibility queries against it (System Events, AltTab, tiling managers) ~630 ms instead of
+~96 ms, since native answers one request per tick; 33 ms measured 1.35% and ~260 ms. Upstream's docs
+say the same of visible windows ("it does not eliminate idle CPU use while the display link is
+running"). `start_frame_loop(native, idle_ms)` takes the idle pace, which `test:lifecycle` sets to
+100 ms so the machinery stays proven for when native wakes JS for accessibility input and a slower
+pace can come back (a TODO on the constant). Elsewhere it ticks
+every 8 ms (~125fps, since `setImmediate` burns most of a core at idle). A clean→dirty `mark_dirty`
+(`set_on_dirty`) and `next_frame()` bring the next tick forward to 8 ms after the last, so a timer's
+or a fetch's update commits as fast as before and automation waits frames, not the fallback; while
+the link runs they stand aside for a wake due within half a frame of that tick, or a moving pointer
+drew ~190 ticks/s against the old timer's 125, and a wake within 2 ms of a tick's end returns without
+pumping, since a busy loop turn (and Windows' 15.6 ms timers, under `test:lifecycle`) runs a due
+timer's tick and a wake back to back. A throw from `tick()` is logged once per run and the
+loop goes on; 100 in a row (`TICK_FAILURES`) end the process with 1, as an uncaught throw did,
+rather than logging every tick forever.
+On macOS native answers one accessibility request per
+`tick()`, so at 8 ms a read costs 8 ms and VoiceOver reports the app as not responding; while
+VoiceOver runs the loop ticks every 1 ms instead (`src/screen-reader.ts` asks `pgrep -x VoiceOver`
+every 2 s, since native has no signal for an assistive client and `defaults` misses a VoiceOver
+started without its shortcut). Other accessibility clients get the loop's own pace (8 ms), until
+native wakes JS for run-loop input the way `setFrameWakeCallback` does for frames. `requiresTick()` is true on every desktop platform —
 on Windows/Linux, where GPUI owns a blocking UI thread, `tick()` only reports whether that thread
 is still alive — and `tick()` returns false once the last window closes, which ends the loop and
 the process. Where `requiresTick()` is false (the wasm build), `set_auto_commit(true)` makes the
@@ -1038,8 +1245,8 @@ behind it (a resolved `fetch`, a timer) would sit in the queue until the next cl
 run `dispatch` → `flushSync()` → `commit()` so the effects' mutations land in the same frame.
 `next_frame()` resolves after the loop's next `tick()` (a timer where there is no loop), which is
 what the automation server waits on. It reads env through a `globalThis.process?.env` helper and
-keeps no `node:*` import, so it bundles for the browser as-is; `render_hot` lives in **`hot.ts`**
-for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
+its only `node:*` imports are previous-instance.ts's `node:fs` and screen-reader.ts's
+`node:child_process`, which Bun's browser build stubs, so it bundles for the browser as-is; `render_hot` lives in **`hot.ts`** for that reason. It watches the entry's directory and re-imports with a `?v=N` cache-buster;
 `compile.ts` propagates that query to child `.svelte` specifiers — static, side-effect and dynamic
 `import()` alike — or a reload would re-instantiate the root against stale children. It finds them
 by parsing the emitted JS with `acorn` (Svelte's own parser; the other runtime dependencies are
@@ -1081,9 +1288,8 @@ cannot see, and `vh`/`vw` because a class rule is parsed at compile time and not
 on resize.
 
 **`events.ts`** — Svelte lowercases event names at compile time (`onmouseenter` → `mouseenter`);
-GPUI keys listeners camelCase (`mouseEnter`). `GPUI_EVENTS` is a hand-kept copy of GPUI's event
-list, lowercased into the lookup map; `npm run parity` diffs it against upstream's `EVENT_PROPS`.
-Unknown events are dropped silently.
+GPUI keys listeners camelCase (`mouseEnter`). `GPUI_EVENTS` is `@gpuix/native/host`'s
+`EVENT_PROPS`, lowercased into the lookup map. Unknown events are dropped silently.
 
 ### Shipped components
 
@@ -1095,18 +1301,27 @@ demos"). Each has a DOM version under
 `src/components/dom/` with the same props, which the same specifier reaches without the
 `custom-renderer` condition (see "Rendering in the DOM"); a prop added here needs adding there.
 
-- **`Scroller`** is the scroll column with a drawn thumb (the tutorial and the styling playground
-  use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so it
-  draws its own from what native reports (`layout` on the column and its content, `scrollChange`
-  on the column) and drags on a panel-sized overlay. It has no timer and makes no native read, since
-  on Windows and Linux reading bounds draws a frame (polling them kept an idle window at 8 frames/s
-  per `Scroller`); the thumb restyle is throttled to one per 50 ms because each one is a full native
-  frame. A plain scroll container lays out and paints every child
-  every frame, so `virtual` swaps in GPUI's `<virtual-list>` (each direct child a row, which needs
-  `width: 100%`; `follow` → `followTail`). There the thumb works in rows: the viewport from
-  `getListScrollTop`, the row height a running mean of `visibleRange` reports seeded with `estimate`,
-  drag via `scrollToItem`. Nothing reports a change in row count, so that read stays on a 250 ms
-  timer (100 ms with `follow`), which draws nothing but goes through `read_native`. Its colours are
+- **`Scroller`** is the scroll column with a draggable thumb (the tutorial and the styling
+  playground use it). GPUI's own thumb (0.11's `scrollbar-color`) takes no pointer, so a plain
+  column draws its own from what native reports (`layout` on the column and its content,
+  `scrollChange` on the column). The thumb listens for `mousedown`, `mousemove` and `mouseup` itself,
+  which arms native pointer capture, so a drag survives the pointer leaving the window; a move with
+  `pressedButton == null` still ends a drag, since capture holds until a mouseup arrives. It has no
+  timer and makes no native read, since on Windows and Linux reading bounds draws a frame (polling
+  them kept an idle window at 8 frames/s per `Scroller`); the thumb restyle is throttled to one per
+  50 ms because each one is a full native frame. A plain scroll container lays out and paints every
+  child every frame, so `virtual` swaps in GPUI's `<virtual-list>` (each direct child a row, which
+  needs `width: 100%`; `follow` → `followTail`). There GPUI paints the thumb itself
+  (`scrollbar-color` / `scrollbar-width` on the list, from the rows it has measured, in the frame it
+  scrolls), so nothing polls; native hover never reaches that thumb (`ThumbStyle::of` reads the base
+  style), so a `hot` class swaps the colour. The list has a 12 px `padding-right`, which
+  `<virtual-list>` honours and GPUI paints its thumb in, so rows stop short of an invisible 8 px
+  strip (`<testid>-strip`) that drags it under the same capture (without the gutter the strip took
+  every row's right-edge clicks, scroll or no scroll): it reads `getListScrollTop` + `getScrollOffset`
+  once per press and estimates the length as row count × the average height of the rows above the
+  anchor (`estimate` at the top), each move is a `scrollTo` that native clamps at the real end, and
+  a release past the estimated end `scrollToItem(count)`s onto it. JS can't read the measured total,
+  so rows far from `estimate` make the thumb drift from the pointer. Its colours are
   `var(--scroller-thumb, …)` / `var(--scroller-thumb-hover, …)`.
 - **`Portal`** is a window-sized `position: absolute; pointer-events: none` wrapper carrying the
   renderer's `portal` attribute: the shadow node stays exactly where Svelte put it (so Svelte's
@@ -1123,7 +1338,14 @@ demos"). Each has a DOM version under
   carries `background-color: #00000001`, or native paints `#1a1a1a` behind it (since 0.11 any
   declared background opts out, `transparent` included). `Tooltip` tracks hover per source (wrapper,
   spread trigger handlers, tip) because a pointer jumping onto the tip gets the tip's `mouseEnter`
-  before the trigger's `mouseLeave`. `Popover`'s `mouseDownOutside` sits on the panel (`<anchored>`
+  before the trigger's `mouseLeave`. The snippet's second argument holds `onfocus`/`onblur`, a
+  separate opt-in because native's `needs_focus` makes anything listening for `focus` focusable,
+  which would let a click on a plain trigger take focus from a text field. Focus shows the tip at
+  once unless the pointer is on the trigger, any `mouseEnter` takes over from focus (GPUI reports
+  the hover a paint after the click whose focus came first), and Escape hides it through
+  `dismiss_layer`, which a tip that `open` forces never joins, so it can't take an Escape meant for
+  a layer below. `Popover` closes on Escape through `dismiss_layer` too, and its
+  `mouseDownOutside` sits on the panel (`<anchored>`
   only hears `click`, `mouseEnter`, `mouseLeave` and `fileDrop`). Both forward a `style` prop to the
   tip or panel: `var()` resolves from one global map and a parent's scoped rules cannot reach in, so
   inline style is the only per-instance hook.
@@ -1147,8 +1369,9 @@ tags exist for every release; the sibling `../gpuix` checkout lags and is not a 
   is the weight names; `overflow: scroll` is handled separately in `build_host_container`.
 - `color.rs` — colour syntax (`csscolorparser`, so names and `hsl()` work).
 
-Then mirror any new pixel-only, dimension or `String` key into `NUMBER_ONLY` / `DIMENSION` /
-`TEXT_ONLY` in `src/style.ts`,
+Then mirror any new key into `NUMBER_ONLY` / `DIMENSION` / `TEXT_ONLY` / `BOOLEAN` / `NEVER` in
+`src/style.ts` (each goes through `set_of`, checked against host.d.ts's `StyleDesc`, so
+`npm run typecheck` names a key the bump added),
 add a card to `examples/styling-playground`, and confirm what actually reached GPUI headlessly:
 mount with `TestGpuixRenderer` and read `getTreeJson()` — each node's `style` is the deserialized
 `StyleDesc`, with unknown keys already dropped, which is exactly what `docs/styling.md` claims.
@@ -1170,9 +1393,16 @@ are the ones that bite most often, and the renderer behaviour behind them.
   class rule as inline (see the styling playground). Shared reactive state goes in `.svelte.ts`
   modules.
 - Only GPUI tags exist (`div`, `text`, `img`, `svg`, `input`, `textarea`, `code`, `diff`,
-  `markdown`, `virtual-list`, `anchored`); anything else degrades to `div` with a one-time
-  warning. That includes `<canvas>`: native 0.11 registers no such element, so a window gave it no
-  layout box and painted neither it nor its children. `<img src>` is a filesystem path, a `data:`
+  `markdown`, `virtual-list`, `anchored`; `GPUI_TAGS`, checked against `ElementType` minus
+  `canvas`); anything else degrades to `div` with a one-time warning. That includes `<canvas>`: native 0.11 registers no such element, so a window gave it no
+  layout box and painted neither it nor its children. `<button>` is the one alias: the renderer
+  ships it as a `div` (no styling of its own) with `role` `button` and `tabIndex` 0 unless the
+  element sets its own, always listens for `keyDown` on it, and re-dispatches an unprevented,
+  unheld `enter` or `space` as a `click`; `disabled` clears the tab stop and drops both the
+  pointer's click and the key's (native 0.11 has no disabled state, so a screen reader is not
+  told). The DOM build's `render()` prepends one `<style data-gpuix-svelte>` holding
+  `reset.ts`'s `:where(button)` rule to `<head>`, so a bare button looks the same on both; a page mounted
+  without `render()` gets no reset. Other HTML tags stay unknown on purpose. `<img src>` is a filesystem path, a `data:`
   URL or an http(s) URL GPUI fetches in the background, so give it both a width and a height.
   `<markdown>` is rebuilt and laid out in full on every frame, on screen or not, and the cost
   follows its block count, not its bytes (a 226-block page cost ~7 ms a frame headless, ~18 ms in
@@ -1191,10 +1421,23 @@ are the ones that bite most often, and the renderer behaviour behind them.
   `renderer-state.js` does for `@gpuix/react`/`@gpuix/solid`: every key event of one `keystrokeId`
   shares one flags object (`flags_for`), `stopPropagation()` skips the handlers still to come —
   the focusable ancestors, then the window's — and `key_default` runs on the `windowKeyDown`,
-  which native sends last, calling `focusNext`/`focusPrevious` for a Tab without ctrl/alt/cmd that
-  nobody prevented. That needs window key events on whether or not anything subscribed, so
-  `sync_window_events` keeps `keyDown` on while `tab_navigation` is (`render`/`mount_headless`'s
-  `tabNavigation`, default true). The walk is the tab stops as of the last painted frame (a stop
+  which native sends last: for a key without ctrl/alt/cmd that nobody prevented, Escape calls the
+  top `dismiss_layer`'s `onEscape` (upstream's `pushDismissLayer` stack without focus restore)
+  unless an element's handler stopped it or it is a held key's repeat, and Tab calls
+  `focusNext`/`focusPrevious`. GPUI's X11 client sends a repeat as a fresh press (`isHeld` false, no
+  release in between; Windows and Wayland set it), so on Linux `sync_window_events` also asks for
+  window `keyUp` while a layer is open and an Escape within a second of the last, with no release
+  since, counts as held (`escape_down`). A `<button>`'s Enter and Space have no such guard there. Upstream runs Escape past any `stopPropagation()`, but Popover and
+  Tooltip listened on the window before, where an element's stop skipped them and a window
+  handler's did not (both sat on one target), so `dispatch` reads `flags.stopped` before the window
+  handlers run, which is also how the DOM build's window listener behaves. A layer goes on top, or
+  under the first open one whose `dismiss_scope()` (Svelte context, taken while the component
+  initialises) descends from its own (`place_layer` in `src/layers.ts`, shared by both builds),
+  because Svelte runs a child's effect before its parent's and two layers opened in one commit
+  would otherwise put the outer one on top. That needs
+  window key events on whether or not anything subscribed, so `sync_window_events` keeps `keyDown`
+  on while `tab_navigation` is (`render`/`mount_headless`'s `tabNavigation`, default true) or a
+  layer is open. The walk is the tab stops as of the last painted frame (a stop
   rendered this tick joins after it paints). The keyboard-focus dim is native and kept on the tree
   across `setRoot`: `create_root` ships `setKeyboardFocusDim` off unless `render`/`mount_headless`
   get `keyboardFocusDim: true` (a `null` ships nothing), and `set_keyboard_focus_dim()` queues the
@@ -1217,7 +1460,10 @@ are the ones that bite most often, and the renderer behaviour behind them.
   The host object resolves `get_native()` on every call, so a poll that outlives a remount follows
   the new native. Insets keep upstream's camelCase fields (`safeArea`, `keyboardVisible`, …), like
   every other native payload. Headlessly the size is the real viewport and the insets are zero; with
-  no native at all it is upstream's 800×600 fallback.
+  no native at all it is upstream's 800×600 fallback. `selected_text()` is reactive the same way but
+  event-driven: `observeSelectedText` over `on_selection_change` inside `createSubscriber`, reading
+  native (through `read_native`) only when a subscription starts or outside an effect;
+  `clear_selection()` and `is_terminal` (native's `isTerminal`; false in `dom.ts`) sit beside it.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component. The root
   becomes a column, the bar is its first child, and the app mounts into a `position: relative` box
   below it, which a given `rootStyle` styles (through a class rule, so the box's defaults merge
@@ -1244,10 +1490,14 @@ are the ones that bite most often, and the renderer behaviour behind them.
   input-taking native type (`INTERACTIVE_TAGS`), is not focusable (`tabindex`/`autofocus`) and does
   not scroll; a nested button keeps its hitbox (and shields its own decoration), and adding or
   removing a listener later restyles that element. An explicit `pointer-events` on the descendant
-  wins. GPUI also doesn't capture the pointer on mousedown: for drags, put `mousemove`/`mouseup` on
-  the surfaces the cursor may cross (or show a window-sized `position: absolute` overlay for the
-  drag's duration, as `Scroller` does) and treat a move with `pressedButton == null` as the release
-  (see the sliders in `examples/liquid-glass/LiquidGlass.svelte`). A left mousedown also starts a
+  wins. GPUI captures the pointer on a left press for an element that listens for both
+  `mousedown` and `mousemove`: its moves and `mouseup` keep arriving past its hitbox and the
+  window's edge, and it stays hovered until the release. So put all three on the element grabbed,
+  as `Scroller`'s thumb and strip do — an overlay mounted on the press never arms capture and loses
+  a release outside the window — and still treat a move with `pressedButton == null` as a release
+  never delivered, since capture only ends on a mouseup. A right-button drag is not captured. (The
+  sliders in `examples/liquid-glass/LiquidGlass.svelte` predate this and put the handlers on every
+  surface the cursor may cross.) A left mousedown also starts a
   text selection that every later move extends across whatever text lies in between, unless the
   element under the pointer (or an ancestor) has `user-select: none` — put it on every drag handle.
 - **A wheel scrolls every scroll container under the pointer at once.** GPUI's
@@ -1265,18 +1515,32 @@ are the ones that bite most often, and the renderer behaviour behind them.
   goes inside `<Portal>`, rendered from wherever it is needed; its children position against the
   window. Content that should sit beside a trigger goes in `Tooltip` / `Popover`, or the native
   `<anchored>` they build on; its child sizes to content, so it is no use for a scrim.
+- An overlay that Escape closes goes on `dismiss_layer({ onEscape, scope })` from an `$effect` (it
+  returns the remove function, like `on_window_key`), with `scope` from `dismiss_scope()` called
+  while the component initialises; only the top layer hears an Escape that no key handler prevented
+  and no element's handler stopped, and never a held key's repeat. The DOM build keeps the same
+  stack on a `window` listener added as the first layer opens.
 - `div`/`text` accept only `autoFocus`, `tabIndex`, `testId`, `motion`, `highlight`, `role` and
   `aria-label` / `-description` / `-id` / `-expanded` / `-selected` / `-valuetext` / `-level` as
   props; other attributes are dropped for built-ins and forwarded for custom element types.
   `normalize_prop` turns the string forms Svelte hands over for static attributes into the JSON
-  types native reads (`aria-expanded="true"` → `true`, `aria-level="2"` → `2`); native ignores a
-  mistyped one silently. GPUI reports roles as AccessKit names (`Button`, `Heading`), which is
-  what `getA11yTree()` on the test renderer shows.
+  types native reads, for every prop in `BOOLEAN_PROPS` / `NUMBER_PROPS` (checked by `set_of`
+  against `@gpuix/native/host`'s prop interfaces, so a new native prop fails typecheck): a bare
+  `showLineNumbers` or `readonly="readonly"` is `true` and `"false"` is `false`, as HTML reads a
+  boolean attribute, `minRows="6"` is `6`, a value that is no number (blank included) ships `null`
+  with a one-time warning, and each one's lowercase spelling (`readonly`, `minrows`) maps to the
+  camelCase name. Native ignores a mistyped prop silently. GPUI reports roles as AccessKit names
+  (`Button`, `Heading`), which is what `a11y()` from `gpuix-svelte/test` (the test renderer's
+  `getA11yTree()`) shows.
 - `highlight={{ query } | { ranges: [[start, end], …], color, radius }}` paints GPUI's native
   search highlight behind the matching text (character offsets into the element's text) and fires
   `onhighlight` with `e.matchCount`. A find bar is `TextSearch` from `src/search.ts`
   (`highlight={search.spec} onhighlight={search.on_highlight}`, then `query`, `total`, `active`,
-  `next`/`prev`/`go_to`): native's `createTextSearchController` behind `createSubscriber`. Its
+  `next`/`prev`/`go_to`, and `matches` — upstream's `{ total, indexOffset }` spelt `index_offset` —
+  for a virtual list's unmounted rows): native's `createTextSearchController` behind
+  `createSubscriber`. The `matches` setter compares by value, because an `$effect` that works it out
+  from `search.query` subscribes through that getter and would otherwise notify itself until
+  `effect_update_depth_exceeded`. Its
   `getSnapshot()` both builds a fresh spec and records the options `next()` counts against, so
   `search.ts` calls it once per change, before every move, and keeps an unchanged spec's identity —
   Svelte's `set_attribute` skips an identical value, which spares a `setCustomProp` per reported
@@ -1351,6 +1615,18 @@ on `foreignObject` and misdraws `box-shadow` under a scaled `drawImage`, either 
 exports a wrong PNG without an error. And the image is drawn three times 250 ms apart, because nested
 images appear only from the second draw. It also skips `filter`, so Matrix has no glow in Safari.
 
+`homepage/stickers.html` (`/stickers.html`, `noindex`) draws the stickers and their parts: the
+logo-and-wordmark sticker (10:3, rounded corners, a concentric line inset from the edge) in three
+colourways, a black square with `gpuix` over an indented orange `svelte`, and the logo and the two
+words alone, cropped to their ink at one shared scale. Each downloads as its SVG or as a PNG drawn
+from that SVG on a canvas; the square stops at 4000 px because Safari refuses a canvas over 16.7
+megapixels. None of `share/`'s WebKit workarounds apply, because the SVGs hold only paths: the text
+is Geist at weight 600 with the lockup's -0.03em tracking, outlined once with fontkit from
+`homepage/assets/fonts/Geist-Variable.woff2` (decompressed to TTF first, since fontkit's variation
+instances fail on WOFF2), the whole wordmark baked into the rounded sticker at x 270, baseline 185.4
+(its `translate` is the optical nudge since) and each word at 100 units on a baseline at 0, with
+`INK` holding their measured bounds. Redo them if the lockup changes.
+
 `starter/` is the template `create-gpuix-svelte` copies (its `prepack` syncs it into the package's
 gitignored `template/`; run from the repo, `index.js` reads `starter/` directly) and so the app
 `npm run consume` installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays
@@ -1388,6 +1664,10 @@ compiler strips the types itself, and svelte-check (part of `typecheck`) checks 
   `custom-condition` branch (check it out before reading; it is force-pushed about weekly). To run
   a consumer app's test suite against this checkout, swap its `node_modules/gpuix-svelte` for a
   symlink to this repo; `bun install` there restores the published copy.
+- A Bun canary for `--aot` / `--trim` builds lives in the gitignored `.bun-canary/`, never through
+  `bun upgrade --canary`, which replaces the system Bun other processes use. Fetch it with
+  `curl -fsSL -o /tmp/bun.zip https://github.com/oven-sh/bun/releases/download/canary/bun-darwin-aarch64.zip && unzip -j -o /tmp/bun.zip '*/bun' -d .bun-canary`,
+  then run `.bun-canary/bun scripts/compile.ts --aot --trim`. `bun --revision` names the canary.
 - `typescript` is pinned `^5.9`, not 7 (the Go port changes defaults such as `types: []`);
   `@types/node` is pinned explicitly (bun-types' `*` would float); `types/node-ffi.d.ts` adds
   `float32`/`float64`, which `node:ffi` accepts but `@types/node` omits. Bun and tsc silently
