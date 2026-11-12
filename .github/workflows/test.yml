@@ -80,6 +80,8 @@ jobs:
       - run: npm run bun:test:bundle
       - run: npm run test:update
       - run: npm run bun:test:update
+      - run: npm run test:launcher
+      - run: npm run bun:test:launcher
       # The browser bundle, which the `browser` condition of every export has to keep buildable.
       - run: npm run demo:web -- --build-only
       # The DOM side of the package: the happy-dom suite needs no headless renderer, and Vite builds the example on it.
