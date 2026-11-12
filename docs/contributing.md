@@ -109,14 +109,15 @@ npm run test:automation-live                              # a real window, drive
 ```
 
 The browser previews listen on every interface, because the container sets `HOST=0.0.0.0`:
-`npm run demo:web` (4173), `npm run demo:dom` (4174) and `npm run docs:serve` (4321). It also sets
+`npm run demo:web` (4173), `npm run demo:dom` and `npm run demo:ui-dom` (4174) and
+`npm run docs:serve` (4321). It also sets
 `BROWSER=none`, so they don't try to open a browser inside the container. `demo:dom` only loads on
 its own origin (a forwarded or published port), not behind a path prefix such as `/proxy/4174/`.
 
 Linux has no headless renderer, so `npm test` fails right after `typecheck`. Run the suites CI's Linux
 job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:dom`,
-`test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only` and
-`demo:dom -- --build-only`.
+`test:ui-dom`, `test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only`,
+`demo:dom -- --build-only` and `demo:ui-dom -- --build-only`.
 
 ## Moving the Svelte build
 

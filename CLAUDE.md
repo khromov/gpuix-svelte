@@ -1120,9 +1120,10 @@ carries on every `class` change, so `class:` directives and dynamic class string
 A rule whose queries do not hold against `current_viewport()` is skipped, but still sets
 `media_read`, which `apply_style` turns into the node's `uses_media` and its membership in
 `media_nodes` (an `<svg>` inheriting its colour from such an ancestor is left out: the ancestor's
-own restyle sweeps it). A query no size can change (`screen`, `print`) is settled by `compile.ts`
-through `media_constant`, and an unanswerable alternative of a comma list is a `never` entry, as a
-browser has it, so only a list with no answerable alternative is refused. The viewport comes from
+own restyle sweeps it). A query no size can change (`screen`, `print`) is settled by
+`compile-core.ts` through `media_constant`, and an unanswerable alternative of a comma list is a
+`never` entry, as a browser has it, so only a list with no answerable alternative is refused. The
+viewport comes from
 `observe_viewport`: by default native's own `observeWindowSize`, because a consumer's test through
 `gpuix-svelte/test` never loads window.ts (`test:media` runs `test/media-default.ts` for that
 path), and once window.ts loads, its `watch_size` — one `observeWindowSize` over the dialog-guarded
