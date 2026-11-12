@@ -5,12 +5,12 @@
  */
 
 import { to_gpui_event } from '../src/events.ts';
-import { mount_headless, find_test_id, click_test_id, center, check, finish } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, click_test_id, center, text_content, check, finish } from 'gpuix-svelte/test';
 
 const AuxClick = (await import('./AuxClick.svelte')).default;
 mount_headless(AuxClick, { width: 400, height: 300 });
 
-const log = () => find_test_id('log')!.children![0]?.text ?? '';
+const log = () => text_content(find_test_id('log')!);
 const at = () => /at=(\d+),(\d+)/.exec(log());
 
 const card_events = find_test_id('card')!.events;

@@ -37,7 +37,8 @@ render(App, {
 ```
 
 Everything under `app` is optional, and it exists for the build. The window takes only two things
-from it: `name` when there is no `title`, and `identifier` as its app id on Linux.
+from it: `name` when there is no `title` and for macOS's Hide and Quit menu items (which would
+otherwise read the title), and `identifier` as its app id on Linux.
 
 | Field         | Used for                                                              | Default                                      |
 | ------------- | --------------------------------------------------------------------- | -------------------------------------------- |

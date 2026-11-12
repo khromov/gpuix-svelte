@@ -16,6 +16,7 @@ import {
 	click_at,
 	click_test_id,
 	press,
+	key_up,
 	focus,
 	unfocus,
 	all_text,
@@ -23,9 +24,11 @@ import {
 	finish,
 	type TreeNode
 } from 'gpuix-svelte/test';
+import { on_window_key } from 'gpuix-svelte';
 
 const Fixture = (await import('./Floating.svelte')).default;
-const { native } = mount_headless(Fixture, { width: 600, height: 400 });
+const mounted = mount_headless(Fixture, { width: 600, height: 400 });
+const { native } = mounted;
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -214,4 +217,95 @@ function move(x: number, y: number) {
 	check('a right click outside closes it too', [counts(), shown('menu-panel')], ['1-1-3-1-1', false]);
 }
 
-finish('tooltip', 36);
+// --- the dismiss stack -----------------------------------------------------------
+{
+	click_test_id('outer-trigger');
+	focus(find_test_id('inner-trigger')!);
+	const opened = [shown('outer-panel'), shown('inner-tip')];
+	press('escape');
+	check('Escape closes only the top layer, the tip inside the popover', [opened, shown('inner-tip'), shown('outer-panel')], [[true, true], false, true]);
+	press('escape');
+	check('and the next one the popover under it', shown('outer-panel'), false);
+
+	click_test_id('outer-trigger');
+	focus(find_test_id('keep')!);
+	press('escape');
+	check("a key handler's preventDefault keeps it open", shown('outer-panel'), true);
+	press('cmd-escape');
+	check('and so does a command modifier', shown('outer-panel'), true);
+	press('shift-escape');
+	check('while the same key that handler lets through closes it', shown('outer-panel'), false);
+
+	click_test_id('outer-trigger');
+	focus(find_test_id('stopper')!);
+	press('escape');
+	check("a key handler's stopPropagation keeps it open too", shown('outer-panel'), true);
+
+	focus(find_test_id('inner-trigger')!);
+	press('escape');
+	press('escape', { held: true });
+	press('escape', { held: true });
+	check('a held Escape closes the top layer once, not one per repeat', [shown('inner-tip'), shown('outer-panel')], [false, true]);
+	press('escape');
+	check('and a fresh press closes the next', shown('outer-panel'), false);
+
+	const off = on_window_key('keydown', (e) => {
+		if (e.key === 'escape') e.stopPropagation();
+	});
+	click_test_id('outer-trigger');
+	press('escape');
+	off();
+	check("a window handler's stopPropagation does not, as it never reached the overlays' own window listeners", shown('outer-panel'), false);
+
+	click_test_id('menu-trigger');
+	const pinned = box(element_of('pinned'));
+	move(mid_x(pinned), mid_y(pinned));
+	await wait(350);
+	press('escape');
+	check('a tip that open forces, hovered after the popover opened, takes no Escape from it', shown('menu-panel'), false);
+	move(2, 2);
+}
+
+// Without Tab navigation nothing else asks native for window key events, so an open layer has to.
+{
+	await mounted.unmount();
+	const again = mount_headless(Fixture, { width: 600, height: 400, tabNavigation: false });
+	click_test_id('menu-trigger');
+	press('escape');
+	check('Escape still reaches a layer with tabNavigation off', shown('menu-panel'), false);
+	await again.unmount();
+}
+
+// Svelte runs the inner popover's effect first when both open in one commit, so only dismiss_scope keeps it on top.
+{
+	const Nested = (await import('./NestedPopovers.svelte')).default;
+	const nested = mount_headless(Nested, { width: 500, height: 400 }).component as unknown as { open_both(): void; read(): boolean[] };
+	nested.open_both();
+	settle();
+	const both = nested.read();
+	press('escape');
+	check('two popovers opened in one commit close inner first', [both, nested.read()], [[true, true], [true, false]]);
+	press('escape');
+	check('and the outer one on the next Escape', nested.read(), [false, false]);
+
+	// GPUI's X11 client sends a held key's repeats as presses with isHeld false and no release between them.
+	const platform = process.platform;
+	Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+	nested.open_both();
+	settle();
+	press('escape');
+	press('escape');
+	press('escape');
+	check('on Linux a press with no release since the last is a repeat, and closes nothing more', nested.read(), [true, false]);
+	key_up('escape');
+	press('escape');
+	check('while one after the release closes the next layer', nested.read(), [false, false]);
+
+	nested.open_both();
+	settle();
+	press('escape');
+	check('and the layers a hold left closed keep no press from the next ones opened', nested.read(), [true, false]);
+	Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+}
+
+finish('tooltip', 52);

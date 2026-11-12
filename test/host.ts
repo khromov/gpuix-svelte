@@ -37,14 +37,11 @@ import {
 	settle,
 	bounds,
 	all_text,
+	a11y,
 	screenshot,
 	check,
 	finish
 } from 'gpuix-svelte/test';
-
-interface A11yNode {
-	aria?: { role?: string; label?: string; value?: string; expanded?: boolean; selected?: boolean; level?: number };
-}
 
 const PNG = Uint8Array.from(
 	atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='),
@@ -77,19 +74,19 @@ const { native, component } = mount_headless(Host, {
 settle();
 check('set_image from an attach waits for the element to exist', img_error, null);
 
-const a11y = () => Object.values((JSON.parse(native.getA11yTree()) as { nodes?: Record<string, A11yNode> }).nodes ?? {});
-const labelled = () => a11y().find((n) => n.aria?.label === 'Delete note')?.aria;
+const nodes = () => Object.values(a11y().nodes ?? {});
+const labelled = () => nodes().find((n) => n.aria?.label === 'Delete note')?.aria;
 check('role and aria-label reach the accessibility tree, as AccessKit roles', labelled()?.role, 'Button');
 check('a boolean aria-expanded arrives as a boolean', labelled()?.expanded, false);
-check('a string aria-level arrives as a number', a11y().find((n) => n.aria?.role === 'Heading')?.aria?.level, 2);
-const written_out = a11y().find((n) => n.aria?.label === 'Static')?.aria;
+check('a string aria-level arrives as a number', nodes().find((n) => n.aria?.role === 'Heading')?.aria?.level, 2);
+const written_out = nodes().find((n) => n.aria?.label === 'Static')?.aria;
 check('a string aria-expanded and aria-selected arrive as booleans', [written_out?.expanded, written_out?.selected], [false, true]);
 click(find_test_id('delete')!);
 native.flush();
 check('and it follows state', labelled()?.expanded, true);
 
 const host = component as { show_late(): void; set_plain(text: string): void; set_split(value: boolean): void };
-const labels = () => a11y().filter((n) => n.aria?.role === 'Label').map((n) => n.aria?.value);
+const labels = () => nodes().filter((n) => n.aria?.role === 'Label').map((n) => n.aria?.value);
 check('plain text outside a <text> is a Label too', ['Archive', 'first'].map((t) => labels().includes(t)), [true, true]);
 check(
 	'text inside a <text> is not wrapped again, which would leave the <text> a Label with no value',
@@ -181,7 +178,6 @@ check('scroll_into_view scrolls the row in', (native.getScrollOffset(list)?.[1] 
 // Only a screenshot shows what an <img> painted, and nothing in the window moves from here on.
 const shot_path = join(tmpdir(), `gpuix-svelte-host-${process.pid}.png`);
 function shot() {
-	settle();
 	screenshot(shot_path);
 	return readFileSync(shot_path).toString('base64');
 }

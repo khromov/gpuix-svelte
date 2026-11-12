@@ -144,6 +144,19 @@ document.dispatchEvent(new Event('selectionchange'));
 off_selection();
 document.dispatchEvent(new Event('selectionchange'));
 check('on_selection_change hears selectionchange until unsubscribed', selections, 1);
+{
+	const words = document.createElement('p');
+	words.textContent = 'Pick these words';
+	document.body.append(words);
+	const range = document.createRange();
+	range.selectNodeContents(words);
+	document.getSelection()!.addRange(range);
+	const picked = dom.selected_text();
+	dom.clear_selection();
+	check('selected_text reads the document selection, and clear_selection empties it to null', [picked, dom.selected_text()], ['Pick these words', null]);
+	words.remove();
+}
+check('a page is never a terminal', dom.is_terminal(), false);
 
 {
 	const [a, b] = inputs('text', 'text');
@@ -338,6 +351,8 @@ click(by_id('menu-trigger'));
 click(by_id('menu-trigger'));
 check('a click on the trigger while open closes it without reopening', by_id('menu-panel'), null);
 click(by_id('menu-trigger'));
+key('Escape', { repeat: true });
+check('a repeat of a held Escape leaves it open', by_id('menu-panel') !== null, true);
 key('Escape');
 check('so does Escape', by_id('menu-panel'), null);
 box_of(by_id('menu')!, 900, 50, 80, 30);
@@ -397,6 +412,46 @@ check('reversing a keyed {#each} of portals leaves every layer in <body>', toast
 unmount(toasts as never);
 toasts_host.remove();
 
+writeFileSync(
+	join(tmp, 'Nested.svelte'),
+	`<script>
+	import Popover from 'gpuix-svelte/components/Popover.svelte';
+	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
+	let open = $state(false);
+</script>
+<Popover {open} onclose={() => (open = false)} testid="nest">
+	<div onclick={() => (open = !open)} testid="nest-trigger">Nest</div>
+	{#snippet content()}
+		<Tooltip content="Inner" testid="nest-inner">
+			{#snippet children(hover, focus)}<div tabindex="0" {...hover} {...focus} testid="nest-inner-trigger">Inner</div>{/snippet}
+		</Tooltip>
+		<div tabindex="0" onkeydown={(e) => e.key === 'Escape' && e.preventDefault()} testid="nest-keep">Keep</div>
+	{/snippet}
+</Popover>
+`
+);
+const Nested = (await import(compile_for_dom(join(tmp, 'Nested.svelte')))).default;
+const nested_host = document.createElement('div');
+document.body.append(nested_host);
+const nested = mount(Nested, { target: nested_host });
+flushSync();
+click(by_id('nest-trigger'));
+by_id('nest-inner-trigger')!.dispatchEvent(new FocusEvent('focus'));
+flushSync();
+const opened = [by_id('nest-panel') !== null, by_id('nest-inner-tip') !== null];
+key('Escape');
+check('Escape closes only the top layer, the tip inside the popover', [opened, by_id('nest-inner-tip'), by_id('nest-panel') !== null], [[true, true], null, true]);
+key('Escape');
+check('and the next one the popover under it', by_id('nest-panel'), null);
+click(by_id('nest-trigger'));
+by_id('nest-keep')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+flushSync();
+const kept = by_id('nest-panel') !== null;
+key('Escape');
+check("a key handler's preventDefault keeps it open, where the same key unprevented closes it", [kept, by_id('nest-panel')], [true, null]);
+unmount(nested as never);
+nested_host.remove();
+
 dom.render(CrossTarget, { title: 'again', rootStyle: { padding: 4 } });
 check(
 	'a second render() replaces the first, rootStyle replacing the root box',
@@ -414,4 +469,4 @@ check(
 );
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 74);
+finish('dom', 80);

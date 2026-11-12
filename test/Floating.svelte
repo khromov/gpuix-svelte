@@ -4,6 +4,7 @@
 
 	let counts = $state({ save: 0, under: 0, closes: 0, item: 0, elsewhere: 0 });
 	let menu = $state(false);
+	let outer = $state(false);
 </script>
 
 <div class="page">
@@ -49,6 +50,39 @@
 	</div>
 
 	<div testId="counts">{counts.save}-{counts.under}-{counts.closes}-{counts.item}-{counts.elsewhere}</div>
+
+	<div class="row">
+		<Popover open={outer} onclose={() => (outer = false)} testid="outer">
+			<div class="btn" onclick={() => (outer = !outer)} testId="outer-trigger">Outer</div>
+			{#snippet content()}
+				<Tooltip content="Inner" testid="inner">
+					{#snippet children(hover, focus)}
+						<div class="item" tabindex="0" {...hover} {...focus} testId="inner-trigger">Inner</div>
+					{/snippet}
+				</Tooltip>
+				<div
+					class="item"
+					tabindex="0"
+					onkeydown={(e) => {
+						if (e.key === 'escape' && !e.modifiers?.shift && !e.modifiers?.cmd) e.preventDefault();
+					}}
+					testId="keep"
+				>
+					Keep
+				</div>
+				<div
+					class="item"
+					tabindex="0"
+					onkeydown={(e) => {
+						if (e.key === 'escape') e.stopPropagation();
+					}}
+					testId="stopper"
+				>
+					Stop
+				</div>
+			{/snippet}
+		</Popover>
+	</div>
 
 	<Tooltip open side="right" style="background-color: #1e66f5; border-radius: 0" testid="pinned">
 		<div class="badge">pinned</div>

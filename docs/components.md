@@ -22,7 +22,9 @@ come from `set_css_vars`.
 
 GPUI's own scrollbar (`scrollbar-color`, see [Styling](styling.md)) can't be dragged, so
 `Scroller` is a scroll column that draws its own thumb in a gutter, follows the wheel and lets you
-drag the thumb.
+drag the thumb. The thumb listens for both `mousedown` and `mousemove`, which makes GPUI capture
+the pointer, so a drag keeps going when the pointer leaves the thumb or the window and ends
+wherever you let go.
 
 Props:
 
@@ -31,8 +33,8 @@ Props:
 - `scroll={false}` clips the content and draws no thumb.
 - `follow` keeps the bottom in view while content grows, as in a streaming reply.
 - `virtual` and `estimate` make it a [virtual list](#virtual-lists).
-- `testid` goes on the scroll column. The thumb gets `<testid>-thumb` and the drag overlay
-  `<testid>-overlay`.
+- `testid` goes on the scroll column (the `<virtual-list>` with `virtual`). The thumb gets
+  `<testid>-thumb`, and a virtual list's drag strip `<testid>-strip`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
 fallbacks.
@@ -107,10 +109,17 @@ creates every row; only the layout and paint are skipped.
   their content, and space rows with padding inside them: `gap` applies only to the plain column.
 - `estimate` (default `80`) is the height hint for rows GPUI hasn't measured yet.
 - `follow` becomes the list's own tail-following.
-- `pad` pads the box around the list, so it does not scroll with the rows. No gutter is reserved,
-  so the thumb paints over the rows' right edge. `scroll={false}` is ignored.
-- Nothing reports a change in row count, so the thumb re-reads the list's position every 250 ms
-  (100 ms with `follow`).
+- `pad` pads the box around the list, so it does not scroll with the rows. The list keeps a
+  12 px gutter on its right, as the plain column does, so the thumb never paints over a row.
+  `scroll={false}` is ignored.
+- The thumb is GPUI's own (`scrollbar-color` on the list), painted from the heights the list has
+  measured in the frame it scrolls, so nothing polls the list.
+- GPUI's thumb takes no pointer, so an invisible 8 px strip over the gutter does the dragging,
+  with the same pointer capture. While it is hovered or dragged the thumb turns
+  `--scroller-thumb-hover`. A press reads the list's
+  position once and estimates its length from the rows above the top one, or from `estimate` at
+  the very top, so rows far from `estimate` make the thumb run ahead of or behind the pointer. A
+  drag let go past the end settles on the last row.
 
 ## Portal
 
@@ -203,8 +212,10 @@ a deferred layer.
 A hover tip beside its trigger, built on `<anchored>`. It shows after `delay` ms of hover and stays
 open while the pointer crosses onto the tip, with an 80 ms grace for the gap. A trigger that spreads
 the snippet's focus handlers also shows it at once on keyboard focus and hides it on blur, until the
-pointer takes over. Escape hides it either way. The tip takes no clicks, so they land on whatever
-lies beneath it.
+pointer takes over. Escape hides it either way, unless another layer opened after it, such as a
+popover, is still open (see `dismiss_layer` in the [guide](guide.md#keyboard-shortcuts-and-focus)).
+A tip that `open` forces ignores Escape. The tip takes no clicks, so they land on whatever lies
+beneath it.
 
 Props:
 
@@ -289,8 +300,10 @@ focusable, so a click on it would take focus away from a text field.
 ## Popover
 
 A controlled panel beside its trigger. You own `open`, and the trigger toggles it. `onclose` fires
-on a press outside both the panel and the trigger (any mouse button) and on Escape. A press on the
-trigger is left to the trigger's own click, so it closes the panel without reopening it.
+on a press outside both the panel and the trigger (any mouse button) and on Escape. Escape closes
+only the top layer, so a tooltip open inside the panel goes first and the panel on the next press,
+and a key handler that calls `e.preventDefault()` or `e.stopPropagation()` keeps it open. A press
+on the trigger is left to the trigger's own click, so it closes the panel without reopening it.
 
 Props:
 

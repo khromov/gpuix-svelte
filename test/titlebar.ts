@@ -5,13 +5,9 @@
  */
 
 import { render, set_window_title } from 'gpuix-svelte';
-import { mount_headless, tree, find_text, bounds, click, settle, all_text, check, finish, type TreeNode } from 'gpuix-svelte/test';
+import { mount_headless, tree, find_text, bounds, click, settle, all_text, a11y, check, finish, type TreeNode } from 'gpuix-svelte/test';
 import { wants_titlebar } from '../src/titlebar.ts';
 import { seed_window } from './seed-window.ts';
-
-interface A11yNode {
-	aria?: { role?: string; label?: string };
-}
 
 const Titled = (await import('./Titled.svelte')).default;
 const { native, unmount: unmount_titled } = mount_headless(Titled, { titlebar: 'My app' });
@@ -19,7 +15,7 @@ const { native, unmount: unmount_titled } = mount_headless(Titled, { titlebar: '
 const bar = () => tree().children?.[0] as TreeNode;
 const buttons = () => bar().children?.filter((c) => c.events?.includes('click')) ?? [];
 const labels = () =>
-	Object.values((JSON.parse(native.getA11yTree()) as { nodes?: Record<string, A11yNode> }).nodes ?? {})
+	Object.values(a11y().nodes ?? {})
 		.map((n) => n.aria?.label)
 		.filter((label) => label?.endsWith('window'));
 

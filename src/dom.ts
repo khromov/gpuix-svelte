@@ -9,12 +9,14 @@ import { mount, unmount, flushSync } from 'svelte';
 import { createSubscriber } from 'svelte/reactivity';
 import type { EventPayload, PathPromptOptions } from '@gpuix/native';
 import type { DebugFrameOverlayMode, DebugFrameOverlayStats, EdgeInsets, WindowInsets, WindowSize } from '@gpuix/native/host';
-import type { AnyComponent, GpuixEvent, GpuiStyle, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
+import type { AnyComponent, DismissLayer, GpuixEvent, GpuiStyle, Native, PixelFormat, RenderOptions, ShadowNode, WindowKeyType } from './types.ts';
 import { RESET_CSS } from './reset.ts';
+import { place_layer } from './layers.ts';
+export { dismiss_scope } from './layers.ts';
 
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
-export { TextSearch, find_ranges, type TextSearchOptions } from './search.ts';
+export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 
 /** False here; the GPUI entries answer true. Decided per build, so it can be read before anything is mounted. */
 export const IS_GPUIX: boolean = false;
@@ -107,6 +109,33 @@ export function on_selection_change(handler: (event: GpuixEvent) => void): () =>
 	const listener = (e: Event) => handler(shaped('selectionChange', e, { value: document.getSelection()?.toString() || undefined }));
 	document.addEventListener('selectionchange', listener);
 	return () => document.removeEventListener('selectionchange', listener);
+}
+
+/** Open overlays, the top one last. */
+const layers: DismissLayer[] = [];
+
+function escape(e: KeyboardEvent) {
+	if (e.defaultPrevented || e.repeat || e.ctrlKey || e.altKey || e.metaKey || key_name(e) !== 'escape') return;
+	layers.at(-1)?.onEscape();
+}
+
+/**
+ * Puts an open overlay on top of the page's stack until the returned function runs; an Escape that no key handler
+ * prevented reaches the top layer's `onEscape` alone. The window listener is added as the first layer opens, so a
+ * window handler subscribed after that hears the key too late to prevent it.
+ */
+export function dismiss_layer(layer: DismissLayer): () => void {
+	const target = win();
+	if (!target) return noop;
+	const entry = { ...layer };
+	place_layer(layers, entry);
+	if (layers.length === 1) target.addEventListener('keydown', escape);
+	return () => {
+		const index = layers.indexOf(entry);
+		if (index === -1) return;
+		layers.splice(index, 1);
+		if (layers.length === 0) target.removeEventListener('keydown', escape);
+	};
 }
 
 /** `var(--name)` resolves against `:root` here, which is where the DOM keeps a palette. A bare number stays bare, so give lengths a unit. */
@@ -321,6 +350,24 @@ export const register_font: (bytes: Uint8Array) => void = noop;
 /** `document.elementsFromPoint`, typed as GPUI nodes for a shared signature. */
 export const elements_at = (x: number, y: number): ShadowNode[] => (doc()?.elementsFromPoint?.(x, y) ?? []) as unknown as ShadowNode[];
 
+const selection_changed = createSubscriber((update) => {
+	const document = doc();
+	if (!document) return;
+	document.addEventListener('selectionchange', update);
+	return () => document.removeEventListener('selectionchange', update);
+});
+
+/** The document's selection as text, or null when it is empty; reactive through `selectionchange`. */
+export function selected_text(): string | null {
+	selection_changed();
+	return doc()?.getSelection()?.toString() || null;
+}
+
+export const clear_selection = () => doc()?.getSelection()?.removeAllRanges();
+
+/** A page is never drawn in a terminal. */
+export const is_terminal = (): boolean => false;
+
 // GPUI's draw-time overlay has no counterpart; the browser's own profiler does.
 export const set_debug_overlay: (mode: DebugFrameOverlayMode) => DebugFrameOverlayMode | undefined = () => undefined;
 export const cycle_debug_overlay = (): DebugFrameOverlayMode | undefined => undefined;
@@ -388,6 +435,8 @@ export type {
 	RenderOptions,
 	AppOptions,
 	WindowKeyType,
+	DismissLayer,
+	DismissScope,
 	PixelFormat,
 	AnyComponent
 } from './types.ts';

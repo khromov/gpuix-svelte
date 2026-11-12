@@ -50,6 +50,30 @@ elements that carry the `highlight`, so rows a virtual list has not rendered are
 returns the `[start, end)` pairs that `highlight={{ ranges }}` takes. Use it for text that is not
 on screen.
 
+For a virtual list, count the matches yourself with `find_ranges` and set `matches` (or pass it to
+the constructor): `total` is every match, and `index_offset` how many come before the first row
+the list has rendered, counted in matches rather than rows. `total` and `active` then follow it,
+`next()` and `prev()` wrap at it, and the active match is painted on the right row. Setting it to
+`null` hands the count back to native. `find_ranges` takes the search itself as its options, which
+keeps the flags in step:
+
+```svelte
+<script lang="ts">
+  import { TextSearch, find_ranges } from 'gpuix-svelte';
+  const search = new TextSearch();
+  const per_row = $derived(rows.map((row) => find_ranges(row.text, search.query, search).length));
+
+  $effect(() => {
+    search.matches = {
+      total: per_row.reduce((n, count) => n + count, 0),
+      index_offset: per_row.slice(0, first_visible_row).reduce((n, count) => n + count, 0)
+    };
+  });
+</script>
+```
+
+Moving the list to the active match is up to you, for example with `scrollToItem`.
+
 ## Keyboard shortcuts and focus
 
 `keydown` on an element needs that element focused (`tabindex="0"` or `autofocus`). A key reaches
@@ -109,6 +133,31 @@ window's `on_window_key` handlers. `e.stopPropagation()` skips the ones after it
 The order is the tab stops of the last painted frame, so a stop that an `{#if}` has just rendered
 joins it once it has painted. To focus a particular new element, give it `autofocus` or call
 `focus_element(node)`.
+
+An overlay that Escape closes, such as a menu, a popover or a modal, goes on the window's layer
+stack with `dismiss_layer`, which returns the function that takes it off again:
+
+```svelte
+<script>
+  import { dismiss_layer, dismiss_scope } from 'gpuix-svelte';
+  let { open, onclose } = $props();
+  const scope = dismiss_scope();
+
+  $effect(() => {
+    if (!open) return;
+    return dismiss_layer({ onEscape: () => onclose(), scope });
+  });
+</script>
+```
+
+Escape reaches only the layer on top, the one that opened last, so a tooltip inside a popover
+closes before the popover does. `dismiss_scope()` keeps that true when both open at once: it ties
+the overlay to the ones mounted inside it, so call it while the component initialises, not in the
+effect. Like the Tab move, Escape runs after every key handler for that keystroke, so
+`e.preventDefault()` in any of them keeps the layer open, and so does `e.stopPropagation()` on the
+focused element or one of its ancestors, which says that handler used the key (one in an
+`on_window_key` handler does not, as other window listeners still hear it). A held key's repeats
+and Escape with Ctrl, Alt or Cmd are left alone. `Tooltip` and `Popover` both use it.
 
 `:focus-visible` rules and the `focus-visible="..."` attribute style an element while it has
 keyboard focus (not after a click), and `outline-width`, `outline-color` and `outline-offset` draw
@@ -180,6 +229,13 @@ what `@gpuix/native` 0.11 added (`npm run demo:native-0.11`).
 - `on_selection_change(handler)` hears every change to the window's text selection, a clear
   included. `e.value` is the selected text, and `undefined` after a clear. It returns its
   unsubscribe, and `render()` takes an `onSelectionChange` option for the same thing.
+- `selected_text()` is the selected text, or `null`, and is reactive where a template,
+  `$derived` or `$effect` reads it, through the same event rather than a poll.
+  `clear_selection()` drops the selection; `selected_text()` follows once the next frame reports
+  the change.
+- `is_terminal()` is true when `@gpuix/native`'s terminal mode (`GPUIX_TERMINAL=1`) draws the app
+  inside the terminal, where there is no title bar to leave room for. It is false until
+  `render()` has opened the window, so read it while rendering, not at module scope.
 - `scroll_into_view(node)` scrolls the nearest scroll container or `<virtual-list>` until `node`
   shows.
 - `set_image(node, bytes)` puts encoded image bytes (PNG, JPEG, WebP, GIF, SVG, …) on an `<img>`.
