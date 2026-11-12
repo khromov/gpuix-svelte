@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { on_window_key } from 'gpuix-svelte';
+	import { dismiss_layer, dismiss_scope } from 'gpuix-svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Button from 'gpuix-svelte-ui/components/Button.svelte';
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
-	import { open_overlay, test_id } from 'gpuix-svelte-ui/shared';
+	import { test_id } from 'gpuix-svelte-ui/shared';
 
 	let {
 		open,
@@ -36,17 +36,12 @@
 		if (dismissable) onclose();
 	}
 
-	// Only the topmost overlay answers Escape, so a Select or Menu open inside closes alone first.
+	const scope = dismiss_scope();
+
+	// A dialog that is not dismissable still takes the layer, or its Escape would close an overlay underneath.
 	$effect(() => {
 		if (!open) return;
-		const overlay = open_overlay();
-		const off = on_window_key('keydown', (e) => {
-			if (e.key === 'escape' && overlay.on_top()) dismiss();
-		});
-		return () => {
-			off();
-			overlay.release();
-		};
+		return dismiss_layer({ onEscape: () => dismiss(), scope });
 	});
 
 	// In a page, a drag that starts in the panel and ends over the scrim clicks the scrim; only a press that

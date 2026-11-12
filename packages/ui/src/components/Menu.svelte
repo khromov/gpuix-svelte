@@ -3,7 +3,7 @@
 	import Popover from 'gpuix-svelte/components/Popover.svelte';
 	import Kbd from 'gpuix-svelte-ui/components/Kbd.svelte';
 	import { activates } from 'gpuix-svelte-ui/keys';
-	import { open_overlay, own_hitbox, test_id, type MenuEntry } from 'gpuix-svelte-ui/shared';
+	import { own_hitbox, test_id, type MenuEntry } from 'gpuix-svelte-ui/shared';
 
 	let {
 		open,
@@ -42,12 +42,6 @@
 		entry.onselect?.();
 		onclose();
 	}
-
-	// Registered while open, so a Dialog around it leaves Escape to the menu first.
-	$effect(() => {
-		if (!open) return;
-		return open_overlay().release;
-	});
 </script>
 
 <Popover {open} {onclose} {side} {align} {gap} {position} {testid}>

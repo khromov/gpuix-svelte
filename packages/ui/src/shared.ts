@@ -40,24 +40,6 @@ export const aria_checked = (checked: boolean): Record<string, boolean> => (IS_G
 /** The value attributes a DOM slider or progress bar needs; GPUI forwards none of them. */
 export const aria_value = (now: number, min: number, max: number): Record<string, number> => (IS_GPUIX ? {} : { 'aria-valuenow': now, 'aria-valuemin': min, 'aria-valuemax': max });
 
-const overlays: object[] = [];
-
-/**
- * Overlays that close on Escape register while open, so only the topmost one acts on the key: a Select
- * open inside a Dialog closes alone, and the Dialog on the next press.
- */
-export function open_overlay(): { on_top(): boolean; release(): void } {
-	const token = {};
-	overlays.push(token);
-	return {
-		on_top: () => overlays[overlays.length - 1] === token,
-		release: () => {
-			const at = overlays.lastIndexOf(token);
-			if (at !== -1) overlays.splice(at, 1);
-		}
-	};
-}
-
 export interface Box {
 	x: number;
 	y: number;

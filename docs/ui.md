@@ -262,7 +262,10 @@ a context menu.
 
 `Dialog` paints a scrim and a panel in a `Portal`: `open`, `onclose`, `title`, `description`, the
 body and an `actions` snippet; `size` is `sm`, `md` or `lg`. Escape, the close button and a click
-on the scrim call `onclose`, unless `dismissable` is false.
+on the scrim call `onclose`, unless `dismissable` is false. Escape closes one overlay per press,
+the one on top: a `Select`, `Menu`, `Popover` or `Tooltip` open inside a `Dialog` goes first, and
+an overlay of your own joins the same stack through
+[`dismiss_layer`](guide.md#keyboard-shortcuts-and-focus).
 
 `toast('Saved')` or `toast({ title, description, tone, duration, action })` queues a toast from
 anywhere, and a `<Toaster>` rendered once, at any `position`, shows the queue. A toast goes by

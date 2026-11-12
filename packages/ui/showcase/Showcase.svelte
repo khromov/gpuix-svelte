@@ -256,7 +256,11 @@
 	<Dialog open={dialog} onclose={() => (dialog = false)} title="Delete this project?" description="This cannot be undone. The files stay on disk." testid="dialog">
 		<div class="muted">Escape, the close button, Cancel or a click outside closes it.</div>
 		{#snippet actions()}
-			<Button onclick={() => (dialog = false)} testid="cancel">Cancel</Button>
+			<Tooltip content="Keeps the project">
+				{#snippet children(hover)}
+					<Button {...hover} onclick={() => (dialog = false)} testid="cancel">Cancel</Button>
+				{/snippet}
+			</Tooltip>
 			<Button
 				variant="danger"
 				onclick={() => {

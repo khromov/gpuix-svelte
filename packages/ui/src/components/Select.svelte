@@ -2,7 +2,7 @@
 	import Popover from 'gpuix-svelte/components/Popover.svelte';
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
 	import { key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { open_overlay, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
+	import { own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
 
 	let {
 		options,
@@ -26,12 +26,6 @@
 	let open = $state(false);
 	let active = $state(-1);
 	const selected = $derived(options.find((o) => o.value === value) ?? null);
-
-	// Registered while open, so a Dialog around it leaves Escape to the list first.
-	$effect(() => {
-		if (!open) return;
-		return open_overlay().release;
-	});
 
 	function show() {
 		if (disabled) return;

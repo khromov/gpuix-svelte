@@ -179,6 +179,15 @@ check('the Dialog opens in a Portal off <body>', [layered('dialog'), has('Delete
 key(window, 'Escape');
 check('Escape closes it', by_id('dialog'), null);
 click(by_id('open-dialog'));
+by_id('cancel')!.dispatchEvent(new MouseEvent('mouseenter'));
+await sleep(350);
+flushSync();
+const tip_shown = has('Keeps the project');
+key(window, 'Escape');
+check('Escape closes a Tooltip inside the Dialog first, and the Dialog stays', [tip_shown, has('Keeps the project'), by_id('dialog') !== null], [true, false, true]);
+key(window, 'Escape');
+check('and the Dialog on the next press', by_id('dialog'), null);
+click(by_id('open-dialog'));
 click(by_id('dialog-close'));
 check('so does the close button', by_id('dialog'), null);
 click(by_id('open-dialog'));
@@ -255,4 +264,4 @@ check('memory mode starts from `initial` and leaves the URL alone', [text('scree
 check('match() prefers a literal segment to a param, and * catches the rest', [match(['/items/:id', '/items/new'], '/items/new')?.pattern, match(['/items/:id'], '/items/7')?.params, match(['/a', '*'], '/b')?.pattern, match(['/a'], '/b')], ['/items/new', { id: '7' }, '*', null]);
 check('href() encodes params and builds a query', [href('/items/:id', { id: 'a b' }, { q: 1, none: null }), href('/items/:id/:tab', { id: 1, tab: 'x' })], ['/items/a%20b?q=1', '/items/1/x']);
 
-finish('ui-dom', 69);
+finish('ui-dom', 71);

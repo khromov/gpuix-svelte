@@ -915,6 +915,11 @@ design:
   GPUI. In the CSS: no descendant selectors, no `@keyframes` (`Spinner` and `Skeleton` are
   timers), `flex-basis` only under a `min-width` query (GPUI has no `auto` for it), and
   `border-width: 0 0 1px 0` rather than a lone `border-style`, which a browser draws 3 px wide.
+- **Escape goes through the package's `dismiss_layer`**, not a stack of the toolkit's own: `Dialog`
+  takes a layer while open (a non-dismissable one too, so its Escape never reaches an overlay
+  underneath) with its `dismiss_scope()`, and `Menu` and `Select` are on the stack through their
+  `Popover`. A `Tooltip` or `Popover` inside a `Dialog` therefore closes first and the `Dialog` on
+  the next press, which `test:ui` and `test:ui-dom` assert through the showcase's Cancel tooltip.
 - **The router** (`src/router.ts`, `Router.svelte`, `Link.svelte`) is paths with a history stack:
   the store is module state, so a window keeps its screen across a `render_hot` remount
   (`start_router` is once per process; `stop_router` exists for the DOM test's mode switches), and in

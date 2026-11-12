@@ -146,6 +146,15 @@ check('the Dialog opens in a Portal', [find_test_id('dialog') !== null, has('Del
 press('escape');
 check('Escape closes it', find_test_id('dialog'), null);
 await tap('open-dialog');
+hover(find_test_id('cancel')!);
+await wait(350);
+const tip_shown = has('Keeps the project');
+press('escape');
+check('Escape closes a Tooltip inside the Dialog first, and the Dialog stays', [tip_shown, has('Keeps the project'), find_test_id('dialog') !== null], [true, false, true]);
+press('escape');
+check('and the Dialog on the next press', find_test_id('dialog'), null);
+hover(find_test_id('size')!);
+await tap('open-dialog');
 click_test_id('dialog-close');
 check('so does the close button', find_test_id('dialog'), null);
 await tap('open-dialog');
@@ -248,4 +257,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 65);
+finish('ui', 67);
