@@ -4,10 +4,11 @@
 	let { search, text, above = null }: { search: TextSearch; text: string; above?: string | null } = $props();
 
 	// `above` stands in for the rows a virtual list has not mounted, counted the way an app would.
+	const per_row = $derived(above === null ? null : [above, text].map((row) => find_ranges(row, search.query, search).length));
+
 	$effect(() => {
-		if (above === null) return;
-		const before = find_ranges(above, search.query, search).length;
-		search.matches = { total: before + find_ranges(text, search.query, search).length, index_offset: before };
+		if (per_row === null) return;
+		search.matches = { total: per_row[0] + per_row[1], index_offset: per_row[0] };
 	});
 </script>
 
