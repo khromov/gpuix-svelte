@@ -2,6 +2,9 @@ FROM mcr.microsoft.com/devcontainers/base:ubuntu26.04
 
 ARG BUN_VERSION=1.4.4
 
+# Without pipefail a failed download of Bun's installer pipes nothing into bash and the build passes.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		libxcb1 libxkbcommon0 libxkbcommon-x11-0 mesa-vulkan-drivers \
