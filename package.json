@@ -50,6 +50,7 @@
 		"type": "git",
 		"url": "https://github.com/khromov/gpuix-svelte"
 	},
+	"homepage": "https://gpuix-svelte.stanislav.garden",
 	"keywords": [
 		"svelte",
 		"gpui",

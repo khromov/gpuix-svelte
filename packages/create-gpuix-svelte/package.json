@@ -23,7 +23,7 @@
 		"url": "git+https://github.com/khromov/gpuix-svelte.git",
 		"directory": "packages/create-gpuix-svelte"
 	},
-	"homepage": "https://github.com/khromov/gpuix-svelte#readme",
+	"homepage": "https://gpuix-svelte.stanislav.garden",
 	"keywords": [
 		"svelte",
 		"gpui",
