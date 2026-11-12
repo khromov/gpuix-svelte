@@ -681,7 +681,8 @@ function serve(open: boolean) {
 	server.listen(Number(process.env.PORT || 4321), process.env.HOST || '127.0.0.1', () => {
 		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
 		console.log(`[docs] ${url}`);
-		if (!open) return;
+		// Vite's convention; xdg-open would ignore it and fall back to x-www-browser.
+		if (!open || process.env.BROWSER === 'none') return;
 		// `start` is a cmd.exe builtin, and its first quoted argument is the window title.
 		const [command, ...args] =
 			process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '', url] : ['xdg-open', url];

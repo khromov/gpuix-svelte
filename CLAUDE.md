@@ -362,9 +362,9 @@ relative websocket path so it works behind code-server's `/proxy/6080/`. `xwd -r
 xwdtopnm | pnmtopng` makes a PNG and `xdotool` clicks and types into a window by hand (there is no
 window manager: windows open centred and stack). `containerEnv` sets `HOST=0.0.0.0`, which
 `docs:serve`, `demo:dom` and websockify bind to (Bun.serve in `demo:web` already does), and
-`BROWSER=none`, or Vite and `xdg-open` start a real Chrome on `:99`. Through a prefix-stripping
-proxy demo:dom does not load (Vite's absolute `/@vite/client` and its Host check). It
-is forced to `linux/amd64` (build `options` and `runArgs`), since there is no linux-arm64 prebuild;
+`BROWSER=none`, which Vite and `docs:serve` read as "open nothing" (xdg-open alone ignores it and
+starts a real Chrome on `:99`). Behind a prefix-stripping proxy demo:dom does not load (Vite's
+absolute `/@vite/client` and its Host check). It is forced to `linux/amd64` (build `options` and `runArgs`), since there is no linux-arm64 prebuild;
 on Apple Silicon that runs emulated. `docs/contributing.md` has the user-facing side.
 
 From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
