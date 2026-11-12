@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Xvfb on :99, and noVNC on 6080 showing it in a browser; safe to run again.
 
 pgrep -f '^Xvfb :99' >/dev/null || (setsid nohup Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &)
 for _ in $(seq 50); do

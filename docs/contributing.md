@@ -95,8 +95,9 @@ first build and everything after it are noticeably slower than on the host.
 
 Xvfb runs on `:99` (1920×1080) and `DISPLAY` points at it, so a window opens without extra steps.
 To watch it, open port 6080 in a browser: noVNC shows the display live and takes the mouse and
-keyboard. VS Code forwards it, and so does code-server's `/proxy/6080/`. There is no window manager,
-so windows open centred on top of each other.
+keyboard. VS Code forwards it, and so does code-server's `/proxy/6080/`. It has no password, so
+anyone who can reach the port controls the display. There is no window manager, so windows open
+centred on top of each other.
 
 ```bash
 npm run demo:counter                                      # draws on :99

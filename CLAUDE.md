@@ -364,8 +364,9 @@ window manager: windows open centred and stack). `containerEnv` sets `HOST=0.0.0
 `docs:serve`, `demo:dom` and websockify bind to (Bun.serve in `demo:web` already does), and
 `BROWSER=none`, which Vite and `docs:serve` read as "open nothing" (xdg-open alone ignores it and
 starts a real Chrome on `:99`). Behind a prefix-stripping proxy demo:dom does not load (Vite's
-absolute `/@vite/client` and its Host check). It is forced to `linux/amd64` (build `options` and `runArgs`), since there is no linux-arm64 prebuild;
-on Apple Silicon that runs emulated. `docs/contributing.md` has the user-facing side.
+absolute `/@vite/client` and its Host check). It is forced to `linux/amd64` (build `options` and
+`runArgs`), since there is no linux-arm64 prebuild; on Apple Silicon that runs emulated.
+`docs/contributing.md` has the user-facing side.
 
 From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
 applies once per window; the option is re-applied only when a later `render()` changes it, since
