@@ -352,7 +352,8 @@ pixel, not 32). Behaviour goes through `launch()`, which needs no pixels. For th
 same variable), and `WAYLAND_DEBUG=1` shows what a window told the compositor.
 
 `.devcontainer/` is that setup ready-made: the linux job's packages plus `x11-apps` and Chrome,
-Bun pinned in its `Dockerfile` (the bun feature takes no version), Docker-in-Docker, and Xvfb on
+Bun pinned in its `Dockerfile` (CI's `setup-bun` takes the latest, so bump it with a Bun release),
+Docker-in-Docker (which makes the container `--privileged` and `/tmp` a tmpfs), and Xvfb on
 `:99` from `postStartCommand` with `DISPLAY` set, so `test:automation-live` needs no `xvfb-run`. It
 is forced to `linux/amd64` (build `options` and `runArgs`), since there is no linux-arm64 prebuild;
 on Apple Silicon that runs emulated. `docs/contributing.md` has the user-facing side.
