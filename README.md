@@ -1,11 +1,10 @@
 # gpuix-svelte
 
+[Docs](https://gpuix-svelte.stanislav.garden/) · [Playground](https://gpuix-svelte.stanislav.garden/playground.html) · [npm](https://www.npmjs.com/package/gpuix-svelte)
+
 Write desktop apps in Svelte and render them into a native, GPU-accelerated window.
 gpuix-svelte is a Svelte custom renderer for [GPUI](https://www.gpui.rs/), the UI framework behind
 the Zed editor. It talks to GPUI through [`@gpuix/native`](https://www.npmjs.com/package/@gpuix/native).
-
-The docs, with a playground for trying components in the browser, are at
-[gpuix-svelte.stanislav.garden](https://gpuix-svelte.stanislav.garden/).
 
 ![Four gpuix-svelte demos running as native macOS windows](https://raw.githubusercontent.com/khromov/gpuix-svelte/main/.github/resources/demos.png)
 
