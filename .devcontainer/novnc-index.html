@@ -1,0 +1,7 @@
+<!doctype html>
+<title>:99</title>
+<script>
+	// A relative websocket path keeps working behind a prefix such as code-server's /proxy/6080/.
+	const path = location.pathname.replace(/[^/]*$/, '').slice(1) + 'websockify';
+	location.replace(`vnc.html?autoconnect=1&resize=scale&reconnect=1&path=${encodeURIComponent(path)}`);
+</script>
