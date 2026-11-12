@@ -1,0 +1,24 @@
+{
+	"name": "gpuix-svelte",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"options": ["--platform=linux/amd64"]
+	},
+	"runArgs": ["--platform=linux/amd64"],
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": { "version": "26" },
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/docker-in-docker:4": {},
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+	},
+	"containerEnv": {
+		"DISPLAY": ":99"
+	},
+	"postCreateCommand": "bun install --frozen-lockfile",
+	"postStartCommand": "pgrep -f '^Xvfb :99' >/dev/null || (setsid nohup Xvfb :99 -screen 0 1280x800x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &)",
+	"customizations": {
+		"vscode": {
+			"extensions": ["svelte.svelte-vscode", "dbaeumer.vscode-eslint"]
+		}
+	}
+}
