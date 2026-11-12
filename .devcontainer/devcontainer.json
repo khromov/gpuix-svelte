@@ -12,10 +12,19 @@
 		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
 	},
 	"containerEnv": {
-		"DISPLAY": ":99"
+		"DISPLAY": ":99",
+		"HOST": "0.0.0.0",
+		"BROWSER": "none"
+	},
+	"forwardPorts": [6080, 4173, 4174, 4321],
+	"portsAttributes": {
+		"6080": { "label": "Display :99 (noVNC)", "onAutoForward": "silent" },
+		"4173": { "label": "demo:web", "onAutoForward": "notify" },
+		"4174": { "label": "demo:dom", "onAutoForward": "notify" },
+		"4321": { "label": "docs:serve", "onAutoForward": "notify" }
 	},
 	"postCreateCommand": "bun install --frozen-lockfile",
-	"postStartCommand": "pgrep -f '^Xvfb :99' >/dev/null || (setsid nohup Xvfb :99 -screen 0 1280x800x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &)",
+	"postStartCommand": "bash .devcontainer/start-display.sh",
 	"customizations": {
 		"vscode": {
 			"extensions": ["svelte.svelte-vscode", "dbaeumer.vscode-eslint"]

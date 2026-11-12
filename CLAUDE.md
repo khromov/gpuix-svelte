@@ -64,7 +64,7 @@ npm run demo:cross         # one component on both renderers (examples/cross-tar
 npm run demo:dom           # Vite dev server for examples/cross-target in the DOM (scripts/dom.ts
                            # holds the Vite config and serves homepage/assets/fonts as the public dir
                            # for the page's Geist; -- --build-only writes dist/dom, -- --no-open skips
-                           # the browser). Runs Vite on Node; no bun: twin
+                           # the browser; HOST/PORT override). Runs Vite on Node; no bun: twin
 npm run tutorial           # interactive onboarding guide (examples/tutorial): 12 steps, each an
                            # explanation + diagram beside highlighted source and the same component
                            # running live, with a quiz. Prose is examples/tutorial/content/*.md, the
@@ -166,7 +166,7 @@ npm run docs               # README.md + docs/*.md → static HTML in dist/docs 
                            # dist/docs/playground.html, playground/ and playground-sw.js. See
                            # "The docs' playground"
 npm run docs:serve         # the same build, then serves dist/docs at http://127.0.0.1:4321
-                           # (PORT overrides) and opens it in the browser (-- --no-open skips
+                           # (HOST/PORT override) and opens it in the browser (-- --no-open skips
                            # that); rebuilds on any change to README.md, docs/, homepage/,
                            # playground/, src/, scripts/docs.ts, scripts/playground.ts or
                            # scripts/vite-dom.ts by restarting a child that builds and serves
@@ -354,7 +354,16 @@ same variable), and `WAYLAND_DEBUG=1` shows what a window told the compositor.
 `.devcontainer/` is that setup ready-made: the linux job's packages plus `x11-apps` and Chrome,
 Bun pinned in its `Dockerfile` (CI's `setup-bun` takes the latest, so bump it with a Bun release),
 Docker-in-Docker (which makes the container `--privileged` and `/tmp` a tmpfs), and Xvfb on
-`:99` from `postStartCommand` with `DISPLAY` set, so `test:automation-live` needs no `xvfb-run`. It
+`:99` at 1920×1080 (four demo windows are 820–860 px tall) from `postStartCommand`
+(`start-display.sh`) with `DISPLAY` set, so `test:automation-live` needs no `xvfb-run`. The same
+script serves the display as noVNC on 6080 (x11vnc on loopback 5900, noVNC and websockify from
+upstream tags, since Ubuntu's packages pull in nodejs and numpy); `index.html` there hands noVNC a
+relative websocket path so it works behind code-server's `/proxy/6080/`. `xwd -root -silent |
+xwdtopnm | pnmtopng` makes a PNG and `xdotool` clicks and types into a window by hand (there is no
+window manager: windows open centred and stack). `containerEnv` sets `HOST=0.0.0.0`, which
+`docs:serve`, `demo:dom` and websockify bind to (Bun.serve in `demo:web` already does), and
+`BROWSER=none`, or Vite and `xdg-open` start a real Chrome on `:99`. Through a prefix-stripping
+proxy demo:dom does not load (Vite's absolute `/@vite/client` and its Host check). It
 is forced to `linux/amd64` (build `options` and `runArgs`), since there is no linux-arm64 prebuild;
 on Apple Silicon that runs emulated. `docs/contributing.md` has the user-facing side.
 
