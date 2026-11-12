@@ -351,6 +351,13 @@ pixel, not 32). Behaviour goes through `launch()`, which needs no pixels. For th
 `XDG_RUNTIME_DIR` under `/run/user`, or the socket path overflows, and point clients at it with the
 same variable), and `WAYLAND_DEBUG=1` shows what a window told the compositor.
 
+`.devcontainer/` is that setup ready-made: the linux job's packages plus `x11-apps` and Chrome,
+Bun pinned in its `Dockerfile` (CI's `setup-bun` takes the latest, so bump it with a Bun release),
+Docker-in-Docker (which makes the container `--privileged` and `/tmp` a tmpfs), and Xvfb on
+`:99` from `postStartCommand` with `DISPLAY` set, so `test:automation-live` needs no `xvfb-run`. It
+is forced to `linux/amd64` (build `options` and `runArgs`), since there is no linux-arm64 prebuild;
+on Apple Silicon that runs emulated. `docs/contributing.md` has the user-facing side.
+
 From code the overlay is `render()`'s `debugFrameOverlay` option. `GPUIX_FPS` outranks it and
 applies once per window; the option is re-applied only when a later `render()` changes it, since
 `render_hot` remounts with the same options and must not undo a runtime `cycle_debug_overlay()`.

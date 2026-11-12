@@ -80,6 +80,32 @@ script skips.
 The headless renderer and every window crash under Claude Code's Bash sandbox, so run tests and
 demos with it disabled.
 
+## Developing in a devcontainer
+
+[`.devcontainer/`](../.devcontainer) is a Linux machine with everything CI's Linux job has: Node 26,
+Bun 1.4.4, the X11 libraries the binding links, Xvfb with Mesa's software Vulkan, `xwd`, Chrome,
+the GitHub CLI, Claude Code and Docker-in-Docker. Open the folder in VS Code's Dev Containers or
+run `devcontainer up --workspace-folder .`; it runs `bun install` when it is created.
+Docker-in-Docker makes the container run `--privileged`, with the host kernel's capabilities and
+devices, so remove that feature from `devcontainer.json` if you don't need Docker inside it.
+
+The container is always `linux/amd64`, because `@gpuix/native` has no linux-arm64 prebuild. On
+Apple Silicon that means Docker Desktop emulates it (Rosetta when enabled, QEMU otherwise), so the
+first build and everything after it are noticeably slower than on the host.
+
+Xvfb runs on `:99` and `DISPLAY` points at it, so a window opens without extra steps:
+
+```bash
+npm run demo:counter                      # draws on :99
+xwd -root -display :99 -out /tmp/x.xwd    # the Linux addon can't take screenshots, so read X11
+npm run test:automation-live              # a real window, driven through gpuix-svelte/automation
+```
+
+Linux has no headless renderer, so `npm test` fails right after `typecheck`. Run the suites CI's Linux
+job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:dom`,
+`test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only` and
+`demo:dom -- --build-only`.
+
 ## Moving the Svelte build
 
 `npm run vendor` looks up the custom-renderer PR's head commit, downloads that commit's build from
