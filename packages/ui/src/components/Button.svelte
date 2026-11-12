@@ -12,6 +12,8 @@
 		onclick,
 		onmouseenter,
 		onmouseleave,
+		onfocus,
+		onblur,
 		testid = null
 	}: {
 		children?: Snippet;
@@ -21,9 +23,11 @@
 		/** The accessible name, for a button whose content is an icon. */
 		label?: string | null;
 		onclick?: () => void;
-		/** Tooltip hands these to its trigger through `children(hover)`; spread them on for the tip to work. */
+		/** Tooltip hands these to its trigger through `children(hover, focus)`; spread `hover` on for the tip to work, and `focus` for it to show on keyboard focus. */
 		onmouseenter?: () => void;
 		onmouseleave?: () => void;
+		onfocus?: () => void;
+		onblur?: () => void;
 		testid?: string | null;
 	} = $props();
 
@@ -44,6 +48,8 @@
 	onkeydown={(e) => activates(e) && press()}
 	{onmouseenter}
 	{onmouseleave}
+	{onfocus}
+	{onblur}
 >
 	{@render children?.()}
 </div>

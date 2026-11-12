@@ -103,8 +103,8 @@
 				<div class="chip" {...test_id('layout')}>{narrow.current ? 'narrow' : 'wide'}</div>
 				<div class="spacer"></div>
 				<Tooltip content="Toggle the theme (T)">
-					{#snippet children(hover)}
-						<Button {...hover} onclick={() => (dark = !dark)} testid="theme">{dark ? 'Light' : 'Dark'}</Button>
+					{#snippet children(hover, focus)}
+						<Button {...hover} {...focus} onclick={() => (dark = !dark)} testid="theme">{dark ? 'Light' : 'Dark'}</Button>
 					{/snippet}
 				</Tooltip>
 				<Menu open={menu} onclose={() => (menu = false)} items={ACTIONS} testid="menu">

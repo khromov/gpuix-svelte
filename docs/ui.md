@@ -97,7 +97,7 @@ page follows it.
 `Button` is a focusable box: Enter and Space press it, `variant` is `default`, `primary`, `ghost`
 or `danger`, `size` is `md` or `sm`, and `disabled` takes it out of the tab order. `label` names a
 button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, which is what lets a
-`Tooltip` wrap it. `Badge` takes a `tone` (`neutral`, `accent`, `success`, `warning`, `danger`),
+`Tooltip` wrap it, and `onfocus` / `onblur`, so a tip given `{...focus}` too shows on keyboard focus. `Badge` takes a `tone` (`neutral`, `accent`, `success`, `warning`, `danger`),
 `Kbd` draws a key cap, and `Icon` draws one of the toolkit's glyphs (`check`, `close`,
 `chevron-down`, `plus`, `search`, …) or any SVG markup through `source`.
 
@@ -121,8 +121,8 @@ button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, whi
   <Badge tone="accent">{count}</Badge>
   <Button size="sm" onclick={() => count++}>+</Button>
   <Tooltip content="A tooltip on a button">
-    {#snippet children(hover)}
-      <Button {...hover} size="sm">Hover me</Button>
+    {#snippet children(hover, focus)}
+      <Button {...hover} {...focus} size="sm">Hover me</Button>
     {/snippet}
   </Tooltip>
   <Kbd>⌘K</Kbd>

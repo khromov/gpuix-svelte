@@ -82,6 +82,10 @@ check('the Tooltip shows on the Button, which spreads the hover handlers', has('
 hover(find_test_id('size')!);
 await wait(150);
 check('and hides once the pointer leaves', has('Toggle the theme (T)'), false);
+focus(find_test_id('theme')!);
+const focus_shown = has('Toggle the theme (T)');
+press('escape');
+check('keyboard focus shows it at once, the Button passing focus on too, and Escape hides it', [focus_shown, has('Toggle the theme (T)')], [true, false]);
 
 await reach('plus');
 await tap('plus');
@@ -257,4 +261,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 67);
+finish('ui', 68);

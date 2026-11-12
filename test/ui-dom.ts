@@ -108,6 +108,13 @@ check('the Toggle drives the same state', [css_var('ui-bg'), by_id('dark')?.getA
 click(by_id('dark'));
 check('and back', css_var('ui-bg'), '#000000');
 
+by_id('theme')!.dispatchEvent(new FocusEvent('focus'));
+flushSync();
+const focus_shown = has('Toggle the theme (T)');
+key(window, 'Escape');
+check('keyboard focus shows the Tooltip at once, the Button passing focus on, and Escape hides it', [focus_shown, has('Toggle the theme (T)')], [true, false]);
+by_id('theme')!.dispatchEvent(new FocusEvent('blur'));
+
 click(by_id('plus'));
 click(by_id('plus'));
 click(by_id('minus'));
@@ -264,4 +271,4 @@ check('memory mode starts from `initial` and leaves the URL alone', [text('scree
 check('match() prefers a literal segment to a param, and * catches the rest', [match(['/items/:id', '/items/new'], '/items/new')?.pattern, match(['/items/:id'], '/items/7')?.params, match(['/a', '*'], '/b')?.pattern, match(['/a'], '/b')], ['/items/new', { id: '7' }, '*', null]);
 check('href() encodes params and builds a query', [href('/items/:id', { id: 'a b' }, { q: 1, none: null }), href('/items/:id/:tab', { id: 1, tab: 'x' })], ['/items/a%20b?q=1', '/items/1/x']);
 
-finish('ui-dom', 71);
+finish('ui-dom', 72);
