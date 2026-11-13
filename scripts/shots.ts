@@ -11,15 +11,16 @@
 //
 //   npm run shots                       # everything, in dependency order
 //   npm run shots -- --only hn,demos    # a subset: counter, tictactoe, styling, hn, desktop,
-//                                       # tutorial, starter, ui-buttons, ui-cards, ui-fields,
-//                                       # ui-choices, ui-overlays, ui-router, ui-responsive (or ui
-//                                       # for all seven), web, demos, og, og-docs
+//                                       # tutorial, starter, ui-app, ui-<name> for each `svelte demo
+//                                       # <name>` of docs/ui.md (ui for all of them), web, demos, og,
+//                                       # og-docs
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { launch, type App, type Locator, type TreeNode } from 'gpuix-svelte/automation';
@@ -44,6 +45,8 @@ interface WindowShot {
 	ready: (app: App) => Promise<unknown>;
 	/** The picture shows what `ready` left the pointer over, a tooltip say, so it stays there. */
 	hover?: boolean;
+	/** The picture stops 24 px under the lowest element, as the docs page's frame does, rather than at the window's edge. */
+	crop?: boolean;
 }
 
 const apps = new Set<App & { process: ChildProcess }>();
@@ -96,26 +99,34 @@ function ui_sample(name: string) {
 	return file;
 }
 
+interface UiState {
+	/** For a sample laid out against the window (a dialog, toasts); any other picture is cropped from a tall window. */
+	height?: number;
+	ready?: WindowShot['ready'];
+	hover?: boolean;
+}
+
 // 760 is the docs column, so the 2× capture shows at its real size there.
-function ui_shot(sample: string, height: number, ready: WindowShot['ready'] = painted, hover = false): WindowShot {
+function ui_shot(sample: string, { height, ready = painted, hover }: UiState = {}): WindowShot {
 	return {
 		entry: 'scripts/ui-shot/main.ts',
 		out: join(DOCS_ASSETS, `ui-${sample}.png`),
 		get env() {
-			return { GPUIX_UI_SHOT: JSON.stringify({ source: ui_sample(sample), width: 760, height }) };
+			return { GPUIX_UI_SHOT: JSON.stringify({ source: ui_sample(sample), width: 760, height: height ?? 800 }) };
 		},
 		ready,
-		hover
+		hover,
+		crop: height === undefined
 	};
 }
 
-const UI_SHOTS: Record<string, WindowShot> = {
-	'ui-buttons': ui_shot(
-		'buttons',
-		150,
-		async (app) => {
-			for (let i = 0; i < 3; i++) await app.getByText('+').click();
-			// Native only lets go of the + button's hover on a move after a read, and the odd run needs the pointer to leave and come back.
+// The state each picture shows; a sample not named here is pictured as it mounts.
+const UI_STATES: Record<string, UiState> = {
+	button: {
+		hover: true,
+		async ready(app) {
+			for (let i = 0; i < 3; i++) await app.getByText('Count').click();
+			// Native only lets go of the clicked button's hover on a move after a read, and the odd run needs the pointer to leave and come back.
 			const tip = app.getByText('A tooltip on a button');
 			await wait_for('the tooltip', async () => {
 				await app.getByText('Hover me').hover();
@@ -126,37 +137,85 @@ const UI_SHOTS: Record<string, WindowShot> = {
 				return false;
 			});
 			await app.getByText('Hover me').hover();
-		},
-		true
-	),
-	'ui-cards': ui_shot('cards', 280, async (app) => {
-		await app.getByText('Advance').click();
-		await present(app.getByText('55'), 'the advanced progress');
-	}),
-	'ui-fields': ui_shot('fields', 456, async (app) => {
-		await app.getByType('input').fill('Ada');
-		await app.getByText('Pick one').click();
-		await app.getByText('Banana').click();
-		await present(app.getByText('Ada, picked banana.'), 'the pick');
-		await app.getByText('Banana').click();
-		await present(app.getByText('An acquired taste'), 'the reopened list');
-	}),
-	'ui-choices': ui_shot('choices', 424, async (app) => {
-		await app.getByText('Accept the terms').click();
-		await present(app.getByText('terms accepted'), 'the checked box');
-	}),
-	'ui-overlays': ui_shot('overlays', 300, async (app) => {
-		await app.getByText('Toast').click();
-		await present(app.getByText('Export finished'), 'the toast');
-		await app.getByText('Actions').click();
-		await present(app.getByText('Duplicate'), 'the menu');
-	}),
-	'ui-router': ui_shot('router', 160, async (app) => {
-		await app.getByText('Items').click();
-		await app.getByText('#2').click();
-		await present(app.getByText('Item 2,'), 'the item screen');
-	}),
-	'ui-responsive': ui_shot('responsive', 370)
+		}
+	},
+	progress: {
+		async ready(app) {
+			await app.getByText('Advance').click();
+			await present(app.getByText('55'), 'the advanced upload');
+		}
+	},
+	select: {
+		async ready(app) {
+			await app.getByText('Pick one').click();
+			await app.getByText('Banana').click();
+			await present(app.getByText('Picked banana.'), 'the pick');
+			await app.getByText('Banana').click();
+			await present(app.getByText('An acquired taste'), 'the reopened list');
+		}
+	},
+	checkbox: {
+		async ready(app) {
+			await app.getByText('Accept the terms').click();
+			await painted(app);
+		}
+	},
+	tabs: {
+		async ready(app) {
+			await app.getByText('Activity').click();
+			await present(app.getByText('Nothing has happened'), 'the second panel');
+		}
+	},
+	menu: {
+		async ready(app) {
+			await app.getByText('Actions').click();
+			await present(app.getByText('Duplicate'), 'the menu');
+		}
+	},
+	dialog: {
+		height: 340,
+		async ready(app) {
+			await app.getByText('Delete project').click();
+			await present(app.getByText('Delete this project?'), 'the dialog');
+		}
+	},
+	toaster: {
+		height: 340,
+		async ready(app) {
+			for (const button of ['Toast', 'With an action', 'Sticky']) await app.getByText(button).click();
+			await present(app.getByText('Disk almost full'), 'the toasts');
+		}
+	},
+	router: {
+		async ready(app) {
+			await app.getByText('Items').click();
+			await app.getByText('#2').click();
+			await present(app.getByText('Item 2,'), 'the item screen');
+		}
+	},
+	link: {
+		async ready(app) {
+			await app.getByText('Item 3').click();
+			await present(app.getByText('At /items/3'), 'the item path');
+		}
+	}
+};
+
+// Every sample on the page has a picture, but for the theme switch.
+const UI_SAMPLES = [...readFileSync(join(root, 'docs/ui.md'), 'utf8').matchAll(/^```svelte demo ([\w-]+)$/gm)].map((m) => m[1]).filter((name) => name !== 'theme');
+for (const name of Object.keys(UI_STATES)) if (!UI_SAMPLES.includes(name)) throw new Error(`[shots] docs/ui.md has no sample named ${name}`);
+const UI_SHOTS: Record<string, WindowShot> = {
+	'ui-app': {
+		entry: 'examples/ui-app/main.ts',
+		out: join(DOCS_ASSETS, 'ui-app.png'),
+		async ready(app) {
+			await app.getByText('Settings').click();
+			await present(app.getByText('Danger zone'), 'the settings screen');
+			await app.getByText('Save changes').click();
+			await present(app.getByText('Settings saved'), 'the toast');
+		}
+	},
+	...Object.fromEntries(UI_SAMPLES.map((name) => [`ui-${name}`, ui_shot(name, UI_STATES[name])]))
 };
 
 const WINDOWS: Record<string, WindowShot> = {
@@ -189,7 +248,7 @@ const WINDOWS: Record<string, WindowShot> = {
 	}
 };
 
-async function capture_window(name: string, { entry, out, env, ready, hover }: WindowShot) {
+async function capture_window(name: string, { entry, out, env, ready, hover, crop }: WindowShot) {
 	const app = await launch({ entry, cwd: root, env });
 	apps.add(app);
 	try {
@@ -197,18 +256,80 @@ async function capture_window(name: string, { entry, out, env, ready, hover }: W
 		await sleep(SETTLE);
 		if (!hover) {
 			// The last click leaves the pointer over its button, whose native :hover is restyled only by a
-			// move that follows a read after the move that left it; moves alone leave it hovered.
+			// move that follows a read some time after the move that left it; moves alone leave it hovered.
 			await app.mouse.move({ x: 2, y: 2 });
+			await sleep(SETTLE);
 			await painted(app);
 			await app.mouse.move({ x: 3, y: 3 });
 			await sleep(SETTLE);
 		}
+		// A capture can show the frame drawn before the last move, so the first is thrown away.
 		await app.screenshot({ path: out });
+		await sleep(SETTLE);
+		await app.screenshot({ path: out });
+		if (crop) await crop_to_content(app, out);
 		log(`${name} → ${out} (${png_size(out).join('×')})`);
 	} finally {
 		await app.close();
 		apps.delete(app);
 	}
+}
+
+// Anything spanning the window top to bottom (the root, the frame) is not content.
+async function content_bottom(app: App) {
+	const { tree } = await app.call('getTree', {});
+	const view = tree?.bounds;
+	if (!tree || !view) throw new Error('the tree has no bounds to crop to');
+	let bottom = 0;
+	const walk = (node: TreeNode) => {
+		const box = node.bounds;
+		if (box && !(box.y <= view.y && box.y + box.height >= view.y + view.height)) bottom = Math.max(bottom, box.y + box.height);
+		node.children?.forEach(walk);
+	};
+	walk(tree);
+	return { bottom, view };
+}
+
+// One read caught a button at zero height mid-frame, so the bottom counts once two reads agree.
+async function crop_to_content(app: App, path: string) {
+	let last = -1;
+	for (let tries = 0; tries < 10; tries++) {
+		const { bottom, view } = await content_bottom(app);
+		if (bottom === last) {
+			const keep = bottom + 24;
+			if (!bottom || keep > view.height) throw new Error(`${path}: the content ends at ${bottom}, too near the ${view.height} px window's edge`);
+			return crop_png(path, Math.round(keep * (png_size(path)[0] / view.width)));
+		}
+		last = bottom;
+		await sleep(200);
+	}
+	throw new Error(`${path}: the content's bottom never settled`);
+}
+
+// Keeps the top rows only: each row is filtered against the one above it, so the kept ones stay valid as they are.
+function crop_png(path: string, rows: number) {
+	const png = readFileSync(path);
+	const chunks: { type: string; data: Buffer }[] = [];
+	for (let at = 8; at < png.length; at += 12 + png.readUInt32BE(at)) {
+		chunks.push({ type: png.toString('latin1', at + 4, at + 8), data: png.subarray(at + 8, at + 8 + png.readUInt32BE(at)) });
+	}
+	const header = Buffer.from(chunks[0].data);
+	const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 } as Record<number, number>)[header[9]];
+	if (!channels || header[12] !== 0) throw new Error(`${path}: an interlaced or unknown PNG, which crop_png cannot cut`);
+	const stride = 1 + Math.ceil((header.readUInt32BE(0) * channels * header[8]) / 8);
+	const pixels = inflateSync(Buffer.concat(chunks.filter((c) => c.type === 'IDAT').map((c) => c.data)));
+	header.writeUInt32BE(rows, 4);
+	const chunk = (type: string, data: Buffer) => {
+		const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+		const out = Buffer.alloc(8 + body.length);
+		out.writeUInt32BE(data.length, 0);
+		body.copy(out, 4);
+		out.writeUInt32BE(crc32(body), 4 + body.length);
+		return out;
+	};
+	const ancillary = chunks.filter((c) => !['IHDR', 'IDAT', 'IEND'].includes(c.type)).map((c) => chunk(c.type, c.data));
+	const idat = chunk('IDAT', deflateSync(pixels.subarray(0, stride * rows), { level: 9 }));
+	writeFileSync(path, Buffer.concat([png.subarray(0, 8), chunk('IHDR', header), ...ancillary, idat, chunk('IEND', Buffer.alloc(0))]));
 }
 
 function png_size(path: string): [number, number] {

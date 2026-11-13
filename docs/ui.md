@@ -1,5 +1,7 @@
 # UI toolkit
 
+![Orbit, a small deployment dashboard built from the toolkit, in a GPUI window: a sidebar with the Orbit logo, a Pro badge, Overview, Deployments and a selected Settings link, key caps for back and forward and Ada Lovelace's account; the Settings screen with Discard and Save changes buttons, General, Members and a dimmed Billing tab, a Project card with Name, Region and Description fields, a Builds card with two toggles, a checkbox, a Node.js radio group with an info button and a Concurrent builds slider, a Danger zone card with a Delete project button, and a Settings saved toast in the corner.](assets/ui-app.png)
+
 > [!NOTE]
 > **Not released yet.** `gpuix-svelte-ui` ships alongside the next gpuix-svelte release (0.6.0),
 > which is the first with the [DOM build](dom.md) it needs.
@@ -7,9 +9,11 @@
 `gpuix-svelte-ui` is a set of components written once for both renderers: a native window through
 gpuix-svelte, and a browser DOM through Vite or SvelteKit. Buttons, fields, choices, menus, dialogs,
 toasts, a few layout and feedback pieces, a router for the screens of an app, and the theme behind
-them. Every component on this page runs live, in the DOM, and each section's picture is its sample
-in a GPUI window. `npm run demo:ui` in the repository opens the whole showcase in a GPUI window,
-and `npm run demo:ui-dom` serves it as a page.
+them. The window above is [`examples/ui-app`](../examples/ui-app/App.svelte), a small app built
+from most of them (`npm run demo:ui-app` in the repository). Every component has a section of its
+own below, with a sample that runs live on this page, in the DOM, and a picture of the same sample
+in a GPUI window above it. `npm run demo:ui` opens the showcase, every component on one screen, in
+a GPUI window, and `npm run demo:ui-dom` serves it as a page.
 
 ## Setup
 
@@ -98,18 +102,19 @@ page follows it.
 
 ## Buttons, badges and keys
 
-![The buttons sample in a GPUI window: Default, Primary, Ghost, Danger, a dimmed Disabled and a search icon button; below them −, a badge reading 3, +, a hovered Hover me button with its tooltip under it, and a ⌘K key cap.](assets/ui-buttons.png)
+### Button
+
+![Buttons in a GPUI window: Default, Primary, Ghost, Danger and a dimmed Disabled; below them Count 3, a search icon button and a hovered Hover me button with its tooltip under it.](assets/ui-button.png)
 
 `Button` is a focusable box: Enter and Space press it, `variant` is `default`, `primary`, `ghost`
 or `danger`, `size` is `md` or `sm`, and `disabled` takes it out of the tab order. `label` names a
 button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, which is what lets a
-`Tooltip` wrap it, and `onfocus` / `onblur`, so a tip given `{...focus}` too shows on keyboard focus. `Badge` takes a `tone` (`neutral`, `accent`, `success`, `warning`, `danger`),
-`Kbd` draws a key cap, and `Icon` draws one of the toolkit's glyphs (`check`, `close`,
-`chevron-down`, `plus`, `search`, …) or any SVG markup through `source`.
+`Tooltip` wrap it, and `onfocus` / `onblur`, so a tip given `{...focus}` too shows on keyboard
+focus.
 
-```svelte demo buttons
+```svelte demo button
 <script>
-  import { Button, Badge, Icon, Kbd, Tooltip } from 'gpuix-svelte-ui';
+  import { Button, Icon, Tooltip } from 'gpuix-svelte-ui';
 
   let count = $state(0);
 </script>
@@ -120,18 +125,15 @@ button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, whi
   <Button variant="ghost">Ghost</Button>
   <Button variant="danger">Danger</Button>
   <Button disabled>Disabled</Button>
-  <Button size="sm" label="Search"><Icon name="search" size={14} /></Button>
 </div>
 <div class="row">
-  <Button size="sm" onclick={() => count--}>−</Button>
-  <Badge tone="accent">{count}</Badge>
-  <Button size="sm" onclick={() => count++}>+</Button>
+  <Button size="sm" onclick={() => count++}>Count {count}</Button>
+  <Button size="sm" label="Search"><Icon name="search" size={14} /></Button>
   <Tooltip content="A tooltip on a button" side="bottom">
     {#snippet children(hover, focus)}
       <Button {...hover} {...focus} size="sm">Hover me</Button>
     {/snippet}
   </Tooltip>
-  <Kbd>⌘K</Kbd>
 </div>
 
 <style>
@@ -139,65 +141,372 @@ button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, whi
 </style>
 ```
 
+### Badge
+
+![Badges in a GPUI window, one per tone: neutral, accent, success, warning and danger.](assets/ui-badge.png)
+
+`Badge` is a short label in a pill, coloured by its `tone`: `neutral` (the default), `accent`,
+`success`, `warning` or `danger`, the same tones `Progress` and the toasts take.
+
+```svelte demo badge
+<script>
+  import { Badge } from 'gpuix-svelte-ui';
+</script>
+
+<div class="row">
+  <Badge>neutral</Badge>
+  <Badge tone="accent">accent</Badge>
+  <Badge tone="success">success</Badge>
+  <Badge tone="warning">warning</Badge>
+  <Badge tone="danger">danger</Badge>
+</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+</style>
+```
+
+### Kbd
+
+![Key caps in a GPUI window: ⌘K opens the palette, Esc closes it and Tab walks the controls.](assets/ui-kbd.png)
+
+`Kbd` draws its content as a key cap, for a shortcut written into a sentence.
+
+```svelte demo kbd
+<script>
+  import { Kbd } from 'gpuix-svelte-ui';
+</script>
+
+<div class="row">
+  <Kbd>⌘K</Kbd>
+  <div class="note">opens the palette,</div>
+  <Kbd>Esc</Kbd>
+  <div class="note">closes it and</div>
+  <Kbd>Tab</Kbd>
+  <div class="note">walks the controls.</div>
+</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Icon
+
+![Icons in a GPUI window: every glyph by name, from check to search, each labelled, and an orange star drawn from SVG markup in the accent colour around it.](assets/ui-icon.png)
+
+`Icon` draws one of the toolkit's glyphs by `name`, or any SVG markup through `source`, `size`
+pixels square in the colour of the text around it. `ICONS` holds the glyphs by name, as markup.
+
+```svelte demo icon
+<script>
+  import { ICONS, Icon } from 'gpuix-svelte-ui';
+
+  const STAR = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>';
+</script>
+
+<div class="row">
+  {#each Object.keys(ICONS) as name}
+    <div class="cell">
+      <Icon {name} size={20} />
+      <div class="name">{name}</div>
+    </div>
+  {/each}
+</div>
+<div class="row">
+  <div class="accent"><Icon source={STAR} size={28} /></div>
+  <div class="name">source, in the accent colour around it</div>
+</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 88px; }
+  .name { font-size: 12px; color: var(--ui-muted); }
+  .accent { display: flex; color: var(--ui-accent); }
+</style>
+```
+
 ## Cards, layout and feedback
 
-![The cards sample in a GPUI window: an Export card with a running badge and a spinner, a progress bar at 55%, a separator labelled who, an avatar with the initials AL beside two skeleton lines, and an Advance button in the footer.](assets/ui-cards.png)
+### Card
 
-`Card` holds a `title`, `description`, `actions` snippet at the right of the title, the body and a
-`footer` snippet. `Stack` is a flex box with its spacing as props (`direction`, `gap`, `align`,
-`justify`, `wrap`, `pad`), in the names both renderers know (`start` and `end`, not
-`flex-start`). `Separator` is a hairline, with an optional `label`. `Progress` draws `value` out of
-`max`; `Spinner`, `Skeleton` and `Avatar` are the small feedback pieces, and `Avatar` shows
-initials from `name` until it has a `src`.
+![A card in a GPUI window: the title Export over its description, a green ready badge at the right, a line of body text, and Cancel and Start buttons in the footer.](assets/ui-card.png)
 
-```svelte demo cards
+`Card` holds a `title`, a `description`, an `actions` snippet at the right of the title, the body
+and a `footer` snippet; `pad` and `gap` space it out.
+
+```svelte demo card
 <script>
-  import { Avatar, Badge, Button, Card, Progress, Separator, Skeleton, Spinner, Stack } from 'gpuix-svelte-ui';
-
-  let progress = $state(35);
+  import { Badge, Button, Card } from 'gpuix-svelte-ui';
 </script>
 
 <Card title="Export" description="Three files, about a minute.">
   {#snippet actions()}
-    <Badge tone="success">running</Badge>
-    <Spinner size={16} />
+    <Badge tone="success">ready</Badge>
   {/snippet}
-  <Progress value={progress} label="Progress" show_value />
-  <Separator label="who" />
-  <Stack direction="row" gap={10} align="center">
-    <Avatar name="Ada Lovelace" />
-    <Stack gap={6} grow={1}>
-      <Skeleton width="55%" />
-      <Skeleton width="85%" height={12} />
-    </Stack>
-  </Stack>
+  <div class="note">The body is whatever the card wraps.</div>
   {#snippet footer()}
-    <Button size="sm" onclick={() => (progress = Math.min(100, progress + 20))}>Advance</Button>
+    <Button size="sm">Cancel</Button>
+    <Button size="sm" variant="primary">Start</Button>
   {/snippet}
 </Card>
+
+<style>
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Stack
+
+![Stacks in a GPUI window: one, two and three in a row; start and end pushed apart; and a fixed box beside one that grows to fill the row.](assets/ui-stack.png)
+
+`Stack` is a flex box with its spacing as props (`direction`, `gap`, `align`, `justify`, `wrap`,
+`pad`, `grow`), in the names both renderers know (`start` and `end`, not `flex-start`).
+
+```svelte demo stack
+<script>
+  import { Stack } from 'gpuix-svelte-ui';
+</script>
+
+<Stack gap={10}>
+  <Stack direction="row" gap={8}>
+    <div class="box">one</div>
+    <div class="box">two</div>
+    <div class="box">three</div>
+  </Stack>
+  <Stack direction="row" justify="space-between">
+    <div class="box">start</div>
+    <div class="box">end</div>
+  </Stack>
+  <Stack direction="row" gap={8}>
+    <div class="box">fixed</div>
+    <Stack grow={1}><div class="box">grows</div></Stack>
+  </Stack>
+</Stack>
+
+<style>
+  .box { padding: 8px 12px; border-radius: 6px; background-color: var(--ui-raised); font-size: 13px; }
+</style>
+```
+
+### Separator
+
+![Separators in a GPUI window: a line labelled or between two sign-in options, a plain line, and vertical lines between Help, Privacy and Terms.](assets/ui-separator.png)
+
+`Separator` is a hairline across, or between the items of a row with `direction="vertical"`, and
+an optional `label` sits in the middle of it.
+
+```svelte demo separator
+<script>
+  import { Separator } from 'gpuix-svelte-ui';
+</script>
+
+<div class="column">
+  <div class="note">Sign in with a passkey</div>
+  <Separator label="or" />
+  <div class="note">Sign in with a password</div>
+  <Separator />
+  <div class="row">
+    <div class="note">Help</div>
+    <Separator direction="vertical" />
+    <div class="note">Privacy</div>
+    <Separator direction="vertical" />
+    <div class="note">Terms</div>
+  </div>
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; gap: 12px; }
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Progress
+
+![Progress bars in a GPUI window: Upload at 55% in orange, Disk at 92% in red, a thin green bar three quarters full, and an Advance button.](assets/ui-progress.png)
+
+`Progress` draws `value` out of `max` (100 by default) in a `tone`, with an optional `label` and,
+with `show_value`, the percentage beside it; `size` is `md` or `sm`.
+
+```svelte demo progress
+<script>
+  import { Button, Progress } from 'gpuix-svelte-ui';
+
+  let upload = $state(35);
+</script>
+
+<div class="column">
+  <Progress value={upload} label="Upload" show_value />
+  <Progress value={92} tone="danger" label="Disk" show_value size="sm" />
+  <Progress value={3} max={4} tone="success" size="sm" />
+  <div class="row">
+    <Button size="sm" onclick={() => (upload = upload >= 100 ? 0 : Math.min(100, upload + 20))}>Advance</Button>
+  </div>
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; }
+</style>
+```
+
+### Spinner
+
+![Three spinners of growing size in a GPUI window, beside the text Fetching three files.](assets/ui-spinner.png)
+
+`Spinner` turns while something loads, `size` pixels across; `label` is what a screen reader
+announces (`Loading` by default).
+
+```svelte demo spinner
+<script>
+  import { Spinner } from 'gpuix-svelte-ui';
+</script>
+
+<div class="row">
+  <Spinner size={16} />
+  <Spinner />
+  <Spinner size={28} label="Fetching files" />
+  <div class="note">Fetching three files…</div>
+</div>
+
+<style>
+  .row { display: flex; align-items: center; gap: 14px; }
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Skeleton
+
+![A skeleton in a GPUI window: a round placeholder beside two bars of different lengths, and a Load button under them.](assets/ui-skeleton.png)
+
+`Skeleton` is a pulsing placeholder for content still loading: `width` in pixels or as CSS text
+such as `60%`, `height` and `radius`.
+
+```svelte demo skeleton
+<script>
+  import { Avatar, Button, Skeleton, Stack } from 'gpuix-svelte-ui';
+
+  let loaded = $state(false);
+</script>
+
+<Stack direction="row" gap={12} align="center">
+  {#if loaded}
+    <Avatar name="Ada Lovelace" size={40} />
+    <Stack gap={4} grow={1}>
+      <div>Ada Lovelace</div>
+      <div class="note">Wrote the first program, in 1843.</div>
+    </Stack>
+  {:else}
+    <Skeleton width={40} height={40} radius={20} />
+    <Stack gap={8} grow={1}>
+      <Skeleton width="40%" />
+      <Skeleton width="85%" height={12} />
+    </Stack>
+  {/if}
+</Stack>
+<div class="row">
+  <Button size="sm" onclick={() => (loaded = !loaded)}>{loaded ? 'Unload' : 'Load'}</Button>
+</div>
+
+<style>
+  .note { font-size: 13px; color: var(--ui-muted); }
+  .row { display: flex; margin-top: 14px; }
+</style>
+```
+
+### Avatar
+
+![Four avatars of growing size in a GPUI window, showing the initials AL, GH, AT and KJ.](assets/ui-avatar.png)
+
+`Avatar` shows the image at `src` (a path, a `data:` URL or an http(s) URL on GPUI, any image URL
+in a browser) and the initials of `name` until it has one, `size` pixels across.
+
+```svelte demo avatar
+<script>
+  import { Avatar } from 'gpuix-svelte-ui';
+</script>
+
+<div class="row">
+  <Avatar name="Ada Lovelace" size={24} />
+  <Avatar name="Grace Hopper" />
+  <Avatar name="Alan Turing" size={40} />
+  <Avatar name="Katherine Johnson" size={48} />
+</div>
+
+<style>
+  .row { display: flex; align-items: center; gap: 10px; }
+</style>
 ```
 
 ## Fields
 
-![The fields sample in a GPUI window: a Name field holding Ada above its hint, an empty Notes text area, and the Fruit select open on Banana, its list showing Apple, a checked Banana, a dimmed Cherry and Durian with its description.](assets/ui-fields.png)
+### TextField
 
-`TextField` and `TextArea` wrap a real input: `value` in, `onchange(value)` on every edit, and
-`onsubmit(value)` on Enter. `label`, `hint` and `error` go around the box, `error` also colouring
-it, and a `disabled` field takes no focus, click or Enter on either renderer. They are
-controlled, so keep `value` in your state. On GPUI the input is native and draws its
-text from the palette `apply_theme` set; a `TextArea` grows from `rows` up to `max_rows` there,
-and Enter inserts a newline unless `onsubmit` is set.
+![Text fields in a GPUI window: an empty Name field with its hint, an Email field holding ada@ outlined in red with the error Needs a domain, and a dimmed, disabled Workspace field.](assets/ui-textfield.png)
+
+`TextField` wraps a real input: `value` in, `onchange(value)` on every edit, and `onsubmit(value)`
+on Enter. It is controlled, so keep `value` in your state. `label`, `hint` and `error` go around
+the box, `error` also colouring it, and a `disabled` field takes no focus, click or Enter on
+either renderer. On GPUI the input is native and draws its text from the palette `apply_theme`
+set.
+
+```svelte demo textfield
+<script>
+  import { TextField, toast } from 'gpuix-svelte-ui';
+
+  let name = $state('');
+  let email = $state('ada@');
+</script>
+
+<div class="column">
+  <TextField value={name} onchange={(v) => (name = v)} onsubmit={(v) => toast(`Hello, ${v || 'stranger'}`)} label="Name" placeholder="Your name" hint="Enter shows a toast" />
+  <TextField value={email} onchange={(v) => (email = v)} label="Email" error={email.includes('.') ? null : 'Needs a domain, like example.com'} />
+  <TextField value="acme" onchange={() => {}} label="Workspace" hint="A disabled field" disabled />
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; gap: 12px; max-width: 360px; }
+</style>
+```
+
+### TextArea
+
+![A text area in a GPUI window labelled Notes, holding two lines, with the hint 2 lines.](assets/ui-textarea.png)
+
+`TextArea` takes the same props for more than one line, and `rows` for its height. On GPUI it
+grows from `rows` up to `max_rows` as the text does, and Enter inserts a newline unless
+`onsubmit` is set, when Shift+Enter still does.
+
+```svelte demo textarea
+<script>
+  import { TextArea } from 'gpuix-svelte-ui';
+
+  let notes = $state('Met with the team.\nNext: ship the toolkit.');
+</script>
+
+<div class="column">
+  <TextArea value={notes} onchange={(v) => (notes = v)} label="Notes" placeholder="A few lines" rows={3} max_rows={6} hint="{notes.split('\n').length} lines" />
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; max-width: 360px; }
+</style>
+```
+
+### Select
+
+![A select in a GPUI window labelled Fruit, open on Banana: its list shows Apple, a checked Banana, a dimmed Cherry and Durian with its description.](assets/ui-select.png)
 
 `Select` is a trigger and a list in a `Popover`: `options` are `{ value, label, disabled?,
 description? }`, `value` is the chosen one or `null`, and arrows, Enter and Escape work on the
 trigger.
 
-```svelte demo fields
+```svelte demo select
 <script>
-  import { Select, TextArea, TextField, toast } from 'gpuix-svelte-ui';
+  import { Select } from 'gpuix-svelte-ui';
 
-  let name = $state('');
-  let notes = $state('');
   let fruit = $state(null);
   const FRUITS = [
     { value: 'apple', label: 'Apple' },
@@ -208,10 +517,8 @@ trigger.
 </script>
 
 <div class="column">
-  <TextField value={name} onchange={(v) => (name = v)} onsubmit={(v) => toast(`Hello, ${v || 'stranger'}`)} label="Name" placeholder="Your name" hint="Enter shows a toast" error={name.length > 12 ? 'Keep it under 13 characters' : null} />
-  <TextArea value={notes} onchange={(v) => (notes = v)} label="Notes" placeholder="A few lines" rows={2} />
   <Select options={FRUITS} value={fruit} onchange={(v) => (fruit = v)} label="Fruit" placeholder="Pick one" />
-  <div class="note">{name ? `${name}, ` : ''}{fruit ? `picked ${fruit}` : 'nothing picked yet'}.</div>
+  <div class="note">{fruit ? `Picked ${fruit}.` : 'Nothing picked yet.'}</div>
 </div>
 
 <style>
@@ -222,30 +529,75 @@ trigger.
 
 ## Choices and ranges
 
-![The choices sample in a GPUI window: the Notifications toggle on, Accept the terms checked, the Pro plan picked with Team dimmed, the Overview tab selected with Billing dimmed, and the Volume slider at 40%.](assets/ui-choices.png)
+### Toggle
 
-`Toggle` and `Checkbox` take `checked` and `onchange(checked)`, with a `label` (and a
-`description` under a checkbox). `RadioGroup` and `Tabs` take `options` / `items` of
-`{ value, label, disabled? }` with `value` and `onchange(value)`; arrow keys move the selection
-and skip a disabled entry, and only the selected tab is a tab stop (the first enabled one while
-`value` names none). `Slider` takes `value`, `min`, `max`, `step` and `onchange`: drag it, past
-the window's edge too, click the track, or use the arrows, Home and End; `format` prints the
-readout beside its `label`.
+![Toggles in a GPUI window: Wi-Fi on, Bluetooth off, and a dimmed, disabled Airplane mode.](assets/ui-toggle.png)
 
-```svelte demo choices
+`Toggle` is a switch: `checked` and `onchange(checked)`, with a `label` beside it, and `disabled`
+takes it out of the tab order.
+
+```svelte demo toggle
 <script>
-  import { Checkbox, RadioGroup, Slider, Tabs, Toggle } from 'gpuix-svelte-ui';
+  import { Toggle } from 'gpuix-svelte-ui';
 
-  let on = $state(true);
-  let terms = $state(false);
-  let plan = $state('pro');
-  let tab = $state('overview');
-  let volume = $state(40);
+  let wifi = $state(true);
+  let bluetooth = $state(false);
 </script>
 
 <div class="column">
-  <Toggle checked={on} onchange={(v) => (on = v)} label="Notifications" />
+  <Toggle checked={wifi} onchange={(v) => (wifi = v)} label="Wi-Fi" />
+  <Toggle checked={bluetooth} onchange={(v) => (bluetooth = v)} label="Bluetooth" />
+  <Toggle checked={false} onchange={() => {}} label="Airplane mode" disabled />
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; gap: 12px; }
+</style>
+```
+
+### Checkbox
+
+![Checkboxes in a GPUI window: Accept the terms checked with its description, Send me the newsletter checked, and a dimmed, disabled Beta features.](assets/ui-checkbox.png)
+
+`Checkbox` takes `checked` and `onchange(checked)` too, with a `label` and a `description` under
+it.
+
+```svelte demo checkbox
+<script>
+  import { Checkbox } from 'gpuix-svelte-ui';
+
+  let terms = $state(false);
+  let news = $state(true);
+</script>
+
+<div class="column">
   <Checkbox checked={terms} onchange={(v) => (terms = v)} label="Accept the terms" description="Required before you can continue." />
+  <Checkbox checked={news} onchange={(v) => (news = v)} label="Send me the newsletter" />
+  <Checkbox checked={false} onchange={() => {}} label="Beta features" description="Not available on this plan." disabled />
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; gap: 12px; }
+</style>
+```
+
+### RadioGroup
+
+![Radio groups in a GPUI window: Free, Pro and Team in a column with Pro picked and Team dimmed, and S, M and L in a row with M picked.](assets/ui-radiogroup.png)
+
+`RadioGroup` picks one of its `options` (`{ value, label, description?, disabled? }`): `value`
+and `onchange(value)`, a `label` that names the group to a screen reader, and `direction="row"` to
+set the options side by side. The arrow keys move the selection and skip a disabled option.
+
+```svelte demo radiogroup
+<script>
+  import { RadioGroup } from 'gpuix-svelte-ui';
+
+  let plan = $state('pro');
+  let size = $state('m');
+</script>
+
+<div class="column">
   <RadioGroup
     options={[
       { value: 'free', label: 'Free', description: 'For trying it out' },
@@ -256,81 +608,180 @@ readout beside its `label`.
     onchange={(v) => (plan = v)}
     label="Plan"
   />
-  <Tabs items={[{ value: 'overview', label: 'Overview' }, { value: 'activity', label: 'Activity' }, { value: 'billing', label: 'Billing', disabled: true }]} value={tab} onchange={(v) => (tab = v)} />
-  <Slider value={volume} onchange={(v) => (volume = v)} label="Volume" format={(v) => `${v}%`} />
-  <div class="note">{on ? 'Notified' : 'Quiet'}, {terms ? 'terms accepted' : 'terms pending'}, plan {plan}, tab {tab}, volume {volume}.</div>
+  <RadioGroup options={[{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }]} value={size} onchange={(v) => (size = v)} label="Size" direction="row" />
 </div>
 
 <style>
-  .column { display: flex; flex-direction: column; gap: 14px; max-width: 360px; }
-  .note { font-size: 13px; color: var(--ui-muted); }
+  .column { display: flex; flex-direction: column; gap: 18px; }
+</style>
+```
+
+### Tabs
+
+![Tabs in a GPUI window: Overview, a selected Activity and a dimmed Billing, over the panel text Nothing has happened this week.](assets/ui-tabs.png)
+
+`Tabs` is a row of tabs over `items` of `{ value, label, disabled? }`, with `value` and
+`onchange(value)`; the panel under it is yours to render. The arrow keys move between tabs and
+skip a disabled one, and only the selected tab is a tab stop (the first enabled one while `value`
+names none).
+
+```svelte demo tabs
+<script>
+  import { Tabs } from 'gpuix-svelte-ui';
+
+  let tab = $state('overview');
+</script>
+
+<Tabs items={[{ value: 'overview', label: 'Overview' }, { value: 'activity', label: 'Activity' }, { value: 'billing', label: 'Billing', disabled: true }]} value={tab} onchange={(v) => (tab = v)} />
+<div class="panel">
+  {#if tab === 'overview'}
+    Three projects, one of them shared.
+  {:else}
+    Nothing has happened this week.
+  {/if}
+</div>
+
+<style>
+  .panel { padding: 14px 2px 0; font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Slider
+
+![Sliders in a GPUI window: Volume at 40% and Temperature at 21.0 °C.](assets/ui-slider.png)
+
+`Slider` takes `value`, `min`, `max`, `step` and `onchange(value)`: drag it, past the window's
+edge too, click the track, or use the arrows, Home and End. `format` prints the readout beside its
+`label`.
+
+```svelte demo slider
+<script>
+  import { Slider } from 'gpuix-svelte-ui';
+
+  let volume = $state(40);
+  let heat = $state(21);
+</script>
+
+<div class="column">
+  <Slider value={volume} onchange={(v) => (volume = v)} label="Volume" format={(v) => `${v}%`} />
+  <Slider value={heat} onchange={(v) => (heat = v)} min={16} max={28} step={0.5} label="Temperature" format={(v) => `${v.toFixed(1)} °C`} />
+</div>
+
+<style>
+  .column { display: flex; flex-direction: column; gap: 16px; max-width: 360px; }
 </style>
 ```
 
 ## Menus, dialogs and toasts
 
-![The menus sample in a GPUI window: the Actions menu open under its button with Rename and its ⌘R shortcut, Duplicate and a red Delete, and an Export finished toast with an Open action in the bottom right corner.](assets/ui-overlays.png)
+### Menu
+
+![A menu in a GPUI window, open under its Actions button: Rename and Duplicate with their shortcuts, a dimmed Archive, a separator and a red Delete.](assets/ui-menu.png)
 
 `Menu` is a `Popover` with `items`: `{ label, onselect, disabled?, danger?, shortcut? }`, or
 `{ separator: true }`. You own `open`, the trigger toggles it, and an item that runs closes it, as
 does a press outside or Escape. `position` opens it at a point instead of beside the trigger, for
 a context menu.
 
-`Dialog` paints a scrim and a panel in a `Portal`: `open`, `onclose`, `title`, `description`, the
-body and an `actions` snippet; `size` is `sm`, `md` or `lg`. Escape, the close button and a click
-on the scrim call `onclose`, unless `dismissable` is false. Escape closes one overlay per press,
-the one on top: a `Select`, `Menu`, `Popover` or `Tooltip` open inside a `Dialog` goes first, and
-an overlay of your own joins the same stack through
-[`dismiss_layer`](guide.md#keyboard-shortcuts-and-focus).
-
-`toast('Saved')` or `toast({ title, description, tone, duration, action })` queues a toast from
-anywhere, and a `<Toaster>` rendered once, at any `position`, shows the queue. A toast goes by
-itself after `duration` ms (4000 by default; `null` keeps it) or when dismissed, and
-`dismiss_toast(id)` / `clear_toasts()` do that from code.
-
-```svelte demo overlays
+```svelte demo menu
 <script>
-  import { Button, Dialog, Menu, Toaster, toast } from 'gpuix-svelte-ui';
+  import { Button, Menu } from 'gpuix-svelte-ui';
 
-  let menu = $state(false);
-  let dialog = $state(false);
+  let open = $state(false);
   let last = $state('nothing yet');
 </script>
 
 <div class="row">
   <Menu
-    open={menu}
-    onclose={() => (menu = false)}
+    {open}
+    onclose={() => (open = false)}
     items={[
       { label: 'Rename', shortcut: '⌘R', onselect: () => (last = 'Rename') },
-      { label: 'Duplicate', onselect: () => (last = 'Duplicate') },
+      { label: 'Duplicate', shortcut: '⌘D', onselect: () => (last = 'Duplicate') },
+      { label: 'Archive', disabled: true },
       { separator: true },
       { label: 'Delete', danger: true, onselect: () => (last = 'Delete') }
     ]}
   >
-    <Button onclick={() => (menu = !menu)}>Actions</Button>
+    <Button onclick={() => (open = !open)}>Actions</Button>
   </Menu>
-  <Button variant="primary" onclick={() => (dialog = true)}>Open dialog</Button>
-  <Button onclick={() => toast({ title: 'Export finished', description: '12 files written.', tone: 'success', action: { label: 'Open', onclick: () => (last = 'Open') } })}>Toast</Button>
   <div class="note">Last: {last}</div>
 </div>
 
-<Dialog open={dialog} onclose={() => (dialog = false)} title="Delete this project?" description="This cannot be undone.">
-  <div class="note">Escape, the close button, Cancel or a click outside closes it.</div>
-  {#snippet actions()}
-    <Button onclick={() => (dialog = false)}>Cancel</Button>
-    <Button variant="danger" onclick={() => { dialog = false; last = 'Deleted'; toast({ title: 'Project deleted', tone: 'danger' }); }}>Delete</Button>
-  {/snippet}
-</Dialog>
-<Toaster />
-
 <style>
-  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .row { display: flex; align-items: center; gap: 10px; }
   .note { font-size: 13px; color: var(--ui-muted); }
 </style>
 ```
 
+### Dialog
+
+![A dialog in a GPUI window over a dimmed Delete project button: Delete this project?, its description, a close button, and Cancel and Delete buttons.](assets/ui-dialog.png)
+
+`Dialog` paints a scrim and a panel in a `Portal`: `open`, `onclose`, `title`, `description`, the
+body and an `actions` snippet; `size` is `sm`, `md` or `lg`. Escape, the close button and a click
+on the scrim call `onclose`, unless `dismissable` is false. Escape closes one overlay per press,
+the one on top: a `Select`, `Menu`, `Popover` or `Tooltip` open inside a `Dialog` goes first, and
+an overlay of your own joins the same stack through
+[`dismiss_layer`](guide.md#keyboard-shortcuts-and-focus). Neither `Dialog` nor `Menu` moves
+keyboard focus into itself yet, so Tab still walks the controls behind a dialog.
+
+```svelte demo dialog
+<script>
+  import { Button, Dialog, toast } from 'gpuix-svelte-ui';
+
+  let open = $state(false);
+</script>
+
+<div class="row">
+  <Button variant="danger" onclick={() => (open = true)}>Delete project</Button>
+</div>
+
+<Dialog {open} onclose={() => (open = false)} title="Delete this project?" description="This cannot be undone. The files stay on disk.">
+  <div class="note">Escape, the close button, Cancel or a click outside closes it.</div>
+  {#snippet actions()}
+    <Button onclick={() => (open = false)}>Cancel</Button>
+    <Button variant="danger" onclick={() => { open = false; toast({ title: 'Project deleted', tone: 'danger' }); }}>Delete</Button>
+  {/snippet}
+</Dialog>
+
+<style>
+  .row { display: flex; }
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Toaster
+
+![Toasts in a GPUI window, stacked in the bottom right corner: Saved, Export finished with an Open action, and Disk almost full with a warning stripe.](assets/ui-toaster.png)
+
+`toast('Saved')` or `toast({ title, description, tone, duration, action })` queues a toast from
+anywhere, and a `<Toaster>` rendered once, at any `position`, shows the queue (this page's is the
+one in the sample below, which shows the other samples' toasts too). A toast goes by itself after
+`duration` ms (4000 by default; `null` keeps it) or when dismissed, and `dismiss_toast(id)` /
+`clear_toasts()` do that from code.
+
+```svelte demo toaster
+<script>
+  import { Button, Toaster, clear_toasts, toast } from 'gpuix-svelte-ui';
+</script>
+
+<div class="row">
+  <Button size="sm" onclick={() => toast('Saved')}>Toast</Button>
+  <Button size="sm" onclick={() => toast({ title: 'Export finished', description: '12 files written.', tone: 'success', action: { label: 'Open', onclick: () => toast('Opened') } })}>With an action</Button>
+  <Button size="sm" onclick={() => toast({ title: 'Disk almost full', tone: 'warning', duration: null })}>Sticky</Button>
+  <Button size="sm" variant="ghost" onclick={clear_toasts}>Clear</Button>
+</div>
+<Toaster />
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+</style>
+```
+
 ## Screens and routing
+
+### Router
 
 ![The router sample in a GPUI window on /items/2: the Items link highlighted, Back enabled and Forward dimmed, and the screen reading Item 2, with params typed from its pattern.](assets/ui-router.png)
 
@@ -363,9 +814,6 @@ and a plain `<a href="#section">` on a screen scrolls without navigating.
 </Router>
 ```
 
-- `<Link href="/items/3">` navigates on click. It is a real `<a>` in a page, so a modified click
-  opens a new tab, and a focusable box in a window. Its content snippet gets `{ active }`, true
-  on that screen and the ones below it (`exact` limits it to the path itself).
 - `navigate(path, { replace, state })`, `back()` and `forward()` do the same from code;
   `router.path`, `router.params`, `router.query`, `router.state`, `router.can_go_back` and
   `router.can_go_forward` are reactive wherever they are read.
@@ -382,8 +830,7 @@ and a plain `<a href="#section">` on a screen scrolls without navigating.
 One `Router` per app: the store behind it is global, which is what lets a `Link` anywhere, a
 menu item or a keyboard shortcut navigate without a reference to the router. It is a client-side
 router for a window and a Vite page; a SvelteKit site has Kit's router for its pages and would
-use this one only inside a window. Neither `Dialog` nor `Menu` moves keyboard focus into itself
-yet, so Tab still walks the controls behind a dialog.
+use this one only inside a window.
 
 ```svelte demo router
 <script>
@@ -423,6 +870,36 @@ yet, so Tab still walks the controls behind a dialog.
 <style>
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .screen { display: flex; flex-direction: column; min-height: 40px; margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--ui-raised); }
+  .note { font-size: 13px; color: var(--ui-muted); }
+</style>
+```
+
+### Link
+
+![Links in a GPUI window on /items/3: Home plain, and both Items and Item 3 highlighted as active.](assets/ui-link.png)
+
+`<Link href="/items/3">` navigates on click. It is a real `<a>` in a page, so a modified click
+opens a new tab, and a focusable box in a window. Its content snippet gets `{ active }`, true on
+that screen and the ones below it (`exact` limits it to the path itself), and `replace` and
+`state` go to the navigation. A `Link` needs no `Router` near it: these drive the same store as
+the sample above.
+
+```svelte demo link
+<script>
+  import { Badge, Link, router } from 'gpuix-svelte-ui';
+</script>
+
+<div class="row">
+  {#each [['/', 'Home'], ['/items', 'Items'], ['/items/3', 'Item 3']] as [path, name]}
+    <Link href={path}>
+      {#snippet children({ active })}<Badge tone={active ? 'accent' : 'neutral'}>{name}</Badge>{/snippet}
+    </Link>
+  {/each}
+</div>
+<div class="note">At {router.path}; Items stays active on the screens under it.</div>
+
+<style>
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
   .note { font-size: 13px; color: var(--ui-muted); }
 </style>
 ```

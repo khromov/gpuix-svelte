@@ -48,7 +48,7 @@ npm run test:automation-live  # opens a window: launch()es the counter and drive
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
 npm run demo               # counter, tic-tac-toe, hacker-news and liquid-glass at once (scripts/demo-all.ts)
 npm run demo:<name>        # counter (hot-reloads on save), tictactoe, hn, glass, styling, desktop,
-                           # native-0.11, cross, ui; docs/contributing.md says what each shows
+                           # native-0.11, cross, ui, ui-app; docs/contributing.md says what each shows
 npm run demo:glass-ffi     # real Liquid Glass (NSGlassEffectView, macOS 26+) via a clang-compiled ObjC shim
                            # + FFI in examples/liquid-glass-ffi/glass.ts; GPUIX_GLASS=0 forces the fallback
 npm run demo:web           # tic-tac-toe on GPUI's wasm/WebGPU build at :4173 (scripts/web.ts; --production,
@@ -67,8 +67,10 @@ npm run og                 # homepage/og.png from index.html#og through headless
                            # does docs/assets/og-docs.png. Rerun after changing the hero
 npm run shots              # every other screenshot the homepage, README and docs carry (scripts/shots.ts,
                            # through the bin; macOS or Windows, Bun and Chrome; -- --only hn,demos), including
-                           # docs/ui.md's samples as docs/assets/ui-*.png (scripts/ui-shot frames each in a
-                           # window as wide as the docs column; -- --only ui after changing one)
+                           # examples/ui-app's Settings screen as docs/assets/ui-app.png, atop docs/ui.md, and
+                           # a picture of every `svelte demo` in docs/ui.md but theme, as docs/assets/ui-<name>.png
+                           # (scripts/ui-shot frames it in a window as wide as the docs column, cut 24 px under
+                           # the lowest element unless UI_STATES gives a height; -- --only ui after changing one)
 npm run wallpapers         # macOS only: Apple's wallpapers for the share cards, gitignored since they may
                            # not be republished; -- --use <slug> writes the tracked webp a release's `wall` names
 npm run vendor             # re-vendor svelte; see "Hard constraints"
@@ -234,8 +236,9 @@ input, but the napi callback carrying the event runs on a later loop turn, so a 
 click could miss a just-shown node; the server hides `tick` and wraps the backend (`frame_synced`):
 requests run one at a time and every input replies only after two of the frame loop's own ticks
 (`next_frame()`, which brings each one forward); reads and `screenshot` don't wait. In a live window
-a native `:hover` outlives the move that left the element until a move after a read, so a capture
-after a click goes move, read, move (`scripts/shots.ts`).
+a native `:hover` outlives the move that left the element until a move after a read, and a capture
+can return the frame drawn before the last move, so after a click `scripts/shots.ts` goes move,
+read, move, then captures twice and keeps the second.
 
 ### Measuring frame cost
 
@@ -1017,6 +1020,10 @@ user-facing rules; these are the ones that bite most often, and the renderer beh
   refused, and `:root` takes nothing but variables. `em`/`vh`/`vw` never work and `%`/`auto` only on
   `width`/`height`/`min*`/`max*`, so the `auto` halves of `margin: 0 auto`, and all of
   `border-radius: 50%`, are dropped with a warning. Shared reactive state goes in `.svelte.ts` modules.
+- Columns side by side get a percentage `width` and `flex-shrink: 0`, not `flex-grow`: two growing
+  columns of cards in `examples/ui-app`'s Settings came out about 120 px taller than their content,
+  with the space empty at the bottom of each card, and a fixed or percentage width gave the content's
+  height. A browser lays the growing version out at its content's height.
 - Only GPUI tags exist (`GPUI_TAGS`, checked against `ElementType` minus `canvas`); anything else
   degrades to `div` with a one-time warning. That includes `<canvas>`: native 0.11 registers no such
   element, so a window gave it no layout box and painted neither it nor its children. `<button>` is

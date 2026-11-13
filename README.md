@@ -263,6 +263,7 @@ The scripts below run them in a clone of the repository (`bun install`, then the
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
 | `npm run demo:cross` | One component on both renderers: a GPUI window here, a browser DOM through Vite with `npm run demo:dom` |
 | `npm run demo:ui` | The UI toolkit's showcase, every `gpuix-svelte-ui` component in a GPUI window; the same page in a browser with `npm run demo:ui-dom` |
+| `npm run demo:ui-app` | Orbit, a small deployment dashboard built from the UI toolkit: a sidebar, three screens behind its router, forms, a dialog and toasts |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 
 Each of these, apart from `demo:web` (which always runs on Bun) and `demo:dom` / `demo:ui-dom`
