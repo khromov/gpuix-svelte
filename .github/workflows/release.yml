@@ -53,12 +53,16 @@ jobs:
           package-manager-cache: false
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # OIDC trusted publishing, with provenance generated automatically. Each package has its
-      # own trusted publisher on npmjs.com, naming this workflow file.
-      - run: npm run publish:npm
+      # OIDC trusted publishing, with provenance generated automatically. Each package has its own trusted
+      # publisher on npmjs.com, naming this workflow file. A version already on npm is skipped, so a job that
+      # failed part-way can be re-run; the three share one version number through release-please.
+      - run: echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+      - run: npm view "gpuix-svelte@$VERSION" version || npm run publish:npm
       # The scaffolder pins ^<its own version>, which release-please keeps equal to the root's.
-      - run: npm publish
+      - run: npm view "create-gpuix-svelte@$VERSION" version || npm publish
         working-directory: packages/create-gpuix-svelte
+      # The UI toolkit, whose peer range is ^<its own version> too, so it follows the release it was tested with.
+      - run: npm view "gpuix-svelte-ui@$VERSION" version || npm run publish:ui
 
   # The tic-tac-toe example built for every platform, plus the update manifest, as assets of the
   # same release: what a scaffolded app's release workflow does, run for real on every release,

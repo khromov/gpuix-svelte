@@ -38,7 +38,10 @@ npm run demo:native-0.11  # what @gpuix/native 0.11 added: focus-visible, focus 
                           # onlayout/onscrollchange, new styles, register_font, elements_at
 npm run demo:web          # tic-tac-toe in a browser, on GPUI's WebAssembly/WebGPU build (Bun only)
 npm run demo:cross        # one component on both renderers: here in a GPUI window, and
-npm run demo:dom          # here in a browser DOM through Vite (-- --build-only writes dist/dom)
+npm run demo:dom          # here in a browser DOM through Vite (-- --build-only writes dist/dom-cross-target)
+npm run demo:ui           # the UI toolkit's showcase (packages/ui/showcase) in a GPUI window, and
+npm run demo:ui-dom       # the same through Vite (-- --build-only writes dist/dom-showcase)
+npm run demo:ui-app       # Orbit (examples/ui-app), a small app built from the toolkit: the picture atop ui.md
 npm run tutorial          # interactive onboarding guide: 12 steps with live samples and quizzes
 npm run typecheck         # tsc, then svelte-check for the GPUI markup and again for the DOM components
 npm test                  # typecheck, then every test suite except automation-live and coverage
@@ -51,8 +54,8 @@ New here? `npm run tutorial` opens a guided walkthrough of the renderer that is 
 gpuix-svelte app. Each step pairs an explanation and a diagram with the source of a small
 component, most of them running live, and ends with a quiz.
 
-Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`,
-has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
+Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`
+and `demo:ui-dom`, has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
 twins run the same entry points on Bun, which takes the `.svelte` loader as a `--preload`. CI runs
 both runtimes.
 
@@ -69,7 +72,7 @@ single demo for that, since several would all write to the same file.
 
 The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:dom`, `test:docs`) run anywhere, and so do
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
 the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
 
@@ -107,14 +110,15 @@ npm run test:automation-live                              # a real window, drive
 ```
 
 The browser previews listen on every interface, because the container sets `HOST=0.0.0.0`:
-`npm run demo:web` (4173), `npm run demo:dom` (4174) and `npm run docs:serve` (4321). It also sets
+`npm run demo:web` (4173), `npm run demo:dom` and `npm run demo:ui-dom` (4174) and
+`npm run docs:serve` (4321). It also sets
 `BROWSER=none`, so they don't try to open a browser inside the container. `demo:dom` only loads on
 its own origin (a forwarded or published port), not behind a path prefix such as `/proxy/4174/`.
 
 Linux has no headless renderer, so `npm test` fails right after `typecheck`. Run the suites CI's Linux
 job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:dom`,
-`test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only` and
-`demo:dom -- --build-only`.
+`test:ui-dom`, `test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only`,
+`demo:dom -- --build-only` and `demo:ui-dom -- --build-only`.
 
 ## Moving the Svelte build
 
@@ -125,10 +129,11 @@ against.
 
 ## The consumer path
 
-`npm run consume` packs the tarball the way a release would and scaffolds an app with
-`packages/create-gpuix-svelte` (whose template is [`starter/`](../starter)). It then installs the
-tarball into that app, typechecks it and runs its headless test through the installed bin (on
-Linux it only typechecks). `npm run bun:consume` does the same with Bun and also builds the app's
+`npm run consume` packs the tarball the way a release would, and the UI toolkit's beside it, and
+scaffolds an app with `packages/create-gpuix-svelte` (whose template is [`starter/`](../starter)).
+It then installs both tarballs into that app, typechecks it, runs its headless test and one over a
+toolkit component through the installed bin (on Linux it only typechecks), and builds a page with
+Vite that imports both. `npm run bun:consume` does the same with Bun and also builds the app's
 standalone binary. `consume:open` and `bun:consume:open` start the app instead of testing it, so
 you can look at its window. CI runs both passes.
 
@@ -137,8 +142,8 @@ you can look at its window. CI runs both passes.
 PR titles must be [conventional commits](https://www.conventionalcommits.org) (`feat:`, `fix:`,
 `docs:`, `chore:` …), because a squash merge makes the title the commit. release-please keeps a
 release PR open on `main`. Merging it tags the release, runs the tests and the consumer path on
-macOS, publishes `gpuix-svelte` and `create-gpuix-svelte` to npm through npm trusted publishing
-(OIDC, with provenance), builds the tic-tac-toe example on every platform with `--archive` and
+macOS, publishes `gpuix-svelte`, `create-gpuix-svelte` and `gpuix-svelte-ui` to npm through npm
+trusted publishing (OIDC, with provenance), builds the tic-tac-toe example on every platform with `--archive` and
 uploads the archives and a signed `update.json` to the GitHub release (see
 [Updating](updating.md)). `npm run pack -- <dir>` builds the same tarball locally.
 
@@ -163,10 +168,11 @@ build writes each one to `dist/docs-demos/<page>-<name>.svelte` and bundles them
 and only the pages that have a demo load the bundle. Write a demo in the subset both renderers
 draw the same way ([Rendering in the DOM](dom.md#writing-a-component-for-both)) and colour it with
 the tokens the page defines for them, `--paper`, `--ink`, `--panel`, `--raised` and `--dim`, plus
-the components' own `--tooltip-*`, `--popover-*` and `--scroller-*`. Keep `set_css_vars` for a demo
-that is about theming: it writes `:root`, which the whole page reads. A demo that does not compile
-fails `npm run docs`; `npm run test:docs` builds the site and mounts every demo from the built
-bundle under happy-dom, so one that throws at mount fails there, and CI's Linux job runs it.
+the components' own `--tooltip-*`, `--popover-*` and `--scroller-*`. Keep `set_css_vars` and
+`:root` rules for a demo that is about theming: both land on `:root`, which the whole page reads.
+A demo that does not compile fails `npm run docs`; `npm run test:docs` builds the site and mounts
+every demo from the built bundle under happy-dom, so one that throws at mount fails there, and
+CI's Linux job runs it.
 
 The social preview images are screenshots: `npm run og` retakes `homepage/og.png` from the
 homepage's `#og` view, and `npm run og:docs` retakes `docs/assets/og-docs.png` from the built
@@ -175,11 +181,17 @@ changing the hero or the docs template, and keep the `og:image:alt` text in step
 
 `npm run shots` retakes every other screenshot: the example windows in `homepage/assets/shots/`
 (each app launched through `gpuix-svelte/automation`, driven to the state its image shows and
-captured by GPUI at 2×), tic-tac-toe on the wasm build in headless Chrome, and the README's
+captured by GPUI at 2×), a picture of every `svelte demo` sample in `docs/ui.md` as
+`docs/assets/ui-<name>.png` (the sample written out of the page, framed in a window as wide as the
+docs column and cut 24 px under its lowest element), tic-tac-toe on the wasm build in headless
+Chrome, and the README's
 `.github/resources/demos.png` (the fresh counter, tic-tac-toe and Hacker News captures and
 `glass.png`, with CSS window chrome on a dark background), and then runs `og` and `og:docs`,
 since both show what changed. It needs macOS or Windows for the windows, Bun for the web build
-and Chrome for the rest; `-- --only hn,demos` redoes a subset. `glass.png` is the one capture it
+and Chrome for the rest; `-- --only hn,demos` redoes a subset, and `-- --only ui` the toolkit's
+pictures, which want retaking when a sample in `docs/ui.md` changes. A new sample there gets a
+picture by itself (`UI_STATES` in `scripts/shots.ts` drives one to a state first), which its
+section then shows with `![…](assets/ui-<name>.png)`. `glass.png` is the one capture it
 leaves alone, since the control center needs a desktop behind it, and the hero's wallpapers in
 `homepage/assets/wall/` are plain images it never touches. Run it after restyling an example; an
 `<img>`'s `width`/`height` (and a carousel tile's `--a`) only change if a window's size did.

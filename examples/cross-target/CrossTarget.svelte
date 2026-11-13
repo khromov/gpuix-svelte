@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { IS_GPUIX, focus_element, on_window_key, set_css_vars, window_size, type ShadowNode } from 'gpuix-svelte';
+	import { IS_GPUIX, focus_element, media_query, on_window_key, set_css_vars, window_size, type ShadowNode } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
@@ -54,6 +54,8 @@
 	let dialog = $state(false);
 	let picked = $state('nothing yet');
 	let rows = $state(Array.from({ length: 60 }, (_, i) => `Row ${i + 1}`));
+	// The same breakpoint as the @media rule below: matchMedia in a browser, the window's size on GPUI.
+	const narrow = media_query('(max-width: 600px)');
 
 	$effect(() => set_css_vars(dark ? DARK : LIGHT));
 
@@ -88,6 +90,7 @@
 		<div class="title">Cross-target</div>
 		<div class="badge" testid="target">{IS_GPUIX ? 'GPUI' : 'DOM'}</div>
 		<div class="size" testid="size">{window_size.width} × {window_size.height}</div>
+		<div class="size" testid="layout">{narrow.current ? 'narrow' : 'wide'}</div>
 		<div class="spacer"></div>
 		<Tooltip content="Toggle the theme (T)">
 			{#snippet children(hover, focus)}
@@ -141,7 +144,10 @@
 
 <style>
 	.app { display: flex; flex-direction: column; gap: 12px; width: 100%; height: 100%; padding: 16px; font-size: 14px; background-color: var(--bg); color: var(--ink); }
-	.bar { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+	@media (max-width: 600px) {
+		.app { padding: 8px; gap: 8px; }
+	}
+	.bar { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; }
 	.title { font-size: 16px; font-weight: 600; }
 	.badge { padding: 2px 8px; border-radius: 999px; border-width: 1px; border-style: solid; border-color: var(--accent-wash); font-size: 12px; font-weight: 500; line-height: 16px; background-color: var(--accent-wash); color: var(--accent-ink); }
 	.size { padding: 0 8px; border-radius: 999px; border-width: 1px; border-style: solid; border-color: var(--border); font-size: 12px; line-height: 20px; color: var(--muted); }

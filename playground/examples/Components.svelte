@@ -1,19 +1,8 @@
 <script>
-	import { set_css_vars } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
 	import Popover from 'gpuix-svelte/components/Popover.svelte';
-
-	set_css_vars({
-		'tooltip-surface': '#ededed',
-		'tooltip-ink': '#000000',
-		'popover-surface': '#1f1f1f',
-		'popover-border': '#404040',
-		'popover-ink': '#ededed',
-		'scroller-thumb': '#404040',
-		'scroller-thumb-hover': '#5a5a5a'
-	});
 
 	let menu = $state(false);
 	let dialog = $state(false);
@@ -60,6 +49,15 @@
 {/if}
 
 <style>
+	:root {
+		--tooltip-surface: #ededed;
+		--tooltip-ink: #000000;
+		--popover-surface: #1f1f1f;
+		--popover-border: #404040;
+		--popover-ink: #ededed;
+		--scroller-thumb: #404040;
+		--scroller-thumb-hover: #5a5a5a;
+	}
 	.app {
 		display: flex;
 		flex-direction: column;

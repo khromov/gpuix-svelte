@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { readFileSync } from 'node:fs';
 	import {
-		set_css_vars,
 		minimize_window,
 		zoom_window,
 		toggle_fullscreen,
@@ -17,23 +16,6 @@
 	} from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
 	import { onDestroy } from 'svelte';
-
-	set_css_vars({
-		bg: '#000000',
-		panel: '#111111',
-		raised: '#1c1c1c',
-		'raised-hover': '#262626',
-		border: '#242424',
-		'border-strong': '#404040',
-		ink: '#ededed',
-		muted: '#a1a1a1',
-		accent: '#ff3e00',
-		'accent-ink': '#ff8a5c',
-		'accent-wash': '#ff3e0029',
-		success: '#4cc38a',
-		'scroller-thumb': '#404040',
-		'scroller-thumb-hover': '#5a5a5a'
-	});
 
 	const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg|tiff?|ico)$/i;
 
@@ -242,6 +224,22 @@
 </div>
 
 <style>
+	:root {
+		--bg: #000000;
+		--panel: #111111;
+		--raised: #1c1c1c;
+		--raised-hover: #262626;
+		--border: #242424;
+		--border-strong: #404040;
+		--ink: #ededed;
+		--muted: #a1a1a1;
+		--accent: #ff3e00;
+		--accent-ink: #ff8a5c;
+		--accent-wash: #ff3e0029;
+		--success: #4cc38a;
+		--scroller-thumb: #404040;
+		--scroller-thumb-hover: #5a5a5a;
+	}
 	.page { display: flex; flex-direction: column; width: 100%; height: 100%; background-color: var(--bg); color: var(--ink); font-size: 14px; }
 	.title { font-size: 26px; font-weight: 600; }
 	.heading { font-size: 16px; font-weight: 600; }

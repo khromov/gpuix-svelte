@@ -40,6 +40,9 @@ function place(name: string): string {
 const node = place('node');
 const beside = place('bun');
 
+// Windows can hold an executable that just exited for a moment (EPERM), and rmSync retries only when recursive.
+const remove = (path: string) => rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+
 function launch(env?: NodeJS.ProcessEnv): { svelte: string; runtime: string } | string {
 	const { stdout, stderr, status } = spawnSync(node, [bin, entry], { encoding: 'utf8', timeout: 60_000, env });
 	try {
@@ -57,7 +60,7 @@ try {
 	check('Bun named node: svelte resolves to its custom-renderer build', client(first), 'index-client.js');
 	check('Bun named node: the entry runs on the copy named bun beside it', runtime(first), real(beside));
 
-	rmSync(beside);
+	remove(beside);
 	const fallback = launch();
 	check('Bun named node with no bun beside it: the custom-renderer build', client(fallback), 'index-client.js');
 	check('Bun named node with no bun beside it: the entry runs on bun from PATH', runtime(fallback), real(bun));
@@ -69,7 +72,7 @@ try {
 		check('Bun named node with no bun anywhere: the bin says so and exits 1', typeof missing === 'string' ? missing.slice(0, said.length) : missing, said);
 	}
 } finally {
-	rmSync(dir, { recursive: true, force: true });
+	remove(dir);
 }
 
 finish('launcher', win32 ? 4 : 5);

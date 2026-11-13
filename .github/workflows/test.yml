@@ -88,6 +88,10 @@ jobs:
       - run: npm run test:dom
       - run: npm run bun:test:dom
       - run: npm run demo:dom -- --build-only
+      # The UI toolkit on the DOM: the happy-dom suite over the Vite bundle, and the showcase built as a page.
+      - run: npm run test:ui-dom
+      - run: npm run bun:test:ui-dom
+      - run: npm run demo:ui-dom -- --build-only
       # Builds the docs site, live demos included, and mounts every demo from the built bundle.
       - run: npm run test:docs
       - run: npm run bun:test:docs

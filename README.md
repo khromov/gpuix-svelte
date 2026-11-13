@@ -111,7 +111,8 @@ files, spawn processes, open SQLite databases and load native addons directly.
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
   with `:hover`, `:active` and `:focus-visible`. Values GPUI can't use are dropped with a warning.
   → [docs/styling.md](docs/styling.md)
-- **Theming** is `var(--token)` in your styles plus one `set_css_vars({ token: '#fff' })` call.
+- **Theming** is `var(--token)` in your styles, with the values in a `:root` rule; one
+  `set_css_vars({ token: '#fff' })` call switches them at runtime.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
 - **Mouse events go to the element under the pointer.** Put `hitbox="self"` on a clickable
   element and clicks on its icons and badges reach it. `onclick` is the primary button; right and
@@ -135,6 +136,13 @@ files, spawn processes, open SQLite databases and load native addons directly.
   component which renderer it is on (next release, 0.6.0). → [docs/dom.md](docs/dom.md), and a SvelteKit site and a GPUI window
   sharing one component library:
   [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
+- **A UI toolkit for both renderers.** `gpuix-svelte-ui` is buttons, fields, choices, menus,
+  dialogs, toasts, layout and feedback components and a router for an app's screens, written once
+  for a GPUI window and the DOM, with the theme behind them (next release, 0.6.0).
+  → [docs/ui.md](docs/ui.md)
+- **Media queries.** `@media` over the window's width, height and orientation in a `<style>`
+  block, and `media_query()` for JavaScript, on both renderers (next release, 0.6.0).
+  → [docs/styling.md](docs/styling.md#media-queries)
 
 ## Documentation
 
@@ -147,6 +155,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
 | [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
 | [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
+| [UI toolkit](docs/ui.md) | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
 | [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)). To try
@@ -255,10 +264,12 @@ The scripts below run them in a clone of the repository (`bun install`, then the
 | `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts |
 | `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
 | `npm run demo:cross` | One component on both renderers: a GPUI window here, a browser DOM through Vite with `npm run demo:dom` |
+| `npm run demo:ui` | The UI toolkit's showcase, every `gpuix-svelte-ui` component in a GPUI window; the same page in a browser with `npm run demo:ui-dom` |
+| `npm run demo:ui-app` | Orbit, a small deployment dashboard built from the UI toolkit: a sidebar, three screens behind its router, forms, a dialog and toasts |
 | `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
 
-Each of these, apart from `demo:web` (which always runs on Bun) and `demo:dom` (Vite), has a Bun
-twin under a `bun:` prefix, such as `npm run bun:demo:counter`.
+Each of these, apart from `demo:web` (which always runs on Bun) and `demo:dom` / `demo:ui-dom`
+(Vite), has a Bun twin under a `bun:` prefix, such as `npm run bun:demo:counter`.
 
 Outside this repository,
 [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)

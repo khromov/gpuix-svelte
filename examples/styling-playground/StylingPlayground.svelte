@@ -1,8 +1,5 @@
 <script lang="ts">
-	import { set_css_vars } from 'gpuix-svelte';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
-
-	set_css_vars({ accent: '#ff3e00', 'scroller-thumb': '#404040', 'scroller-thumb-hover': '#5a5a5a' });
 
 	type Case = { css?: string; kind?: string; label?: string; note: string; hover?: string; active?: string; bare?: boolean };
 
@@ -24,7 +21,7 @@
 				},
 				{
 					css: 'padding: 6px 18px; border-radius: 10px; background-color: var(--accent); color: var(--ink, #ffffff)',
-					note: 'var() resolves against set_css_vars({ accent }) at runtime; --ink is unset, so its fallback paints'
+					note: 'var() resolves at runtime against the :root rule in the style block; --ink is unset, so its fallback paints'
 				},
 				{
 					css: 'background-color: rebeccapurple; color: hsl(50 90% 70%)',
@@ -204,6 +201,11 @@
 </div>
 
 <style>
+	:root {
+		--accent: #ff3e00;
+		--scroller-thumb: #404040;
+		--scroller-thumb-hover: #5a5a5a;
+	}
 	.chip {
 		background-color: #ff3e00;
 		color: #ffffff;

@@ -58,6 +58,10 @@ function file_properties(exe: string): string {
 run(process.execPath, [join(root, 'scripts/publish.ts'), 'pack', dir], root);
 const tarball = readdirSync(dir).find((f) => f.endsWith('.tgz'));
 if (!tarball) throw new Error(`npm pack left no tarball in ${dir}`);
+// The UI toolkit's tarball goes in beside it: its lib/ emit, self-referencing components and peer range are what a consumer gets.
+run(process.execPath, [join(root, 'scripts/publish-ui.ts'), 'pack', dir], root);
+const ui_tarball = readdirSync(dir).find((f) => f.startsWith('gpuix-svelte-ui-') && f.endsWith('.tgz'));
+if (!ui_tarball) throw new Error(`npm pack left no toolkit tarball in ${dir}`);
 
 // The scaffolder prefers its own template/ over starter/, so refresh it the way prepack would.
 run(process.execPath, [join(root, 'packages/create-gpuix-svelte/sync-template.js')], root);
@@ -68,18 +72,55 @@ for (const file of ['.gitignore', 'AGENTS.md', 'CLAUDE.md']) {
 const manifest = join(consumer, 'package.json');
 const json = JSON.parse(readFileSync(manifest, 'utf8'));
 json.dependencies['gpuix-svelte'] = `file:${join(dir, tarball)}`;
+json.dependencies['gpuix-svelte-ui'] = `file:${join(dir, ui_tarball)}`;
 writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
+
+// A component on the toolkit, typechecked by the starter's own config and mounted headlessly below.
+writeFileSync(
+	join(consumer, 'Ui.svelte'),
+	`<script lang="ts">
+	import { Badge, Button, Router, apply_theme, screen } from 'gpuix-svelte-ui';
+
+	let count = $state(0);
+	$effect(() => apply_theme('dark'));
+</script>
+
+<!-- A markup snippet is typed against the app's own svelte, a second copy next to the one gpuix-svelte bundles. -->
+{#snippet home()}
+	<div>Home</div>
+{/snippet}
+
+<div style="display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 16px">
+	<Button onclick={() => count++} testid="plus">+</Button>
+	<Badge tone="accent">{count}</Badge>
+</div>
+<Router routes={{ '/': screen(home) }} />
+`
+);
+writeFileSync(
+	join(consumer, 'ui.ts'),
+	`import { mount_headless, click_test_id, all_text, check, finish } from 'gpuix-svelte/test';
+import Ui from './Ui.svelte';
+
+mount_headless(Ui, { width: 400, height: 300 });
+click_test_id('plus');
+check('a toolkit Button from the installed package clicks', all_text().includes('1'));
+finish('consumer-ui', 1);
+`
+);
 
 const pm = bun ? 'bun' : 'npm';
 run(pm, bun ? ['install'] : ['install', '--no-audit', '--no-fund'], consumer);
 
 // Node refuses to strip types under node_modules, so the installed package must run as plain JS.
-const installed = join(consumer, 'node_modules/gpuix-svelte');
 if (existsSync(join(consumer, 'node_modules/tsx'))) throw new Error('tsx was installed into the consumer');
-const typescript = (readdirSync(installed, { recursive: true }) as string[]).filter(
-	(f) => /\.(c|m)?ts$/.test(f) && !f.endsWith('.d.ts') && !f.startsWith('node_modules')
-);
-if (typescript.length) throw new Error(`the package ships TypeScript Node cannot run: ${typescript.join(', ')}`);
+for (const name of ['gpuix-svelte', 'gpuix-svelte-ui']) {
+	const installed = join(consumer, 'node_modules', name);
+	const typescript = (readdirSync(installed, { recursive: true }) as string[]).filter(
+		(f) => /\.(c|m)?ts$/.test(f) && !f.endsWith('.d.ts') && !f.startsWith('node_modules')
+	);
+	if (typescript.length) throw new Error(`${name} ships TypeScript Node cannot run: ${typescript.join(', ')}`);
+}
 
 // The published `exports` have to pick the DOM build without the custom-renderer condition and the GPUI entry with it.
 function resolved(specifier: string, conditions: string[]): string {
@@ -91,7 +132,9 @@ for (const [specifier, conditions, expected] of [
 	['gpuix-svelte', [], '/lib/dom.js'],
 	['gpuix-svelte', ['custom-renderer'], '/lib/index.js'],
 	['gpuix-svelte/components/Scroller.svelte', [], '/src/components/dom/Scroller.svelte'],
-	['gpuix-svelte/components/Scroller.svelte', ['custom-renderer'], '/src/components/Scroller.svelte']
+	['gpuix-svelte/components/Scroller.svelte', ['custom-renderer'], '/src/components/Scroller.svelte'],
+	['gpuix-svelte-ui', [], '/node_modules/gpuix-svelte-ui/lib/index.js'],
+	['gpuix-svelte-ui/components/Button.svelte', ['custom-renderer'], '/node_modules/gpuix-svelte-ui/src/components/Button.svelte']
 ] as const) {
 	const url = resolved(specifier, [...conditions]);
 	if (!url.endsWith(expected)) throw new Error(`${specifier} resolves to ${url || 'nothing'} under [${conditions.join(', ')}], expected …${expected}`);
@@ -99,6 +142,7 @@ for (const [specifier, conditions, expected] of [
 run(pm, ['run', 'typecheck'], consumer);
 // The Linux addon has no TestGpuixRenderer, so the starter's test can only throw there.
 if (open || process.platform !== 'linux') run(pm, ['run', open ? 'start' : 'test'], consumer);
+if (!open && process.platform !== 'linux') run(process.execPath, [join(consumer, 'node_modules/gpuix-svelte/bin/gpuix-svelte.js'), ...(bun ? ['--bun'] : []), 'ui.ts'], consumer);
 
 // Every svelte import made from inside the package has to land on the app's svelte, never the bundled custom-renderer build.
 const VITE_CONFIG = `import { defineConfig } from 'vite';
@@ -114,7 +158,7 @@ export default defineConfig({
 			name: 'one-svelte',
 			enforce: 'pre',
 			async resolveId(source, importer) {
-				if (!importer || !/^svelte(\\/|$)/.test(source) || !importer.replaceAll('\\\\', '/').includes('/node_modules/gpuix-svelte/')) return null;
+				if (!importer || !/^svelte(\\/|$)/.test(source) || !/\\/node_modules\\/gpuix-svelte(-ui)?\\//.test(importer.replaceAll('\\\\', '/'))) return null;
 				const resolved = await this.resolve(source, importer, { skipSelf: true });
 				if (resolved && resolved.id.replaceAll('\\\\', '/').includes('/gpuix-svelte/node_modules/svelte/')) strays.push(source + ' from ' + importer);
 				return resolved;
@@ -143,16 +187,23 @@ if (!open) {
 		[
 			"import { render, IS_GPUIX } from 'gpuix-svelte';",
 			"import 'gpuix-svelte/components/Scroller.svelte';",
+			"import 'gpuix-svelte-ui';",
 			"import App from '../App.svelte';",
+			"import Ui from '../Ui.svelte';",
 			"if (IS_GPUIX) throw new Error('a DOM build got the GPUI entry');",
 			'render(App);',
+			'render(Ui);',
 			''
 		].join('\n')
 	);
 	writeFileSync(join(consumer, 'vite.config.mjs'), VITE_CONFIG);
 	run(process.execPath, [join(consumer, 'node_modules/vite/bin/vite.js'), 'build', '--config', 'vite.config.mjs'], consumer);
 	if (!existsSync(join(consumer, 'dist-dom/index.html'))) throw new Error('the Vite build wrote no dist-dom/index.html');
-	if (process.platform !== 'linux') run(pm, ['run', 'test'], consumer);
+	// The toolkit's lib/ imports svelte/reactivity from node_modules, right next to that registry svelte now.
+	if (process.platform !== 'linux') {
+		run(pm, ['run', 'test'], consumer);
+		run(process.execPath, [join(consumer, 'node_modules/gpuix-svelte/bin/gpuix-svelte.js'), ...(bun ? ['--bun'] : []), 'ui.ts'], consumer);
+	}
 }
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.
 if (bun) {

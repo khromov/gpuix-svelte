@@ -67,9 +67,12 @@ function bust_child_specifiers(code: string, query: string): string {
 	return out;
 }
 
-/** Compiles the `.svelte` file at `path` to client JS; `query` is the `?v=N` cache-buster `render_hot` appends, if any. */
-export function compile_svelte(path: string, query?: string): string {
-	const code = compile_source(readFileSync(path, 'utf8'), path, RENDERER_MODULE);
+/**
+ * Compiles the `.svelte` file at `path` to client JS; `query` is the `?v=N` cache-buster `render_hot` appends, if any.
+ * `hot` is for a loader whose reloads reach the module without one.
+ */
+export function compile_svelte(path: string, query?: string, hot = Boolean(query)): string {
+	const code = compile_source(readFileSync(path, 'utf8'), path, RENDERER_MODULE, console.warn, hot);
 
 	// Propagate the cache-buster to child components, or a reload would
 	// re-instantiate the root against stale children.

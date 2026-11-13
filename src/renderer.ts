@@ -18,7 +18,9 @@ import type {
 	VirtualListProps
 } from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
-import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
+import { observeWindowSize, type WindowSizeHost } from '@gpuix/native/host';
+import { build_style, define_css_vars, define_sheet_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
+import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import { place_layer } from './layers.ts';
 import type {
@@ -31,6 +33,7 @@ import type {
 	Native,
 	NativeSink,
 	NodeKind,
+	RootRule,
 	ShadowNode,
 	WindowKeyType,
 	WindowNative
@@ -124,6 +127,26 @@ let pending_destroy = new Set<ShadowNode>();
 /** `<svg>`s painting their nearest ancestor's `color`, restyled when that ancestor is. */
 let inheriting_svgs = new Set<ShadowNode>();
 
+/** Live nodes with a rule under `@media`, restyled when the window's size changes. */
+let media_nodes = new Set<ShadowNode>();
+
+/** Whether `class_rules` met an `@media` rule since `apply_style` last reset it. */
+let media_read = false;
+
+type ViewportObserver = (callback: (size: Viewport) => void) => () => void;
+
+/**
+ * Reports the window's size now and on every change, until stopped. Native's own poll by default, since a
+ * test through `gpuix-svelte/test` alone never loads window.ts; window.ts replaces it with the poll
+ * `window_size` shares, guarded against a Windows file dialog.
+ */
+let observe_viewport: ViewportObserver = (callback) => observeWindowSize(native as unknown as WindowSizeHost | null, callback);
+let stop_viewport: (() => void) | null = null;
+let viewport: Viewport | null = null;
+
+/** What `window_size` reads before any window exists. */
+const NO_WINDOW: Viewport = { width: 800, height: 600 };
+
 /** The text field with focus, if any — what `editing` on a window key event reports. */
 let focused_input: ShadowNode | null = null;
 
@@ -192,6 +215,19 @@ const untold_repeats = () => globalThis.process?.platform === 'linux';
 const stylesheets = new Map<string, ClassRule[]>();
 const NO_RULES: readonly ClassRule[] = [];
 
+/**
+ * file -> its `:root` rules, files in the order they first evaluated, which is where a browser's cascade keeps a sheet.
+ * `mount` is the mount a hot file declared them for, null for a file that evaluates once.
+ */
+const root_sheets = new Map<string, { rules: RootRule[]; mount: number | null }>();
+let mounts = 0;
+
+/** A `:root` rule under `@media` keeps the window observed while no element depends on its size. */
+let root_media = false;
+
+/** A variable changed, and the next commit restyles what reads one. */
+let vars_moved = false;
+
 let on_dirty: (() => void) | null = null;
 
 /** How the frame loop hears of a mutation made between its ticks (a timer, a fetch), which a display-link wake never reports. */
@@ -234,6 +270,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		nativeId: null,
 		textId: null,
 		uses_vars: false,
+		uses_media: false,
 		own_color: undefined,
 		live: false,
 		attached: false,
@@ -330,10 +367,70 @@ function class_rules(el: ShadowNode): readonly ClassRule[] {
 		if (!sheet) continue;
 		for (const rule of sheet) {
 			if (rule.tag !== null && rule.tag !== el.name) continue;
-			if (rule.classes.every((c) => names.includes(c))) (matched ??= []).push(rule);
+			if (!rule.classes.every((c) => names.includes(c))) continue;
+			if (rule.media) {
+				// Whether or not it holds now, the element depends on the window's size from here on.
+				media_read = true;
+				if (!media_active(rule.media, current_viewport())) continue;
+			}
+			(matched ??= []).push(rule);
 		}
 	}
 	return matched ?? NO_RULES;
+}
+
+/** The size the first `@media` rule starts observing; the observer's first report is synchronous. */
+function current_viewport(): Viewport {
+	if (viewport === null && stop_viewport === null && native !== null) {
+		stop_viewport = observe_viewport(on_viewport);
+	}
+	return viewport ?? NO_WINDOW;
+}
+
+/** A size change restyles the dependent nodes only when some query answers differently for it. */
+function on_viewport(size: Viewport) {
+	if (viewport !== null && viewport.width === size.width && viewport.height === size.height) return;
+	const before = viewport;
+	viewport = { width: size.width, height: size.height };
+	if (before === null || !media_changed(before, viewport)) return;
+	if (root_media) cascade_root_vars();
+	for (const n of media_nodes) {
+		if (n.nativeId !== null) apply_style(n);
+	}
+}
+
+function vars_changed() {
+	vars_moved = true;
+	mark_dirty();
+}
+
+function cascade_root_vars() {
+	const vars = new Map<string, string>();
+	const important = new Map<string, string>();
+	root_media = false;
+	for (const sheet of root_sheets.values()) {
+		for (const rule of sheet.rules) {
+			if (rule.media) {
+				root_media = true;
+				if (!media_active(rule.media, current_viewport())) continue;
+			}
+			for (const [name, value] of Object.entries(rule.vars)) vars.set(name, value);
+			for (const [name, value] of Object.entries(rule.important ?? {})) important.set(name, value);
+		}
+	}
+	if (define_sheet_vars(vars, important)) vars_changed();
+}
+
+function stop_viewport_observer() {
+	stop_viewport?.();
+	stop_viewport = null;
+	viewport = null;
+}
+
+function track_media(el: ShadowNode) {
+	el.uses_media = media_read;
+	if (media_read) media_nodes.add(el);
+	else media_nodes.delete(el);
 }
 
 function hitbox_root(el: ShadowNode) {
@@ -375,6 +472,7 @@ function inherit_color(el: ShadowNode, style: GpuiStyle) {
 
 function apply_style(el: ShadowNode) {
 	if (el.nativeId === null) return;
+	media_read = false;
 	const style = build_style(el.attrs, class_rules(el));
 	el.uses_vars = used_css_vars();
 
@@ -382,12 +480,19 @@ function apply_style(el: ShadowNode) {
 
 	if (el.name === 'svg') {
 		if (style.color === undefined) {
+			// The ancestor whose colour it takes is tracked itself, and its restyle sweeps the <svg>.
+			const own = media_read;
 			inherit_color(el, style);
+			media_read = own;
 			inheriting_svgs.add(el);
 		} else {
 			inheriting_svgs.delete(el);
 		}
-	} else if (style.color !== el.own_color) {
+	}
+	// Before the `<svg>` sweep below, whose nested calls reset the flag.
+	track_media(el);
+
+	if (el.name !== 'svg' && style.color !== el.own_color) {
 		// Only a new colour changes what an `<svg>` below inherits, and a drag restyles its panel every frame.
 		el.own_color = style.color;
 		if (el.first) {
@@ -756,18 +861,29 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 	stylesheets.set(scope, rules);
 }
 
+/** At import time too, as a browser has a sheet's variables once the sheet loads; `hot` is a file `render_hot` evaluates again on every reload. */
+export function define_root_vars(file: string, rules: RootRule[], hot = false) {
+	root_sheets.set(file, { rules, mount: hot ? mounts : null });
+	cascade_root_vars();
+}
+
+/**
+ * How the renderer learns the window's size for `@media` rules: window.ts installs the poll behind
+ * `window_size`, started by the first such rule and stopped once none is live.
+ */
+export function set_viewport_observer(observe: ViewportObserver) {
+	observe_viewport = observe;
+}
+
 /**
  * A theme is one call: every live element whose style read a `var()` is restyled,
  * and the whole sweep ships in the next batch like any other frame. A palette identical
  * to the one in force — a theme effect re-running — is a no-op.
  *
- * `vars` is `{ surface: '#fff' }` for `var(--surface)`.
+ * `vars` is `{ surface: '#fff' }` for `var(--surface)`; a value outranks a `:root` rule's, and `null` gives that one back.
  */
 export function set_css_vars(vars: Record<string, string | number | null>) {
-	if (!define_css_vars(vars)) return;
-	for (const n of by_id.values()) {
-		if (n.uses_vars) apply_style(n);
-	}
+	if (define_css_vars(vars)) vars_changed();
 }
 
 // Host wiring for `render.ts` and the test harness.
@@ -778,6 +894,15 @@ export function set_native(instance: NativeSink) {
 	by_id = new Map();
 	pending_destroy = new Set();
 	inheriting_svgs = new Set();
+	media_nodes = new Set();
+	stop_viewport_observer();
+	// A reload evaluates every hot file it still imports before it remounts, so the rules one did not declare again have left the app.
+	for (const [file, sheet] of root_sheets) {
+		if (sheet.mount !== null && sheet.mount !== mounts) root_sheets.delete(file);
+	}
+	mounts++;
+	cascade_root_vars();
+	vars_moved = false;
 	focused_input = null;
 	root_node = null;
 	portals = new Set();
@@ -921,6 +1046,14 @@ export function set_auto_commit(enabled: boolean) {
 
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
+	if (vars_moved) {
+		vars_moved = false;
+		// Not what left the tree, which is destroyed below: after a hot reload that is the old tree, and it would be reported for every variable the edit removed.
+		for (const n of by_id.values()) {
+			if (n.uses_vars && n.live) apply_style(n);
+		}
+	}
+
 	// Above the empty-queue return below: a frame that only restyled still has to report.
 	flush_var_warnings();
 
@@ -956,11 +1089,13 @@ export function commit() {
 			n.textId = null;
 			n.attached = false;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
+			if (n.uses_media) media_nodes.delete(n);
 			if (n === focused_input) focused_input = null;
 			portals.delete(n);
 		}
 		by_id.delete(id);
 	}
+	if (media_nodes.size === 0 && !root_media) stop_viewport_observer();
 
 	run_after_commit();
 }

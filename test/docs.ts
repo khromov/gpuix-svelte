@@ -132,7 +132,7 @@ check(
 	'every page that loads the bundle mounts all of its demos',
 	[with_demos, everywhere],
 	[
-		['components.html', 'dom.html'],
+		['components.html', 'dom.html', 'ui.html'],
 		with_demos.map((name) => [name, [], true])
 	]
 );

@@ -1,0 +1,50 @@
+{
+	"name": "gpuix-svelte-ui",
+	"version": "0.5.0",
+	"description": "A UI toolkit for gpuix-svelte: one set of Svelte components for a native GPUI window and a Vite or SvelteKit page",
+	"type": "module",
+	"license": "MIT",
+	"author": "Stanislav Khromov",
+	"exports": {
+		".": "./src/index.ts",
+		"./theme": "./src/theme.ts",
+		"./toast": "./src/toast.ts",
+		"./router": "./src/router.ts",
+		"./keys": "./src/keys.ts",
+		"./shared": "./src/shared.ts",
+		"./icons": "./src/icons.ts",
+		"./components/*": "./src/components/*",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"src"
+	],
+	"engines": {
+		"node": ">=24.0.0",
+		"bun": ">=1.4.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/khromov/gpuix-svelte",
+		"directory": "packages/ui"
+	},
+	"homepage": "https://gpuix-svelte.stanislav.garden/ui.html",
+	"keywords": [
+		"svelte",
+		"gpui",
+		"gpuix",
+		"gpuix-svelte",
+		"ui",
+		"components",
+		"design-system",
+		"native",
+		"desktop"
+	],
+	"devDependencies": {
+		"gpuix-svelte": "workspace:*"
+	},
+	"publishConfig": {
+		"registry": "https://registry.npmjs.org/",
+		"access": "public"
+	}
+}

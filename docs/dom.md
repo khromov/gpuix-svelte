@@ -140,7 +140,9 @@ Same names, same signatures. Where a helper takes a node, the node an `{@attach}
 is the DOM element.
 
 - `set_css_vars({ token: '#fff' })` sets `--token` on `:root`, so `var(--token)` in your styles
-  resolves natively; `null` removes one.
+  resolves natively; `null` removes one. It writes `<html>`'s inline style, which is why a value
+  set this way wins over a `:root` rule in a `<style>` block, on GPUI too
+  ([Styling](styling.md#switching-a-theme)).
 - `on_window_key('keydown', handler)` listens on `window`. The event is shaped like GPUI's:
   `e.key` is spelled the GPUI way (`escape`, `enter`, `space`, `up`, lowercase letters, and under
   Alt or Shift the physical key's letter or digit, so ⌥T is `t` with `alt`), `e.modifiers` has
@@ -156,6 +158,10 @@ is the DOM element.
   element that calls `e.stopPropagation()`. A held key's repeats are ignored.
 - `window_size` is `innerWidth` × `innerHeight`, reactive through the resize event (no polling).
   `window_insets` reads as zero, since the page already sits inside the browser's insets.
+- `media_query('(max-width: 700px)')` is `matchMedia`, so every query a browser knows works here,
+  including the ones GPUI refuses. `@media` blocks in a `<style>` are plain CSS in the DOM; on GPUI
+  the width, height and orientation ones apply too ([Styling](styling.md#media-queries)), so a
+  shared component can use both.
 - `set_window_title(t)` sets `document.title`; `activate_window()` calls `window.focus()`;
   `toggle_fullscreen()` uses the Fullscreen API; `minimize_window()` and `zoom_window()` do
   nothing.
@@ -209,10 +215,11 @@ stay inside what both renderers draw the same way. The repository's
 is a whole library written this way, typechecked as DOM markup and as GPUI markup.
 
 - Use `div` for boxes and text, `display: flex` where you need it, and `<style>` blocks with
-  class rules and `:hover`. Colours as `var(--token)` with one `set_css_vars` call give both the
-  same theme. Both read the same CSS text, with four differences to keep in mind: GPUI takes a
-  bare number as pixels (`gap: 8`, `set_css_vars({ gap: 8 })`) and the browser does not, so give
-  lengths a unit; GPUI draws a border from `border-width` and `border-color` alone while the
+  class rules and `:hover`. Colours as `var(--token)`, declared in a `:root` rule or set with one
+  `set_css_vars` call, give both the same theme. Both read the same CSS text, with four differences
+  to keep in mind: GPUI takes a bare number as pixels (`gap: 8`, `--gap: 8`,
+  `set_css_vars({ gap: 8 })`) and the browser does not, so give lengths a unit;
+  GPUI draws a border from `border-width` and `border-color` alone while the
   browser also needs `border-style: solid`, so write all three; `pointer-events: none` is
   inherited in the DOM and per element on GPUI, so a pass-through wrapper's interactive
   descendants need `pointer-events: auto` of their own there; and GPUI's root is a flex row,
@@ -222,6 +229,9 @@ is a whole library written this way, typechecked as DOM markup and as GPUI marku
   (`oncontextmenu` in the DOM), `e.value` on inputs (`e.target.value` in the DOM),
   `onlayout` / `onscrollchange` / `onfiledrop` (DOM events differ), `<virtual-list>`,
   `<anchored>`, `<markdown>`, `<code>` and `<diff>`.
+- Declare variables in `:root` only. A browser also takes one on any element, for that element
+  and its descendants (`.card { --pad: 4px; }`, `style="--pad: 4px"`), and GPUI has every variable
+  global, so the compiler refuses the first with a warning and the second is ignored.
 - Event handlers that only react, without reading GPUI-specific fields, work as they are.
   `e.stopPropagation()` exists on both: in the DOM it stops a mouse event from bubbling; on GPUI,
   where mouse events never bubble, it skips the key handlers still to come.

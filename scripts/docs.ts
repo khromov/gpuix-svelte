@@ -27,13 +27,14 @@ const NPM = 'https://www.npmjs.com/package/gpuix-svelte';
 
 const PAGES = [
 	{ source: 'README.md', name: 'overview', nav: 'Overview', about: 'what the package is, setup, how it differs from Svelte on the web, TypeScript config' },
-	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var() and set_css_vars' },
+	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var(), :root and set_css_vars' },
 	{ source: 'docs/components.md', name: 'components', nav: 'Components', about: 'Scroller (scrollbars, virtual lists), Portal (modals, menus, toasts), Tooltip, Popover and the native <anchored> they build on' },
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
 	{ source: 'docs/accessibility.md', name: 'accessibility', nav: 'Accessibility', about: 'what reaches a screen reader (text, roles, aria-* attributes), what GPUI lacks and what to use instead, keyboard and focus patterns for menus, dialogs and lists' },
 	{ source: 'docs/testing.md', name: 'testing', nav: 'Testing', about: 'headless tests through gpuix-svelte/test: mount, click, type, read back, screenshot; gpuix-svelte/automation drives a running window' },
 	{ source: 'docs/shipping.md', name: 'shipping', nav: 'Shipping', about: 'standalone binaries with Bun, macOS signing, running in a browser on WebGPU' },
 	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },
+	{ source: 'docs/ui.md', name: 'ui', nav: 'UI toolkit', about: 'gpuix-svelte-ui: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for a GPUI window and the DOM alike, the theme behind them, and responsive layouts with @media and media_query' },
 	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
@@ -73,6 +74,8 @@ function rewrite(href: string, from: string, as: 'html' | 'md') {
 	const target = posix.normalize(posix.join(posix.dirname(from), path)).replace(/\/$/, '');
 	const page = PAGES.find((p) => p.source === target);
 	if (page) return as === 'html' ? `${page.name}.html${anchor}` : `${SITE}${page.name}.md${anchor}`;
+	// A markdown copy's image has to be the file itself, where a blob URL is GitHub's page about it.
+	if (as === 'md' && target.endsWith('.png')) return `${RAW}/main/${target}`;
 	return `${REPO}/blob/main/${target}${anchor}`;
 }
 
@@ -287,7 +290,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .demo-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tip); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tip) 25%, transparent); }
 .prose .demo-head a { color: var(--muted); text-decoration: none; }
 .prose .demo-head a:hover { color: var(--fg); }
-.demo-result { padding: 24px; border: 1px solid var(--line); border-bottom: 0; background: var(--paper); color: var(--ink); font-size: 14px; line-height: 1.5; }
+.demo-result { padding: 24px; border: 1px solid var(--line); border-bottom: 0; background: var(--ui-bg, var(--paper)); color: var(--ui-ink, var(--ink)); font-size: 14px; line-height: 1.5; }
 .demo-result noscript { color: var(--dim); font-size: 13px; }
 .prose .demo .code { margin: 0; }
 .demo .code pre { border-radius: 0 0 10px 10px; }
@@ -635,7 +638,7 @@ function supervise() {
 		clearTimeout(timer);
 		timer = setTimeout(cycle, 300);
 	};
-	for (const path of ['README.md', 'docs', 'homepage', 'playground', 'scripts/docs.ts', 'scripts/playground.ts', 'scripts/vite-dom.ts', 'src']) {
+	for (const path of ['README.md', 'docs', 'homepage', 'playground', 'scripts/docs.ts', 'scripts/playground.ts', 'scripts/vite-dom.ts', 'src', 'packages/ui/src']) {
 		const target = join(root, path);
 		watch(target, { recursive: statSync(target).isDirectory() }, (_, file) => {
 			if (!file || !basename(file).startsWith('.')) restart();

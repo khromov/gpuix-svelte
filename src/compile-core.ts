@@ -4,8 +4,9 @@
  */
 
 import { compile, parse, type AST } from 'svelte/compiler';
-import { parse_css_text } from './style.ts';
-import type { ClassRule, Pseudo } from './types.ts';
+import { IMPORTANT, parse_css_text } from './style.ts';
+import { MEDIA_FEATURES, media_constant, parse_media_query } from './media.ts';
+import type { ClassRule, Pseudo, RootRule } from './types.ts';
 
 type Warn = (message: string) => void;
 
@@ -43,38 +44,90 @@ function compile_selector(complex: AST.CSS.ComplexSelector): Selector | null {
 	return classes.length === 0 && tag === null ? null : { classes, tag, pseudo };
 }
 
-/**
- * Weakest first, so the renderer can apply them in order and let later ones win:
- * classes over tags, as CSS specificity has it, then source order.
- */
-function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string, warn: Warn): ClassRule[] {
-	const rules: ClassRule[] = [];
-	const refuse = (text: string) =>
-		warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — only class and tag selectors, plus :hover/:active/:focus-visible, reach GPUI`);
+/** Svelte leaves a lone `:root` global in the DOM build, with or without `:global()` around it, so both spellings declare variables. */
+function is_root(complex: AST.CSS.ComplexSelector): boolean {
+	if (complex.children.length !== 1 || complex.children[0].combinator) return false;
+	const [only, ...rest] = complex.children[0].selectors;
+	if (rest.length > 0 || only?.type !== 'PseudoClassSelector') return false;
+	if (only.name === 'root') return only.args === null;
+	return only.name === 'global' && only.args?.children.length === 1 && is_root(only.args.children[0]);
+}
 
-	for (const node of css.children) {
-		if (node.type !== 'Rule') {
-			refuse(`@${node.name} ${node.prelude}`.trim());
-			continue;
-		}
-
-		const declarations: string[] = [];
-		for (const child of node.block.children) {
-			if (child.type === 'Declaration') declarations.push(`${child.property}: ${child.value}`);
-			else refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
-		}
-		const css = declarations.join('; ');
-		// A `var()` only resolves at runtime, so a block that reads one ships as text.
-		const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
-
-		for (const complex of node.prelude.children) {
-			const selector = compile_selector(complex);
-			if (selector === null) refuse(source.slice(complex.start, complex.end));
-			else rules.push({ ...selector, ...body });
-		}
+function root_rule(declared: Array<[string, string]>, media: string[]): RootRule {
+	const vars: Record<string, string> = {};
+	const important: Record<string, string> = {};
+	for (const [name, value] of declared) {
+		if (IMPORTANT.test(value)) important[name] = value.replace(IMPORTANT, '');
+		else vars[name] = value;
 	}
+	return { vars, ...(Object.keys(important).length > 0 && { important }), ...(media.length > 0 && { media }) };
+}
 
-	return rules.sort((a, b) => weight(a) - weight(b));
+/**
+ * Class rules weakest first, so the renderer can apply them in order and let later ones win: classes over
+ * tags, as CSS specificity has it, then source order, which is all that ranks the `:root` rules.
+ */
+function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string, warn: Warn): { rules: ClassRule[]; root: RootRule[] } {
+	const rules: ClassRule[] = [];
+	const root: RootRule[] = [];
+	const refuse = (text: string, reason = 'only class and tag selectors, plus :hover/:active/:focus-visible, reach GPUI') =>
+		warn(`[gpuix-svelte] ${path}: \`${text}\` has no GPUI equivalent — ${reason}`);
+
+	// A rule inside `@media` carries the query; one nested deeper carries every query on the way down. A query no
+	// size can change is settled here: `screen` leaves its rules unconditional, `print` drops them.
+	const walk = (children: Array<AST.CSS.Declaration | AST.CSS.Rule | AST.CSS.Atrule>, media: string[]) => {
+		for (const node of children) {
+			if (node.type === 'Declaration') continue;
+			if (node.type === 'Atrule') {
+				const prelude = node.prelude.trim();
+				const list = node.name === 'media' ? parse_media_query(prelude) : null;
+				if (node.name !== 'media') refuse(`@${node.name} ${prelude}`.trim());
+				else if (!node.block || list === null) refuse(`@media ${prelude}`, `a window answers only for ${MEDIA_FEATURES}`);
+				else {
+					const constant = media_constant(list);
+					if (constant !== false) walk(node.block.children, constant === true ? media : [...media, prelude]);
+				}
+				continue;
+			}
+
+			const declarations: string[] = [];
+			const properties: string[] = [];
+			const variables: Array<[string, string]> = [];
+			for (const child of node.block.children) {
+				if (child.type !== 'Declaration') refuse(source.slice(child.start, child.end).split('{')[0].trim() + ' { … } (nested)');
+				else if (child.property.startsWith('--')) variables.push([child.property.slice(2), child.value]);
+				else {
+					declarations.push(`${child.property}: ${child.value}`);
+					properties.push(child.property);
+				}
+			}
+			const css = declarations.join('; ');
+			// A `var()` only resolves at runtime, so a block that reads one ships as text.
+			const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
+
+			for (const complex of node.prelude.children) {
+				const text = source.slice(complex.start, complex.end);
+				if (is_root(complex)) {
+					// A browser styles `<html>` with these, and a window has no element above the app's own root.
+					if (properties.length > 0) refuse(`${text} { ${properties.join('; ')} }`, 'only the variables (`--name`) a `:root` rule declares reach GPUI');
+					if (variables.length > 0) root.push(root_rule(variables, media));
+					continue;
+				}
+				const selector = compile_selector(complex);
+				if (selector === null) {
+					refuse(text, text.includes(':root') ? 'only a `:root` on its own declares variables, and set_css_vars() switches them at runtime' : undefined);
+					continue;
+				}
+				// A browser scopes these to the element and what is inside it, and nothing here inherits a variable.
+				if (variables.length > 0) refuse(`${text} { ${variables.map(([name]) => `--${name}`).join('; ')} }`, 'a variable is declared in a `:root` rule and reads the same everywhere');
+				if (declarations.length === 0 && variables.length > 0) continue;
+				rules.push(media.length ? { ...selector, ...body, media } : { ...selector, ...body });
+			}
+		}
+	};
+	walk(css.children, []);
+
+	return { rules: rules.sort((a, b) => weight(a) - weight(b)), root };
 }
 
 const weight = (rule: ClassRule) => rule.classes.length * 2 + (rule.tag === null ? 0 : 1);
@@ -139,8 +192,18 @@ export function collapse_whitespace(source: string): string {
 	return out;
 }
 
-/** Compiles a component's source to client JS for the custom renderer imported from `renderer_module`. */
-export function compile_source(source: string, path: string, renderer_module: string, warn: Warn = console.warn): string {
+/** A file's `:root` rules replace the ones it declared before, so they are keyed by its path, hashed to keep the build machine's out of a shipped app. */
+function file_key(path: string) {
+	let hash = 5381;
+	for (let i = 0; i < path.length; i++) hash = ((hash << 5) - hash + path.charCodeAt(i)) | 0;
+	return (hash >>> 0).toString(36);
+}
+
+/**
+ * Compiles a component's source to client JS for the custom renderer imported from `renderer_module`.
+ * `hot` says the module is evaluated again on every reload, so `:root` rules it stops declaring go away with one.
+ */
+export function compile_source(source: string, path: string, renderer_module: string, warn: Warn = console.warn, hot = false): string {
 	let scope = null as string | null;
 	source = collapse_whitespace(source);
 
@@ -163,10 +226,14 @@ export function compile_source(source: string, path: string, renderer_module: st
 
 	let code = js.code;
 	if (scope !== null && ast.css) {
-		const rules = extract_rules(ast.css as AST.CSS.StyleSheet, source, path, warn);
+		const { rules, root } = extract_rules(ast.css as AST.CSS.StyleSheet, source, path, warn);
 		if (rules.length > 0) {
 			code += `\nimport { define_styles as $define_styles } from ${JSON.stringify(renderer_module)};\n`;
 			code += `$define_styles(${JSON.stringify(scope)}, ${JSON.stringify(rules)});\n`;
+		}
+		if (root.length > 0) {
+			code += `\nimport { define_root_vars as $define_root_vars } from ${JSON.stringify(renderer_module)};\n`;
+			code += `$define_root_vars(${JSON.stringify(file_key(path))}, ${JSON.stringify(root)}${hot ? ', true' : ''});\n`;
 		}
 	}
 

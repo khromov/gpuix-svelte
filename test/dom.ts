@@ -240,6 +240,12 @@ check('the picker resolves to null', await dom.prompt_for_paths(), null);
 check('read_native and get_native answer null', [dom.read_native(() => 1), dom.get_native()], [null, null]);
 check('the overlay reads as undefined', [dom.set_debug_overlay('full'), dom.debug_overlay_stats()].map(String), ['undefined', 'undefined']);
 check('window_size reads the viewport', [dom.window_size.width, dom.window_size.height], [1024, 768]);
+// The last one is what tells matchMedia from the window's parser, which answers false for a feature it cannot read.
+check(
+	'media_query is matchMedia',
+	[dom.media_query('(min-width: 900px)').current, dom.media_query('(prefers-color-scheme: dark)').current, dom.media_query('(prefers-color-scheme: light)').current],
+	[true, false, true]
+);
 check(
 	'window_insets are zero, with the keyboard fields following the height',
 	[dom.window_insets.safeArea.top, dom.window_insets.keyboardVisible, dom.window_insets.keyboardTop, dom.window_insets.visibleHeight],
@@ -283,10 +289,17 @@ check("<body> gets GPUI's root box", [document.body.style.display, document.body
 check("<body> gets GPUI's line height", document.body.style.lineHeight, '1.618');
 check('the badge says DOM', text('target'), 'DOM');
 check('window_size renders', text('size'), '1024 × 768');
-(window as unknown as { happyDOM: { setViewport(viewport: { width: number; height: number }): void } }).happyDOM.setViewport({ width: 800, height: 600 });
-window.dispatchEvent(new Event('resize'));
-flushSync();
+const viewport = (width: number, height: number) => {
+	(window as unknown as { happyDOM: { setViewport(viewport: { width: number; height: number }): void } }).happyDOM.setViewport({ width, height });
+	window.dispatchEvent(new Event('resize'));
+	flushSync();
+};
+viewport(800, 600);
 check('and follows a resize', text('size'), '800 × 600');
+check('media_query renders what the viewport says', text('layout'), 'wide');
+viewport(500, 600);
+check('and follows a resize too', text('layout'), 'narrow');
+viewport(800, 600);
 
 check('the palette landed through set_css_vars', css_var('bg'), '#000000');
 click(by_id('theme'));
@@ -468,5 +481,22 @@ check(
 	[1, true, true]
 );
 
+// --- :root rules under set_css_vars: test:root-vars expects the same three answers of GPUI ---
+compile_for_dom(join(root, 'test/RootVarsChild.svelte'));
+const RootVars = (await import(compile_for_dom(join(root, 'test/RootVars.svelte')))).default;
+const vars_host = document.createElement('div');
+document.body.append(vars_host);
+const with_vars = mount(RootVars, { target: vars_host });
+flushSync();
+const painted = (id: string, property: 'backgroundColor' | 'color') => getComputedStyle(vars_host.querySelector<HTMLElement>(`[testid="${id}"]`)!)[property];
+const cascade = () => [painted('card', 'backgroundColor'), painted('derived', 'backgroundColor'), painted('locked', 'color')];
+check("a component's :root rule is global, and a class rule reads its variables", cascade(), ['#101010', '#abcabc', '#0000aa']);
+dom.set_css_vars({ surface: '#222222', js: '#111111', locked: '#00aa00' });
+check('set_css_vars outranks the rule from the inline style of <html>, bar a declaration marked !important', cascade(), ['#222222', '#111111', '#0000aa']);
+dom.set_css_vars({ surface: null, js: '', locked: null });
+check('and null or an empty string gives the rule its say back', cascade(), ['#101010', '#abcabc', '#0000aa']);
+unmount(with_vars as never);
+vars_host.remove();
+
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 80);
+finish('dom', 86);

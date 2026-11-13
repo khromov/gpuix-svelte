@@ -70,7 +70,8 @@ function compile_gpui(source: string, warnings: string[]): string {
 	forget_style_warnings();
 	console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(' '));
 	try {
-		return compile_source(source, FILE, 'gpuix-svelte/renderer', (message) => warnings.push(message));
+		// Hot, because every edit runs in the one frame, where a `:root` rule the last run declared would otherwise stay.
+		return compile_source(source, FILE, 'gpuix-svelte/renderer', (message) => warnings.push(message), true);
 	} finally {
 		console.warn = warn;
 	}

@@ -10,11 +10,12 @@ import type { Plugin, PluginOption } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 // A consumer's Vite finds gpuix-svelte in node_modules. Inside the package there is no such copy, so Node
-// resolves the name through the package's own `exports`, under whose default conditions the DOM build wins.
+// resolves the name through the package's own `exports`, under whose default conditions the DOM build wins;
+// the toolkit's name goes the same way, through the workspace link, so its components' self-references resolve too.
 const self_reference: Plugin = {
 	name: 'gpuix-svelte-self-reference',
 	resolveId(id) {
-		if (id === 'gpuix-svelte' || id.startsWith('gpuix-svelte/')) return fileURLToPath(import.meta.resolve(id));
+		if (/^gpuix-svelte(-ui)?(\/|$)/.test(id)) return fileURLToPath(import.meta.resolve(id));
 	}
 };
 

@@ -32,8 +32,10 @@ export interface ShadowNode {
 	nativeId: number | null;
 	/** The inner native node holding a text node's string, when `nativeId` is the `text` around it. */
 	textId: number | null;
-	/** Its style read a `var()`, so `set_css_vars` has to restyle it. */
+	/** Its style read a `var()`, so a change to the variables has to restyle it. */
 	uses_vars: boolean;
+	/** One of its rules sits under an `@media` query, so a window resize has to restyle it. */
+	uses_media: boolean;
 	/** Its resolved `color`, so a restyle that leaves it alone need not visit the `<svg>`s inheriting it. */
 	own_color: GpuiStyle[string];
 	/** Reachable from the designated GPUI root. */
@@ -64,15 +66,33 @@ export type Pseudo = 'hover' | 'active' | 'focusVisible' | null;
 
 /**
  * One `<style>` rule's declarations. A block that reads a `var()` ships as CSS text
- * and is re-parsed per `set_css_vars()` generation; the rest is parsed at compile time.
+ * and is re-parsed whenever the variables change; the rest is parsed at compile time.
  */
 export type StyleRule = { pseudo: Pseudo } & (
 	| { style: GpuiStyle; css?: undefined }
 	| { css: string; style?: undefined; generation?: number; resolved?: GpuiStyle }
 );
 
-/** A `StyleRule` with the selector `compile.ts` accepted: classes and at most one tag. */
-export type ClassRule = StyleRule & { classes: string[]; tag: string | null };
+/**
+ * A `StyleRule` with the selector `compile.ts` accepted: classes and at most one tag. `media` holds the
+ * `@media` preludes the rule sits under, outermost first, every one of which has to hold for it to apply.
+ */
+export type ClassRule = StyleRule & { classes: string[]; tag: string | null; media?: string[] };
+
+/**
+ * One `:root` rule's custom properties, named without the `--`. `important` holds the ones declared
+ * `!important`, which outrank `set_css_vars()` as they outrank an inline style in a browser; `media` is a `ClassRule`'s.
+ */
+export interface RootRule {
+	vars: Record<string, string>;
+	important?: Record<string, string>;
+	media?: string[];
+}
+
+/** What `media_query()` returns: `current` is reactive wherever a template or effect reads it. */
+export interface MediaQueryState {
+	readonly current: boolean;
+}
 
 /** One entry of the batch `applyBatch` receives. */
 export type Mutation =

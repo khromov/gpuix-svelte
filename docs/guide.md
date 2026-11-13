@@ -195,6 +195,44 @@ other value GPUI reports. Only macOS reports real insets; Windows, Linux and hea
 zeros. Headless tests see their real viewport size. Before any window exists, the size reads as
 800×600.
 
+## Media queries
+
+A layout that changes with the window's width can be written as CSS. `@media` in a `<style>`
+block takes queries over `width`, `height` and `orientation` (`min-`/`max-` or the range syntax,
+in `px`, `rem` or `em`), the rules inside apply while the query holds, and the elements they
+style are restyled when the window's size changes:
+
+```svelte
+<div class="cards">…</div>
+
+<style>
+  .cards { display: flex; flex-direction: row; gap: 16px; }
+  @media (max-width: 700px) {
+    .cards { flex-direction: column; gap: 8px; }
+  }
+</style>
+```
+
+`media_query(query)` is the same test for JavaScript, `matchMedia`-shaped: `current` is reactive
+wherever a template, `$derived` or `$effect` reads it, so a component can branch its markup rather
+than its CSS.
+
+```svelte
+<script>
+  import { media_query } from 'gpuix-svelte';
+  const narrow = media_query('(max-width: 700px)');
+</script>
+
+{#if narrow.current}<Menu />{:else}<Sidebar />{/if}
+```
+
+Both read the window through the one poll `window_size` uses, so a resize shows within 100 ms, the
+three never disagree, and the poll runs only while something depends on it. A query a window
+cannot answer (`prefers-color-scheme`, `hover`, a `vw` length) never matches, as a browser's
+`not all`, while the other alternatives of a comma list still count; an `@media` block or a
+`media_query` with no answerable alternative is warned about, once per query.
+[Styling](styling.md#media-queries) has the details.
+
 ## Title bar on GNOME
 
 On GNOME under Wayland a gpuix window has no title bar: GNOME leaves drawing it to the app, and
@@ -205,9 +243,8 @@ off and `titlebar: true` draws it everywhere. Your app then mounts in the box be
 `rootStyle` styles that box, so a `<Portal>` still covers the whole window. The bar can't be dragged
 to move the window, since `@gpuix/native` has no window move yet; Super+drag still moves it. A
 double-click maximises, and close unmounts the app and ends the process. Its colours are
-`--titlebar-bg`, `--titlebar-fg`, `--titlebar-hover` and `--titlebar-close`, set through
-`set_css_vars`. Running the app under X11 instead (`WAYLAND_DISPLAY` unset) gets GNOME's own title
-bar.
+`--titlebar-bg`, `--titlebar-fg`, `--titlebar-hover` and `--titlebar-close`, declared in a `:root`
+rule. Running the app under X11 instead (`WAYLAND_DISPLAY` unset) gets GNOME's own title bar.
 
 ## Window and desktop helpers
 
