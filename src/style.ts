@@ -25,8 +25,8 @@ const PERCENT = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)%$/;
 const REM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)rem$/i;
 const NUMERIC_ISH = /^[-+.\d]/;
 
-/** There is no cascade for it to outrank, and left on a value it fails every check below. */
-const IMPORTANT = /\s*!\s*important$/i;
+/** No declaration but a `:root` variable has a cascade to outrank, and left on a value it fails every check below. */
+export const IMPORTANT = /\s*!\s*important$/i;
 
 /** No GPUI sizing mode matches these, and `auto` is the nearest a `DimensionValue` can say. */
 const INTRINSIC = /^(?:max-content|min-content|fit-content)(?:\(.*\))?$/;
@@ -177,12 +177,20 @@ const warned = new Set<string>();
 /** The docs' playground recompiles one source on every edit and has to hear a dropped value each time. */
 export const forget_style_warnings = () => warned.clear();
 
-/** `var(--name)` values, set from JS; every rule or inline style that reads one re-resolves on change. */
+/**
+ * `var(--name)` values in the three layers a browser's cascade ranks them in: `:root` rules, over them what
+ * `set_css_vars()` set (the DOM build writes those on `<html>`'s inline style), and over both the `:root`
+ * declarations marked `!important`. Every rule or inline style that reads one re-resolves on change.
+ */
+let sheet_vars: ReadonlyMap<string, string> = new Map();
 const css_vars = new Map<string, string>();
+let important_vars: ReadonlyMap<string, string> = new Map();
 let vars_generation = 0;
 let vars_read = false;
 const warned_vars = new Set<string>();
 const pending_vars = new Set<string>();
+
+const declared = (name: string) => important_vars.get(name) ?? css_vars.get(name) ?? sheet_vars.get(name);
 
 /** Keys with or without the `--`; false when nothing moved, so an identical palette costs no restyle. */
 export function define_css_vars(vars: Record<string, string | number | null>): boolean {
@@ -190,7 +198,8 @@ export function define_css_vars(vars: Record<string, string | number | null>): b
 
 	for (const [key, value] of Object.entries(vars)) {
 		const name = key.startsWith('--') ? key.slice(2) : key;
-		if (value == null) {
+		// The DOM build's `style.setProperty` removes the property for an empty string too.
+		if (value == null || value === '') {
 			if (css_vars.delete(name)) changed = true;
 		} else if (css_vars.get(name) !== String(value)) {
 			css_vars.set(name, String(value));
@@ -202,18 +211,48 @@ export function define_css_vars(vars: Record<string, string | number | null>): b
 	return changed;
 }
 
+const same_vars = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>) => a.size === b.size && [...a].every(([name, value]) => b.get(name) === value);
+
+export function define_sheet_vars(vars: ReadonlyMap<string, string>, important: ReadonlyMap<string, string>): boolean {
+	if (same_vars(vars, sheet_vars) && same_vars(important, important_vars)) return false;
+	sheet_vars = vars;
+	important_vars = important;
+	vars_generation++;
+	return true;
+}
+
 /** Deferred to the commit, since Svelte styles the tree before the root's `$effect` can set the palette. */
 export function flush_var_warnings() {
 	for (const name of pending_vars) {
-		if (css_vars.has(name)) continue;
+		if (declared(name) !== undefined) continue;
 		warned_vars.add(name);
-		console.warn(`[gpuix-svelte] \`var(--${name})\` is not defined — set it with set_css_vars() or give it a fallback`);
+		console.warn(`[gpuix-svelte] \`var(--${name})\` is not defined — declare it in a \`:root\` rule, set it with set_css_vars() or give it a fallback`);
 	}
 	pending_vars.clear();
 }
 
 /** Whether the last `build_style` read a variable, so the renderer knows what to restyle. */
 export const used_css_vars = () => vars_read;
+
+const resolving: string[] = [];
+const cyclic = new Set<string>();
+
+/** As CSS has it, a variable that reads an unset one with no fallback is unset itself, and so is every member of a cycle. */
+function resolve_var(name: string): string | undefined {
+	const value = declared(name);
+	if (value === undefined || !value.includes('var(')) return value;
+
+	const at = resolving.indexOf(name);
+	if (at !== -1) {
+		for (const member of resolving.slice(at)) cyclic.add(member);
+		return undefined;
+	}
+
+	resolving.push(name);
+	const resolved = substitute_vars(value);
+	resolving.pop();
+	return cyclic.delete(name) || resolved === null ? undefined : resolved;
+}
 
 /**
  * Replaces each `var(--name[, fallback])` in a value. Null means a variable was
@@ -244,7 +283,7 @@ function substitute_vars(value: string): string | null {
 		const name = (comma === -1 ? inner : inner.slice(0, comma)).trim().replace(/^--/, '');
 		vars_read = true;
 
-		let resolved: string | null | undefined = css_vars.get(name);
+		let resolved: string | null | undefined = resolve_var(name);
 		if (resolved === undefined) {
 			if (comma === -1) {
 				if (!warned_vars.has(name)) pending_vars.add(name);

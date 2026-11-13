@@ -79,9 +79,10 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   in logical pixels: lengths in `px` or `rem` (16 px), and `%`/`auto` only for `width`, `height`,
   `min-*` and `max-*`. Use `flex-grow: 1; flex-basis: 0` for `flex: 1`, and `border-width` plus
   `border-color` for `border`; both shorthands are dropped. The styling page lists every property.
-- Colours go in `var(--token)`, with the palette set once from the root through
-  `set_css_vars({ token: '#fff' })`. (The starter's own `App.svelte` hard-codes its colours; switch
-  to variables once the app has a theme.)
+- Colours go in `var(--token)`, with the palette declared once in a `:root { --token: #fff; }` rule
+  in the root component's `<style>`; `set_css_vars({ token: '#000' })` overrides it at runtime, for
+  a theme switch. (The starter's own `App.svelte` hard-codes its colours; switch to variables once
+  the app has a theme.)
 - Inputs report through events: `<input value={text} onchange={(e) => (text = e.value)} />`;
   `onchange` fires on every edit, and there is no `oninput`. `{@attach (node) => ...}` hands you
   an element.

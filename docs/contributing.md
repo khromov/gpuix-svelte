@@ -167,10 +167,11 @@ build writes each one to `dist/docs-demos/<page>-<name>.svelte` and bundles them
 and only the pages that have a demo load the bundle. Write a demo in the subset both renderers
 draw the same way ([Rendering in the DOM](dom.md#writing-a-component-for-both)) and colour it with
 the tokens the page defines for them, `--paper`, `--ink`, `--panel`, `--raised` and `--dim`, plus
-the components' own `--tooltip-*`, `--popover-*` and `--scroller-*`. Keep `set_css_vars` for a demo
-that is about theming: it writes `:root`, which the whole page reads. A demo that does not compile
-fails `npm run docs`; `npm run test:docs` builds the site and mounts every demo from the built
-bundle under happy-dom, so one that throws at mount fails there, and CI's Linux job runs it.
+the components' own `--tooltip-*`, `--popover-*` and `--scroller-*`. Keep `set_css_vars` and
+`:root` rules for a demo that is about theming: both land on `:root`, which the whole page reads.
+A demo that does not compile fails `npm run docs`; `npm run test:docs` builds the site and mounts
+every demo from the built bundle under happy-dom, so one that throws at mount fails there, and
+CI's Linux job runs it.
 
 The social preview images are screenshots: `npm run og` retakes `homepage/og.png` from the
 homepage's `#og` view, and `npm run og:docs` retakes `docs/assets/og-docs.png` from the built

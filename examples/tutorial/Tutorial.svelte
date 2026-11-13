@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { readFileSync } from 'node:fs';
 	import { spawn } from 'node:child_process';
-	import { blur, on_window_key, set_css_vars, type AnyComponent, type GpuixEvent } from 'gpuix-svelte';
+	import { blur, on_window_key, type AnyComponent, type GpuixEvent } from 'gpuix-svelte';
 	import { CHAPTERS, STEPS as RAW_STEPS, type CodeSample, type LiveKey, type Step } from './steps.ts';
 	import { THEME } from './theme.ts';
 	import Scroller from 'gpuix-svelte/components/Scroller.svelte';
@@ -18,8 +18,6 @@
 	import Motion from './samples/Motion.svelte';
 
 	const LIVE: Record<LiveKey, AnyComponent> = { hello: Hello, counter: Counter, styled: Styled, scroll: Scroll, list: List, hittest: HitTest, native: Native, motion: Motion };
-
-	set_css_vars({ 'scroller-thumb': '#404040', 'scroller-thumb-hover': '#5a5a5a' });
 
 	// Read here rather than in steps.ts: a hot reload re-evaluates this module but
 	// not plain JS, so a saved sample shows its new source.
@@ -173,3 +171,10 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	:root {
+		--scroller-thumb: #404040;
+		--scroller-thumb-hover: #5a5a5a;
+	}
+</style>

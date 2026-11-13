@@ -14,13 +14,18 @@ export { RENDERER_MODULE } from './compile.ts';
 // `compileModule` does not strip types, so a `.svelte.ts` goes through Bun's transpiler first.
 const transpiler = new Bun.Transpiler({ loader: 'ts' });
 
+/** What a reload evaluates again; a package component is not what is being edited. */
+const reloads = (path: string) => path.endsWith('.svelte') && !path.includes('node_modules');
+
+let reloading = false;
+
 // Older Bun kept `render_hot`'s `?v=N` cache-buster in `args.path`, so strip it before touching
 // the filesystem; 1.4.4 drops it, and `invalidate_svelte` below empties `require.cache` instead.
 export function load_svelte(args: OnLoadArgs): OnLoadResult {
 	const path = args.path.replace(/\?.*$/, '');
 	const query = args.path.slice(path.length);
 
-	return { contents: compile_svelte(path, query), loader: 'js' };
+	return { contents: compile_svelte(path, query, query !== '' || (reloading && reloads(path))), loader: 'js' };
 }
 
 export function load_module(args: OnLoadArgs): OnLoadResult {
@@ -88,9 +93,10 @@ function pin_svelte(build: PluginBuilder) {
 
 /** `render_hot`'s reload: Bun re-evaluates a module dropped from `require.cache`, whatever the import's query. */
 function invalidate_svelte() {
+	reloading = true;
 	const cache = createRequire(import.meta.url).cache;
 	for (const key of Object.keys(cache)) {
-		if (key.endsWith('.svelte') && !key.includes('node_modules')) delete cache[key];
+		if (reloads(key)) delete cache[key];
 	}
 }
 

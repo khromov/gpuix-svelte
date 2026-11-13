@@ -481,5 +481,22 @@ check(
 	[1, true, true]
 );
 
+// --- :root rules under set_css_vars: test:root-vars expects the same three answers of GPUI ---
+compile_for_dom(join(root, 'test/RootVarsChild.svelte'));
+const RootVars = (await import(compile_for_dom(join(root, 'test/RootVars.svelte')))).default;
+const vars_host = document.createElement('div');
+document.body.append(vars_host);
+const with_vars = mount(RootVars, { target: vars_host });
+flushSync();
+const painted = (id: string, property: 'backgroundColor' | 'color') => getComputedStyle(vars_host.querySelector<HTMLElement>(`[testid="${id}"]`)!)[property];
+const cascade = () => [painted('card', 'backgroundColor'), painted('derived', 'backgroundColor'), painted('locked', 'color')];
+check("a component's :root rule is global, and a class rule reads its variables", cascade(), ['#101010', '#abcabc', '#0000aa']);
+dom.set_css_vars({ surface: '#222222', js: '#111111', locked: '#00aa00' });
+check('set_css_vars outranks the rule from the inline style of <html>, bar a declaration marked !important', cascade(), ['#222222', '#111111', '#0000aa']);
+dom.set_css_vars({ surface: null, js: '', locked: null });
+check('and null or an empty string gives the rule its say back', cascade(), ['#101010', '#abcabc', '#0000aa']);
+unmount(with_vars as never);
+vars_host.remove();
+
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 83);
+finish('dom', 86);

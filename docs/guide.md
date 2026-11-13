@@ -243,9 +243,8 @@ off and `titlebar: true` draws it everywhere. Your app then mounts in the box be
 `rootStyle` styles that box, so a `<Portal>` still covers the whole window. The bar can't be dragged
 to move the window, since `@gpuix/native` has no window move yet; Super+drag still moves it. A
 double-click maximises, and close unmounts the app and ends the process. Its colours are
-`--titlebar-bg`, `--titlebar-fg`, `--titlebar-hover` and `--titlebar-close`, set through
-`set_css_vars`. Running the app under X11 instead (`WAYLAND_DISPLAY` unset) gets GNOME's own title
-bar.
+`--titlebar-bg`, `--titlebar-fg`, `--titlebar-hover` and `--titlebar-close`, declared in a `:root`
+rule. Running the app under X11 instead (`WAYLAND_DISPLAY` unset) gets GNOME's own title bar.
 
 ## Window and desktop helpers
 

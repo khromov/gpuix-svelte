@@ -16,7 +16,7 @@ Each one runs live on this page, in the DOM ([how](dom.md#the-components-in-the-
 sample under a demo is the component you see above it, compiled by Svelte's DOM renderer for your
 browser. In a GPUI window the same source draws natively. The samples take their colours from
 tokens this page defines (`--paper`, `--ink`, `--panel`, `--raised`, `--dim`), the way an app's
-come from `set_css_vars`.
+come from its `:root` rule.
 
 ## Scroller
 
@@ -227,8 +227,8 @@ Props:
   (`style="padding: 8px 12px; border-radius: 0; background-color: #ff3e00"`).
 - `testid` goes on the wrapper around the trigger. The tip gets `<testid>-tip`.
 
-Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you set for the whole
-app with `set_css_vars`.
+Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you declare for the
+whole app in a `:root` rule.
 
 A decorative trigger (text, an icon, a badge) needs nothing more, but a keyboard can't reach it, so
 put nothing in its tip that isn't on screen elsewhere. A trigger with a handler of its own, such as

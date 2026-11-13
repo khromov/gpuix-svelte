@@ -505,9 +505,10 @@ keep it building. The design:
   wasm through `?url`, under `custom-renderer` + `browser`, with `base: './'`. `frame-gpui.ts` wraps
   `applyBatch` and posts every batch to the page, where `tree.ts`'s `Mirror` rebuilds the element
   tree, text wrappers included, for the Render tree and Mutations views. The GPUI frame is
-  remounted through `render()` on every edit (so `set_css_vars` values outlive a run), the DOM
-  frame reloaded; both get `frame.ts`'s `ROOT_STYLE` (black background, `#ededed` text), because
-  GPUI's default text is black on an unpainted black window.
+  remounted through `render()` on every edit (so `set_css_vars` values outlive a run, while a
+  `:root` rule goes with the source that declared it, compiled hot), the DOM frame reloaded; both
+  get `frame.ts`'s `ROOT_STYLE` (black background, `#ededed` text), because GPUI's default text is
+  black on an unpainted black window.
   **Fonts**: the wasm can't reach system fonts and has no `registerFont`, so it draws in the eight
   faces it embeds (IBM Plex Sans 400/600 and Lilex 400/700, each with an italic), and the DOM frame
   loads the same faces from `homepage/assets/fonts/gpui/`, cut out of `gpuix-web_bg.wasm` (scan for
@@ -760,20 +761,52 @@ once window.ts loads, its `watch_size` — one observer over the dialog-guarded 
 `window_size`, `media_query()` and the renderer, so the three agree frame for frame and a Windows
 picker stalls none of them. The observer starts at the first media rule, `on_viewport` restyles
 `media_nodes` only when `media_changed` finds a cached query that answers differently, and a commit
-stops it once `media_nodes` is empty; `set_native` resets all of it. `dom.ts`'s `media_query()` is
-`matchMedia`, re-read on its `change` event and on `resize` (happy-dom fires only the latter).
+stops it once `media_nodes` is empty and no `:root` rule sits under `@media` (`root_media`);
+`set_native` resets all of it. `dom.ts`'s `media_query()` is `matchMedia`, re-read on its `change`
+event and on `resize` (happy-dom fires only the latter).
 
 **Style merging.** `build_style` lays the inline `style` on top of the class rules; `:hover`,
 `:active` and `:focus-visible` rules become GPUI's native `hover` / `active` / `focusVisible` objects,
 with the `hover=` / `active=` / `focus-visible=` attribute winning. A block that reads
 `var(--name[, fallback])` is emitted as `css` text instead of a parsed `style`, because the map it
 resolves against lives at runtime: `style.ts` substitutes on every `parse_css_text`, memoises each
-such rule per `set_css_vars()` generation, and the renderer flags nodes whose style read a variable
-so `set_css_vars(vars)` restyles exactly those, in one batch. An undefined variable without a
-fallback drops the declaration and is warned about at the next `commit()` rather than where it was
-read, because the root's palette `$effect` runs after Svelte has styled the tree. A later
-`padding: 20px` clears the longhands an earlier `padding: 12px 24px` expanded to, since GPUI reads
-longhands over the shorthand.
+such rule per `vars_generation`, and the renderer flags nodes whose style read a variable
+(`uses_vars`). A change of variables, from `set_css_vars(vars)` or a `:root` rule, only sets
+`vars_moved`, and the next `commit()` restyles exactly those nodes, in one batch. An undefined
+variable without a fallback drops the declaration and is warned about at that `commit()` rather
+than where it was read, because the root's palette `$effect` runs after Svelte has styled the tree.
+A later `padding: 20px` clears the longhands an earlier `padding: 12px 24px` expanded to, since GPUI
+reads longhands over the shorthand.
+
+**`:root` variables.** A `:root` rule (or `:global(:root)`) never becomes a class rule:
+`extract_rules` takes its custom properties out, and the component gets a second call,
+`define_root_vars(file, rules[, hot])`, which runs at import time like `define_styles`, as a browser
+has a sheet's variables once the sheet loads. `file` is a hash of the path rather than the scope
+class's hash of the CSS, because an edit has to replace the file's earlier rules where they were:
+`root_sheets` is a `Map` in first-evaluation order, which is the cascade's (a component evaluates
+after the ones it imports, so its rule wins over theirs, as its sheet does in Vite's output).
+`cascade_root_vars()` flattens the sheets whose `@media` holds into the two maps `style.ts`'s
+`declared()` reads under and over `set_css_vars()`'s, the three layers a browser ranks the same way:
+`:root` rules, then `set_css_vars()` (the DOM build writes those to `<html>`'s inline style, where
+`null` or `''` removes one and the rule's value shows through again), then `:root` declarations
+marked `!important`. `resolve_var` resolves the `var()`s inside a variable on every read; one that
+reads an unset variable with no fallback is unset itself, and so is every member of a cycle, as in
+CSS. The commit's sweep skips nodes that are no longer live, because after a hot reload that is the
+outgoing tree, which would be restyled against the new variables and reported for each one the edit
+removed. `root_media` has `on_viewport` cascade again when a query's answer changes. What a browser
+honours and a window can't is refused at compile time, naming the file: a property in `:root` that is
+no variable, `:root` with anything attached, and a variable declared on any other selector, which is
+left out of that rule (one in an inline `style` is not looked at, and ships as a key serde drops).
+
+`hot` is a loader saying the module is evaluated again on every reload, and the only thing that
+makes a sheet removable: `compile_svelte` takes it from the `?v=N` query on Node, `plugin.ts` from
+`reloading && reloads(path)` (set by the first `invalidate_svelte`, and the test its purge uses), and
+the playground's `compile.ts` passes `true`, every run landing in the one GPUI frame. A hot sheet
+records `mounts`, and `set_native`, which every remount goes through, drops the hot sheets that were
+not declared again since the last one (a rule deleted from its file, a file no longer imported). A
+sheet from a module that evaluates once, such as a package component's, has no count and stays. A
+component imported lazily after the mount carries the next count, so its sheet outlives one reload
+more than it should.
 
 **Loaders.** There are two because there is no shared API: Bun has no `module.registerHooks`, and
 its `module.register()` is a silent no-op. Both wrap `compile_svelte()` and must be installed before
@@ -977,12 +1010,13 @@ with unknown keys already dropped, which is exactly what `docs/styling.md` claim
 `docs/styling.md`, `docs/guide.md`, `docs/components.md` and `docs/accessibility.md` are the full
 user-facing rules; these are the ones that bite most often, and the renderer behaviour behind them.
 
-- Style with `<style>` blocks for shape and colour, colours as `var(--token)` with the palette handed
-  to `set_css_vars({ token: '#fff' })` once from the root (an `$effect` over `LIGHT`/`DARK` palette
-  objects makes a theme switch one call), and `style:` / inline `style="..."` only for measured
-  values. `em`/`vh`/`vw` never work and `%`/`auto` only on `width`/`height`/`min*`/`max*`, so the
-  `auto` halves of `margin: 0 auto`, and all of `border-radius: 50%`, are dropped with a warning.
-  Shared reactive state goes in `.svelte.ts` modules.
+- Style with `<style>` blocks for shape and colour, colours as `var(--token)` with the palette in a
+  `:root { --token: #fff; }` rule in the root component (for a theme switch, an `$effect` handing
+  `LIGHT`/`DARK` palette objects to `set_css_vars()`, which outranks the rule), and `style:` / inline
+  `style="..."` only for measured values. A variable is global: one declared on any other selector is
+  refused, and `:root` takes nothing but variables. `em`/`vh`/`vw` never work and `%`/`auto` only on
+  `width`/`height`/`min*`/`max*`, so the `auto` halves of `margin: 0 auto`, and all of
+  `border-radius: 50%`, are dropped with a warning. Shared reactive state goes in `.svelte.ts` modules.
 - Only GPUI tags exist (`GPUI_TAGS`, checked against `ElementType` minus `canvas`); anything else
   degrades to `div` with a one-time warning. That includes `<canvas>`: native 0.11 registers no such
   element, so a window gave it no layout box and painted neither it nor its children. `<button>` is

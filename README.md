@@ -109,7 +109,8 @@ files, spawn processes, open SQLite databases and load native addons directly.
   (`width`, `height`, `min-*`, `max-*`) also take `%` and `auto`. `<style>` blocks take class rules
   with `:hover`, `:active` and `:focus-visible`. Values GPUI can't use are dropped with a warning.
   → [docs/styling.md](docs/styling.md)
-- **Theming** is `var(--token)` in your styles plus one `set_css_vars({ token: '#fff' })` call.
+- **Theming** is `var(--token)` in your styles, with the values in a `:root` rule; one
+  `set_css_vars({ token: '#fff' })` call switches them at runtime.
   → [docs/styling.md#theming-with-css-variables](docs/styling.md#theming-with-css-variables)
 - **Mouse events go to the element under the pointer.** Put `hitbox="self"` on a clickable
   element and clicks on its icons and badges reach it. `onclick` is the primary button; right and

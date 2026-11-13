@@ -32,7 +32,7 @@ export interface ShadowNode {
 	nativeId: number | null;
 	/** The inner native node holding a text node's string, when `nativeId` is the `text` around it. */
 	textId: number | null;
-	/** Its style read a `var()`, so `set_css_vars` has to restyle it. */
+	/** Its style read a `var()`, so a change to the variables has to restyle it. */
 	uses_vars: boolean;
 	/** One of its rules sits under an `@media` query, so a window resize has to restyle it. */
 	uses_media: boolean;
@@ -66,7 +66,7 @@ export type Pseudo = 'hover' | 'active' | 'focusVisible' | null;
 
 /**
  * One `<style>` rule's declarations. A block that reads a `var()` ships as CSS text
- * and is re-parsed per `set_css_vars()` generation; the rest is parsed at compile time.
+ * and is re-parsed whenever the variables change; the rest is parsed at compile time.
  */
 export type StyleRule = { pseudo: Pseudo } & (
 	| { style: GpuiStyle; css?: undefined }
@@ -78,6 +78,16 @@ export type StyleRule = { pseudo: Pseudo } & (
  * `@media` preludes the rule sits under, outermost first, every one of which has to hold for it to apply.
  */
 export type ClassRule = StyleRule & { classes: string[]; tag: string | null; media?: string[] };
+
+/**
+ * One `:root` rule's custom properties, named without the `--`. `important` holds the ones declared
+ * `!important`, which outrank `set_css_vars()` as they outrank an inline style in a browser; `media` is a `ClassRule`'s.
+ */
+export interface RootRule {
+	vars: Record<string, string>;
+	important?: Record<string, string>;
+	media?: string[];
+}
 
 /** What `media_query()` returns: `current` is reactive wherever a template or effect reads it. */
 export interface MediaQueryState {

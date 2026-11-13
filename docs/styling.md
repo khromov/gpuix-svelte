@@ -35,7 +35,8 @@ work for class rules, which are translated the same way.
 - `@media` blocks over the window's `width`, `height` and `orientation`, restyled as the window is
   resized (see [Media queries](#media-queries)).
 - `var(--token)` and `var(--token, fallback)` in class rules and inline styles, on any property.
-  Values come from `set_css_vars({ token: '#fff' })`, and a theme switch is one call (see
+  Values come from a `:root { --token: #fff; }` rule in any component's `<style>`, or from
+  `set_css_vars({ token: '#fff' })`, which makes a theme switch one call (see
   [Theming with CSS variables](#theming-with-css-variables)).
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
 - `display: flex | grid` and the flexbox properties, `position: absolute`,
@@ -56,12 +57,14 @@ work for class rules, which are translated the same way.
 - A bare number on a property that takes a word or a colour (`color: 123456`, `background: 0`) is
   dropped with a warning.
 - `!important` is ignored: the declaration applies as if it were not there, so it can't make a class
-  rule beat inline `style`.
+  rule beat inline `style`. The one place it counts is on a variable in a `:root` rule, which it
+  puts above `set_css_vars`.
 - `display: none` has no effect. Use `{#if}`, or `visibility: hidden` to keep the box.
 - Any other selector: combinators (descendant, `>`, `+`, `~`), pseudo-classes besides `:hover`,
   `:active` and `:focus-visible`, pseudo-elements, `:global`, attribute selectors, nesting, and
   every at-rule but `@media` (see [Media queries](#media-queries)). The compiler refuses them with
-  a warning.
+  a warning. `:root`, also written `:global(:root)`, is accepted for the variables it declares
+  (see [Theming with CSS variables](#theming-with-css-variables)).
 - `transform`, `transition`, `z-index`, `letter-spacing` and `font-style` are ignored, mostly
   without a warning.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
@@ -174,25 +177,21 @@ These are accepted, but they mean something different from what CSS would.
 
 ## Theming with CSS variables
 
-Class rules are compiled ahead of time, but a `var()` in one resolves at runtime against a map you
-control. A palette is one object, and a theme switch is one call:
+Class rules are compiled ahead of time, but a `var()` in one resolves at runtime. Declare the
+variables in a `:root` rule, in any component's `<style>`, and every component reads them, as in a
+browser:
 
 ```svelte
-<script>
-  import { set_css_vars } from 'gpuix-svelte';
-
-  const LIGHT = { surface: '#ffffff', ink: '#171717', border: '#e5e5e5' };
-  const DARK = { surface: '#111111', ink: '#ededed', border: '#242424' };
-  let { dark } = $props();
-
-  $effect(() => set_css_vars(dark ? DARK : LIGHT));
-</script>
-
 <div class="card">
   <text class="badge">new</text>
 </div>
 
 <style>
+  :root {
+    --surface: #111111;
+    --ink: #ededed;
+    --border: #242424;
+  }
   .card {
     background-color: var(--surface);
     color: var(--ink);
@@ -208,14 +207,59 @@ control. A palette is one object, and a theme switch is one call:
 </style>
 ```
 
-`set_css_vars` restyles only the elements that use a variable, all in one frame, and a call that
-changes nothing does nothing. `var()` works on any property, pixel-only ones included, and inside
-inline `style=` too. Keys work with or without the `--`, and setting one to `null` unsets it.
-
+`var()` works on any property, pixel-only ones included, and inside inline `style=` too.
 `var(--name, fallback)` uses the fallback while the variable is unset. Without a fallback, the
-declaration is dropped and a warning names the variable once. Setting the palette from an
-`$effect` like the one above is fine: the check runs after your effects have, so a variable the
-effect defines is never reported.
+declaration is dropped and a warning names the variable once.
+
+A `:root` rule follows the browser's rules wherever a window can:
+
+- The variables exist once the component's file is imported, mounted or not. Where two files
+  declare the same one, the file imported later wins, and a component's own rule wins over those of
+  the components it imports.
+- A variable may read another (`--accent-ink: var(--accent)`). One that reads an unset variable
+  with no fallback, or that is part of a cycle, counts as unset itself.
+- `@media` around the rule works as around any other (see [Media queries](#media-queries)), so
+  `@media (max-width: 700px) { :root { --gap: 8px; } }` changes `--gap` as the window is resized.
+- `:global(:root)` means the same.
+- Under `render_hot`, an edit to the rule shows on save, like any other style.
+
+What a browser would honour and a window can't is refused when the component compiles, with a
+warning naming the file:
+
+- A property that is not a variable (`:root { color: red; }`). In a browser it styles `<html>`,
+  and a window has no element above your app's own root, so style that one or pass `rootStyle`.
+- `:root` with anything attached (`:root.dark`, `:root:hover`), and `@media` queries a window has
+  no answer for, such as `prefers-color-scheme`. Switch a palette with `set_css_vars` instead.
+- A variable declared on any other selector (`.card { --pad: 4px; }`). A browser scopes it to
+  that element and its descendants; here every variable is global, and one written in an inline
+  `style` is ignored.
+
+### Switching a theme
+
+`set_css_vars()` sets variables from JS, so a palette is one object and a theme switch is one call:
+
+```svelte
+<script>
+  import { set_css_vars } from 'gpuix-svelte';
+
+  const LIGHT = { surface: '#ffffff', ink: '#171717', border: '#e5e5e5' };
+  const DARK = { surface: '#111111', ink: '#ededed', border: '#242424' };
+  let { dark } = $props();
+
+  $effect(() => set_css_vars(dark ? DARK : LIGHT));
+</script>
+```
+
+It restyles only the elements that use a variable, all in one frame, and a call that changes
+nothing does nothing. Keys work with or without the `--`. Setting the palette from an `$effect`
+like the one above is fine: the check for unset variables runs after your effects have, so one the
+effect sets is never reported.
+
+A value set this way wins over a `:root` rule's, because the [DOM build](dom.md) writes it to
+`<html>`'s inline style, which a browser ranks above a rule. Setting it to `null` (or `''`) takes
+it away again, and the `:root` value, if there is one, shows through. So a `:root` rule can hold
+the defaults and `set_css_vars` only what a theme changes. A variable declared `!important` in
+`:root` is the exception, there as in a browser: `set_css_vars` can't override it.
 
 ## Media queries
 

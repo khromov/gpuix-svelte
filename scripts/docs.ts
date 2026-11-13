@@ -27,7 +27,7 @@ const NPM = 'https://www.npmjs.com/package/gpuix-svelte';
 
 const PAGES = [
 	{ source: 'README.md', name: 'overview', nav: 'Overview', about: 'what the package is, setup, how it differs from Svelte on the web, TypeScript config' },
-	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var() and set_css_vars' },
+	{ source: 'docs/styling.md', name: 'styling', nav: 'Styling', about: 'every CSS property and value GPUI accepts, what is dropped, theming with var(), :root and set_css_vars' },
 	{ source: 'docs/components.md', name: 'components', nav: 'Components', about: 'Scroller (scrollbars, virtual lists), Portal (modals, menus, toasts), Tooltip, Popover and the native <anchored> they build on' },
 	{ source: 'docs/guide.md', name: 'guide', nav: 'Guide', about: 'forms and inputs, keyboard shortcuts and focus, window and desktop helpers, state that survives hot reload' },
 	{ source: 'docs/accessibility.md', name: 'accessibility', nav: 'Accessibility', about: 'what reaches a screen reader (text, roles, aria-* attributes), what GPUI lacks and what to use instead, keyboard and focus patterns for menus, dialogs and lists' },

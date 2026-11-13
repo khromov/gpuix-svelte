@@ -19,7 +19,7 @@ import type {
 } from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
 import { observeWindowSize, type WindowSizeHost } from '@gpuix/native/host';
-import { build_style, define_css_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
+import { build_style, define_css_vars, define_sheet_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import { place_layer } from './layers.ts';
@@ -33,6 +33,7 @@ import type {
 	Native,
 	NativeSink,
 	NodeKind,
+	RootRule,
 	ShadowNode,
 	WindowKeyType,
 	WindowNative
@@ -214,6 +215,19 @@ const untold_repeats = () => globalThis.process?.platform === 'linux';
 const stylesheets = new Map<string, ClassRule[]>();
 const NO_RULES: readonly ClassRule[] = [];
 
+/**
+ * file -> its `:root` rules, files in the order they first evaluated, which is where a browser's cascade keeps a sheet.
+ * `mount` is the mount a hot file declared them for, null for a file that evaluates once.
+ */
+const root_sheets = new Map<string, { rules: RootRule[]; mount: number | null }>();
+let mounts = 0;
+
+/** A `:root` rule under `@media` keeps the window observed while no element depends on its size. */
+let root_media = false;
+
+/** A variable changed, and the next commit restyles what reads one. */
+let vars_moved = false;
+
 let on_dirty: (() => void) | null = null;
 
 /** How the frame loop hears of a mutation made between its ticks (a timer, a fetch), which a display-link wake never reports. */
@@ -379,9 +393,32 @@ function on_viewport(size: Viewport) {
 	const before = viewport;
 	viewport = { width: size.width, height: size.height };
 	if (before === null || !media_changed(before, viewport)) return;
+	if (root_media) cascade_root_vars();
 	for (const n of media_nodes) {
 		if (n.nativeId !== null) apply_style(n);
 	}
+}
+
+function vars_changed() {
+	vars_moved = true;
+	mark_dirty();
+}
+
+function cascade_root_vars() {
+	const vars = new Map<string, string>();
+	const important = new Map<string, string>();
+	root_media = false;
+	for (const sheet of root_sheets.values()) {
+		for (const rule of sheet.rules) {
+			if (rule.media) {
+				root_media = true;
+				if (!media_active(rule.media, current_viewport())) continue;
+			}
+			for (const [name, value] of Object.entries(rule.vars)) vars.set(name, value);
+			for (const [name, value] of Object.entries(rule.important ?? {})) important.set(name, value);
+		}
+	}
+	if (define_sheet_vars(vars, important)) vars_changed();
 }
 
 function stop_viewport_observer() {
@@ -824,6 +861,12 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 	stylesheets.set(scope, rules);
 }
 
+/** At import time too, as a browser has a sheet's variables once the sheet loads; `hot` is a file `render_hot` evaluates again on every reload. */
+export function define_root_vars(file: string, rules: RootRule[], hot = false) {
+	root_sheets.set(file, { rules, mount: hot ? mounts : null });
+	cascade_root_vars();
+}
+
 /**
  * How the renderer learns the window's size for `@media` rules: window.ts installs the poll behind
  * `window_size`, started by the first such rule and stopped once none is live.
@@ -837,13 +880,10 @@ export function set_viewport_observer(observe: ViewportObserver) {
  * and the whole sweep ships in the next batch like any other frame. A palette identical
  * to the one in force — a theme effect re-running — is a no-op.
  *
- * `vars` is `{ surface: '#fff' }` for `var(--surface)`.
+ * `vars` is `{ surface: '#fff' }` for `var(--surface)`; a value outranks a `:root` rule's, and `null` gives that one back.
  */
 export function set_css_vars(vars: Record<string, string | number | null>) {
-	if (!define_css_vars(vars)) return;
-	for (const n of by_id.values()) {
-		if (n.uses_vars) apply_style(n);
-	}
+	if (define_css_vars(vars)) vars_changed();
 }
 
 // Host wiring for `render.ts` and the test harness.
@@ -856,6 +896,13 @@ export function set_native(instance: NativeSink) {
 	inheriting_svgs = new Set();
 	media_nodes = new Set();
 	stop_viewport_observer();
+	// A reload evaluates every hot file it still imports before it remounts, so the rules one did not declare again have left the app.
+	for (const [file, sheet] of root_sheets) {
+		if (sheet.mount !== null && sheet.mount !== mounts) root_sheets.delete(file);
+	}
+	mounts++;
+	cascade_root_vars();
+	vars_moved = false;
 	focused_input = null;
 	root_node = null;
 	portals = new Set();
@@ -999,6 +1046,14 @@ export function set_auto_commit(enabled: boolean) {
 
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
+	if (vars_moved) {
+		vars_moved = false;
+		// Not what left the tree, which is destroyed below: after a hot reload that is the old tree, and it would be reported for every variable the edit removed.
+		for (const n of by_id.values()) {
+			if (n.uses_vars && n.live) apply_style(n);
+		}
+	}
+
 	// Above the empty-queue return below: a frame that only restyled still has to report.
 	flush_var_warnings();
 
@@ -1040,7 +1095,7 @@ export function commit() {
 		}
 		by_id.delete(id);
 	}
-	if (media_nodes.size === 0) stop_viewport_observer();
+	if (media_nodes.size === 0 && !root_media) stop_viewport_observer();
 
 	run_after_commit();
 }
