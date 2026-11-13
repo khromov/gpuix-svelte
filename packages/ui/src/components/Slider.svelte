@@ -196,6 +196,7 @@
 		background-color: var(--ui-accent);
 	}
 	.lead {
+		position: relative;
 		display: flex;
 		flex-direction: row;
 		justify-content: end;

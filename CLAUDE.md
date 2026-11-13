@@ -568,8 +568,10 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   `motion`, `Toaster`'s key, `Select` on Alt+Down).
 - **CSS that holds on both**: no descendant selectors, no `@keyframes` (`Spinner` and `Skeleton` are
   timers), a length `flex-basis` only under a width query (`0` is fine anywhere; GPUI has no `auto`
-  for it), and `border-width: 0 0 1px 0` rather than a lone `border-style`, which a browser draws
-  3 px wide.
+  for it), `border-width: 0 0 1px 0` rather than a lone `border-style`, which a browser draws
+  3 px wide, and `position: relative` on any sibling that follows a `position: absolute` one and must
+  paint over it, since a browser paints positioned boxes above static ones whatever their order
+  (GPUI goes by document order alone; `Slider`'s rail covered its thumb in the DOM).
 - **Escape goes through the package's `dismiss_layer`**, not a stack of the toolkit's own: `Dialog`
   takes a layer while open (a non-dismissable one too, so its Escape never reaches an overlay
   underneath) with its `dismiss_scope()`, and `Menu` and `Select` are on the stack through their
