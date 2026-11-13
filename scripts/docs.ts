@@ -74,6 +74,8 @@ function rewrite(href: string, from: string, as: 'html' | 'md') {
 	const target = posix.normalize(posix.join(posix.dirname(from), path)).replace(/\/$/, '');
 	const page = PAGES.find((p) => p.source === target);
 	if (page) return as === 'html' ? `${page.name}.html${anchor}` : `${SITE}${page.name}.md${anchor}`;
+	// A markdown copy's image has to be the file itself, where a blob URL is GitHub's page about it.
+	if (as === 'md' && target.endsWith('.png')) return `${RAW}/main/${target}`;
 	return `${REPO}/blob/main/${target}${anchor}`;
 }
 

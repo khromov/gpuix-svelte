@@ -1,6 +1,7 @@
 // Retakes every screenshot the homepage, the README and the docs carry, so a restyled example
 // shows up everywhere at once: the window captures through gpuix-svelte/automation (a real window
-// per example, driven to the state each image documents), the web capture and the README image
+// per example, driven to the state each image documents, and one per sample of docs/ui.md, which
+// scripts/ui-shot opens framed as the docs page frames it), the web capture and the README image
 // (four of those captures with CSS window chrome on a dark background) through headless Chrome
 // over the DevTools protocol, and the two og images through scripts/og.ts. Runs through the bin
 // (`npm run shots`), since the automation module needs the custom-renderer conditions; needs
@@ -10,7 +11,9 @@
 //
 //   npm run shots                       # everything, in dependency order
 //   npm run shots -- --only hn,demos    # a subset: counter, tictactoe, styling, hn, desktop,
-//                                       # tutorial, starter, web, demos, og, og-docs
+//                                       # tutorial, starter, ui-buttons, ui-cards, ui-fields,
+//                                       # ui-choices, ui-overlays, ui-router, ui-responsive (or ui
+//                                       # for all seven), web, demos, og, og-docs
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,6 +26,7 @@ import { launch, type App, type Locator, type TreeNode } from 'gpuix-svelte/auto
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const SHOTS = join(root, 'homepage/assets/shots');
+const DOCS_ASSETS = join(root, 'docs/assets');
 const README_IMAGE = join(root, '.github/resources/demos.png');
 const WORK = join(root, 'dist/shots');
 const SETTLE = 600;
@@ -38,6 +42,8 @@ interface WindowShot {
 	out: string;
 	env?: Record<string, string>;
 	ready: (app: App) => Promise<unknown>;
+	/** The picture shows what `ready` left the pointer over, a tooltip say, so it stays there. */
+	hover?: boolean;
 }
 
 const apps = new Set<App & { process: ChildProcess }>();
@@ -80,6 +86,79 @@ function starter_entry() {
 	return 'dist/shots/starter/app.ts';
 }
 
+// The docs page's ```svelte demo <name>``` block, written out under the repository so its imports resolve.
+function ui_sample(name: string) {
+	const block = readFileSync(join(root, 'docs/ui.md'), 'utf8').match(new RegExp(`^\`\`\`svelte demo ${name}\\n([\\s\\S]*?)^\`\`\``, 'm'));
+	if (!block) throw new Error(`docs/ui.md has no \`\`\`svelte demo ${name} block`);
+	mkdirSync(join(WORK, 'ui'), { recursive: true });
+	const file = join(WORK, 'ui', `${name}.svelte`);
+	writeFileSync(file, block[1]);
+	return file;
+}
+
+// 760 is the docs column, so the 2× capture shows at its real size there.
+function ui_shot(sample: string, height: number, ready: WindowShot['ready'] = painted, hover = false): WindowShot {
+	return {
+		entry: 'scripts/ui-shot/main.ts',
+		out: join(DOCS_ASSETS, `ui-${sample}.png`),
+		get env() {
+			return { GPUIX_UI_SHOT: JSON.stringify({ source: ui_sample(sample), width: 760, height }) };
+		},
+		ready,
+		hover
+	};
+}
+
+const UI_SHOTS: Record<string, WindowShot> = {
+	'ui-buttons': ui_shot(
+		'buttons',
+		150,
+		async (app) => {
+			for (let i = 0; i < 3; i++) await app.getByText('+').click();
+			// Native only lets go of the + button's hover on a move after a read, and the odd run needs the pointer to leave and come back.
+			const tip = app.getByText('A tooltip on a button');
+			await wait_for('the tooltip', async () => {
+				await app.getByText('Hover me').hover();
+				await sleep(500);
+				if ((await tip.count()) > 0) return true;
+				await app.mouse.move({ x: 2, y: 2 });
+				await painted(app);
+				return false;
+			});
+			await app.getByText('Hover me').hover();
+		},
+		true
+	),
+	'ui-cards': ui_shot('cards', 280, async (app) => {
+		await app.getByText('Advance').click();
+		await present(app.getByText('55'), 'the advanced progress');
+	}),
+	'ui-fields': ui_shot('fields', 456, async (app) => {
+		await app.getByType('input').fill('Ada');
+		await app.getByText('Pick one').click();
+		await app.getByText('Banana').click();
+		await present(app.getByText('Ada, picked banana.'), 'the pick');
+		await app.getByText('Banana').click();
+		await present(app.getByText('An acquired taste'), 'the reopened list');
+	}),
+	'ui-choices': ui_shot('choices', 424, async (app) => {
+		await app.getByText('Accept the terms').click();
+		await present(app.getByText('terms accepted'), 'the checked box');
+	}),
+	'ui-overlays': ui_shot('overlays', 300, async (app) => {
+		await app.getByText('Toast').click();
+		await present(app.getByText('Export finished'), 'the toast');
+		await app.getByText('Actions').click();
+		await present(app.getByText('Duplicate'), 'the menu');
+	}),
+	'ui-router': ui_shot('router', 160, async (app) => {
+		await app.getByText('Items').click();
+		await app.getByText('#2').click();
+		await present(app.getByText('Item 2,'), 'the item screen');
+	}),
+	'ui-responsive': ui_shot('responsive', 370)
+};
+
 const WINDOWS: Record<string, WindowShot> = {
 	counter: {
 		entry: 'examples/counter/main.ts',
@@ -110,18 +189,20 @@ const WINDOWS: Record<string, WindowShot> = {
 	}
 };
 
-async function capture_window(name: string, { entry, out, env, ready }: WindowShot) {
+async function capture_window(name: string, { entry, out, env, ready, hover }: WindowShot) {
 	const app = await launch({ entry, cwd: root, env });
 	apps.add(app);
 	try {
 		await ready(app);
 		await sleep(SETTLE);
-		// The last click leaves the pointer over its button, whose native :hover is restyled only by a
-		// move that follows a read after the move that left it; moves alone leave it hovered.
-		await app.mouse.move({ x: 2, y: 2 });
-		await painted(app);
-		await app.mouse.move({ x: 3, y: 3 });
-		await sleep(SETTLE);
+		if (!hover) {
+			// The last click leaves the pointer over its button, whose native :hover is restyled only by a
+			// move that follows a read after the move that left it; moves alone leave it hovered.
+			await app.mouse.move({ x: 2, y: 2 });
+			await painted(app);
+			await app.mouse.move({ x: 3, y: 3 });
+			await sleep(SETTLE);
+		}
 		await app.screenshot({ path: out });
 		log(`${name} → ${out} (${png_size(out).join('×')})`);
 	} finally {
@@ -403,7 +484,7 @@ function run(command: string, args: string[]) {
 // ---------------------------------------------------------------- steps
 
 const STEPS: Record<string, () => Promise<void>> = {
-	...Object.fromEntries(Object.entries(WINDOWS).map(([name, shot]) => [name, () => capture_window(name, shot)])),
+	...Object.fromEntries(Object.entries({ ...WINDOWS, ...UI_SHOTS }).map(([name, shot]) => [name, () => capture_window(name, shot)])),
 	web: capture_web,
 	demos: capture_demos,
 	og: async () => run(process.execPath, [join(root, 'scripts/og.ts')]),
@@ -414,7 +495,10 @@ const STEPS: Record<string, () => Promise<void>> = {
 };
 
 const { values: o } = parseArgs({ options: { only: { type: 'string' } } });
-const only = o.only?.split(',').map((s) => s.trim()).filter(Boolean);
+const only = o.only
+	?.split(',')
+	.map((s) => s.trim())
+	.flatMap((name) => (name === 'ui' ? Object.keys(UI_SHOTS) : name ? [name] : []));
 const unknown = only?.filter((name) => !(name in STEPS)) ?? [];
 if (unknown.length) {
 	console.error(`[shots] unknown: ${unknown.join(', ')} — the steps are ${Object.keys(STEPS).join(', ')}`);

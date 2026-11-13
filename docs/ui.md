@@ -7,8 +7,8 @@
 `gpuix-svelte-ui` is a set of components written once for both renderers: a native window through
 gpuix-svelte, and a browser DOM through Vite or SvelteKit. Buttons, fields, choices, menus, dialogs,
 toasts, a few layout and feedback pieces, a router for the screens of an app, and the theme behind
-them. Every component on this page
-runs live, in the DOM; `npm run demo:ui` in the repository opens the same showcase in a GPUI window,
+them. Every component on this page runs live, in the DOM, and each section's picture is its sample
+in a GPUI window. `npm run demo:ui` in the repository opens the whole showcase in a GPUI window,
 and `npm run demo:ui-dom` serves it as a page.
 
 ## Setup
@@ -94,6 +94,8 @@ page follows it.
 
 ## Buttons, badges and keys
 
+![The buttons sample in a GPUI window: Default, Primary, Ghost, Danger, a dimmed Disabled and a search icon button; below them −, a badge reading 3, +, a hovered Hover me button with its tooltip under it, and a ⌘K key cap.](assets/ui-buttons.png)
+
 `Button` is a focusable box: Enter and Space press it, `variant` is `default`, `primary`, `ghost`
 or `danger`, `size` is `md` or `sm`, and `disabled` takes it out of the tab order. `label` names a
 button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, which is what lets a
@@ -120,7 +122,7 @@ button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, whi
   <Button size="sm" onclick={() => count--}>−</Button>
   <Badge tone="accent">{count}</Badge>
   <Button size="sm" onclick={() => count++}>+</Button>
-  <Tooltip content="A tooltip on a button">
+  <Tooltip content="A tooltip on a button" side="bottom">
     {#snippet children(hover, focus)}
       <Button {...hover} {...focus} size="sm">Hover me</Button>
     {/snippet}
@@ -134,6 +136,8 @@ button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, whi
 ```
 
 ## Cards, layout and feedback
+
+![The cards sample in a GPUI window: an Export card with a running badge and a spinner, a progress bar at 55%, a separator labelled who, an avatar with the initials AL beside two skeleton lines, and an Advance button in the footer.](assets/ui-cards.png)
 
 `Card` holds a `title`, `description`, `actions` snippet at the right of the title, the body and a
 `footer` snippet. `Stack` is a flex box with its spacing as props (`direction`, `gap`, `align`,
@@ -170,6 +174,8 @@ initials from `name` until it has a `src`.
 ```
 
 ## Fields
+
+![The fields sample in a GPUI window: a Name field holding Ada above its hint, an empty Notes text area, and the Fruit select open on Banana, its list showing Apple, a checked Banana, a dimmed Cherry and Durian with its description.](assets/ui-fields.png)
 
 `TextField` and `TextArea` wrap a real input: `value` in, `onchange(value)` on every edit, and
 `onsubmit(value)` on Enter. `label`, `hint` and `error` go around the box, `error` also colouring
@@ -211,6 +217,8 @@ trigger.
 ```
 
 ## Choices and ranges
+
+![The choices sample in a GPUI window: the Notifications toggle on, Accept the terms checked, the Pro plan picked with Team dimmed, the Overview tab selected with Billing dimmed, and the Volume slider at 40%.](assets/ui-choices.png)
 
 `Toggle` and `Checkbox` take `checked` and `onchange(checked)`, with a `label` (and a
 `description` under a checkbox). `RadioGroup` and `Tabs` take `options` / `items` of
@@ -256,6 +264,8 @@ readout beside its `label`.
 ```
 
 ## Menus, dialogs and toasts
+
+![The menus sample in a GPUI window: the Actions menu open under its button with Rename and its ⌘R shortcut, Duplicate and a red Delete, and an Export finished toast with an Open action in the bottom right corner.](assets/ui-overlays.png)
 
 `Menu` is a `Popover` with `items`: `{ label, onselect, disabled?, danger?, shortcut? }`, or
 `{ separator: true }`. You own `open`, the trigger toggles it, and an item that runs closes it, as
@@ -317,6 +327,8 @@ itself after `duration` ms (4000 by default; `null` keeps it) or when dismissed,
 ```
 
 ## Screens and routing
+
+![The router sample in a GPUI window on /items/2: the Items link highlighted, Back enabled and Forward dimmed, and the screen reading Item 2, with params typed from its pattern.](assets/ui-router.png)
 
 `Router` switches between screens by path, with a history stack behind it. In a window the stack
 is in memory, and a hot reload keeps the current screen; in a page the stack is the browser's, so
@@ -413,13 +425,15 @@ yet, so Tab still walks the controls behind a dialog.
 
 ## Responsive layouts
 
+![The responsive sample in a GPUI window 760 px wide: the three cards stacked one under another, and a badge reading stacked.](assets/ui-responsive.png)
+
 Both renderers answer `@media` queries over the window's width and height
 ([Styling](styling.md#media-queries)), and `media_query()` answers the same from JavaScript
 ([Guide](guide.md#media-queries)). The toolkit adds named breakpoints: `BREAKPOINTS` is
 `{ sm: 480, md: 768, lg: 1024, xl: 1280 }`, `min_width('md')` is `media_query('(min-width: 768px)')`
 and `max_width('md')` is `media_query('(width < 768px)')`, everything narrower, in the range form
-that leaves no fractional width between the two. Resize the browser to see both halves of this
-sample agree:
+that leaves no fractional width between the two. The window in the picture is 760 px wide, under
+`md`, so it stacks; resize the browser to see both halves of this sample agree:
 
 ```svelte demo responsive
 <script>

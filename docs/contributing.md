@@ -179,11 +179,14 @@ changing the hero or the docs template, and keep the `og:image:alt` text in step
 
 `npm run shots` retakes every other screenshot: the example windows in `homepage/assets/shots/`
 (each app launched through `gpuix-svelte/automation`, driven to the state its image shows and
-captured by GPUI at 2×), tic-tac-toe on the wasm build in headless Chrome, and the README's
+captured by GPUI at 2×), the picture of each `docs/ui.md` sample in `docs/assets/ui-*.png` (the
+sample written out of the page and framed in a window as wide as the docs column), tic-tac-toe on
+the wasm build in headless Chrome, and the README's
 `.github/resources/demos.png` (the fresh counter, tic-tac-toe and Hacker News captures and
 `glass.png`, with CSS window chrome on a dark background), and then runs `og` and `og:docs`,
 since both show what changed. It needs macOS or Windows for the windows, Bun for the web build
-and Chrome for the rest; `-- --only hn,demos` redoes a subset. `glass.png` is the one capture it
+and Chrome for the rest; `-- --only hn,demos` redoes a subset, and `-- --only ui` the toolkit's
+pictures, which want retaking when a sample in `docs/ui.md` changes. `glass.png` is the one capture it
 leaves alone, since the control center needs a desktop behind it, and the hero's wallpapers in
 `homepage/assets/wall/` are plain images it never touches. Run it after restyling an example; an
 `<img>`'s `width`/`height` (and a carousel tile's `--a`) only change if a window's size did.
