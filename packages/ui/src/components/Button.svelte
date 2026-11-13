@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { activates } from 'gpuix-svelte-ui/keys';
-	import { own_hitbox, test_id } from 'gpuix-svelte-ui/shared';
+	import { aria_disabled, own_hitbox, test_id } from 'gpuix-svelte-ui/shared';
 
 	let {
 		children,
@@ -42,6 +42,7 @@
 	role="button"
 	aria-label={label}
 	tabindex={disabled ? -1 : 0}
+	{...aria_disabled(disabled)}
 	{...own_hitbox}
 	{...test_id(testid)}
 	onclick={press}

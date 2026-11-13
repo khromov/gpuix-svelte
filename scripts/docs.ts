@@ -288,7 +288,7 @@ code { font-family: var(--mono); font-size: 0.875em; font-variant-ligatures: non
 .demo-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tip); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tip) 25%, transparent); }
 .prose .demo-head a { color: var(--muted); text-decoration: none; }
 .prose .demo-head a:hover { color: var(--fg); }
-.demo-result { padding: 24px; border: 1px solid var(--line); border-bottom: 0; background: var(--paper); color: var(--ink); font-size: 14px; line-height: 1.5; }
+.demo-result { padding: 24px; border: 1px solid var(--line); border-bottom: 0; background: var(--ui-bg, var(--paper)); color: var(--ui-ink, var(--ink)); font-size: 14px; line-height: 1.5; }
 .demo-result noscript { color: var(--dim); font-size: 13px; }
 .prose .demo .code { margin: 0; }
 .demo .code pre { border-radius: 0 0 10px 10px; }

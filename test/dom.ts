@@ -240,7 +240,12 @@ check('the picker resolves to null', await dom.prompt_for_paths(), null);
 check('read_native and get_native answer null', [dom.read_native(() => 1), dom.get_native()], [null, null]);
 check('the overlay reads as undefined', [dom.set_debug_overlay('full'), dom.debug_overlay_stats()].map(String), ['undefined', 'undefined']);
 check('window_size reads the viewport', [dom.window_size.width, dom.window_size.height], [1024, 768]);
-check('media_query is matchMedia', [dom.media_query('(min-width: 900px)').current, dom.media_query('(prefers-color-scheme: dark)').current], [true, false]);
+// The last one is what tells matchMedia from the window's parser, which answers false for a feature it cannot read.
+check(
+	'media_query is matchMedia',
+	[dom.media_query('(min-width: 900px)').current, dom.media_query('(prefers-color-scheme: dark)').current, dom.media_query('(prefers-color-scheme: light)').current],
+	[true, false, true]
+);
 check(
 	'window_insets are zero, with the keyboard fields following the height',
 	[dom.window_insets.safeArea.top, dom.window_insets.keyboardVisible, dom.window_insets.keyboardTop, dom.window_insets.visibleHeight],

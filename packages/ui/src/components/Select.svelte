@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Popover from 'gpuix-svelte/components/Popover.svelte';
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
-	import { key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
+	import { chorded, key_of, repeats, type KeyLike } from 'gpuix-svelte-ui/keys';
+	import { aria_disabled, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
 
 	let {
 		options,
@@ -29,7 +29,8 @@
 
 	function show() {
 		if (disabled) return;
-		active = Math.max(options.findIndex((o) => o.value === value), 0);
+		const chosen = options.findIndex((o) => o.value === value && !o.disabled);
+		active = chosen === -1 ? options.findIndex((o) => !o.disabled) : chosen;
 		open = true;
 	}
 
@@ -52,8 +53,16 @@
 	// The trigger keeps focus while the list is open, so the keys arrive here on both renderers.
 	function keydown(e: KeyLike) {
 		const key = key_of(e);
+		// Alt+Down opens a list box by convention, so a chord is only refused for the other keys.
+		if (chorded(e) && (open || (key !== 'down' && key !== 'up'))) return;
+		const press = key === 'enter' || key === 'space';
+		// A held Enter or Space repeats, and the press that opened the list must not go on to pick from it.
+		if (press && repeats(e)) {
+			e.preventDefault();
+			return;
+		}
 		if (!open) {
-			if (key === 'enter' || key === 'space' || key === 'down' || key === 'up') {
+			if (press || key === 'down' || key === 'up') {
 				e.preventDefault();
 				show();
 			}
@@ -62,7 +71,7 @@
 		if (key === 'down' || key === 'up') {
 			e.preventDefault();
 			move(key === 'down' ? 1 : -1);
-		} else if (key === 'enter' || key === 'space') {
+		} else if (press) {
 			e.preventDefault();
 			if (options[active]) choose(options[active]);
 		} else if (key === 'tab') {
@@ -82,6 +91,7 @@
 			aria-label={label}
 			aria-expanded={open}
 			tabindex={disabled ? -1 : 0}
+			{...aria_disabled(disabled)}
 			{...own_hitbox}
 			{...test_id(testid ? `${testid}-trigger` : null)}
 			onclick={() => (open ? (open = false) : show())}
@@ -99,10 +109,13 @@
 						class:disabled={option.disabled}
 						role="option"
 						aria-selected={option.value === value}
+						{...aria_disabled(option.disabled)}
 						{...own_hitbox}
 						{...test_id(testid ? `${testid}-${option.value}` : null)}
 						onclick={() => choose(option)}
-						onmouseenter={() => (active = i)}
+						onmouseenter={() => {
+							if (!option.disabled) active = i;
+						}}
 					>
 						<div class="text">
 							<div class="option-label">{option.label}</div>

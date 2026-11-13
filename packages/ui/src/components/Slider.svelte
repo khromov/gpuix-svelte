@@ -1,7 +1,6 @@
 <script lang="ts">
-	import Portal from 'gpuix-svelte/components/Portal.svelte';
-	import { key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { aria_value, bounds_of, own_hitbox, pointer_x, still_pressed, test_id, type Box } from 'gpuix-svelte-ui/shared';
+	import { chorded, key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
+	import { aria_disabled, aria_value, bounds_of, drag_handlers, own_hitbox, pointer_x, still_pressed, test_id, type Box } from 'gpuix-svelte-ui/shared';
 
 	let {
 		value,
@@ -36,10 +35,16 @@
 	let box: Box | null = null;
 	const fraction = $derived(max > min ? (Math.min(max, Math.max(min, value)) - min) / (max - min) : 0);
 
+	// The decimals a number is written with, `1e-7` included.
+	function decimals(n: number) {
+		const [mantissa, exponent = '0'] = String(n).split('e');
+		return Math.max(0, (mantissa.split('.')[1] ?? '').length - Number(exponent));
+	}
+
+	// Rounded to the grid's own precision, which is `min`'s where that is finer than `step`'s, to drop float error.
 	function snap(raw: number) {
-		const decimals = (String(step).split('.')[1] ?? '').length;
 		const stepped = Math.round((raw - min) / step) * step + min;
-		return Math.min(max, Math.max(min, Number(stepped.toFixed(decimals))));
+		return Math.min(max, Math.max(min, Number(stepped.toFixed(Math.min(100, Math.max(decimals(step), decimals(min)))))));
 	}
 
 	function set(raw: number) {
@@ -52,15 +57,14 @@
 		set(min + ((pointer_x(e) - box.x - INSET) / (box.width - 2 * INSET)) * (max - min));
 	}
 
-	function down(e: { x?: number; clientX?: number }) {
-		if (disabled) return;
+	function down(e: { x?: number; clientX?: number; button?: number }) {
+		if (disabled || (e.button ?? 0) !== 0) return;
 		box = bounds_of(track);
 		dragging = true;
 		from_pointer(e);
 	}
 
-	// Neither renderer captures the pointer for a drag, so a window-sized catcher hears the moves, and a move
-	// with no button held is a release that landed elsewhere.
+	// A move with no button held is a release that was never delivered.
 	function move(e: { x?: number; clientX?: number; pressedButton?: number | null; buttons?: number }) {
 		if (!dragging) return;
 		if (!still_pressed(e)) {
@@ -70,8 +74,12 @@
 		from_pointer(e);
 	}
 
+	const release = () => {
+		dragging = false;
+	};
+
 	function keydown(e: KeyLike) {
-		if (disabled) return;
+		if (disabled || chorded(e)) return;
 		const key = key_of(e);
 		const delta = key === 'right' || key === 'up' ? step : key === 'left' || key === 'down' ? -step : null;
 		if (delta !== null) {
@@ -103,10 +111,11 @@
 		aria-valuetext={format(value)}
 		{...aria_value(value, min, max)}
 		tabindex={disabled ? -1 : 0}
+		{...aria_disabled(disabled)}
 		{...own_hitbox}
 		{...test_id(testid ? `${testid}-track` : null)}
 		{@attach (node: unknown) => (track = node)}
-		onmousedown={down}
+		{...drag_handlers(down, move, release)}
 		onkeydown={keydown}
 	>
 		<div class="rail">
@@ -116,11 +125,6 @@
 			<div class="thumb"></div>
 		</div>
 	</div>
-	{#if dragging}
-		<Portal>
-			<div class="catcher" onmousemove={move} onmouseup={() => (dragging = false)}></div>
-		</Portal>
-	{/if}
 </div>
 
 <style>
@@ -164,6 +168,7 @@
 		border-radius: 12px;
 		cursor: pointer;
 		user-select: none;
+		touch-action: pan-y;
 		box-sizing: border-box;
 	}
 	.track:focus-visible {
@@ -213,14 +218,5 @@
 	}
 	.track.dragging {
 		background-color: var(--ui-raised);
-	}
-	.catcher {
-		position: absolute;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		left: 0;
-		cursor: pointer;
-		user-select: none;
 	}
 </style>

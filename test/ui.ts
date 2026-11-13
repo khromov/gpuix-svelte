@@ -8,8 +8,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mount_headless, find_test_id, find_all, find_text, click, click_test_id, click_text, click_at, focus, press, type, hover, wheel, drag, bounds, wait, settle, screenshot, check, finish, type TreeNode } from 'gpuix-svelte/test';
+import { mount_headless, find_test_id, find_all, find_text, click, click_test_id, click_text, click_at, focus, press, type, hover, mouse_down, mouse_move, mouse_up, wheel, drag, bounds, wait, settle, screenshot, check, finish, type TreeNode } from 'gpuix-svelte/test';
 import { before, href, navigate } from 'gpuix-svelte-ui/router';
+import { DARK } from 'gpuix-svelte-ui/theme';
+import { toast } from 'gpuix-svelte-ui/toast';
 
 const Showcase = (await import('../packages/ui/showcase/Showcase.svelte')).default;
 // The viewport is whatever the display allows (1024 wide on macOS CI, 749 tall on Windows), so nothing below
@@ -25,6 +27,7 @@ const has = (text: string) => find_text(text) !== null;
 const bg = () => find_test_id('page')?.style?.backgroundColor;
 const style_of = (id: string) => find_test_id(id)?.style ?? {};
 const closes = () => find_all((n) => /^toaster-\d+-close$/.test(n.testId ?? ''));
+const focused = (id: string) => native.getFocusedElementId() === find_test_id(id)?.id;
 const dismiss_all = () => {
 	for (const close of closes()) click(close);
 };
@@ -92,6 +95,11 @@ await tap('plus');
 await tap('plus');
 await tap('minus');
 check('small Buttons reach the counter', text_of('count'), '1');
+focus(find_test_id('plus')!);
+press('enter');
+press('space');
+press('enter', { held: true });
+check('Enter and Space press a focused Button, once per press', text_of('count'), '3');
 
 // --- the menu ------------------------------------------------------------------
 await reach('menu-button');
@@ -102,6 +110,10 @@ check('an item runs and closes it', [text_of('last'), find_test_id('menu-panel')
 await tap('menu-button');
 click_test_id('menu-archive');
 check('a disabled item does nothing', [text_of('last'), find_test_id('menu-panel') !== null], ['Last action: Rename', true]);
+focus(find_test_id('menu-duplicate')!);
+press('enter');
+check('Enter runs a focused item', [text_of('last'), find_test_id('menu-panel')], ['Last action: Duplicate', null]);
+await tap('menu-button');
 press('escape');
 check('Escape closes it', find_test_id('menu-panel'), null);
 
@@ -111,12 +123,19 @@ await tap('notifications');
 check('a Toggle reports its new state', text_of('choices-echo').startsWith('Notifications are off.'), true);
 await tap('terms');
 check('a Checkbox too', text_of('choices-echo').endsWith('Terms accepted.'), true);
+focus(find_test_id('terms')!);
+press('space');
+const unticked = text_of('choices-echo').endsWith('Terms pending.');
+press('enter');
+check('Space and Enter flip a focused Checkbox', [unticked, text_of('choices-echo').endsWith('Terms accepted.')], [true, true]);
 await reach('plan-free');
 await tap('plan-free');
 check('a radio click selects it', text_of('choices-echo').includes('Plan: free.'), true);
 focus(find_test_id('plan-free')!);
 press('down');
 check('an arrow key moves the selection', text_of('choices-echo').includes('Plan: pro.'), true);
+press('alt-down');
+check('but not with Alt held, a chord that is not the control’s', text_of('choices-echo').includes('Plan: pro.'), true);
 press('down');
 check('and skips a disabled option, wrapping around', text_of('choices-echo').includes('Plan: free.'), true);
 await tap('plan-team');
@@ -125,23 +144,45 @@ check('a disabled radio ignores clicks', text_of('choices-echo').includes('Plan:
 // --- fields --------------------------------------------------------------------
 await reach('name-input');
 await tap('name-input');
+check('a clicked TextField shows its focus border, which GPUI’s :focus-visible would not', style_of('name-input').borderColor, DARK.accent);
 type('A d a');
 check('typing into a TextField reports every edit', text_of('name-echo'), 'You typed: Ada');
 press('enter');
 check('Enter submits', has('Hello, Ada'));
 check('the TextArea is a native field', find_test_id('notes-input')?.type, 'textarea');
+await reach('locked-input');
+focus(find_test_id('name-input')!);
+click_test_id('locked-input');
+const kept = focused('name-input');
+press('tab');
+check('a disabled TextField takes no click and is no Tab stop', [kept, focused('notes-input')], [true, true]);
+focus(find_test_id('locked-input')!);
+press('enter');
+check('and Enter does not submit it', text_of('last'), 'Last action: Duplicate');
+const locked_at = bounds(find_test_id('locked-input')!)!.y;
+wheel(find_test_id('locked-input')!, 0, -40);
+await wait(80);
+check('while the wheel still scrolls the page from over it', bounds(find_test_id('locked-input')!)!.y < locked_at, true);
 
 await reach('fruit-trigger');
+focus(find_test_id('fruit-trigger')!);
+press('enter');
+press('enter', { held: true });
+check('Enter opens the Select, and holding it picks nothing', [find_test_id('fruit-list-panel') !== null, text_of('fruit-echo')], [true, 'Picked: nothing yet']);
+hover(find_test_id('fruit-cherry')!);
+press('enter');
+check('the list opened on the first enabled option, which keeps the highlight under a hovered disabled one, and Enter picks it', [text_of('fruit-echo'), find_test_id('fruit-list-panel')], ['Picked: apple', null]);
 await tap('fruit-trigger');
-check('the Select opens its list', find_test_id('fruit-list-panel') !== null);
+check('a click opens the list too', find_test_id('fruit-list-panel') !== null);
 click_test_id('fruit-banana');
 check('an option click picks it and closes the list', [text_of('fruit-echo'), find_test_id('fruit-list-panel')], ['Picked: banana', null]);
 focus(find_test_id('fruit-trigger')!);
+press('alt-down');
+check('Alt+Down on the trigger opens the list, as on any list box', find_test_id('fruit-list-panel') !== null);
 press('down');
-check('an arrow key on the trigger opens the list', find_test_id('fruit-list-panel') !== null);
 press('down');
 press('enter');
-check('and the arrows skip a disabled option before Enter picks', [text_of('fruit-echo'), find_test_id('fruit-list-panel')], ['Picked: durian', null]);
+check('and the arrows wrap around, skipping a disabled option, before Enter picks', [text_of('fruit-echo'), find_test_id('fruit-list-panel')], ['Picked: apple', null]);
 
 // --- the dialog, from its button in the header ----------------------------------------
 await reach('open-dialog');
@@ -187,10 +228,22 @@ check('dragging the Slider thumb sets the value', Math.abs(dragged - 75) <= 1, t
 focus(find_test_id('volume-track')!);
 press('right');
 check('an arrow key steps it', text_of('volume-echo'), `Volume: ${dragged + 1}`);
+press('alt-left');
+check('Alt+Left is Back, not a step', text_of('volume-echo'), `Volume: ${dragged + 1}`);
 press('end');
 check('End goes to the maximum, and the Progress follows', [text_of('volume-echo'), text_in('level')], ['Volume: 100', 'Level100%']);
 press('home');
 check('Home to the minimum', text_of('volume-echo'), 'Volume: 0');
+mouse_down(at(0.3), { button: 2 });
+mouse_up(at(0.3), { button: 2 });
+check('a right press starts no drag', text_of('volume-echo'), 'Volume: 0');
+const outside = { x: size.width + 200, y: at(0.5).y };
+mouse_down(at(0.5));
+mouse_move(outside, { pressed_button: 0 });
+const past_edge = text_of('volume-echo');
+mouse_up(outside);
+mouse_move(at(0.2));
+check('a drag follows the pointer past the window’s edge and ends with a release out there', [past_edge, text_of('volume-echo')], ['Volume: 100', 'Volume: 100']);
 
 // --- tabs -----------------------------------------------------------------------
 await reach('tabs-activity');
@@ -244,6 +297,15 @@ click_text('Open');
 check('its action runs and dismisses it', [text_of('last'), has('Export finished'), has('Saved')], ['Last action: Open', false, true]);
 await tap('toast-sticky');
 check('a sticky toast shows too', has('Disk almost full'));
+const sticky = closes().at(-1)!;
+focus(sticky);
+toast({ title: 'Queued', duration: null });
+settle();
+check('a toast arriving while a toast’s button has the focus leaves the layer mounted and the focus on it', [has('Queued'), native.getFocusedElementId() === sticky.id, find_test_id(sticky.testId!)?.id === sticky.id], [true, true, true]);
+focus(find_test_id('toast-plain')!);
+toast({ title: 'Another', duration: null });
+settle();
+check('and otherwise remounts it, to land above a Dialog opened since', [has('Another'), find_test_id(sticky.testId!)?.id === sticky.id], [true, false]);
 dismiss_all();
 check('and every one can be dismissed', [closes().length, has('Saved'), has('Disk almost full')], [0, false, false]);
 
@@ -261,4 +323,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 68);
+finish('ui', 83);

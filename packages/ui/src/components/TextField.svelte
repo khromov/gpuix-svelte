@@ -39,24 +39,25 @@
 	// GPUI's `change` carries the text as `e.value`; the DOM's `input` carries the element it came from.
 	const text_of = (e: Change) => (typeof e.value === 'string' ? e.value : String((e.target as { value?: string } | null)?.value ?? ''));
 
+	// A browser's `:focus-visible` matches a clicked text field and GPUI's only a tabbed one, so the border follows this instead.
+	let focused = $state(false);
+	const watch = { onfocus: () => (focused = true), onblur: () => (focused = false) };
+
 	// GPUI's input draws itself from a theme object rather than CSS, so the palette in force goes along with the handlers.
 	const field = $derived.by(() => {
-		const focus = autofocus ? { autofocus: true } : {};
 		if (IS_GPUIX) {
 			const p = theme.palette;
 			const skin: GpuixTheme = { appearance: p.appearance, bg: 'transparent', border: 'transparent', text: p.ink, textMuted: p.muted, accent: p.accent, caret: p.accent };
-			return {
-				...focus,
-				theme: skin,
-				readOnly: disabled || readonly,
-				onchange: (e: Change) => onchange(text_of(e)),
-				onsubmit: (e: Change) => onsubmit?.(text_of(e))
-			};
+			// Native has read-only but no disabled state, so the tab stop and Enter are taken away by hand.
+			const live = disabled ? { tabindex: -1 } : { ...(autofocus ? { autofocus: true } : {}), onsubmit: (e: Change) => onsubmit?.(text_of(e)) };
+			return { ...watch, ...live, theme: skin, readOnly: disabled || readonly, onchange: (e: Change) => onchange(text_of(e)) };
 		}
 		return {
-			...focus,
+			...watch,
+			...(autofocus ? { autofocus: true } : {}),
 			disabled,
 			readonly,
+			'aria-invalid': error !== null,
 			oninput: (e: Change) => onchange(text_of(e)),
 			// Enter during an IME composition commits the composition, not the field.
 			onkeydown: (e: Change & { key?: string; isComposing?: boolean }) => {
@@ -68,20 +69,31 @@
 
 <div class="field" class:disabled class:invalid={error !== null} {...test_id(testid)}>
 	{#if label}<div class="label">{label}</div>{/if}
-	<input class="input" class:invalid={error !== null} aria-label={label} {value} {placeholder} {...field} {...test_id(testid ? `${testid}-input` : null)} />
+	<input class="input" class:invalid={error !== null} class:focused={focused && !disabled} aria-label={label} {value} {placeholder} {...field} {...test_id(testid ? `${testid}-input` : null)} />
 	{#if error}
 		<div class="error">{error}</div>
 	{:else if hint}
 		<div class="hint">{hint}</div>
 	{/if}
+	<!-- GPUI's input takes a click whatever its pointer-events say, so a disabled one is covered: by a painted box, which blocks the click and not the wheel as an explicit pointer-events would. -->
+	{#if disabled}<div class="shield"></div>{/if}
 </div>
 
 <style>
 	.field {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 		min-width: 0;
+	}
+	.shield {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		background-color: #00000001;
 	}
 	.field.disabled {
 		opacity: 0.5;
@@ -113,16 +125,16 @@
 	.input:hover {
 		border-color: var(--ui-muted);
 	}
-	.input:focus-visible {
+	.input.focused {
+		border-color: var(--ui-accent);
+	}
+	.input.focused:hover {
 		border-color: var(--ui-accent);
 	}
 	.input.invalid {
 		border-color: var(--ui-danger);
 	}
 	.input.invalid:hover {
-		border-color: var(--ui-danger);
-	}
-	.input.invalid:focus-visible {
 		border-color: var(--ui-danger);
 	}
 	.hint,

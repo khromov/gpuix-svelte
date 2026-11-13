@@ -1,7 +1,8 @@
 /**
  * Bundles the UI toolkit's showcase for the DOM into one file, as a consumer's Vite would, exporting the
- * component, the router's API and the Svelte it was built with; test/ui-dom.ts imports it under happy-dom.
- * Always run on Node, since Vite runs there. The output directory is the argument, test/.ui-tmp by default;
+ * component, a few components the test mounts by themselves, the router's API and the Svelte it was built
+ * with; test/ui-dom.ts imports it under happy-dom. Always run on Node, since Vite runs there. The output
+ * directory is the argument (one inside the repository, where `svelte` resolves), test/.ui-tmp by default;
  * only its entry and dist/ are replaced, so what else lives there (test:ui's screenshot) stays.
  */
 
@@ -21,6 +22,7 @@ const showcase = relative(out, join(root, 'packages/ui/showcase/Showcase.svelte'
 writeFileSync(
 	entry,
 	`export { default as Showcase } from '${showcase.startsWith('.') ? showcase : `./${showcase}`}';
+export { Avatar, Slider, Tabs, TextField } from 'gpuix-svelte-ui';
 export { router, navigate, back, forward, before, href, match, start_router, stop_router } from 'gpuix-svelte-ui/router';
 export { mount, unmount, flushSync } from 'svelte';
 `

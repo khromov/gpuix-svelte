@@ -3,7 +3,7 @@
 	import Popover from 'gpuix-svelte/components/Popover.svelte';
 	import Kbd from 'gpuix-svelte-ui/components/Kbd.svelte';
 	import { activates } from 'gpuix-svelte-ui/keys';
-	import { own_hitbox, test_id, type MenuEntry } from 'gpuix-svelte-ui/shared';
+	import { aria_disabled, own_hitbox, test_id, type MenuEntry } from 'gpuix-svelte-ui/shared';
 
 	let {
 		open,
@@ -58,6 +58,7 @@
 						class:danger={entry.danger}
 						role="menuitem"
 						tabindex={entry.disabled ? -1 : 0}
+						{...aria_disabled(entry.disabled)}
 						{...own_hitbox}
 						{...test_id(testid ? `${testid}-${slug(entry.label)}` : null)}
 						onclick={() => select(entry)}

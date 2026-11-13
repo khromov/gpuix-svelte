@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { activates, key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { focus_node, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
+	import { activates, chorded, key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
+	import { aria_disabled, focus_node, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
 
 	let {
 		items,
@@ -17,6 +17,8 @@
 
 	const enabled = (item: Option) => !item.disabled;
 	const nodes: Record<string, unknown> = {};
+	// The first enabled tab stands in while `value` names none, or the list could not be reached by keyboard.
+	const stop = $derived(items.find((item) => item.value === value && enabled(item)) ?? items.find(enabled) ?? null);
 
 	function choose(item: Option) {
 		if (enabled(item) && item.value !== value) onchange(item.value);
@@ -29,6 +31,7 @@
 
 	// Arrows move the selection and focus with it, as a native tab list does, so only the selected tab is a tab stop.
 	function keydown(e: KeyLike, from: number) {
+		if (chorded(e)) return;
 		const key = key_of(e);
 		if (key === 'home' || key === 'end') {
 			e.preventDefault();
@@ -60,7 +63,8 @@
 			class:disabled={!enabled(item)}
 			role="tab"
 			aria-selected={item.value === value}
-			tabindex={item.value === value ? 0 : -1}
+			tabindex={item === stop ? 0 : -1}
+			{...aria_disabled(!enabled(item))}
 			{...own_hitbox}
 			{...test_id(testid ? `${testid}-${item.value}` : null)}
 			{@attach (node: unknown) => {

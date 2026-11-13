@@ -34,7 +34,8 @@ export interface RouteProps {
 export type Screen = AnyComponent | { render: Snippet<[RouteProps]> };
 export type RouteTable = Record<string, Screen>;
 
-export const screen = (render: Snippet<[RouteProps]>): Screen => ({ render });
+// Taken as a plain function, since an app's markup snippets are typed against its own copy of svelte, which need not be the one this package's declarations resolve.
+export const screen = (render: (props: RouteProps) => unknown): Screen => ({ render: render as Snippet<[RouteProps]> });
 
 /** The params a pattern names: `'/items/:id/:tab'` gives `{ id, tab }`. */
 export type Params<P extends string> = P extends `${string}:${infer Name}/${infer Rest}`
@@ -58,6 +59,8 @@ interface Saved {
 	index: number;
 	length: number;
 	state: unknown;
+	/** Which arrival the entry shows: a fragment link's entry shares the one it was followed from, so moving between the two is no navigation. */
+	visit: number;
 }
 
 const win = (): Window | null => (IS_GPUIX ? null : (globalThis.window ?? null));
@@ -70,6 +73,9 @@ let hooks: Hook[] = [];
 let stack: Entry[] = [{ href: '/', state: undefined }];
 let index = 0;
 let length = 1;
+// The current entry's `visit`, and the highest one handed out, seeded from the clock so a reload never reuses one.
+let visit = 0;
+let visits = 0;
 let generation = 0;
 let current: Route = describe('/', undefined);
 let swallow_pops = 0;
@@ -129,7 +135,9 @@ export function match(patterns: readonly string[], pathname: string): { pattern:
 	return patterns.includes('*') ? { pattern: '*', params: {} } : null;
 }
 
-function describe(href: string, state: unknown): Route {
+function describe(given: string, state: unknown): Route {
+	// A fragment is the browser's, and no part of the route.
+	const href = given.split('#')[0];
 	const at = href.indexOf('?');
 	const path = normalize(at === -1 ? href : href.slice(0, at));
 	const search = at === -1 ? '' : href.slice(at + 1);
@@ -200,10 +208,11 @@ const read_location = (w: Window) => (mode === 'hash' ? w.location.hash.slice(1)
 const url_for = (route_href: string) => (mode === 'hash' ? `#${route_href}` : route_href);
 const saved_in = (w: Window): Saved | undefined => (w.history.state as { __ui?: Saved } | null)?.__ui;
 
-// Merged into whatever state the entry already carries, since a SvelteKit page keeps its own there.
-function save(w: Window, replace: boolean, href: string, state: unknown) {
-	const merged = { ...(w.history.state as Record<string, unknown> | null), __ui: { index, length, state } satisfies Saved };
-	w.history[replace ? 'replaceState' : 'pushState'](merged, '', url_for(href));
+// A replacement merges into whatever state the entry already carries, since a SvelteKit page keeps its own
+// there; without a URL it only stamps the entry, and the address bar keeps what it says, fragment included.
+function save(w: Window, replace: boolean, url: string | undefined, at: Saved) {
+	const kept = replace ? (w.history.state as Record<string, unknown> | null) : null;
+	w.history[replace ? 'replaceState' : 'pushState']({ ...kept, __ui: at }, '', url);
 }
 
 function guard(to: Route): boolean | string {
@@ -246,8 +255,11 @@ export function start_router({ mode: wanted = 'history', initial = '/' }: { mode
 		const saved = saved_in(w);
 		index = saved?.index ?? 0;
 		length = Math.max(index + 1, saved?.length ?? 0);
+		visits = Math.max(Date.now(), saved?.visit ?? 0);
+		visit = saved?.visit ?? ++visits;
 		current = describe(read_location(w), saved?.state);
-		if (!saved) save(w, true, current.href, undefined);
+		// In history mode the address bar already says where this is, so the entry is stamped and the URL left alone.
+		if (!saved) save(w, true, mode === 'hash' ? url_for(current.href) : undefined, { index, length, state: undefined, visit });
 		w.addEventListener('popstate', on_pop);
 	}
 	notify();
@@ -279,12 +291,16 @@ export function navigate(path: string, { replace = false, state = undefined }: N
 		}
 		length = stack.length;
 	} else {
-		// A replacement keeps the browser's forward entries; only a push cuts them off.
-		if (!replace) {
-			index++;
-			length = index + 1;
-		}
-		save(w, replace, to.href, state);
+		// A replacement keeps the browser's forward entries; only a push cuts them off. The position moves once
+		// the history API has taken the entry, since a state it cannot clone makes it throw.
+		const at = replace ? index : index + 1;
+		const count = replace ? length : at + 1;
+		// Only history mode's URL has room for a fragment; a hash route is one already.
+		const fragment = mode === 'history' && path.includes('#') ? path.slice(path.indexOf('#')) : '';
+		save(w, replace, url_for(to.href) + fragment, { index: at, length: count, state, visit: visits + 1 });
+		index = at;
+		length = count;
+		visit = ++visits;
 	}
 	arrive(to);
 	return true;
@@ -302,8 +318,25 @@ function on_pop() {
 	const foreign = saved === undefined;
 	const to_index = foreign ? index + 1 : saved.index;
 	const to = describe(read_location(w), saved?.state);
+	// An entry carrying this one's own position is this entry again (a popstate dispatched by hand), where
+	// nothing moved, or a copy of its state other code pushed for another URL.
+	const beside = !foreign && to_index === index;
+	if (beside && to.href === current.href) return;
+	const count = foreign ? to_index + 1 : Math.max(length, to_index + 1);
+	// An entry made before a later push still carries the stack's old length, which a reload would read, so
+	// it is stamped again on arrival.
+	const stale = foreign || saved.length !== count;
+	// A fragment link in history mode, and the way back from one, show the same screen: nothing navigates.
+	if (mode === 'history' && to.href === current.href && (foreign || saved.visit === visit)) {
+		index = to_index;
+		length = count;
+		if (stale) save(w, true, undefined, { index, length, state: current.state, visit });
+		notify();
+		return;
+	}
 	const verdict = guard(to);
-	if (verdict === false) {
+	// A copy sits on one side of its original or the other with no telling which, so that move cannot be undone and stands.
+	if (verdict === false && !beside) {
 		// The browser already moved, so it is moved back, and that move is not a navigation either.
 		swallow_pops++;
 		if (foreign) w.history.back();
@@ -311,8 +344,9 @@ function on_pop() {
 		return;
 	}
 	index = to_index;
-	length = foreign ? index + 1 : Math.max(length, saved.length, index + 1);
-	if (foreign) save(w, true, to.href, undefined);
+	length = count;
+	visit = foreign ? ++visits : saved.visit;
+	if (stale) save(w, true, foreign && mode === 'hash' ? url_for(to.href) : undefined, { index, length, state: to.state, visit });
 	arrive(to);
 	if (typeof verdict === 'string') navigate(verdict, { replace: true });
 }

@@ -38,18 +38,26 @@
 
 	const text_of = (e: Change) => (typeof e.value === 'string' ? e.value : String((e.target as { value?: string } | null)?.value ?? ''));
 
+	// A browser's `:focus-visible` matches a clicked text field and GPUI's only a tabbed one, so the border follows this instead.
+	let focused = $state(false);
+	const watch = { onfocus: () => (focused = true), onblur: () => (focused = false) };
+
 	const field = $derived.by(() => {
 		if (IS_GPUIX) {
 			const p = theme.palette;
 			const skin: GpuixTheme = { appearance: p.appearance, bg: 'transparent', border: 'transparent', text: p.ink, textMuted: p.muted, accent: p.accent, caret: p.accent };
 			// Without `onsubmit` GPUI's Enter inserts a newline, so the handler goes on only when asked for.
 			const submit = onsubmit ? { onsubmit: (e: Change) => onsubmit?.(text_of(e)) } : {};
-			return { theme: skin, minRows: rows, maxRows: Math.max(rows, max_rows), readOnly: disabled || readonly, onchange: (e: Change) => onchange(text_of(e)), ...submit };
+			// Native has read-only but no disabled state, so the tab stop and Enter are taken away by hand.
+			const live = disabled ? { tabindex: -1 } : submit;
+			return { ...watch, ...live, theme: skin, minRows: rows, maxRows: Math.max(rows, max_rows), readOnly: disabled || readonly, onchange: (e: Change) => onchange(text_of(e)) };
 		}
 		return {
+			...watch,
 			rows,
 			disabled,
 			readonly,
+			'aria-invalid': error !== null,
 			oninput: (e: Change) => onchange(text_of(e)),
 			// Enter during an IME composition commits the composition, not the field.
 			onkeydown: (e: Change & { key?: string; shiftKey?: boolean; isComposing?: boolean; preventDefault(): void }) => {
@@ -63,20 +71,31 @@
 
 <div class="field" class:disabled class:invalid={error !== null} {...test_id(testid)}>
 	{#if label}<div class="label">{label}</div>{/if}
-	<textarea class="input" class:invalid={error !== null} aria-label={label} {value} {placeholder} {...field} {...test_id(testid ? `${testid}-input` : null)}></textarea>
+	<textarea class="input" class:invalid={error !== null} class:focused={focused && !disabled} aria-label={label} {value} {placeholder} {...field} {...test_id(testid ? `${testid}-input` : null)}></textarea>
 	{#if error}
 		<div class="error">{error}</div>
 	{:else if hint}
 		<div class="hint">{hint}</div>
 	{/if}
+	<!-- GPUI's textarea takes a click whatever its pointer-events say, so a disabled one is covered: by a painted box, which blocks the click and not the wheel as an explicit pointer-events would. -->
+	{#if disabled}<div class="shield"></div>{/if}
 </div>
 
 <style>
 	.field {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 		min-width: 0;
+	}
+	.shield {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		background-color: #00000001;
 	}
 	.field.disabled {
 		opacity: 0.5;
@@ -106,16 +125,16 @@
 	.input:hover {
 		border-color: var(--ui-muted);
 	}
-	.input:focus-visible {
+	.input.focused {
+		border-color: var(--ui-accent);
+	}
+	.input.focused:hover {
 		border-color: var(--ui-accent);
 	}
 	.input.invalid {
 		border-color: var(--ui-danger);
 	}
 	.input.invalid:hover {
-		border-color: var(--ui-danger);
-	}
-	.input.invalid:focus-visible {
 		border-color: var(--ui-danger);
 	}
 	.hint,

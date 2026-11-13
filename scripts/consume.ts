@@ -79,16 +79,22 @@ writeFileSync(manifest, JSON.stringify(json, null, '\t') + '\n');
 writeFileSync(
 	join(consumer, 'Ui.svelte'),
 	`<script lang="ts">
-	import { Badge, Button, apply_theme } from 'gpuix-svelte-ui';
+	import { Badge, Button, Router, apply_theme, screen } from 'gpuix-svelte-ui';
 
 	let count = $state(0);
 	$effect(() => apply_theme('dark'));
 </script>
 
+<!-- A markup snippet is typed against the app's own svelte, a second copy next to the one gpuix-svelte bundles. -->
+{#snippet home()}
+	<div>Home</div>
+{/snippet}
+
 <div style="display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 16px">
 	<Button onclick={() => count++} testid="plus">+</Button>
 	<Badge tone="accent">{count}</Badge>
 </div>
+<Router routes={{ '/': screen(home) }} />
 `
 );
 writeFileSync(

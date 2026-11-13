@@ -173,7 +173,8 @@ initials from `name` until it has a `src`.
 
 `TextField` and `TextArea` wrap a real input: `value` in, `onchange(value)` on every edit, and
 `onsubmit(value)` on Enter. `label`, `hint` and `error` go around the box, `error` also colouring
-it. They are controlled, so keep `value` in your state. On GPUI the input is native and draws its
+it, and a `disabled` field takes no focus, click or Enter on either renderer. They are
+controlled, so keep `value` in your state. On GPUI the input is native and draws its
 text from the palette `apply_theme` set; a `TextArea` grows from `rows` up to `max_rows` there,
 and Enter inserts a newline unless `onsubmit` is set.
 
@@ -214,9 +215,10 @@ trigger.
 `Toggle` and `Checkbox` take `checked` and `onchange(checked)`, with a `label` (and a
 `description` under a checkbox). `RadioGroup` and `Tabs` take `options` / `items` of
 `{ value, label, disabled? }` with `value` and `onchange(value)`; arrow keys move the selection
-and skip a disabled entry, and only the selected tab is a tab stop. `Slider` takes `value`, `min`,
-`max`, `step` and `onchange`: drag it, click the track, or use the arrows, Home and End; `format`
-prints the readout beside its `label`.
+and skip a disabled entry, and only the selected tab is a tab stop (the first enabled one while
+`value` names none). `Slider` takes `value`, `min`, `max`, `step` and `onchange`: drag it, past
+the window's edge too, click the track, or use the arrows, Home and End; `format` prints the
+readout beside its `label`.
 
 ```svelte demo choices
 <script>
@@ -324,7 +326,9 @@ leaves the URL alone). The table maps patterns to components, with `:param` segm
 fallback, and a screen receives `params` and `query` props; `screen(snippet)` puts a snippet in
 the table instead, for an app small enough to keep its screens in one file. Every navigation
 mounts the screen fresh, so state that should survive a round trip lives in a module or in the
-hidden `state` a navigation can carry.
+hidden `state` a navigation can carry. A `#fragment` is the browser's and never part of the
+route: in history mode a deep link keeps it, `navigate('/items#top')` puts it in the address bar,
+and a plain `<a href="#section">` on a screen scrolls without navigating.
 
 ```svelte
 <script>
@@ -452,12 +456,20 @@ cross-target the same way (see [DOM](dom.md#writing-a-component-for-both) for th
   painted children.
 - `test_id(id)` spreads `testid` on GPUI and `data-testid` in the DOM, which is what every
   component's `testid` prop becomes.
-- `aria_checked(checked)` spreads the state attribute each renderer's accessibility tree reads.
+- `aria_checked(checked)` spreads the state attribute each renderer's accessibility tree reads,
+  and `aria_disabled(disabled)` the one that tells a page's screen reader a control is off (GPUI
+  has no disabled state to set).
 - `key_of(e)` spells a key event's key the GPUI way on both renderers (`enter`, `space`, `up`),
-  and `activates(e)` says whether it presses a button.
+  `activates(e)` says whether it presses a button, `repeats(e)` whether the key is held, and
+  `chorded(e)` whether Alt, Ctrl or Cmd is: the arrow keys of a control leave such a chord to
+  the browser or the app (Alt+Left is Back).
 - `bounds_of(node)`, `pointer_x(e)` and `still_pressed(e)` read a box, a pointer and a held
-  button in one coordinate space, for drags; `focus_node(node)` focuses whatever an `{@attach}`
-  handed over.
+  button in one coordinate space, for drags. `{...drag_handlers(down, move, release)}` on the
+  element pressed keeps a drag going past it and the window's edge: mouse handlers on GPUI,
+  which captures the pointer for them, and pointer events with a capture in a page, so a finger
+  drags too (give the element a `touch-action`). `Slider` is built on it.
+- `focus_node(node)` focuses whatever an `{@attach}` handed over, and `holds_focus(node)` says
+  whether the keyboard focus is on it or inside it.
 - `MONO` is a monospace family each side has (`var(--ui-mono)` in CSS).
 
 Every interactive component takes a `testid`, and the derived ids are documented on each prop

@@ -2,7 +2,7 @@
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import Button from 'gpuix-svelte-ui/components/Button.svelte';
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
-	import { test_id } from 'gpuix-svelte-ui/shared';
+	import { holds_focus, test_id } from 'gpuix-svelte-ui/shared';
 	import { dismiss_toast, toasts, type ToastItem } from 'gpuix-svelte-ui/toast';
 
 	// Rendered once, anywhere: it paints the queue `toast()` fills from a Portal, so it sits above the app.
@@ -19,13 +19,30 @@
 		item.action?.onclick();
 		dismiss_toast(item.id);
 	}
+
+	let column: unknown = null;
+	let seen = 0;
+	let layer = 0;
+
+	// Portals paint in mount order, so the layer is remounted when a toast arrives and lands above a Dialog opened
+	// since; not while one of its buttons holds the keyboard focus, which a remount would drop.
+	function layer_for(latest: number) {
+		if (latest !== seen && !holds_focus(column)) layer = latest;
+		seen = latest;
+		return layer;
+	}
 </script>
 
 {#if toasts.current.length > 0}
-	<!-- Portals paint in mount order, so the layer is remounted for each new toast and lands above a Dialog opened since. -->
-	{#key toasts.current[toasts.current.length - 1].id}
+	{#key layer_for(toasts.latest)}
 		<Portal>
-			<div class="toaster {position}" {...test_id(testid)}>
+			<div
+				class="toaster {position}"
+				{...test_id(testid)}
+				{@attach (node: unknown) => {
+					column = node;
+				}}
+			>
 			{#each toasts.current as item (item.id)}
 				<div class="toast {item.tone}" role="status" {...test_id(testid ? `${testid}-${item.id}` : null)}>
 					<div class="bar {item.tone}"></div>

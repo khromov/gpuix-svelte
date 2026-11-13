@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { activates, key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
-	import { aria_checked, focus_node, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
+	import { activates, chorded, key_of, type KeyLike } from 'gpuix-svelte-ui/keys';
+	import { aria_checked, aria_disabled, focus_node, own_hitbox, test_id, type Option } from 'gpuix-svelte-ui/shared';
 
 	let {
 		options,
@@ -32,6 +32,7 @@
 
 	// Arrows move the selection itself, and focus with it, as native radio groups do; Enter and Space select the focused one.
 	function keydown(e: KeyLike, from: number) {
+		if (chorded(e)) return;
 		const key = key_of(e);
 		const delta = key === 'down' || key === 'right' ? 1 : key === 'up' || key === 'left' ? -1 : 0;
 		if (delta === 0) {
@@ -59,6 +60,7 @@
 			aria-label={option.label}
 			{...aria_checked(option.value === value)}
 			tabindex={option === stop ? 0 : -1}
+			{...aria_disabled(!enabled(option))}
 			{...own_hitbox}
 			{...test_id(testid ? `${testid}-${option.value}` : null)}
 			{@attach (node: unknown) => {

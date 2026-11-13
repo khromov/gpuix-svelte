@@ -73,9 +73,9 @@
 		{ value: 'team', label: 'Team', description: 'Shared workspaces', disabled: true }
 	];
 	const FRUITS: Option[] = [
+		{ value: 'cherry', label: 'Cherry', description: 'Out of season', disabled: true },
 		{ value: 'apple', label: 'Apple' },
 		{ value: 'banana', label: 'Banana' },
-		{ value: 'cherry', label: 'Cherry', disabled: true },
 		{ value: 'durian', label: 'Durian', description: 'An acquired taste' }
 	];
 	const TABS: Option[] = [
@@ -136,6 +136,7 @@
 					<Card title="Fields">
 						<TextField value={name} onchange={(v) => (name = v)} onsubmit={() => toast(`Hello, ${name || 'stranger'}`)} label="Name" placeholder="Your name" hint="Enter shows a toast" testid="name" />
 						<div class="muted" {...test_id('name-echo')}>You typed: {name || '(nothing)'}</div>
+						<TextField value="acme" onchange={() => {}} onsubmit={() => (last = 'Locked')} label="Workspace" hint="A disabled field" disabled testid="locked" />
 						<TextArea value={notes} onchange={(v) => (notes = v)} label="Notes" placeholder="A few lines" rows={2} testid="notes" />
 						<Select options={FRUITS} value={fruit} onchange={(v) => (fruit = v)} label="Fruit" placeholder="Pick one" testid="fruit" />
 						<div class="muted" {...test_id('fruit-echo')}>Picked: {fruit ?? 'nothing yet'}</div>

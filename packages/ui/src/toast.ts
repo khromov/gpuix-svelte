@@ -38,6 +38,11 @@ export const toasts = {
 	get current(): readonly ToastItem[] {
 		subscribe();
 		return items;
+	},
+	/** The id of the last toast shown, 0 before the first: it moves when one arrives and never when one goes. */
+	get latest(): number {
+		subscribe();
+		return next_id - 1;
 	}
 };
 

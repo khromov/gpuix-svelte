@@ -807,7 +807,9 @@ building. The design:
   hang their layer off `<body>`, and because the `dom.md` theme demo's `set_css_vars` writes
   `<html>`'s inline style, which outranks the `:root` rule: the frame (`.demo-result` reads
   `--paper`/`--ink`) follows the theme and the site's own tokens (`--bg`, `--fg`, `--accent`, …),
-  which no demo may name, do not. `test/docs.ts` runs the build on Node whatever runtime runs it
+  which no demo may name, do not. The frame reads the toolkit's `--ui-bg` / `--ui-ink` ahead of
+  those two, which only `ui.md`'s demos set (`apply_theme`), or its light palette left dark ink
+  on the dark frame. `test/docs.ts` runs the build on Node whatever runtime runs it
   (`node` from PATH under Bun), imports the bundle under happy-dom with an empty body, then calls
   `mount_demos()` per built page with the page's inline script stripped.
 - **The docs' playground** (`playground/`, built by `scripts/playground.ts`, at `/playground.html`
@@ -904,15 +906,33 @@ design:
   starter's typecheck over a component that uses it, a headless test clicking a `Button`, and the
   Vite build importing it.
 - **Per-renderer differences stay in `src/shared.ts`**, as spreads (`own_hitbox`, `test_id`,
-  `aria_checked`) and reads (`bounds_of`, `pointer_x`, `still_pressed`, `focus_node`), since the DOM
+  `aria_checked`, `aria_disabled`, `drag_handlers`) and reads (`bounds_of`, `pointer_x`,
+  `still_pressed`, `focus_node`, `holds_focus`), since the DOM
   typecheck refuses GPUI attributes written out and GPUI measures through native. `Icon` is the one
   `{#if IS_GPUIX}` in markup: `<svg source>` natively, the markup written into a `<div>` by an
   `{@attach}` in the DOM, because `{@html}` is refused under the custom renderer even in a branch.
   `TextField` / `TextArea` branch their handlers (GPUI's `change` carries `e.value`, the DOM's
-  `input` the element) and hand GPUI's input a `theme` object from `theme.palette`. `Toggle`
+  `input` the element) and hand GPUI's input a `theme` object from `theme.palette`. Their focus
+  border follows a `focused` class set from `onfocus` / `onblur`, not `:focus-visible`, which a
+  browser matches on a clicked text field and GPUI only on a tabbed one. Native has `readOnly`
+  but no disabled state, so a disabled field on GPUI also gets `tabindex` -1, no `onsubmit`, and
+  an absolutely positioned `.shield` over the whole field, because the native input takes a
+  click whatever its `pointer-events` say. The shield is painted (`#00000001`), not given
+  `pointer-events: auto`: an explicit one makes native occlude the wheel too, and the page under
+  a disabled field stopped scrolling. `Toggle`
   animates its knob with `motion` on GPUI and a CSS transition in the DOM. `RadioGroup` and `Tabs`
   move focus with an arrow key (`focus_node`), or a second press repeats from the old element on
-  GPUI. In the CSS: no descendant selectors, no `@keyframes` (`Spinner` and `Skeleton` are
+  GPUI. `Slider`'s track takes `drag_handlers`: `mousedown`, `mousemove` and `mouseup` on GPUI,
+  which arms native pointer capture, and pointer events with `setPointerCapture` in a page (a
+  finger drags too; the track's `touch-action: pan-y` leaves vertical scrolling to the page), so
+  on both a drag goes on past the window's edge. Arrow, Home and
+  End handlers return on `chorded(e)` (Alt, Ctrl or Cmd held), or Alt+Left on a focused `Slider`
+  would step it and go back at once; `Select` still opens on Alt+Down, the list box convention.
+  `activates(e)` prevents the default of a held Enter or Space too, or a held Space scrolls the
+  page under the control. `Toaster` keys its Portal on `toasts.latest`, so the layer
+  is remounted when a toast arrives (never when one goes) and lands above a `Dialog` opened
+  since, except while `holds_focus` says one of its buttons has the keyboard focus, which the
+  remount would drop. In the CSS: no descendant selectors, no `@keyframes` (`Spinner` and `Skeleton` are
   timers), `flex-basis` only under a `min-width` query (GPUI has no `auto` for it), and
   `border-width: 0 0 1px 0` rather than a lone `border-style`, which a browser draws 3 px wide.
 - **Escape goes through the package's `dismiss_layer`**, not a stack of the toolkit's own: `Dialog`
@@ -925,21 +945,42 @@ design:
   (`start_router` is once per process; `stop_router` exists for the DOM test's mode switches), and in
   a page the history API or the hash holds the stack while the position (`index`, `length`) rides in
   each entry's `history.state.__ui`, which is how `can_go_back` / `can_go_forward` stay right through
-  the browser's own buttons. A `before` hook that cancels a `popstate` is undone with `history.go`
-  and the resulting `popstate` swallowed; a redirect from one navigates with `replace`. `match`
-  prefers a literal segment to a `:param` whatever the table order. `Router` registers the table's
-  patterns with `use_routes` before its first read (under `untrack`, then in an `$effect.pre`) so
-  `router.params` is right anywhere, keys the screen on the path so every navigation mounts it
-  fresh, and renders a `screen(snippet)` entry through `RouteSnippet`, since nothing tells a
-  snippet from a component at runtime. `Link` is a `<svelte:element this={IS_GPUIX ? 'div' : 'a'}>`
-  with the `href`, or the role, tabindex and Enter handling, spread per renderer; a modified click
-  in a page is left to the browser.
+  the browser's own buttons. An entry is stamped again when a pop arrives on it with a stale
+  `length` (one made before a later push), which is what a reload on it reads; the invariant is
+  that the entry the page is on always carries the current length. `__ui.visit` names the arrival
+  an entry shows: in history mode a plain fragment link's entry (no `__ui`, same path and query)
+  is given the current one, and a pop between entries of one `visit` moves the position without
+  `arrive()`, so the keyed screen stays mounted. Stamping an existing entry passes no URL in
+  history mode, so the address bar keeps its fragment and its spelling. A `before` hook that
+  cancels a `popstate` is undone with `history.go` and the resulting `popstate` swallowed; a
+  redirect from one navigates with `replace`. An entry carrying the current `index` is this entry
+  again when the URL is the current one too (a `popstate` dispatched by hand), and ignored, or a
+  copy of its state other code pushed for another URL: that one navigates at the same `index`,
+  and a hook's cancel of it is not honoured, since the copy may be on either side and undoing
+  the move would be `go(0)`, a reload, or a step the wrong way. A known limit: the router cannot
+  count entries other code pushes without a `popstate`, so the flags can be off by one around
+  them. `navigate` moves
+  `index` / `length` only after `pushState` returned, which throws on a state it cannot clone,
+  and `describe` cuts a `#fragment` off every path, which `navigate` puts back on the pushed URL
+  in history mode only.
+  `match` prefers a literal segment to a `:param` whatever the table order. `Router` registers
+  the table's patterns with `use_routes` before its first read (under `untrack`, then in an
+  `$effect.pre`) so `router.params` is right anywhere, keys the screen on `router.generation` so
+  every navigation mounts it fresh, one to the same path included, and renders a
+  `screen(snippet)` entry through `RouteSnippet`, since nothing tells a snippet from a component
+  at runtime. `Link` is a `<svelte:element>`: an `<a>` with the `href` in a page in history or
+  hash mode, and a `div` with the role, tabindex and Enter handling on GPUI and in a page in
+  memory mode, where a URL would mean nothing; a modified click in a page is left to the browser.
 - **Tests and demos.** `packages/ui/showcase/Showcase.svelte` is every component once, with test
   ids; `demo:ui` opens it, `demo:ui-dom` serves it, `test/ui.ts` clicks through it headlessly (the
   lower rows after a `wheel` each, since the viewport caps at ~540 px, and the dialog before that,
   since its button is in the header) and `test/ui-dom.ts` under happy-dom from the Vite bundle
   `scripts/ui-bundle.ts` writes to `test/.ui-tmp` (on Node even under Bun, like `test:docs`), which
-  also exports the router API so the test drives the instance the showcase's Router uses.
+  also exports the router API so the test drives the instance the showcase's Router uses, and a
+  few components the test mounts by themselves for props the showcase never gives them. That test
+  replaces happy-dom's `HistoryItemList.prototype.replace`, whose `replaceState` drops the entries
+  ahead of the current one as no browser does, and stands a reload in with `stop_router()` +
+  `start_router()`, which read the same history entry again.
   `check:svelte -- packages/ui` is the autofixer pass; its two suggestions are the timers.
 
 ## Hard constraints
@@ -1571,13 +1612,19 @@ released version), and merging that PR tags, creates the GitHub release, runs `n
 `id-token: write`; provenance is automatic). Each package has its own trusted publisher on
 npmjs.com: `khromov/gpuix-svelte`, workflow file `release.yml`. npm only lets a trusted publisher
 be configured on a package that already exists, so `gpuix-svelte-ui`'s first version has to be
-published by hand (`npm run publish:ui` with an npm token, before the release PR that carries it
-merges) and its trusted publisher set up after that; each publish step skips a version that is
+published by hand and its trusted publisher set up after that: `npm run publish:ui` with an npm
+token **from the release PR's own branch**, before that PR merges. There the version is the
+release's (0.6.0), so the peer range names the first gpuix-svelte the toolkit can load against;
+from `main` it would still be 0.5.0, a `gpuix-svelte-ui@0.5.0` that fails at import against
+`gpuix-svelte@0.5.0` (no `IS_GPUIX`, `media_query` or DOM build) and whose version number npm
+never gives back. Each publish step skips a version that is
 already on npm, so a job that failed part-way can be re-run. release-please's `extra-files` keeps
 `packages/create-gpuix-svelte/package.json`'s and `packages/ui/package.json`'s versions equal to
 the root's; the scaffolder writes `^<its own version>` into the app it creates (so
 `starter/package.json`'s own pin can lag), and the toolkit's published peer range is
-`^<its own version>` too.
+`^<its own version>` too. `bun.lock` records the workspace's `version` and release-please does not
+bump it there: `bun install --frozen-lockfile` accepts the mismatch (Bun 1.4.4), and the next plain
+`bun install` rewrites that one line, which is fine to commit.
 **PR titles must be conventional commits** (`feat:`, `fix:`, `docs:`, `chore:` …) — squash merges
 make the title the commit, and release-please ignores anything else. With the default
 `GITHUB_TOKEN` the release PR does not trigger `test.yml`; a `RELEASE_PLEASE_TOKEN` PAT secret

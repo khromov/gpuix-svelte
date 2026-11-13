@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from 'gpuix-svelte-ui/components/Icon.svelte';
 	import { activates } from 'gpuix-svelte-ui/keys';
-	import { aria_checked, own_hitbox, test_id } from 'gpuix-svelte-ui/shared';
+	import { aria_checked, aria_disabled, own_hitbox, test_id } from 'gpuix-svelte-ui/shared';
 
 	let {
 		checked,
@@ -30,6 +30,7 @@
 	role="checkbox"
 	aria-label={label}
 	{...aria_checked(checked)}
+	{...aria_disabled(disabled)}
 	tabindex={disabled ? -1 : 0}
 	{...own_hitbox}
 	{...test_id(testid)}

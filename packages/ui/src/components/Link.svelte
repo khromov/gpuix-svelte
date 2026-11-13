@@ -27,7 +27,7 @@
 
 	type Click = { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; button?: number; preventDefault(): void };
 
-	const target = $derived(href.split('?')[0].replace(/(.)\/$/, '$1'));
+	const target = $derived(href.split(/[?#]/)[0].replace(/(.)\/$/, '$1'));
 	const active = $derived(exact || target === '/' ? router.path === target : router.path === target || router.path.startsWith(`${target}/`));
 
 	// A modified or non-primary click in a browser stays the browser's (a new tab); GPUI reports neither here.
@@ -51,7 +51,7 @@
 				}
 			};
 		}
-		return { href: mode === 'hash' ? `#${href}` : href };
+		return { href: mode === 'hash' ? `#${href.split('#')[0]}` : href };
 	});
 	// Typed as the GPUI tag: that namespace knows no <a>, while the DOM typecheck takes any tag.
 	const tag = $derived((IS_GPUIX || router.mode === 'memory' ? 'div' : 'a') as 'div');
