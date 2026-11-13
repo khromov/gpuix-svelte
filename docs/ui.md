@@ -42,6 +42,10 @@ take it too, and `body { margin: 0 }` (`render()` sets the last one; see
 page can carry the palette before any effect runs:
 
 ```svelte
+<script>
+  import { DARK, theme_rule } from 'gpuix-svelte-ui';
+</script>
+
 <svelte:head>
   {@html `<style>${theme_rule(DARK)}</style>`}
 </svelte:head>
