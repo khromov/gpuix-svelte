@@ -29,10 +29,10 @@
 		testid?: string | null;
 	} = $props();
 
+	// Before the router starts, whose hooks read the first screen's pattern and params, then again whenever the table changes.
+	use_routes(untrack(() => Object.keys(routes)));
 	// Once per process: a later mount, a hot reload's, keeps the current screen, so only the first values count.
 	start_router(untrack(() => ({ mode, initial, base })));
-	// Before the first read of `router.params` below, then again whenever the table changes.
-	use_routes(untrack(() => Object.keys(routes)));
 	$effect.pre(() => use_routes(Object.keys(routes)));
 
 	const Entry = $derived(router.pattern === null ? null : routes[router.pattern]);

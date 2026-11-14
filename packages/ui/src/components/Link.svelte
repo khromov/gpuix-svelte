@@ -51,7 +51,7 @@
 		}
 		if (!IS_GPUIX && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button ?? 0) !== 0)) return;
 		e.preventDefault();
-		void navigate(href, { replace, state });
+		navigate(href, { replace, state }).catch((error: unknown) => console.error(`[gpuix-svelte-ui] a Link could not navigate to ${href}`, error));
 	}
 
 	// A real <a href> is a link only where the URL means something: in history and hash mode, or off to another

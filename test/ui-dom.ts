@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import HistoryItemList from 'happy-dom/lib/history/HistoryItemList.js';
+import type { LazyScreen } from '../packages/ui/src/router.ts';
 
 // happy-dom's replaceState drops the entries ahead of the current one, which no browser does, and the
 // router stamps an entry again when a pop arrives on it.
@@ -31,10 +32,28 @@ if (spawnSync(node, [join(root, 'scripts/ui-bundle.ts'), tmp], { cwd: root, stdi
 // A real origin, so the history API accepts pushState.
 GlobalRegistrator.register({ url: 'http://localhost/', width: 1024, height: 768 });
 
+// happy-dom moves through history inside the call, while a browser does it a task later, and the router has to
+// cope with whatever is done in between. The count is what `pop()` waits on, a runner's timers being too coarse to.
+let traversals = 0;
+const traversal = Object.getPrototypeOf(history) as History;
+for (const name of ['go', 'back', 'forward'] as const) {
+	const now = traversal[name] as (this: History, delta?: number) => void;
+	traversal[name] = function (this: History, delta?: number) {
+		traversals++;
+		setTimeout(() => {
+			try {
+				now.call(this, delta);
+			} finally {
+				traversals--;
+			}
+		});
+	};
+}
+
 // After the registration, or Svelte's client runtime would be evaluated with no `document`.
 const { check, finish } = await import('gpuix-svelte/test');
 // The router API comes from the bundle, where it is the instance the showcase's Router drives.
-const { Showcase, Avatar, Link, Router, Separator, Slider, Tabs, TextField, mount, flushSync, createRawSnippet, router, navigate, back, before, after, href, lazy, match, start_router, stop_router } = (await import(pathToFileURL(join(tmp, 'dist/showcase.js')).href)) as {
+const { Showcase, Avatar, Link, Router, Separator, Slider, Tabs, TextField, mount, unmount, flushSync, createRawSnippet, router, navigate, back, forward, before, after, href, screen, lazy, match, resolve, start_router, stop_router } = (await import(pathToFileURL(join(tmp, 'dist/showcase.js')).href)) as {
 	Showcase: never;
 	Avatar: never;
 	Link: never;
@@ -43,7 +62,8 @@ const { Showcase, Avatar, Link, Router, Separator, Slider, Tabs, TextField, moun
 	Slider: never;
 	Tabs: never;
 	TextField: never;
-	mount(component: never, options: { target: Element; props?: Record<string, unknown> }): unknown;
+	mount(component: never, options: { target: Element; props?: Record<string, unknown> }): Record<string, unknown>;
+	unmount(component: Record<string, unknown>): void;
 	flushSync(): void;
 	createRawSnippet: typeof import('svelte').createRawSnippet;
 } & typeof import('../packages/ui/src/router.ts');
@@ -310,6 +330,37 @@ check('and back', text('layout'), 'wide');
 
 // --- the router -----------------------------------------------------------------
 const route = () => [text('route'), location.pathname + location.search + location.hash];
+const logged: unknown[][] = [];
+const error = console.error;
+const quiet = () => {
+	logged.length = 0;
+	console.error = (...args: unknown[]) => void logged.push(args);
+};
+/** Long enough for the reactions to every promise settled so far, and too short for a traversal to land. */
+const tick = async () => {
+	for (let i = 0; i < 10; i++) await Promise.resolve();
+};
+/** Waits for a traversal to land, and for every one the router asks for in answer to it. */
+const pop = async (move: () => void = () => {}) => {
+	move();
+	await tick();
+	for (const deadline = Date.now() + 3000; traversals > 0 && Date.now() < deadline; ) await sleep(1);
+	flushSync();
+};
+/** A navigation the router may hold for a traversal: one it never lets go fails its check, where awaiting it would hang the run. */
+const within = <T>(navigation: Promise<T>) => Promise.race([navigation, sleep(3000).then(() => 'never' as const)]);
+/** A hook that waits to be answered, one answer per call. */
+function asking<V = boolean>() {
+	const answers: ((verdict: V) => void)[] = [];
+	return { answers, hook: () => new Promise<V>((resolve) => answers.push(resolve)) };
+}
+/** A new tab as far as the router can tell: a history entry of its own, with nothing registered. Without a URL it is a reload, which reads the same entry again. */
+function restart(url: string | null, options: Parameters<typeof start_router>[0]) {
+	stop_router();
+	if (url !== null) history.pushState(null, '', url);
+	start_router(options);
+	flushSync();
+}
 check('the Router starts from the page URL, in history mode', [text('screen')?.startsWith('Home.'), ...route(), router.mode], [true, 'At /', '/', 'history']);
 check('a Link is a real link, active on its own screen', [by_id('go-items')?.getAttribute('href'), by_id('go-home')?.classList.contains('active'), by_id('go-items')?.classList.contains('active')], ['/items', true, false]);
 click(by_id('go-items'));
@@ -320,22 +371,14 @@ flushSync();
 check('a modified click is left to the browser', [modified.defaultPrevented, text('route')], [false, 'At /items']);
 click(by_id('go-item-2'));
 check('a Link inside a screen, built by href(), carries its param', [text('screen'), router.params], ['Item 2, mounted fresh for this path.', { id: '2' }]);
-history.back();
-await sleep(20);
-flushSync();
+await pop(() => history.back());
 check("the browser's back pops the stack, flags included", [...route(), router.can_go_back, router.can_go_forward], ['At /items', '/items', true, true]);
 // A page leaves ⌘[ and ⌘] to the browser, which has them already; a window's Router handles them (test/ui.ts).
-key(window, '[', { metaKey: true });
-await sleep(20);
-flushSync();
+await pop(() => key(window, '[', { metaKey: true }));
 check('⌘[ is left to the browser in a page', route(), ['At /items', '/items']);
-history.forward();
-await sleep(20);
-flushSync();
+await pop(() => history.forward());
 check("the browser's forward goes again", route(), ['At /items/2', '/items/2']);
-history.back();
-await sleep(20);
-flushSync();
+await pop(() => history.back());
 click(by_id('go-lost'));
 check("an unmatched path renders the table's * entry", text('screen'), "Nothing at /nowhere; this is the table's * entry.");
 const off = before((to) => (to.path === '/items/3' ? '/' : to.path !== '/nowhere'));
@@ -343,9 +386,7 @@ click(by_id('go-item'));
 check('a before hook can redirect', route(), ['At /', '/']);
 click(by_id('go-lost'));
 check('or cancel', route(), ['At /', '/']);
-history.back();
-await sleep(20);
-flushSync();
+await pop(() => history.back());
 check("and cancels the browser's own back, which is undone", route(), ['At /', '/']);
 off();
 navigate(href('/items/:id', { id: 'a b' }, { tab: 'notes' }), { state: { from: 'test' } });
@@ -364,9 +405,7 @@ history.pushState(null, '', '/items?x=1#section');
 window.dispatchEvent(new PopStateEvent('popstate'));
 flushSync();
 const followed = [router.generation - seen, location.hash, router.can_go_back];
-history.back();
-await sleep(20);
-flushSync();
+await pop(() => history.back());
 check('a fragment link and the way back from it are no navigation: the screen stays mounted, the fragment stays', [...followed, router.generation - seen, location.hash, router.can_go_forward], [0, '#section', true, 0, '#install', true]);
 navigate('/items/2');
 flushSync();
@@ -395,30 +434,28 @@ history.replaceState(null, '', '/');
 start_router({ mode: 'history' });
 navigate('/items');
 navigate('/items/2');
-history.back();
-await sleep(20);
-history.back();
-await sleep(20);
+await pop(() => history.back());
+await pop(() => history.back());
 stop_router();
 start_router({ mode: 'history' });
 flushSync();
 const reloaded = [router.path, router.can_go_back, router.can_go_forward];
-history.forward();
-await sleep(20);
-flushSync();
+await pop(() => history.forward());
 check('a reload on an older entry still knows what is ahead of it', [...reloaded, router.path, router.can_go_forward], ['/', false, true, '/items', true]);
 const push = history.pushState;
 history.pushState = () => {
 	throw new DOMException('the state could not be cloned', 'DataCloneError');
 };
-let refused = false;
-try {
-	navigate('/nowhere');
-} catch {
-	refused = true;
-}
+const refused = await navigate('/nowhere').then(
+	() => false,
+	(thrown: unknown) => thrown instanceof DOMException
+);
+quiet();
+click(by_id('go-lost'));
+await tick();
+console.error = error;
 history.pushState = push;
-check('a state the history API refuses leaves the router where it was', [refused, router.path, router.can_go_forward], [true, '/items', true]);
+check('a state the history API refuses rejects navigate(), which a Link logs, and leaves the router where it was', [refused, logged.map(([message]) => message), router.path, router.can_go_forward], [true, ['[gpuix-svelte-ui] a Link could not navigate to /nowhere'], '/items', true]);
 
 stop_router();
 start_router({ mode: 'hash', initial: '/' });
@@ -437,7 +474,11 @@ check('href() encodes params and builds a query', [href('/items/:id', { id: 'a b
 stop_router();
 start_router({ mode: 'memory', initial: '/items/9' });
 flushSync();
-check('a trailing /* takes the rest of the path, below a pattern naming those segments', [match(['/docs/*', '/docs/:id', '*'], '/docs/a')?.pattern, match(['/docs/*', '/docs/:id'], '/docs/a/b%20c')?.params, match(['/docs/*', '*'], '/docs')?.params, match(['/docs/*', '/:a/:b/:c'], '/docs/a/b')?.pattern, href('/docs/*', { '*': 'a b/c' })], ['/docs/:id', { '*': 'a/b c' }, { '*': '' }, '/docs/*', '/docs/a%20b/c']);
+check(
+	'a trailing /* takes the rest of the path, below a pattern naming those segments, decoded and joined, so an escaped slash reads as a separator',
+	[match(['/docs/*', '/docs/:id', '*'], '/docs/a')?.pattern, match(['/docs/*', '/docs/:id'], '/docs/a/b%20c')?.params, match(['/docs/*', '*'], '/docs')?.params, match(['/docs/*', '/:a/:b/:c'], '/docs/a/b')?.pattern, href('/docs/*', { '*': 'a b/c' }), match(['/docs/*'], '/docs/a%2Fb/c')?.params],
+	['/docs/:id', { '*': 'a/b c' }, { '*': '' }, '/docs/*', '/docs/a%20b/c', { '*': 'a/b/c' }]
+);
 const first = by_id('router')?.firstElementChild;
 await navigate('?page=2');
 flushSync();
@@ -463,19 +504,51 @@ const slow_arrived = await slow;
 off_async();
 flushSync();
 check('an async hook is waited for, and a newer navigation overtakes one still waiting', [...waiting, fast_arrived, slow_arrived, router.path, router.navigating], ['/items/1', '/items', true, false, '/items/2', null]);
-const logged: unknown[][] = [];
-const error = console.error;
-console.error = (...args: unknown[]) => void logged.push(args);
+
+const first_hook = asking();
+const heard: string[] = [];
+const off_first = before(first_hook.hook);
+const off_second = before((to) => {
+	heard.push(to.path);
+	return to.path !== '/nowhere';
+});
+const overtaken_one = navigate('/items/1');
+const overtaking = navigate('/items/3');
+first_hook.answers[0](true);
+first_hook.answers[1](true);
+const in_turn = [await overtaken_one, await overtaking];
+const second_refuses = navigate('/nowhere');
+first_hook.answers[2](true);
+in_turn.push(await second_refuses);
+const unsubscribed = navigate('/items/2');
+off_second();
+first_hook.answers[3](true);
+in_turn.push(await unsubscribed);
+off_first();
+check('hooks are asked in turn: one after an async yes still decides, and neither an overtaken navigation nor a hook unsubscribed meanwhile reaches it', [in_turn, heard, router.path], [[false, true, false, true], ['/items/3', '/nowhere'], '/items/2']);
+const sent = asking<string>();
+const off_sent = before((to) => (to.path === '/a' ? sent.hook() : true));
+const sending = navigate('/a');
+sent.answers[0]('/items/1');
+const was_sent = [await sending, router.path];
+off_sent();
+back();
+check('an async hook redirects as well', [...was_sent, router.path], [true, '/items/1', '/items/2']);
+
+quiet();
 const off_throw = before(() => {
 	throw new Error('boom');
 });
 const threw = await navigate('/');
 off_throw();
+const off_reject = before(() => Promise.reject(new Error('async boom')));
+const rejected = await navigate('/');
+off_reject();
 const off_loop = before((to) => (to.path === '/a' ? '/b' : to.path === '/b' ? '/a' : true));
 const looped = await navigate('/a');
 off_loop();
 console.error = error;
-check('a hook that throws cancels the navigation, and so does a redirect loop, each logged', [threw, looped, router.path, logged.length], [false, false, '/items/2', 2]);
+check('a hook that throws or rejects cancels the navigation, and so does a redirect loop, each logged', [threw, rejected, looped, router.path, logged.length], [false, false, false, '/items/2', 3]);
 const off_nav = before((to) => {
 	if (to.path === '/nowhere') void navigate('/items');
 });
@@ -488,40 +561,345 @@ await navigate('/items/1');
 back();
 off_after();
 check('after() hears every arrival, back() included', arrivals, ['/items > /items/1', '/items/1 > /items']);
+
+restart(null, { mode: 'memory', initial: '/a/b?x=1' });
+check(
+	'a path resolves as a link on the page would, by the router itself, to which a colon or a second slash names no scheme or host',
+	[resolve('c').href, resolve('../c').href, resolve('./c/').href, resolve('').href, resolve('#top').href, resolve('?y=2').href, resolve('item:3').path, resolve('//host/x').path],
+	['/a/c', '/c', '/a/c', '/a/b?x=1', '/a/b?x=1', '/a/b?y=2', '/a/item:3', '/host/x']
+);
+check(
+	'a route is escaped as the address bar has it and its params decoded, and a path from the root keeps its dots, so a param that is all dots stays a param',
+	[resolve('/items/café').path, resolve('/items/café').params, resolve("/s?q=it's a").href, resolve('/half\ud83d').path, resolve(href('/items/:id', { id: '..' })).params, resolve('/items/%2E').params, resolve('/items/../x').path],
+	['/items/caf%C3%A9', { id: 'café' }, '/s?q=it%27s%20a', '/half%EF%BF%BD', { id: '..' }, { id: '.' }, '/items/../x']
+);
+await navigate('/items');
+await navigate('');
+await navigate('#top');
+const stayed_put = router.href;
+back();
+check('an empty path and a bare fragment stay on the route, stacking nothing in a window', [stayed_put, router.href], ['/items', '/a/b?x=1']);
+
 stop_router();
 before((to) => (to.path === '/items/5' ? '/items' : true));
 start_router({ mode: 'memory', initial: '/items/5' });
 const redirected = [router.path, router.can_go_back];
 stop_router();
 let admit: (verdict: boolean) => void = () => {};
+const first_seen: string[] = [];
 before(() => new Promise<boolean>((resolve) => (admit = resolve)));
+after((to, from) => void first_seen.push(`${from.href} > ${to.href}`));
 start_router({ mode: 'memory', initial: '/items/6' });
 flushSync();
-const holding = [router.ready, text('screen')];
-admit(true);
+const holding = [router.ready, text('screen'), first_seen.length];
+admit(false);
 await sleep(0);
 flushSync();
-check('the hooks decide on the first screen too, which waits for an async one', [...redirected, ...holding, router.ready, text('screen')], ['/items', false, false, '', true, 'Item 6, mounted fresh for this path.']);
-
+check(
+	'the hooks decide on the first screen too: a redirect replaces it, an async one is waited for, a no has nothing to stay on and lets it show, and after() hears of it',
+	[...redirected, ...holding, router.ready, text('screen'), first_seen],
+	['/items', false, false, '', 0, true, 'Item 6, mounted fresh for this path.', ['/items/6 > /items/6']]
+);
 stop_router();
-history.replaceState(null, '', '/repo/items/2');
-start_router({ mode: 'history', base: '/repo/' });
+history.pushState(null, '', '/items/5');
+before((to) => (to.path === '/items/5' ? '/items' : true));
+start_router({ mode: 'history' });
+check('in a page a redirect of the first screen replaces its URL', [location.pathname, router.path, router.can_go_back], ['/items', '/items', false]);
+stop_router();
+const gate = asking();
+before(gate.hook);
+start_router({ mode: 'memory', initial: '/items/6' });
+const overtook = navigate('/items/2');
+gate.answers[1](true);
+await within(overtook);
 flushSync();
+check('a navigation that overtakes the hooks of the first screen shows its own', [router.ready, text('screen'), router.can_go_back], [true, 'Item 2, mounted fresh for this path.', true]);
+
+// The first screen as an app gets it, from the Router's own mount: the table is in place by the time the hooks are asked.
+stop_router();
+const admin = asking<string>();
+const admitted: string[] = [];
+before((to) => (to.pattern === '/admin/:id' && to.params.id === '7' ? admin.hook() : true));
+after((to, from) => void admitted.push(`${from.href} > ${to.href}`));
+const guarded_host = document.body.appendChild(document.createElement('div'));
+const page = (name: string) => screen(createRawSnippet(() => ({ render: () => `<p>${name}</p>` })) as never);
+// The showcase's table and a pattern it lacks, which only this Router's own registration can have matched.
+const guarded = mount(Router, { target: guarded_host, props: { routes: { '/': page('home'), '/items': page('items'), '/items/:id': page('item'), '/admin/:id': page('secret'), '*': page('lost') }, mode: 'memory', initial: '/admin/7', testid: 'guarded' } });
+flushSync();
+const guarding = [router.ready, text('guarded'), admin.answers.length, admitted.length];
+admin.answers[0]('/');
+await sleep(0);
+flushSync();
+check(
+	'a hook sees the pattern and params of a deep link, and its async redirect never shows the screen it guards',
+	[...guarding, router.ready, text('guarded'), admitted, router.can_go_back],
+	[false, '', 1, 0, true, 'home', ['/admin/7 > /'], false]
+);
+unmount(guarded);
+guarded_host.remove();
+
+restart('/repo/items/2', { mode: 'history', base: '/repo/' });
 const based = [router.path, by_id('go-items')?.getAttribute('href'), by_id('go-items')?.getAttribute('aria-current'), by_id('go-home')?.getAttribute('aria-current')];
 click(by_id('go-home'));
 check('a base path is stripped before matching and put back on every URL, and the active Link says so', [...based, location.pathname, router.path], ['/items/2', '/repo/items', 'page', null, '/repo/', '/']);
+restart('/repo', { mode: 'history', base: '/repo' });
+const bare = router.path;
+restart('/my repo/items', { mode: 'history', base: '/my repo' });
+check('the base alone is the root, and one that needs escaping is stripped as the address bar has it', [bare, router.path, by_id('go-home')?.getAttribute('href'), location.pathname], ['/', '/items', '/my%20repo/', '/my%20repo/items']);
+
+// Every move the router makes through history by itself, which is never one of 0: that reloads the page.
+const moves: number[] = [];
+const travel = history.go;
+const watched_go = (delta = 0) => {
+	moves.push(delta);
+	if (delta !== 0) travel.call(history, delta);
+};
+history.go = watched_go;
+
+restart('/', { mode: 'history' });
 await navigate('/items');
-let decide_pop: (verdict: boolean) => void = () => {};
-const off_pop = before(() => new Promise<boolean>((resolve) => (decide_pop = resolve)));
-history.back();
-await sleep(20);
+const leaving = asking();
+const off_leaving = before(leaving.hook);
+await pop(() => history.back());
+const asked = [location.pathname, router.path, router.navigating?.path, router.can_go_back, router.can_go_forward];
+leaving.answers[0](false);
+await pop();
+off_leaving();
+check(
+	"an async hook refusing the browser's back puts the browser back where it was, flags included",
+	[...asked, location.pathname, router.path, router.navigating, router.can_go_back, router.can_go_forward, moves.splice(0)],
+	['/', '/items', '/', false, true, '/items', '/items', null, true, false, [1]]
+);
+
+async function back_then_forward(mode: 'history' | 'hash', answer: boolean) {
+	restart('/', { mode });
+	await navigate('/items');
+	const leaving = asking();
+	before(leaving.hook);
+	await pop(() => history.back());
+	const asked = leaving.answers.length;
+	// The router's own forward() in one, the browser's button in the other.
+	await pop(mode === 'hash' ? forward : () => history.forward());
+	const returned = [router.navigating, leaving.answers.length];
+	leaving.answers[0](answer);
+	await pop();
+	return [asked, ...returned, router.href, mode === 'hash' ? location.hash.slice(1) : location.pathname, router.can_go_back, router.can_go_forward, moves.splice(0)];
+}
+check(
+	'back and then forward while a hook waits is back on the screen shown: the hook is not asked again, and neither answer moves anything',
+	[await back_then_forward('history', true), await back_then_forward('hash', false)],
+	[
+		[1, null, 1, '/items', '/items', true, false, []],
+		[1, null, 1, '/items', '/items', true, false, [1]]
+	]
+);
+
+async function two_backs(mode: 'history' | 'memory', answer: boolean) {
+	restart(mode === 'memory' ? null : '/', { mode, initial: '/' });
+	await navigate('/items');
+	await navigate('/items/2');
+	const leaving = asking();
+	before(leaving.hook);
+	back();
+	back();
+	await pop();
+	const waiting = [router.href, router.navigating?.href, router.can_go_back, router.can_go_forward, leaving.answers.length];
+	leaving.answers[1](answer);
+	await pop();
+	return [...waiting, router.href, router.can_go_back, router.can_go_forward, moves.splice(0)];
+}
+check(
+	'two back() calls while a hook waits go back two entries in a page and in a window alike, the flags describing where already',
+	[await two_backs('history', true), await two_backs('memory', true)],
+	[
+		['/items/2', '/', false, true, 2, '/', false, true, [-1, -1]],
+		['/items/2', '/', false, true, 2, '/', false, true, []]
+	]
+);
+check(
+	'and a no moves back over both',
+	[await two_backs('history', false), await two_backs('memory', false)],
+	[
+		['/items/2', '/', false, true, 2, '/items/2', true, false, [-1, -1, 2]],
+		['/items/2', '/', false, true, 2, '/items/2', true, false, []]
+	]
+);
+
+restart('/', { mode: 'history' });
+await navigate('/items');
+await navigate('/items/2');
+const refused_at_once: string[] = [];
+const off_at_once = before((to) => {
+	refused_at_once.push(to.href);
+	return false;
+});
+back();
+back();
+await pop();
+off_at_once();
+check(
+	'the router asks the browser for one move at a time, so two back() calls refused at once are each moved back before the next',
+	[location.pathname, router.href, router.can_go_back, router.can_go_forward, refused_at_once, moves.splice(0)],
+	['/items/2', '/items/2', true, false, ['/items', '/items'], [-1, 1, -1, 1]]
+);
+const crossing = asking();
+const off_crossing = before(crossing.hook);
+back();
+await pop();
+back();
+crossing.answers[0](false);
+await tick();
+await pop();
+const asked_next = router.navigating?.href;
+crossing.answers[1](false);
+await pop();
+off_crossing();
+check('a no that arrives while another back is on its way leaves the stack to that one', [asked_next, location.pathname, router.href, moves.splice(0)], ['/', '/items/2', '/items/2', [-1, -1, 2]]);
+const behind = asking();
+const off_behind = before((to) => (to.path === '/items/3' ? true : behind.hook()));
+back();
+await pop();
+back();
+const went_on = navigate('/items/3');
+await pop();
+const arrived_on = [await within(went_on), location.pathname, router.can_go_back, moves.splice(0)];
+off_behind();
+await pop(() => history.back());
+check('a navigation made behind a back that is on its way waits for it, then starts from the screen shown as any other', [...arrived_on, location.pathname], [true, '/items/3', true, [-1, -1, 2], '/items/2']);
+await pop(() => history.forward());
+const off_lost = before((to) => to.path !== '/items/2');
+// A move the browser never makes here, as when an iframe takes it.
+history.go = (delta = 0) => void moves.push(delta);
+await pop(() => history.back());
+const kept_waiting = navigate('/items/9');
+const meanwhile = await Promise.race([kept_waiting, sleep(200).then(() => 'held')]);
+const released = await Promise.race([kept_waiting, sleep(1500).then(() => 'stuck')]);
+off_lost();
+history.go = watched_go;
+check('a move back that never lands holds a navigation for a second, not for ever', [meanwhile, released, router.href, moves.splice(0)], ['held', true, '/items/9', [1]]);
+
+async function overtaken(mode: 'history' | 'memory') {
+	const press_back = mode === 'memory' ? back : () => history.back();
+	restart(mode === 'memory' ? null : '/', { mode, initial: '/' });
+	await navigate('/items');
+	const leaving = asking();
+	const off = before(leaving.hook);
+	await pop(press_back);
+	const lost = navigate('/nowhere');
+	await pop();
+	leaving.answers[1](false);
+	const refused = [await within(lost), router.href, router.can_go_back, router.can_go_forward];
+	await pop(press_back);
+	const typed = navigate('?q=a', { replace: true });
+	await pop();
+	leaving.answers[3](true);
+	const replaced = [await within(typed), router.href];
+	off();
+	await pop(press_back);
+	return [...refused, ...replaced, router.href, router.can_go_forward, moves.splice(0)];
+}
+check(
+	'a navigation made while a back waits for its hooks starts from the screen shown: the stack moves back first, so a refusal leaves it there and a replacement lands on that entry',
+	[await overtaken('history'), await overtaken('memory')],
+	[
+		[false, '/items', true, false, true, '/items?q=a', '/', true, [1, 1]],
+		[false, '/items', true, false, true, '/items?q=a', '/', true, []]
+	]
+);
+
+restart('/', { mode: 'history' });
+await navigate('/items');
+await navigate('/items/3');
+const staying = asking();
+// Asked about the back alone, so the navigation after it would be written at once were it not held.
+const off_staying = before((to) => (to.query.saved ? true : staying.hook()));
+await pop(() => history.back());
+staying.answers[0](false);
+await tick();
+const on_the_way = [moves.splice(0), location.pathname];
+await within(navigate('?saved=1', { replace: true }));
+off_staying();
+const stayed = location.pathname + location.search;
+await pop(() => history.back());
+check('a navigation made right after a no waits for the browser to be back, and is written on the entry shown', [...on_the_way, stayed, location.pathname, router.can_go_forward], [[1], '/items', '/items/3?saved=1', '/items', true]);
+
+restart('/', { mode: 'history' });
+await navigate('/items');
+const followed_fragment = asking();
+const off_followed = before(followed_fragment.hook);
+await pop(() => history.back());
+// A fragment link followed meanwhile: its entry takes the place of the one shown, so there is no entry left to go back to.
+history.pushState(null, '', '/#sec');
+window.dispatchEvent(new PopStateEvent('popstate'));
+followed_fragment.answers[1](false);
+await pop();
+off_followed();
+check('a no with no entry left to go back to rewrites the one the browser is on, and never reloads', [location.pathname + location.hash, router.href, router.can_go_back, moves.splice(0)], ['/items', '/items', true, []]);
+
+restart('/', { mode: 'hash' });
+await navigate('/a');
+await navigate('/b');
+await pop(() => history.go(-2));
+const off_typed = before(() => false);
+history.pushState(null, '', '#/typed');
+window.dispatchEvent(new PopStateEvent('popstate'));
+await pop();
+off_typed();
+const typed_and_refused = [location.hash, router.path, router.can_go_forward, moves.splice(0)];
+restart(null, { mode: 'hash' });
+await pop(() => history.forward());
+check('the entry gone back to after a no carries the stack as it is now, which a reload reads', [...typed_and_refused, router.path, router.can_go_forward], ['#/', '/', true, [-2, -1], '/typed', false]);
+
+async function redirected_back(mode: 'history' | 'memory') {
+	restart(mode === 'memory' ? null : '/items/7', { mode, initial: '/items/7' });
+	await navigate('/items');
+	flushSync();
+	const login = asking<string>();
+	const arrivals: string[] = [];
+	before((to) => (to.params.id === '7' ? login.hook() : true));
+	after((to, from) => void arrivals.push(`${from.href} > ${to.href}`));
+	await pop(mode === 'memory' ? back : () => history.back());
+	const waiting = [router.href, text('screen')?.startsWith('Three items'), arrivals.length];
+	login.answers[0]('/');
+	await pop();
+	const landed = [router.href, text('screen')?.startsWith('Home.'), arrivals.slice(), router.can_go_back, router.can_go_forward];
+	await pop(mode === 'memory' ? forward : () => history.forward());
+	await pop(mode === 'memory' ? back : () => history.back());
+	return [...waiting, ...landed, router.href];
+}
+check(
+	'an async redirect on the way back replaces the entry gone to, and the screen it guards never shows and is never reported',
+	[await redirected_back('history'), await redirected_back('memory')],
+	[
+		['/items', true, 0, '/', true, ['/items > /'], false, true, '/'],
+		['/items', true, 0, '/', true, ['/items > /'], false, true, '/']
+	]
+);
+moves.length = 0;
+
+restart('/', { mode: 'hash' });
+await navigate(href('/items/:id', { id: '..' }));
 flushSync();
-const asking = [location.pathname, router.path, router.navigating?.path];
-decide_pop(false);
-await sleep(20);
-flushSync();
-off_pop();
-check("an async hook refusing the browser's back puts the browser back where it was", [...asking, location.pathname, router.path, router.navigating], ['/repo/', '/items', '/', '/repo/items', '/items', null]);
+const dots = [location.hash, text('screen')];
+restart(null, { mode: 'hash' });
+check('a param that is all dots survives a reload in hash mode, whose fragment the browser leaves alone', [...dots, router.params], ['#/items/..', 'Item .., mounted fresh for this path.', { id: '..' }]);
+
+restart('/items', { mode: 'history' });
+const entries = history.length;
+const mounted_screen = by_id('router')?.firstElementChild;
+await navigate('/items');
+const same_url = history.length - entries;
+await navigate('/items#a');
+await navigate('/items#b');
+await navigate('/items#b');
+const stacked = history.length - entries;
+await pop(() => history.back());
+check(
+	'a navigation to the URL the page is on replaces its entry, while one to another fragment of it is a new entry to come back from, the screen staying mounted',
+	[same_url, stacked, location.pathname + location.hash, router.path, router.can_go_forward, by_id('router')?.firstElementChild === mounted_screen],
+	[0, 2, '/items#a', '/items', true, true]
+);
+history.go = travel;
 
 const links = document.body.appendChild(document.createElement('div'));
 const label = createRawSnippet(() => ({ render: () => '<span>link</span>' }));
@@ -547,8 +925,7 @@ check('a Link to another site is a plain link, one with a query is active only o
 links.remove();
 
 const lazy_host = document.body.appendChild(document.createElement('div'));
-console.error = (...args: unknown[]) => void logged.push(args);
-logged.length = 0;
+quiet();
 mount(Router, { target: lazy_host, props: { routes: { '/items': lazy(async () => ({ default: Separator })), '*': lazy(() => Promise.reject(new Error('gone'))) }, testid: 'lazy-router' } });
 flushSync();
 await sleep(0);
@@ -557,8 +934,21 @@ const loaded = by_id('lazy-router')?.querySelector('[role="separator"]') != null
 await navigate('/elsewhere');
 await sleep(0);
 flushSync();
+let imports = 0;
+const flaky = lazy(async () => {
+	if (imports++ === 0) throw new Error('offline');
+	return { default: Separator };
+}) as LazyScreen;
+const flaked = await flaky.load().then(
+	() => false,
+	() => true
+);
+const retried = await flaky.load().then(
+	(component) => component === Separator,
+	() => false
+);
 console.error = error;
-check('a lazy() screen mounts once its import resolves, and a failed one is logged', [loaded, logged.length], [true, 1]);
+check('a lazy() screen mounts once its import resolves, and a failed one is logged and imported again on the next visit', [loaded, flaked, retried, imports, logged.length], [true, true, true, 2, 2]);
 lazy_host.remove();
 
 // --- components by themselves, for the props the showcase never gives them ------------
@@ -580,4 +970,4 @@ check('a Slider steps on its own grid where min has more decimals than step', st
 check('a field with an error says it is invalid, one without does not', [by_id('bad-input')?.getAttribute('aria-invalid'), by_id('name-input')?.getAttribute('aria-invalid')], ['true', 'false']);
 check('Avatar initials keep a whole emoji', text('face'), '😀S');
 
-finish('ui-dom', 112);
+finish('ui-dom', 135);

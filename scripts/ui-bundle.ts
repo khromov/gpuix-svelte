@@ -23,7 +23,7 @@ writeFileSync(
 	entry,
 	`export { default as Showcase } from '${showcase.startsWith('.') ? showcase : `./${showcase}`}';
 export { Avatar, Link, Router, Separator, Slider, Tabs, TextField } from 'gpuix-svelte-ui';
-export { router, navigate, back, forward, before, after, href, lazy, match, resolve, to_url, start_router, stop_router } from 'gpuix-svelte-ui/router';
+export { router, navigate, back, forward, before, after, href, screen, lazy, match, resolve, to_url, start_router, stop_router } from 'gpuix-svelte-ui/router';
 export { mount, unmount, flushSync, createRawSnippet } from 'svelte';
 `
 );
