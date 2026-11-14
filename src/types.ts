@@ -32,6 +32,8 @@ export interface ShadowNode {
 	nativeId: number | null;
 	/** The inner native node holding a text node's string, when `nativeId` is the `text` around it. */
 	textId: number | null;
+	/** The custom properties its rules and inline style declare, named without the `--`: what it and everything inside it read ahead of the `:root` ones. */
+	vars: ReadonlyMap<string, string> | null;
 	/** Its style read a `var()`, so a change to the variables has to restyle it. */
 	uses_vars: boolean;
 	/** One of its rules sits under an `@media` query, so a window resize has to restyle it. */
@@ -67,8 +69,9 @@ export type Pseudo = 'hover' | 'active' | 'focusVisible' | null;
 /**
  * One `<style>` rule's declarations. A block that reads a `var()` ships as CSS text
  * and is re-parsed whenever the variables change; the rest is parsed at compile time.
+ * `vars` are the custom properties the rule declares, named without the `--`.
  */
-export type StyleRule = { pseudo: Pseudo } & (
+export type StyleRule = { pseudo: Pseudo; vars?: Record<string, string> } & (
 	| { style: GpuiStyle; css?: undefined }
 	| { css: string; style?: undefined; generation?: number; resolved?: GpuiStyle }
 );

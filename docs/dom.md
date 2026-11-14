@@ -142,7 +142,7 @@ is the DOM element.
 - `set_css_vars({ token: '#fff' })` sets `--token` on `:root`, so `var(--token)` in your styles
   resolves natively; `null` removes one. It writes `<html>`'s inline style, which is why a value
   set this way wins over a `:root` rule in a `<style>` block, on GPUI too
-  ([Styling](styling.md#switching-a-theme)).
+  ([Styling](styling.md#a-light-and-a-dark-palette)).
 - `on_window_key('keydown', handler)` listens on `window`. The event is shaped like GPUI's:
   `e.key` is spelled the GPUI way (`escape`, `enter`, `space`, `up`, lowercase letters, and under
   Alt or Shift the physical key's letter or digit, so ⌥T is `t` with `alt`), `e.modifiers` has
@@ -229,9 +229,13 @@ is a whole library written this way, typechecked as DOM markup and as GPUI marku
   (`oncontextmenu` in the DOM), `e.value` on inputs (`e.target.value` in the DOM),
   `onlayout` / `onscrollchange` / `onfiledrop` (DOM events differ), `<virtual-list>`,
   `<anchored>`, `<markdown>`, `<code>` and `<diff>`.
-- Declare variables in `:root` only. A browser also takes one on any element, for that element
-  and its descendants (`.card { --pad: 4px; }`, `style="--pad: 4px"`), and GPUI has every variable
-  global, so the compiler refuses the first with a warning and the second is ignored.
+- A variable declared on an element (`.card { --pad: 4px; }`, `style="--pad: 4px"`) or handed to
+  a component as a style prop (`<Card --pad="4px" />`) reaches the same elements on both: that
+  element, or that component, and everything inside. The one exception is the layer of a
+  `Tooltip`, a `Popover` or a `Portal`. In the DOM it hangs off `<body>`, where only `:root` and
+  `set_css_vars` reach it, while on GPUI it reads the variables of the place it was written in. So
+  give a layer its variables in `:root`, or through the `style` a tooltip and a popover forward
+  ([Styling](styling.md#variables-on-an-element)).
 - Event handlers that only react, without reading GPUI-specific fields, work as they are.
   `e.stopPropagation()` exists on both: in the DOM it stops a mouse event from bubbling; on GPUI,
   where mouse events never bubble, it skips the key handlers still to come.

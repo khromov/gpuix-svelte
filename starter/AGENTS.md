@@ -81,8 +81,10 @@ icon on macOS, a console-less `dist/<slug>.exe` with its icon and version info o
   `border-color` for `border`; both shorthands are dropped. The styling page lists every property.
 - Colours go in `var(--token)`, with the palette declared once in a `:root { --token: #fff; }` rule
   in the root component's `<style>`; `set_css_vars({ token: '#000' })` overrides it at runtime, for
-  a theme switch. (The starter's own `App.svelte` hard-codes its colours; switch to variables once
-  the app has a theme.)
+  a theme switch. A variable declared on an element (`.card { --token: #fff; }` or an inline
+  `style="--token: #fff"`) or passed as a style prop (`<Card --token="#fff" />`) holds for that
+  element or component and what is inside it. (The starter's own `App.svelte` hard-codes its
+  colours; switch to variables once the app has a theme.)
 - Inputs report through events: `<input value={text} onchange={(e) => (text = e.value)} />`;
   `onchange` fires on every edit, and there is no `oninput`. `{@attach (node) => ...}` hands you
   an element.

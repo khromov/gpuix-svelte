@@ -8,7 +8,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
-import { commit, is_dirty, parse_css_text, set_css_vars, type AnyComponent, type Mutation } from 'gpuix-svelte';
+import { commit, is_dirty, parse_css_text, set_auto_commit, set_css_vars, type AnyComponent, type Mutation } from 'gpuix-svelte';
 import { define_root_vars } from 'gpuix-svelte/renderer';
 import { compile_svelte } from '../src/compile.ts';
 import { compile_source } from '../src/compile-core.ts';
@@ -38,11 +38,11 @@ check('a :root rule under @media carries its query', code.includes('{"vars":{"ga
 const refused = compile_warnings.filter((w) => w.includes('has no GPUI equivalent'));
 check('a property that is no variable is refused in :root', refused.some((w) => w.includes('`:root { color }`')), true);
 check('so is a :root with anything attached, naming set_css_vars()', refused.some((w) => w.includes('`:root.dark`') && w.includes('set_css_vars()')), true);
-check('so is a variable declared on anything else', [refused.some((w) => w.includes('`.scoped { --local }`')), refused.some((w) => w.includes('`.listed { --listed }`'))], [true, true]);
+check('a variable on a class is that element\'s, and stays in its rule', [refused.some((w) => w.includes('.scoped')), code.includes('"css":"margin: var(--local, 7px); opacity: 0.5","vars":{"local":"2px"}')], [false, true]);
 check('and a query a window cannot answer, as around any rule', refused.some((w) => w.includes('`@media (prefers-color-scheme: dark)`')), true);
-check('nothing else was, and each refusal names the file', [refused.length, refused.every((w) => w.includes(FIXTURE))], [5, true]);
-check('a refused declaration ships nowhere, while the rule it sat in keeps the rest', [code.includes('#ffffff'), code.includes('#eeeeee'), code.includes('2px'), code.includes('"css":"margin: var(--local, 7px); opacity: 0.5"')], [false, false, false, true]);
-check('and a rule left with nothing to declare is not shipped', [code.includes('"classes":["listed"],"tag":null,"pseudo":null,"style":{}'), code.includes('"classes":["listed"],"tag":null,"pseudo":null,"css":"border-width: var(--listed)"')], [false, true]);
+check('nothing else was, and each refusal names the file', [refused.length, refused.every((w) => w.includes(FIXTURE))], [3, true]);
+check('a refused rule ships nowhere', [code.includes('#ffffff'), code.includes('#eeeeee')], [false, false]);
+check('the class half of a selector list declares for the class, beside the rule that reads it', [code.includes('"classes":["listed"],"tag":null,"pseudo":null,"style":{},"vars":{"listed":"3px"}'), code.includes('"classes":["listed"],"tag":null,"pseudo":null,"css":"border-width: var(--listed)"')], [true, true]);
 
 const call = (source: string, path = 'App.svelte', hot = false) => /\$define_root_vars\((".*)\);/.exec(compile_source(source, path, 'gpuix-svelte/renderer', () => {}, hot))?.[1] ?? null;
 const RED = '<div>x</div><style>:root { --a: red; }</style>';
@@ -85,7 +85,7 @@ check('the headless window is wide enough for the fixture', native.getWindowSize
 check('a class rule reads them', pick('card', 'backgroundColor', 'paddingTop', 'paddingRight'), ['#101010', 4, 8]);
 check('the file evaluated later wins, as the sheet a browser loaded later does', [pick('card', 'borderColor')[0], pick('child', 'color')[0], pick('card', 'outlineColor')[0]], ['#aaaaaa', '#aaaaaa', '#cccccc']);
 check('a variable may read another, fall back, or come from :global(:root)', pick('derived', 'color', 'backgroundColor', 'borderColor'), ['#ff3e00', '#abcabc', '#0a0a0a']);
-check('a variable refused on a class is not defined, and the :root half of a selector list is', [pick('scoped', 'margin', 'opacity'), pick('listed', 'borderWidth')], [[7, 0.5], [3]]);
+check('a variable declared on a class is read by the rule beside it, and so is the :root half of a selector list', [pick('scoped', 'margin', 'opacity'), pick('listed', 'borderWidth')], [[2, 0.5], [3]]);
 check('nothing was reported undefined', undefined_vars(mount_warnings), []);
 
 ops = [];
@@ -145,7 +145,14 @@ try {
 	define_root_vars('later', [{ vars: { 'hot-order': '#999999', 'hot-e': '#eeeeee' } }]);
 
 	write_hot(PALETTE, '<div class="kept" testId="kept">kept</div>', ':root { --hot-a: #222222; --hot-order: #222222; }\n.kept { color: var(--hot-e); }');
+	settle();
+	// As on the wasm build, where a commit schedules itself and so lands between the file's evaluation and the remount.
+	set_auto_commit(true);
+	const loading = capture();
 	const edited = await reload(2);
+	console.warn = warn;
+	set_auto_commit(false);
+	check('the tree that is up is not restyled against an edited file while it loads, nor reported for what the edit removed', undefined_vars(loading), []);
 	// As render() remounts: the old tree is unmounted and committed before the new one goes up.
 	const outgoing = capture();
 	await first.unmount();
@@ -174,4 +181,4 @@ try {
 }
 
 TestGpuixRenderer.prototype.applyBatch = apply_batch;
-finish('root-vars', 42);
+finish('root-vars', 43);

@@ -487,8 +487,9 @@ keep it building. The design:
   `preserveEntrySignatures: 'strict'` or an app build drops it. The bundle lands before
   `homepage/` is copied, so a `demos.js` there hits the collision check. The demo tokens sit on
   `:root`, not on the frame, because `Tooltip` and `Popover` hang their layer off `<body>`, and
-  because the `dom.md` theme demo's `set_css_vars` writes `<html>`'s inline style, which outranks
-  the `:root` rule; no demo may name the site's own tokens (`--bg`, `--fg`, `--accent`, …). The
+  because the theme demos' `set_css_vars` (`dom.md`'s, and the palette in `styling.md`, whose
+  second demo borrows that palette) writes `<html>`'s inline style, which outranks the `:root`
+  rule; no demo may name the site's own tokens (`--bg`, `--fg`, `--accent`, `--line`, …). The
   frame reads the toolkit's `--ui-bg` / `--ui-ink` ahead of `--paper` / `--ink`, which only
   `ui.md`'s demos set, or its light palette left dark ink on the dark frame. `test/docs.ts` runs
   the build on Node whatever runtime runs it and mounts each built page's demos under happy-dom.
@@ -511,7 +512,10 @@ keep it building. The design:
   remounted through `render()` on every edit (so `set_css_vars` values outlive a run, while a
   `:root` rule goes with the source that declared it, compiled hot), the DOM frame reloaded; both
   get `frame.ts`'s `ROOT_STYLE` (black background, `#ededed` text), because GPUI's default text is
-  black on an unpainted black window.
+  black on an unpainted black window. An example that declares tokens in `:root` names them apart
+  from `Theme.svelte`'s, whose `set_css_vars` values would outrank them in the GPUI frame after it
+  ran. A component can't define another in one file, so `Variables.svelte` shows a style prop on
+  `Scroller`, the one shipped component that reads its variables in place on both renderers.
   **Fonts**: the wasm can't reach system fonts and has no `registerFont`, so it draws in the eight
   faces it embeds (IBM Plex Sans 400/600 and Lilex 400/700, each with an italic), and the DOM frame
   loads the same faces from `homepage/assets/fonts/gpui/`, cut out of `gpuix-web_bg.wasm` (scan for
@@ -523,7 +527,10 @@ keep it building. The design:
   script. Without isolation (no service worker, plain `http:` off localhost, `docs:serve`) the page
   defaults to the DOM renderer and shows a note if GPUI is picked. Checking the wasm side is by
   hand in headless Chrome, as for `demo:web`, with `--enable-unsafe-webgpu` or
-  `--enable-unsafe-swiftshader`.
+  `--enable-unsafe-swiftshader`. It scripts well over CDP: serve `dist/docs` from localhost (the
+  service worker isolates it), open `playground.html#renderer=gpui&z=<source>` (`share.ts`'s
+  format) or pick an example through `#pg-example`, collect the frame's `batch` messages on the
+  page for the styles that shipped, and click through the canvas with `Input.dispatchMouseEvent`.
 - **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the DOM
   components and the example into `test/.dom-tmp/`, and rewrites their `gpuix-svelte` and component
   specifiers to `src/dom.ts` and the compiled components, because the process itself runs under the
@@ -773,15 +780,16 @@ event and on `resize` (happy-dom fires only the latter).
 **Style merging.** `build_style` lays the inline `style` on top of the class rules; `:hover`,
 `:active` and `:focus-visible` rules become GPUI's native `hover` / `active` / `focusVisible` objects,
 with the `hover=` / `active=` / `focus-visible=` attribute winning. A block that reads
-`var(--name[, fallback])` is emitted as `css` text instead of a parsed `style`, because the map it
+`var(--name[, fallback])` is emitted as `css` text instead of a parsed `style`, because what it
 resolves against lives at runtime: `style.ts` substitutes on every `parse_css_text`, memoises each
-such rule per `vars_generation`, and the renderer flags nodes whose style read a variable
-(`uses_vars`). A change of variables, from `set_css_vars(vars)` or a `:root` rule, only sets
-`vars_moved`, and the next `commit()` restyles exactly those nodes, in one batch. An undefined
-variable without a fallback drops the declaration and is warned about at that `commit()` rather
-than where it was read, because the root's palette `$effect` runs after Svelte has styled the tree.
-A later `padding: 20px` clears the longhands an earlier `padding: 12px 24px` expanded to, since GPUI
-reads longhands over the shorthand.
+such rule per `vars_generation` (for the elements no declaration reaches, see "Scoped variables"),
+and the renderer flags nodes whose style read a variable (`uses_vars`). A change of the `:root`
+layers, from `set_css_vars(vars)` or a `:root` rule, only sets `vars_moved`, and the next `commit()`
+restyles exactly those nodes, in one batch. An undefined variable without a fallback drops the
+declaration and is warned about at that `commit()` rather than where it was read, because the
+root's palette `$effect` runs after Svelte has styled the tree. A later `padding: 20px` clears the
+longhands an earlier `padding: 12px 24px` expanded to, since GPUI reads longhands over the
+shorthand.
 
 **`:root` variables.** A `:root` rule (or `:global(:root)`) never becomes a class rule:
 `extract_rules` takes its custom properties out, and the component gets a second call,
@@ -800,8 +808,52 @@ CSS. The commit's sweep skips nodes that are no longer live, because after a hot
 outgoing tree, which would be restyled against the new variables and reported for each one the edit
 removed. `root_media` has `on_viewport` cascade again when a query's answer changes. What a browser
 honours and a window can't is refused at compile time, naming the file: a property in `:root` that is
-no variable, `:root` with anything attached, and a variable declared on any other selector, which is
-left out of that rule (one in an inline `style` is not looked at, and ships as a key serde drops).
+no variable, and `:root` with anything attached.
+
+**Scoped variables.** A variable declared on an element is that element's and its descendants', as a
+custom property inherits in a browser. A class rule carries its declarations as `vars` (named
+without the `--`, `!important` taken off; under `:hover`, `:active` or `:focus-visible` they are
+refused, since those states are native and nothing here could restyle the readers), and
+`declare_vars` merges the matching rules' and then the inline style's into `node.vars`, raw.
+`declared(name, from)` climbs `parent` from the element being styled and only then reads the
+`:root` layers, so an element's declaration outranks `set_css_vars()` and a `:root !important`
+too. `resolve_var` substitutes the `var()`s in a value from the element that declares it, not
+the reader, which is CSS's computed-value time, and a cycle is keyed by name and declaring element,
+because a variable may read its own name off an element further out. Nothing resolved is stored on
+a node, so there is nothing to invalidate: the per-rule cache holds only where no element from the
+reader up declares anything (`scoped` in `build_style`), and under a declaring element a rule is
+parsed per element, about 4 µs for six declarations. A cache per scope would save that in a subtree
+wrapped by one declaring element, at the price of a generation bump on every redeclaration and
+move. Restyles come from three places: `apply_style` sweeps the readers below an element whose own
+declarations changed (`restyle_readers`; a class, an inline style and an `@media` answer all arrive
+there), `insert` sweeps a node that kept its native id through a move to another parent, and the
+commit's purge clears `vars` with the native id, because attributes are not looked at while a node
+has none and may all be gone when it has one again. A pending warning keeps the element the lookup
+started from and is checked again from there at the commit, so a declaration that arrives around a
+reader later in the frame (an `{@attach}`, a parent's effect) is no false alarm.
+
+**Style props.** `<Card --accent="red" />` is compiled by Svelte into an element around the
+component, `<svelte-css-wrapper style="display: contents">` (a bare `<g>` where it takes the markup
+for SVG, which is anything directly inside a `<text>`), and `css_props` writes the variables into
+its inline style, so they are scoped variables on that element and the DOM build needs nothing.
+GPUI has no `display: contents`, so the wrapper is *boxless* (`is_boxless`): it stays in the shadow
+tree where Svelte holds it, never gets a native id, and its children are natively its parent's
+(`native_parent_of` climbs past it, `first_native_from` looks inside it and `first_native_after`
+continues after it, `attach` re-attaches its children last to first on a move, `retire` destroys
+them when it leaves). It is the one node with no GPUI presence that has children. The compiler
+reaches the anchor inside the wrapper as `wrapper.lastChild`, the only DOM property it reads off a
+node, so `createElement` defines that getter on a wrapper; without it a style prop throws at mount.
+Not reported upstream yet: `test:style-props` asserts the emitted shape, so it fails when the
+compiler goes through the renderer and the getter can go. Text at the edge of such a component
+counts as beside an element, so it is labelled on its own rather than joining the parent's text
+run. Two other designs were built and dropped: the wrapper as a real `div` (a growing or
+percentage-wide root collapses, since the box becomes the flex item), and no wrapper at all, with a
+compile pre-pass moving the props onto a shipped component that scopes by Svelte context (about 130
+lines against 50, a context read per `createElement`, and a value like `--tint="var(--base)"`
+cannot see an element around the component, because a context has no place in the element tree).
+In the DOM build a `Portal`, `Tooltip` or `Popover` layer hangs off `<body>`, outside both the
+wrapper and any declaring element, so only `:root` and `set_css_vars()` reach it there, while on
+GPUI the layer reads from where it sits in the shadow tree; `test:dom` pins the difference.
 
 `hot` is a loader saying the module is evaluated again on every reload, and the only thing that
 makes a sheet removable: `compile_svelte` takes it from the `?v=N` query on Node, `plugin.ts` from
@@ -811,7 +863,10 @@ records `mounts`, and `set_native`, which every remount goes through, drops the 
 not declared again since the last one (a rule deleted from its file, a file no longer imported). A
 sheet from a module that evaluates once, such as a package component's, has no count and stays. A
 component imported lazily after the mount carries the next count, so its sheet outlives one reload
-more than it should.
+more than it should. A hot file declaring again is a reload, and `define_root_vars` then leaves the
+tree clean: where commits schedule themselves (the wasm build, so the playground) one would run
+between the file's evaluation and the remount, restyle the outgoing tree against the new rules and
+report every variable the edit removed.
 
 **Loaders.** There are two because there is no shared API: Bun has no `module.registerHooks`, and
 its `module.register()` is a silent no-op. Both wrap `compile_svelte()` and must be installed before
@@ -830,7 +885,8 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
 
 - Elements and non-blank text get a `nativeId`; comments, blank text and fragments never do —
   they are ordering-only. That holds in both directions: text set to `''` at runtime gives its id
-  back, or it would keep a slot in GPUI's flex/gap layout.
+  back, or it would keep a slot in GPUI's flex/gap layout. The element around a component given
+  style props is the one element without an id (see "Style props").
 - Native gives the accessibility `Label` role only to a `text` element holding no string of its
   own (upstream's `is_text_host`), so that React's text inside a `<text>` isn't heard twice. Svelte
   puts text anywhere, so a text node whose parent is not a `<text>` ships as two native nodes:
@@ -844,8 +900,9 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   `test_app()` and the live automation server read.
 - Ids are allocated lazily, when a node first becomes reachable from the root (`live`). Svelte
   renders offscreen constantly, and eager creation would leak a Rust node per abandoned render.
-- Because virtual nodes are always leaves, "the next native node" is a flat scan of following
-  siblings (`first_native_after`) — nothing to descend into.
+- Virtual nodes are leaves, bar a style-prop wrapper, so "the next native node" is a scan of
+  following siblings (`first_native_after`) that descends only into such a wrapper, and climbs out
+  of one at its last child.
 - `remove()` never destroys: Svelte removes and re-inserts the same node in consecutive statements,
   so nodes go to `pending_destroy` and are reaped in `commit()`. It still has to `mark_dirty()`,
   because a frame that only removes nodes queues no mutation, so nothing else would tell the frame
@@ -981,9 +1038,10 @@ adding there.
   click on a plain trigger take focus from a text field. A tip that `open` forces never joins
   `dismiss_layer`, so it can't take an Escape meant for a layer below. `Popover`'s
   `mouseDownOutside` sits on the panel, since `<anchored>` only hears `click`, `mouseEnter`,
-  `mouseLeave` and `fileDrop`. Both forward a `style` prop to the tip or panel: `var()` resolves
-  from one global map and a parent's scoped rules cannot reach in, so inline style is the only
-  per-instance hook.
+  `mouseLeave` and `fileDrop`. Both forward a `style` prop to the tip or panel: a parent's scoped
+  rules cannot reach in, and it is the per-instance hook that holds on both renderers
+  (`style="--tooltip-surface: #fff"`), since a style prop or a variable declared around the trigger
+  reaches the layer on GPUI but not in the DOM, where it hangs off `<body>`.
 
 ### Regenerating the styling reference
 
@@ -1018,8 +1076,11 @@ user-facing rules; these are the ones that bite most often, and the renderer beh
 - Style with `<style>` blocks for shape and colour, colours as `var(--token)` with the palette in a
   `:root { --token: #fff; }` rule in the root component (for a theme switch, an `$effect` handing
   `LIGHT`/`DARK` palette objects to `set_css_vars()`, which outranks the rule), and `style:` / inline
-  `style="..."` only for measured values. A variable is global: one declared on any other selector is
-  refused, and `:root` takes nothing but variables. `em`/`vh`/`vw` never work and `%`/`auto` only on
+  `style="..."` only for measured values. A variable declared on an element (a class rule, an inline
+  `style`) or handed to a component as a style prop (`<Card --tint="red" />`) holds for that element
+  or component and what is inside it, and `:root` takes nothing but variables; an app's palette
+  stays in `:root`, which is what reaches a portal's or a tooltip's layer in the DOM build.
+  `em`/`vh`/`vw` never work and `%`/`auto` only on
   `width`/`height`/`min*`/`max*`, so the `auto` halves of `margin: 0 auto`, and all of
   `border-radius: 50%`, are dropped with a warning. Shared reactive state goes in `.svelte.ts` modules.
 - Columns side by side get a percentage `width` and `flex-shrink: 0`, not `flex-grow`: two growing

@@ -19,7 +19,7 @@ import type {
 } from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
 import { observeWindowSize, type WindowSizeHost } from '@gpuix/native/host';
-import { build_style, define_css_vars, define_sheet_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
+import { build_style, declare_vars, define_css_vars, define_sheet_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import { place_layer } from './layers.ts';
@@ -269,6 +269,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		listeners: new Map(),
 		nativeId: null,
 		textId: null,
+		vars: null,
 		uses_vars: false,
 		uses_media: false,
 		own_color: undefined,
@@ -318,15 +319,39 @@ function unlink(child: ShadowNode) {
 const is_blank = (s: string | null | undefined) => s == null || s.trim() === '';
 
 /**
+ * The element Svelte puts around a component given style props (`<Card --accent="red" />`): `display: contents` in a
+ * browser, and a `<g>` where it takes the markup for SVG, which is anything directly inside a `<text>`.
+ */
+const STYLE_PROPS = new Set(['svelte-css-wrapper', 'g']);
+
+/** It declares variables and has no box, so it never gets a native node and its children are natively its parent's. */
+const is_boxless = (n: ShadowNode) => STYLE_PROPS.has(n.name);
+
+/**
  * Fragments are never children (every insert splats them), so a fragment parent
  * means "not attached to anything native yet".
  */
-const native_parent_of = (parent: ShadowNode | null) => (parent && parent.kind === 'element' ? parent : null);
+function native_parent_of(parent: ShadowNode | null) {
+	while (parent && is_boxless(parent)) parent = parent.parent;
+	return parent && parent.kind === 'element' ? parent : null;
+}
 
-/** Siblings only: a native node can never hide beneath a virtual one. A portal is not in this parent's native list. */
-function first_native_after(cursor: ShadowNode | null) {
+/** A boxless node is the one virtual node with children, which stand in its place. A portal is not in this parent's native list. */
+function first_native_from(cursor: ShadowNode | null): ShadowNode | null {
 	for (let n = cursor; n !== null; n = n.next) {
-		if (n.nativeId !== null && n.attached && !is_portal(n)) return n;
+		if (is_boxless(n)) {
+			const inside = first_native_from(n.first);
+			if (inside) return inside;
+		} else if (n.nativeId !== null && n.attached && !is_portal(n)) return n;
+	}
+	return null;
+}
+
+/** Past the last child of a boxless parent, the next native node is whatever follows that parent. */
+function first_native_after(n: ShadowNode) {
+	for (let at: ShadowNode | null = n; at; at = at.parent && is_boxless(at.parent) ? at.parent : null) {
+		const found = first_native_from(at.next);
+		if (found) return found;
 	}
 	return null;
 }
@@ -404,7 +429,7 @@ function vars_changed() {
 	mark_dirty();
 }
 
-function cascade_root_vars() {
+function cascade_root_vars(restyle = true) {
 	const vars = new Map<string, string>();
 	const important = new Map<string, string>();
 	root_media = false;
@@ -418,7 +443,7 @@ function cascade_root_vars() {
 			for (const [name, value] of Object.entries(rule.important ?? {})) important.set(name, value);
 		}
 	}
-	if (define_sheet_vars(vars, important)) vars_changed();
+	if (define_sheet_vars(vars, important) && restyle) vars_changed();
 }
 
 function stop_viewport_observer() {
@@ -461,7 +486,7 @@ function shielded(el: ShadowNode, style: GpuiStyle) {
 function inherit_color(el: ShadowNode, style: GpuiStyle) {
 	for (let p = el.parent; p; p = p.parent) {
 		if (p.kind !== 'element') continue;
-		const color = build_style(p.attrs, class_rules(p)).color;
+		const color = build_style(p.attrs, class_rules(p), p).color;
 		if (used_css_vars()) el.uses_vars = true;
 		if (color !== undefined) {
 			style.color = color;
@@ -470,10 +495,22 @@ function inherit_color(el: ShadowNode, style: GpuiStyle) {
 	}
 }
 
+/** Only an element whose style read a variable can come out different, and a declaring element may hold most of the app. */
+function restyle_readers(n: ShadowNode) {
+	if (n.uses_vars && n.nativeId !== null) apply_style(n);
+	for (let c = n.first; c; c = c.next) restyle_readers(c);
+}
+
 function apply_style(el: ShadowNode) {
+	if (is_boxless(el)) {
+		if (declare_vars(el, NO_RULES)) restyle_readers(el);
+		return;
+	}
 	if (el.nativeId === null) return;
 	media_read = false;
-	const style = build_style(el.attrs, class_rules(el));
+	const rules = class_rules(el);
+	const redeclared = declare_vars(el, rules);
+	const style = build_style(el.attrs, rules, el);
 	el.uses_vars = used_css_vars();
 
 	if (style.pointerEvents === undefined && shielded(el, style)) style.pointerEvents = 'none';
@@ -503,6 +540,9 @@ function apply_style(el: ShadowNode) {
 	}
 
 	emit(['setStyle', el.nativeId, style]);
+
+	// Last, since the nested calls reset `media_read`.
+	if (redeclared) for (let c = el.first; c; c = c.next) restyle_readers(c);
 }
 
 function restyle_subtree(el: ShadowNode) {
@@ -556,7 +596,7 @@ function real_sibling(from: ShadowNode | null, dir: 'prev' | 'next') {
 
 // Native searches, selects and copies adjacent text leaves as one run, which a wrapper would split, so text beside text stays bare and unlabelled.
 const wants_wrapper = (n: ShadowNode) =>
-	n.parent?.name !== 'text' && real_sibling(n.prev, 'prev')?.kind !== 'text' && real_sibling(n.next, 'next')?.kind !== 'text';
+	native_parent_of(n.parent)?.name !== 'text' && real_sibling(n.prev, 'prev')?.kind !== 'text' && real_sibling(n.next, 'next')?.kind !== 'text';
 
 /** Rebuilds a live text node whose neighbours changed, so its wrapper matches `wants_wrapper` again. */
 function rewrap(n: ShadowNode | null) {
@@ -580,7 +620,7 @@ const rewrap_beside = (prev: ShadowNode | null, next: ShadowNode | null) => {
 function materialize(n: ShadowNode) {
 	if (n.kind === 'comment' || n.kind === 'fragment') return;
 
-	if (n.nativeId === null) {
+	if (n.nativeId === null && !is_boxless(n)) {
 		if (n.kind === 'text') {
 			// Blank text is only an anchor, so it stays virtual and
 			// doesn't occupy a slot in GPUI's flex layout.
@@ -632,6 +672,11 @@ function materialize(n: ShadowNode) {
 }
 
 function attach(n: ShadowNode) {
+	if (is_boxless(n)) {
+		// Last first, so each child finds the one after it already in its new place.
+		for (let c = n.last; c; c = c.prev) attach(c);
+		return;
+	}
 	if (n.nativeId === null) return;
 
 	if (is_portal(n)) {
@@ -642,7 +687,7 @@ function attach(n: ShadowNode) {
 	const np = native_parent_of(n.parent);
 	if (np === null || np.nativeId === null) return;
 
-	const before = first_native_after(n.next);
+	const before = first_native_after(n);
 	emit(
 		before
 			? ['insertBefore', np.nativeId, n.nativeId, before.nativeId!]
@@ -676,7 +721,12 @@ type GpuixSvelteRenderer = ReturnType<typeof createRenderer<Nodes>>;
 
 const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	createFragment: () => node('fragment', '', ''),
-	createElement: (name) => node('element', name, ''),
+	createElement(name) {
+		const el = node('element', name, '');
+		// The compiler reads the anchor inside the wrapper as `wrapper.lastChild`, the one DOM property it takes off a node.
+		if (is_boxless(el)) Object.defineProperty(el, 'lastChild', { get: () => el.last });
+		return el;
+	},
 	createTextNode: (data) => node('text', '', data),
 	createComment: (data) => node('comment', '', data),
 
@@ -777,7 +827,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
-		const [left, right, was_live] = [n.prev, n.next, n.live];
+		const [left, right, was_live, from, styled] = [n.prev, n.next, n.live, n.parent, n.nativeId !== null];
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
 		if (was_live) rewrap_beside(left, right);
@@ -791,7 +841,9 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			attach_portals();
 			rewrap(n);
 			rewrap_beside(n.prev, n.next);
-		} else if (n.nativeId !== null && n.attached) {
+			// It kept its native node and so its style, resolved against the variables of the ancestors it had.
+			if (styled && from !== parent) restyle_readers(n);
+		} else if ((n.nativeId !== null && n.attached) || is_boxless(n)) {
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
 			pending_destroy.add(n);
@@ -863,8 +915,10 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 
 /** At import time too, as a browser has a sheet's variables once the sheet loads; `hot` is a file `render_hot` evaluates again on every reload. */
 export function define_root_vars(file: string, rules: RootRule[], hot = false) {
+	// A hot file evaluated again is a reload, and where commits schedule themselves one would run before the remount: on the outgoing tree, reporting each variable the edit removed.
+	const reloading = hot && root_sheets.has(file);
 	root_sheets.set(file, { rules, mount: hot ? mounts : null });
-	cascade_root_vars();
+	cascade_root_vars(!reloading);
 }
 
 /**
@@ -1044,6 +1098,12 @@ export function set_auto_commit(enabled: boolean) {
 	auto_commit = enabled;
 }
 
+/** A boxless node's children hang off its native parent, which outlives it; a portal among them is `commit`'s to destroy. */
+function retire(n: ShadowNode) {
+	if (n.nativeId !== null) emit(['destroyElement', n.nativeId]);
+	else if (is_boxless(n)) for (let c = n.first; c; c = c.next) if (!portals.has(c)) retire(c);
+}
+
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
 	if (vars_moved) {
@@ -1061,7 +1121,7 @@ export function commit() {
 		// Anything that left the live tree and was not rescued into it goes away —
 		// including nodes parked in offscreen fragments, which native would
 		// otherwise keep painting in their old spot.
-		if (!n.live && n.nativeId !== null) emit(['destroyElement', n.nativeId]);
+		if (!n.live) retire(n);
 	}
 	// Not under their shadow ancestors natively, so that ancestor's destroy misses them.
 	for (const p of portals) {
@@ -1088,6 +1148,8 @@ export function commit() {
 			n.nativeId = null;
 			n.textId = null;
 			n.attached = false;
+			// Its attributes are not looked at while it has no native node, and may all be gone by the time it has one again.
+			n.vars = null;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
 			if (n.uses_media) media_nodes.delete(n);
 			if (n === focused_input) focused_input = null;

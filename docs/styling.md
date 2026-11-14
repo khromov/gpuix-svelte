@@ -35,9 +35,11 @@ work for class rules, which are translated the same way.
 - `@media` blocks over the window's `width`, `height` and `orientation`, restyled as the window is
   resized (see [Media queries](#media-queries)).
 - `var(--token)` and `var(--token, fallback)` in class rules and inline styles, on any property.
-  Values come from a `:root { --token: #fff; }` rule in any component's `<style>`, or from
-  `set_css_vars({ token: '#fff' })`, which makes a theme switch one call (see
-  [Theming with CSS variables](#theming-with-css-variables)).
+  Values come from a `:root { --token: #fff; }` rule in any component's `<style>`, from
+  `set_css_vars({ token: '#fff' })`, which makes a theme switch one call, from an element that
+  declares one for itself and what is inside it (`.card { --token: #fff; }`,
+  `style="--token: #fff"`), and from a style prop on a component (`<Card --token="#fff" />`). See
+  [Theming with CSS variables](#theming-with-css-variables).
 - Any CSS colour syntax: hex, `rgb()`, `hsl()`, named colours.
 - `display: flex | grid` and the flexbox properties, `position: absolute`,
   `overflow: hidden | scroll | auto`, `opacity`, `cursor`, `white-space`, `text-overflow`,
@@ -68,9 +70,9 @@ work for class rules, which are translated the same way.
 - `transform`, `transition`, `z-index`, `letter-spacing` and `font-style` are ignored, mostly
   without a warning.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
-  `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select` and
-  `selection-color`. An `<svg>` gets its parent's `color` from the renderer, but not the parent's
-  `:hover` colour.
+  `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select`,
+  `selection-color` and the variables an element declares. An `<svg>` gets its parent's `color`
+  from the renderer, but not the parent's `:hover` colour.
 - Whitespace in the text of your markup collapses as it does in HTML, so a sentence wrapped over
   several indented lines is drawn with single spaces (from the next release, 0.6.0; before it the
   line break and the indentation are drawn too). The compiler does this, and only for text written
@@ -177,9 +179,18 @@ These are accepted, but they mean something different from what CSS would.
 
 ## Theming with CSS variables
 
-Class rules are compiled ahead of time, but a `var()` in one resolves at runtime. Declare the
-variables in a `:root` rule, in any component's `<style>`, and every component reads them, as in a
-browser:
+Class rules are compiled ahead of time, but a `var()` in one resolves at runtime. A variable can
+be declared in four places, and reaches as far from each as it does in a browser:
+
+- A `:root` rule, in any component's `<style>`: the whole app.
+- `set_css_vars()`, from JavaScript: the whole app, over what `:root` says. This is how a theme is
+  switched ([A light and a dark palette](#a-light-and-a-dark-palette)).
+- An element, in a class rule or its inline `style`: that element and everything inside it
+  ([Variables on an element](#variables-on-an-element)).
+- A style prop on a component, `<Card --accent="#ff3e00" />`: everything the component renders
+  ([Style props](#style-props)).
+
+The usual start is a `:root` rule that every component reads:
 
 ```svelte
 <div class="card">
@@ -229,37 +240,320 @@ warning naming the file:
 - A property that is not a variable (`:root { color: red; }`). In a browser it styles `<html>`,
   and a window has no element above your app's own root, so style that one or pass `rootStyle`.
 - `:root` with anything attached (`:root.dark`, `:root:hover`), and `@media` queries a window has
-  no answer for, such as `prefers-color-scheme`. Switch a palette with `set_css_vars` instead.
-- A variable declared on any other selector (`.card { --pad: 4px; }`). A browser scopes it to
-  that element and its descendants; here every variable is global, and one written in an inline
-  `style` is ignored.
+  no answer for, such as `prefers-color-scheme`. Switch a palette with `set_css_vars` instead, or
+  put the class on an element of your own, which can declare variables like any other.
+- A variable declared for a state (`.card:hover { --tint: #fff; }`, and the same under `:active`
+  and `:focus-visible`). GPUI applies those three states itself and tells nobody, so the elements
+  inside could not follow. The rule's other declarations still apply.
 
-### Switching a theme
+### A light and a dark palette
 
-`set_css_vars()` sets variables from JS, so a palette is one object and a theme switch is one call:
+`set_css_vars()` sets variables from JavaScript, so a palette is one object per mode and a switch
+is one call. The component below is a whole app's theme: every colour in its styles is a variable,
+both palettes name the same ones, and what does not change with the mode sits in a `:root` rule.
+It runs as it is in a window and in the [DOM build](dom.md), which is what draws it on this page:
 
-```svelte
+```svelte demo palette
 <script>
   import { set_css_vars } from 'gpuix-svelte';
 
-  const LIGHT = { surface: '#ffffff', ink: '#171717', border: '#e5e5e5' };
-  const DARK = { surface: '#111111', ink: '#ededed', border: '#242424' };
-  let { dark } = $props();
+  const PALETTES = {
+    dark: {
+      paper: '#0c0a09',
+      panel: '#1c1917',
+      raised: '#292524',
+      edge: '#44403c',
+      ink: '#f5f5f4',
+      dim: '#a8a29e',
+      brand: '#fb923c',
+      'on-brand': '#0c0a09'
+    },
+    light: {
+      paper: '#f5f5f4',
+      panel: '#ffffff',
+      raised: '#e7e5e4',
+      edge: '#d6d3d1',
+      ink: '#1c1917',
+      dim: '#57534e',
+      brand: '#c2410c',
+      'on-brand': '#ffffff'
+    }
+  };
+  const DEPLOYS = [
+    { name: 'web', state: 'Live', when: '2 min ago' },
+    { name: 'api', state: 'Building', when: 'now' },
+    { name: 'docs', state: 'Live', when: 'yesterday' }
+  ];
 
-  $effect(() => set_css_vars(dark ? DARK : LIGHT));
+  let mode = $state('dark');
+
+  $effect(() => set_css_vars(PALETTES[mode]));
 </script>
+
+<div class="app">
+  <div class="bar">
+    <div class="title">Deployments</div>
+    <div class="btn" onclick={() => (mode = mode === 'dark' ? 'light' : 'dark')}>
+      {mode === 'dark' ? 'Light' : 'Dark'} mode
+    </div>
+  </div>
+  <div class="panel">
+    {#each DEPLOYS as deploy (deploy.name)}
+      <div class="row">
+        <div class="name">{deploy.name}</div>
+        <div class="state" class:busy={deploy.state !== 'Live'}>{deploy.state}</div>
+        <div class="when">{deploy.when}</div>
+      </div>
+    {/each}
+  </div>
+</div>
+
+<style>
+  :root {
+    --radius: 10px;
+    --row-pad: 10px 14px;
+  }
+  .app {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius);
+    background-color: var(--paper);
+    color: var(--ink);
+  }
+  .bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--brand);
+    color: var(--on-brand);
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--edge);
+    border-radius: var(--radius);
+    background-color: var(--panel);
+  }
+  .row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: var(--row-pad);
+  }
+  .row:hover {
+    background-color: var(--raised);
+  }
+  .name {
+    flex-grow: 1;
+    font-weight: 500;
+  }
+  .state {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    background-color: var(--raised);
+  }
+  .state.busy {
+    background-color: var(--brand);
+    color: var(--on-brand);
+  }
+  .when {
+    width: 80px;
+    font-size: 12px;
+    text-align: right;
+    color: var(--dim);
+  }
+</style>
 ```
 
-It restyles only the elements that use a variable, all in one frame, and a call that changes
-nothing does nothing. Keys work with or without the `--`. Setting the palette from an `$effect`
-like the one above is fine: the check for unset variables runs after your effects have, so one the
-effect sets is never reported.
+`set_css_vars()` restyles only the elements that use a variable, all in one frame, and a call that
+changes nothing does nothing. Keys work with or without the `--`. Setting the palette from an
+`$effect` like the one above is fine: the check for unset variables runs after your effects have,
+so one the effect sets is never reported.
 
-A value set this way wins over a `:root` rule's, because the [DOM build](dom.md) writes it to
-`<html>`'s inline style, which a browser ranks above a rule. Setting it to `null` (or `''`) takes
-it away again, and the `:root` value, if there is one, shows through. So a `:root` rule can hold
-the defaults and `set_css_vars` only what a theme changes. A variable declared `!important` in
-`:root` is the exception, there as in a browser: `set_css_vars` can't override it.
+A value set this way wins over a `:root` rule's, because the DOM build writes it to `<html>`'s
+inline style, which a browser ranks above a rule. Setting it to `null` (or `''`) takes it away
+again, and the `:root` value, if there is one, shows through. So a `:root` rule can hold the
+defaults and `set_css_vars` only what a theme changes. A variable declared `!important` in `:root`
+is the exception, there as in a browser: `set_css_vars` can't override it.
+
+### Variables on an element
+
+A variable declared on an element, in a class rule or its inline `style`, belongs to that element
+and to everything inside it, child components included. There it outranks `:root` and
+`set_css_vars()`, an `!important` declaration in `:root` too, and where two elements around a
+reader declare the same variable, the nearer one wins. That is a browser's inheritance, so the DOM
+build draws the same thing. The cards below borrow `--panel`, `--ink` and `--raised` from the
+palette above and set a `--tint` of their own:
+
+```svelte demo scoped
+<script>
+  const TINTS = ['#fb923c', '#38bdf8', '#4ade80'];
+
+  let tint = $state(TINTS[1]);
+  let muted = $state(true);
+</script>
+
+<div class="cards">
+  <div class="card">
+    <div class="tag">:root</div>
+    <div class="note">Nothing around this card declares a tint.</div>
+  </div>
+  <div class="card" class:muted>
+    <div class="tag">class rule</div>
+    <div class="btn" onclick={() => (muted = !muted)}>{muted ? 'Remove' : 'Add'} .muted</div>
+  </div>
+  <div class="card" style:--tint={tint}>
+    <div class="tag">inline style</div>
+    <div class="swatches">
+      {#each TINTS as colour (colour)}
+        <div class="swatch" style:--tint={colour} onclick={() => (tint = colour)}></div>
+      {/each}
+    </div>
+  </div>
+</div>
+
+<style>
+  :root {
+    --tint: #f472b6;
+  }
+  .muted {
+    --tint: #a8a29e;
+  }
+  .cards {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    width: 180px;
+    padding: 12px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--tint);
+    border-radius: 10px;
+    background-color: var(--panel);
+    color: var(--ink);
+  }
+  .tag {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background-color: var(--tint);
+    color: #0c0a09;
+  }
+  .note {
+    font-size: 13px;
+  }
+  .btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--raised);
+  }
+  .swatches {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+  }
+  .swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    background-color: var(--tint);
+  }
+</style>
+```
+
+- A `class:` directive, a `style:--tint={value}` that changes and an `@media` block around the
+  rule all restyle the elements inside that read the variable, and only those.
+- A variable that reads another (`--edge: var(--tint)`) is worked out on the element that declares
+  it. An element further in that declares its own `--tint` does not change what `--edge` is there,
+  in a window or in a browser.
+- Keep an app's palette in `:root` and `set_css_vars()` all the same. In the DOM build the layer
+  of a `Tooltip`, a `Popover` or a `Portal` hangs off `<body>`, outside the element that declared
+  the variable, so only those two reach it there. In a window the layer reads the variables of the
+  place it was written in.
+
+### Style props
+
+Svelte's [style props](https://svelte.dev/docs/svelte/custom-properties) hand variables to a
+component from outside, without a prop for each. A component reads its colours from variables:
+
+```svelte
+<!-- Tag.svelte -->
+<script>
+  let { children } = $props();
+</script>
+
+<div class="tag">{@render children()}</div>
+
+<style>
+  .tag {
+    padding: 2px 10px;
+    border-radius: 999px;
+    background-color: var(--tint, #a8a29e);
+    color: var(--tint-ink, #0c0a09);
+  }
+</style>
+```
+
+And whoever uses it sets them per instance:
+
+```svelte
+<script>
+  import Tag from './Tag.svelte';
+
+  let { failed } = $props();
+</script>
+
+<Tag>queued</Tag>
+<Tag --tint="#4ade80">passed</Tag>
+<Tag --tint={failed ? '#f87171' : '#a8a29e'} --tint-ink="#ffffff">checks</Tag>
+```
+
+The variables reach everything the component renders: its own elements, the components inside
+it and the markup you pass it as children. A value can be any expression and restyles the
+component as it changes, and `null` or `''` takes the variable away again. A style prop outranks
+a declaration on an element around the component, and loses to one on an element inside it.
+
+In a browser Svelte holds them on a `<svelte-css-wrapper style="display: contents">` element
+around the component. A window gets no element for that wrapper at all, so a style prop never
+changes layout: the component's elements stay the flex items, or the rows of a `<virtual-list>`,
+that they are without one.
+
+The shipped components take them like any other: `<Scroller --scroller-thumb="#fb923c">` colours
+one scroller's thumb. A `Tooltip`'s or a `Popover`'s layer is the exception in the DOM build, for
+the reason above, so give one of those its variables through `style`
+(`style="--tooltip-surface: #fb923c"`), which both renderers put on the layer itself.
 
 ## Media queries
 
