@@ -12,6 +12,7 @@ import { Mirror, batch_html, count_nodes, dom_html, tree_html } from './tree.ts'
 import counter from './examples/Counter.svelte?raw';
 import list from './examples/List.svelte?raw';
 import theme from './examples/Theme.svelte?raw';
+import variables from './examples/Variables.svelte?raw';
 import components from './examples/Components.svelte?raw';
 import whitespace from './examples/Whitespace.svelte?raw';
 
@@ -19,6 +20,7 @@ const EXAMPLES = [
 	{ name: 'Counter', source: counter },
 	{ name: 'Keyed list', source: list },
 	{ name: 'Theme on both renderers', source: theme },
+	{ name: 'Variables: :root, an element, a style prop', source: variables },
 	{ name: 'Scroller, Tooltip, Popover, Portal', source: components },
 	{ name: 'Whitespace in text', source: whitespace }
 ];

@@ -104,6 +104,8 @@ function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string, wa
 			const css = declarations.join('; ');
 			// A `var()` only resolves at runtime, so a block that reads one ships as text.
 			const body = css.includes('var(') ? { css } : { style: parse_css_text(css) };
+			const vars = Object.fromEntries(variables.map(([name, value]) => [name, value.replace(IMPORTANT, '')]));
+			const names = variables.map(([name]) => `--${name}`).join('; ');
 
 			for (const complex of node.prelude.children) {
 				const text = source.slice(complex.start, complex.end);
@@ -118,10 +120,11 @@ function extract_rules(css: AST.CSS.StyleSheet, source: string, path: string, wa
 					refuse(text, text.includes(':root') ? 'only a `:root` on its own declares variables, and set_css_vars() switches them at runtime' : undefined);
 					continue;
 				}
-				// A browser scopes these to the element and what is inside it, and nothing here inherits a variable.
-				if (variables.length > 0) refuse(`${text} { ${variables.map(([name]) => `--${name}`).join('; ')} }`, 'a variable is declared in a `:root` rule and reads the same everywhere');
-				if (declarations.length === 0 && variables.length > 0) continue;
-				rules.push(media.length ? { ...selector, ...body, media } : { ...selector, ...body });
+				// The three states are native, so nothing here learns of one in time to restyle what reads the variable.
+				const scoped = variables.length > 0 && selector.pseudo === null;
+				if (variables.length > 0 && !scoped) refuse(`${text} { ${names} }`, 'an element can declare a variable, but not only while it is hovered, pressed or focused');
+				if (declarations.length === 0 && variables.length > 0 && !scoped) continue;
+				rules.push({ ...selector, ...body, ...(scoped && { vars }), ...(media.length > 0 && { media }) });
 			}
 		}
 	};

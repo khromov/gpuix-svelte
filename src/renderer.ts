@@ -19,7 +19,7 @@ import type {
 } from '@gpuix/native/host';
 import { createRenderer } from 'svelte/renderer';
 import { observeWindowSize, type WindowSizeHost } from '@gpuix/native/host';
-import { build_style, define_css_vars, define_sheet_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
+import { build_style, declare_vars, define_css_vars, define_sheet_vars, flush_var_warnings, set_of, used_css_vars } from './style.ts';
 import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import { place_layer } from './layers.ts';
@@ -228,6 +228,12 @@ let root_media = false;
 /** A variable changed, and the next commit restyles what reads one. */
 let vars_moved = false;
 
+/** Elements whose style read a variable from an ancestor that has since changed, restyled once by the next commit however many variables did. */
+let stale = new Set<ShadowNode>();
+
+/** A reload evaluates the files it changed before it remounts, and a commit in between would restyle the outgoing tree against their `:root` rules, reporting each variable the edit removed. */
+let remounting = false;
+
 let on_dirty: (() => void) | null = null;
 
 /** How the frame loop hears of a mutation made between its ticks (a timer, a fetch), which a display-link wake never reports. */
@@ -269,6 +275,8 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		listeners: new Map(),
 		nativeId: null,
 		textId: null,
+		boxless: false,
+		vars: null,
 		uses_vars: false,
 		uses_media: false,
 		own_color: undefined,
@@ -318,15 +326,39 @@ function unlink(child: ShadowNode) {
 const is_blank = (s: string | null | undefined) => s == null || s.trim() === '';
 
 /**
+ * What Svelte names the element it puts around a component given style props (`<Card --accent="red" />`): `<g>` where it takes
+ * the markup for SVG, which is inside a `<text>` or an `<svg>` and in a fragment whose own elements are all one or the other.
+ */
+const STYLE_PROPS = new Set(['svelte-css-wrapper', 'g']);
+
+/** That element declares variables and has no box (`display: contents` in a browser), so it never gets a native node and its children are natively its parent's. */
+const is_boxless = (n: ShadowNode) => n.boxless;
+
+/**
  * Fragments are never children (every insert splats them), so a fragment parent
  * means "not attached to anything native yet".
  */
-const native_parent_of = (parent: ShadowNode | null) => (parent && parent.kind === 'element' ? parent : null);
+function native_parent_of(parent: ShadowNode | null) {
+	while (parent && is_boxless(parent)) parent = parent.parent;
+	return parent && parent.kind === 'element' ? parent : null;
+}
 
-/** Siblings only: a native node can never hide beneath a virtual one. A portal is not in this parent's native list. */
-function first_native_after(cursor: ShadowNode | null) {
+/** A boxless node is the one virtual node with children, which stand in its place. A portal is not in this parent's native list. */
+function first_native_from(cursor: ShadowNode | null): ShadowNode | null {
 	for (let n = cursor; n !== null; n = n.next) {
-		if (n.nativeId !== null && n.attached && !is_portal(n)) return n;
+		if (is_boxless(n)) {
+			const inside = first_native_from(n.first);
+			if (inside) return inside;
+		} else if (n.nativeId !== null && n.attached && !is_portal(n)) return n;
+	}
+	return null;
+}
+
+/** Past the last child of a boxless parent, the next native node is whatever follows that parent. */
+function first_native_after(n: ShadowNode) {
+	for (let at: ShadowNode | null = n; at; at = at.parent && is_boxless(at.parent) ? at.parent : null) {
+		const found = first_native_from(at.next);
+		if (found) return found;
 	}
 	return null;
 }
@@ -461,7 +493,7 @@ function shielded(el: ShadowNode, style: GpuiStyle) {
 function inherit_color(el: ShadowNode, style: GpuiStyle) {
 	for (let p = el.parent; p; p = p.parent) {
 		if (p.kind !== 'element') continue;
-		const color = build_style(p.attrs, class_rules(p)).color;
+		const color = build_style(p.attrs, class_rules(p), p).color;
 		if (used_css_vars()) el.uses_vars = true;
 		if (color !== undefined) {
 			style.color = color;
@@ -470,10 +502,29 @@ function inherit_color(el: ShadowNode, style: GpuiStyle) {
 	}
 }
 
+/**
+ * Only an element whose style read a variable can come out different, and a declaring element may hold most of the app.
+ * Left to the commit, because Svelte writes a style prop or a `style:` directive one variable at a time.
+ */
+function restyle_readers(n: ShadowNode) {
+	if (n.uses_vars && n.nativeId !== null) {
+		stale.add(n);
+		mark_dirty();
+	}
+	for (let c = n.first; c; c = c.next) restyle_readers(c);
+}
+
 function apply_style(el: ShadowNode) {
+	if (is_boxless(el)) {
+		if (declare_vars(el, NO_RULES)) restyle_readers(el);
+		return;
+	}
 	if (el.nativeId === null) return;
+	stale.delete(el);
 	media_read = false;
-	const style = build_style(el.attrs, class_rules(el));
+	const rules = class_rules(el);
+	if (declare_vars(el, rules)) for (let c = el.first; c; c = c.next) restyle_readers(c);
+	const style = build_style(el.attrs, rules, el);
 	el.uses_vars = used_css_vars();
 
 	if (style.pointerEvents === undefined && shielded(el, style)) style.pointerEvents = 'none';
@@ -503,6 +554,22 @@ function apply_style(el: ShadowNode) {
 	}
 
 	emit(['setStyle', el.nativeId, style]);
+}
+
+function unbox(el: ShadowNode) {
+	if (el.boxless) return el;
+	el.boxless = true;
+	const id = el.nativeId;
+	// Svelte keeps a template out of the tree until what it awaits has settled, so this is only for a wrapper that went up as a `<div>` first.
+	if (id !== null) {
+		by_id.delete(id);
+		el.nativeId = null;
+		el.attached = false;
+		attach(el);
+		emit(['destroyElement', id]);
+	}
+	apply_style(el);
+	return el;
 }
 
 function restyle_subtree(el: ShadowNode) {
@@ -556,7 +623,7 @@ function real_sibling(from: ShadowNode | null, dir: 'prev' | 'next') {
 
 // Native searches, selects and copies adjacent text leaves as one run, which a wrapper would split, so text beside text stays bare and unlabelled.
 const wants_wrapper = (n: ShadowNode) =>
-	n.parent?.name !== 'text' && real_sibling(n.prev, 'prev')?.kind !== 'text' && real_sibling(n.next, 'next')?.kind !== 'text';
+	native_parent_of(n.parent)?.name !== 'text' && real_sibling(n.prev, 'prev')?.kind !== 'text' && real_sibling(n.next, 'next')?.kind !== 'text';
 
 /** Rebuilds a live text node whose neighbours changed, so its wrapper matches `wants_wrapper` again. */
 function rewrap(n: ShadowNode | null) {
@@ -580,7 +647,7 @@ const rewrap_beside = (prev: ShadowNode | null, next: ShadowNode | null) => {
 function materialize(n: ShadowNode) {
 	if (n.kind === 'comment' || n.kind === 'fragment') return;
 
-	if (n.nativeId === null) {
+	if (n.nativeId === null && !is_boxless(n)) {
 		if (n.kind === 'text') {
 			// Blank text is only an anchor, so it stays virtual and
 			// doesn't occupy a slot in GPUI's flex layout.
@@ -632,6 +699,11 @@ function materialize(n: ShadowNode) {
 }
 
 function attach(n: ShadowNode) {
+	if (is_boxless(n)) {
+		// Last first, so each child finds the one after it already in its new place.
+		for (let c = n.last; c; c = c.prev) attach(c);
+		return;
+	}
 	if (n.nativeId === null) return;
 
 	if (is_portal(n)) {
@@ -642,7 +714,7 @@ function attach(n: ShadowNode) {
 	const np = native_parent_of(n.parent);
 	if (np === null || np.nativeId === null) return;
 
-	const before = first_native_after(n.next);
+	const before = first_native_after(n);
 	emit(
 		before
 			? ['insertBefore', np.nativeId, n.nativeId, before.nativeId!]
@@ -676,7 +748,12 @@ type GpuixSvelteRenderer = ReturnType<typeof createRenderer<Nodes>>;
 
 const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	createFragment: () => node('fragment', '', ''),
-	createElement: (name) => node('element', name, ''),
+	createElement(name) {
+		const el = node('element', name, '');
+		// The compiler reads the anchor inside its wrapper as `wrapper.lastChild`, the one DOM property it takes off a node, so the read also tells that wrapper from an element the app gave the same name.
+		if (STYLE_PROPS.has(name)) Object.defineProperty(el, 'lastChild', { get: () => unbox(el).last });
+		return el;
+	},
 	createTextNode: (data) => node('text', '', data),
 	createComment: (data) => node('comment', '', data),
 
@@ -777,7 +854,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
-		const [left, right, was_live] = [n.prev, n.next, n.live];
+		const [left, right, was_live, from] = [n.prev, n.next, n.live, n.parent];
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
 
@@ -785,12 +862,14 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 
 		if (n.live) {
 			pending_destroy.delete(n); // resurrected before the next commit
+			// Before `materialize`: the native nodes it kept have styles resolved against the variables of the ancestors it had, and the ones made now read the new.
+			if (from !== parent && (n.nativeId !== null || is_boxless(n))) restyle_readers(n);
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
 			attach_portals();
 			rewrap(n);
 			rewrap_beside(n.prev, n.next);
-		} else if (n.nativeId !== null && n.attached) {
+		} else if ((n.nativeId !== null && n.attached) || is_boxless(n)) {
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
 			pending_destroy.add(n);
@@ -869,6 +948,12 @@ export function define_root_vars(file: string, rules: RootRule[], hot = false) {
 	cascade_root_vars();
 }
 
+/** For whoever loads a reload's files to set before it does; `set_native` ends it, and so does that loader when the load fails. */
+export function set_remounting(pending: boolean) {
+	remounting = pending;
+	if (!pending && vars_moved) mark_dirty();
+}
+
 /**
  * How the renderer learns the window's size for `@media` rules: window.ts installs the poll behind
  * `window_size`, started by the first such rule and stopped once none is live.
@@ -905,6 +990,8 @@ export function set_native(instance: NativeSink) {
 	mounts++;
 	cascade_root_vars();
 	vars_moved = false;
+	remounting = false;
+	stale = new Set();
 	focused_input = null;
 	root_node = null;
 	portals = new Set();
@@ -1046,15 +1133,25 @@ export function set_auto_commit(enabled: boolean) {
 	auto_commit = enabled;
 }
 
+/** A boxless node's children hang off its native parent, which outlives it; a portal among them is `commit`'s to destroy. */
+function retire(n: ShadowNode) {
+	if (n.nativeId !== null) emit(['destroyElement', n.nativeId]);
+	else if (is_boxless(n)) for (let c = n.first; c; c = c.next) if (!portals.has(c)) retire(c);
+}
+
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
-	if (vars_moved) {
+	if (vars_moved && !remounting) {
 		vars_moved = false;
 		// Not what left the tree, which is destroyed below: after a hot reload that is the old tree, and it would be reported for every variable the edit removed.
 		for (const n of by_id.values()) {
 			if (n.uses_vars && n.live) apply_style(n);
 		}
 	}
+	for (const n of stale) {
+		if (n.live && n.nativeId !== null) apply_style(n);
+	}
+	stale.clear();
 
 	// Above the empty-queue return below: a frame that only restyled still has to report.
 	flush_var_warnings();
@@ -1063,7 +1160,7 @@ export function commit() {
 		// Anything that left the live tree and was not rescued into it goes away —
 		// including nodes parked in offscreen fragments, which native would
 		// otherwise keep painting in their old spot.
-		if (!n.live && n.nativeId !== null) emit(['destroyElement', n.nativeId]);
+		if (!n.live) retire(n);
 	}
 	// Not under their shadow ancestors natively, so that ancestor's destroy misses them.
 	for (const p of portals) {
@@ -1090,6 +1187,8 @@ export function commit() {
 			n.nativeId = null;
 			n.textId = null;
 			n.attached = false;
+			// Its attributes are not looked at while it has no native node, and may all be gone by the time it has one again.
+			n.vars = null;
 			if (n.name === 'svg') inheriting_svgs.delete(n);
 			if (n.uses_media) media_nodes.delete(n);
 			if (n === focused_input) focused_input = null;

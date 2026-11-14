@@ -37,7 +37,8 @@ Props:
   `<testid>-thumb`, and a virtual list's drag strip `<testid>-strip`.
 
 Colours come from `var(--scroller-thumb)` and `var(--scroller-thumb-hover)`, with greys as
-fallbacks.
+fallbacks. Declare them in a `:root` rule for the whole app, or hand them to one scroller as
+[style props](styling.md#style-props): `<Scroller --scroller-thumb="#ff3e00">`.
 
 ```svelte demo scroller
 <script>
@@ -228,7 +229,7 @@ Props:
 - `testid` goes on the wrapper around the trigger. The tip gets `<testid>-tip`.
 
 Colours come from `var(--tooltip-surface)` and `var(--tooltip-ink)`, which you declare for the
-whole app in a `:root` rule.
+whole app in a `:root` rule, or for one tip in its `style` (`style="--tooltip-surface: #ff3e00"`).
 
 A decorative trigger (text, an icon, a badge) needs nothing more, but a keyboard can't reach it, so
 put nothing in its tip that isn't on screen elsewhere. A trigger with a handler of its own, such as
@@ -317,7 +318,8 @@ Props:
   surface.
 - `testid` goes on the wrapper around the trigger. The panel gets `<testid>-panel`.
 
-Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--popover-ink)`.
+Colours come from `var(--popover-surface)`, `var(--popover-border)` and `var(--popover-ink)`,
+declared in a `:root` rule or, for one panel, in its `style`.
 
 ```svelte
 <Popover open={menu} onclose={() => (menu = false)}>
