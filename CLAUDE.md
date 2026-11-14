@@ -585,7 +585,13 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   through the browser's own buttons; `router.ts`'s comments cover each case. The invariant is that
   the entry the page is on always carries the current length (an entry is stamped again when a pop
   arrives on it with a stale one). A known limit: the router can't count entries other code pushes
-  without a `popstate`, so the flags can be off by one around them.
+  without a `popstate`, so the flags can be off by one around them. Hooks may be async, so every
+  navigation, pop and step goes through `decide()`, which takes a `ticket` and drops a verdict that
+  arrives after a newer ticket (a hook's own `navigate()` included), and stays synchronous while
+  every hook answers synchronously, which the tests and a click's same-frame commit rely on. On a
+  pop the browser has moved already, so `index` follows it at once and `shown` keeps the entry
+  `current` came from, which a refusal goes back to. `Router` keys the screen on `router.path`, not
+  `generation`, so a query-only change keeps it mounted.
 - **Tests and demos.** `packages/ui/showcase/Showcase.svelte` places the components with test ids;
   `demo:ui` opens it, `demo:ui-dom` serves it, `test/ui.ts` clicks through it headlessly (wheeling
   each target into the ~540 px viewport first) and `test/ui-dom.ts` under happy-dom from the Vite

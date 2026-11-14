@@ -286,6 +286,21 @@ off();
 navigate(href('/items/:id', { id: 'a b' }, { tab: 'notes' }));
 settle();
 check('navigate() from code, params decoded and the query kept', [text_in('screen'), text_of('route')], ['Item a b, mounted fresh for this path.', 'At /items/a%20b?tab=notes']);
+const screen_id = () => find_test_id('router')?.children?.[0]?.id;
+const mounted = screen_id();
+await navigate('?tab=files');
+settle();
+const screen_kept = screen_id() === mounted;
+const releases: ((verdict: boolean) => void)[] = [];
+const off_async = before(() => new Promise<boolean>((resolve) => releases.push(resolve)));
+const going = navigate('/items');
+settle();
+const waiting = [text_of('route'), releases.length];
+releases[0](true);
+await going;
+settle();
+off_async();
+check('a query change keeps the screen mounted, and an async hook is waited for', [mounted !== undefined, screen_kept, ...waiting, text_of('route')], [true, true, 'At /items/a%20b?tab=files', 1, 'At /items']);
 
 // --- toasts, last, since they sit over the lower right ------------------------------
 await reach('toast-plain');
@@ -323,4 +338,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 83);
+finish('ui', 84);

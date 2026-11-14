@@ -34,14 +34,18 @@ GlobalRegistrator.register({ url: 'http://localhost/', width: 1024, height: 768 
 // After the registration, or Svelte's client runtime would be evaluated with no `document`.
 const { check, finish } = await import('gpuix-svelte/test');
 // The router API comes from the bundle, where it is the instance the showcase's Router drives.
-const { Showcase, Avatar, Slider, Tabs, TextField, mount, flushSync, router, navigate, before, href, match, start_router, stop_router } = (await import(pathToFileURL(join(tmp, 'dist/showcase.js')).href)) as {
+const { Showcase, Avatar, Link, Router, Separator, Slider, Tabs, TextField, mount, flushSync, createRawSnippet, router, navigate, back, before, after, href, lazy, match, start_router, stop_router } = (await import(pathToFileURL(join(tmp, 'dist/showcase.js')).href)) as {
 	Showcase: never;
 	Avatar: never;
+	Link: never;
+	Router: never;
+	Separator: never;
 	Slider: never;
 	Tabs: never;
 	TextField: never;
 	mount(component: never, options: { target: Element; props?: Record<string, unknown> }): unknown;
 	flushSync(): void;
+	createRawSnippet: typeof import('svelte').createRawSnippet;
 } & typeof import('../packages/ui/src/router.ts');
 const { toast, dismiss_toast, clear_toasts, toasts } = await import('../packages/ui/src/toast.ts');
 const { theme_rule, theme_vars, DARK, LIGHT } = await import('../packages/ui/src/theme.ts');
@@ -429,6 +433,134 @@ check('memory mode starts from `initial` and leaves the URL alone', [text('scree
 check('match() prefers a literal segment to a param, and * catches the rest', [match(['/items/:id', '/items/new'], '/items/new')?.pattern, match(['/items/:id'], '/items/7')?.params, match(['/a', '*'], '/b')?.pattern, match(['/a'], '/b')], ['/items/new', { id: '7' }, '*', null]);
 check('href() encodes params and builds a query', [href('/items/:id', { id: 'a b' }, { q: 1, none: null }), href('/items/:id/:tab', { id: 1, tab: 'x' })], ['/items/a%20b?q=1', '/items/1/x']);
 
+// The store itself, in memory mode, which is also a window's.
+stop_router();
+start_router({ mode: 'memory', initial: '/items/9' });
+flushSync();
+check('a trailing /* takes the rest of the path, below a pattern naming those segments', [match(['/docs/*', '/docs/:id', '*'], '/docs/a')?.pattern, match(['/docs/*', '/docs/:id'], '/docs/a/b%20c')?.params, match(['/docs/*', '*'], '/docs')?.params, match(['/docs/*', '/:a/:b/:c'], '/docs/a/b')?.pattern, href('/docs/*', { '*': 'a b/c' })], ['/docs/:id', { '*': 'a/b c' }, { '*': '' }, '/docs/*', '/docs/a%20b/c']);
+const first = by_id('router')?.firstElementChild;
+await navigate('?page=2');
+flushSync();
+const kept = by_id('router')?.firstElementChild === first;
+await navigate('3');
+flushSync();
+check('a relative path resolves as a link would, and only a change of path mounts the screen afresh', [kept, router.href, by_id('router')?.firstElementChild === first, text('screen')], [true, '/items/3', false, 'Item 3, mounted fresh for this path.']);
+await navigate('/items/3');
+await navigate('/items/3');
+back();
+check('a navigation to the route already shown replaces it rather than stacking another entry', router.href, '/items/9?page=2');
+await navigate(href('/items', {}, { tag: ['a', 'b'], none: [null] }));
+check("href() repeats an array's key, and router.search keeps every value", [router.href, router.search.getAll('tag'), router.query.tag], ['/items?tag=a&tag=b', ['a', 'b'], 'b']);
+const releases: ((verdict: boolean) => void)[] = [];
+const off_async = before((to) => (to.path.startsWith('/items/') ? new Promise<boolean>((resolve) => releases.push(resolve)) : true));
+const slow = navigate('/items/1');
+const waiting = [router.navigating?.path, router.path];
+const fast = navigate('/items/2');
+releases[1](true);
+const fast_arrived = await fast;
+releases[0](true);
+const slow_arrived = await slow;
+off_async();
+flushSync();
+check('an async hook is waited for, and a newer navigation overtakes one still waiting', [...waiting, fast_arrived, slow_arrived, router.path, router.navigating], ['/items/1', '/items', true, false, '/items/2', null]);
+const logged: unknown[][] = [];
+const error = console.error;
+console.error = (...args: unknown[]) => void logged.push(args);
+const off_throw = before(() => {
+	throw new Error('boom');
+});
+const threw = await navigate('/');
+off_throw();
+const off_loop = before((to) => (to.path === '/a' ? '/b' : to.path === '/b' ? '/a' : true));
+const looped = await navigate('/a');
+off_loop();
+console.error = error;
+check('a hook that throws cancels the navigation, and so does a redirect loop, each logged', [threw, looped, router.path, logged.length], [false, false, '/items/2', 2]);
+const off_nav = before((to) => {
+	if (to.path === '/nowhere') void navigate('/items');
+});
+const outer = await navigate('/nowhere');
+off_nav();
+check("a hook's own navigate() takes over from the navigation it was asked about", [outer, router.path], [false, '/items']);
+const arrivals: string[] = [];
+const off_after = after((to, from) => void arrivals.push(`${from.path} > ${to.path}`));
+await navigate('/items/1');
+back();
+off_after();
+check('after() hears every arrival, back() included', arrivals, ['/items > /items/1', '/items/1 > /items']);
+stop_router();
+before((to) => (to.path === '/items/5' ? '/items' : true));
+start_router({ mode: 'memory', initial: '/items/5' });
+const redirected = [router.path, router.can_go_back];
+stop_router();
+let admit: (verdict: boolean) => void = () => {};
+before(() => new Promise<boolean>((resolve) => (admit = resolve)));
+start_router({ mode: 'memory', initial: '/items/6' });
+flushSync();
+const holding = [router.ready, text('screen')];
+admit(true);
+await sleep(0);
+flushSync();
+check('the hooks decide on the first screen too, which waits for an async one', [...redirected, ...holding, router.ready, text('screen')], ['/items', false, false, '', true, 'Item 6, mounted fresh for this path.']);
+
+stop_router();
+history.replaceState(null, '', '/repo/items/2');
+start_router({ mode: 'history', base: '/repo/' });
+flushSync();
+const based = [router.path, by_id('go-items')?.getAttribute('href'), by_id('go-items')?.getAttribute('aria-current'), by_id('go-home')?.getAttribute('aria-current')];
+click(by_id('go-home'));
+check('a base path is stripped before matching and put back on every URL, and the active Link says so', [...based, location.pathname, router.path], ['/items/2', '/repo/items', 'page', null, '/repo/', '/']);
+await navigate('/items');
+let decide_pop: (verdict: boolean) => void = () => {};
+const off_pop = before(() => new Promise<boolean>((resolve) => (decide_pop = resolve)));
+history.back();
+await sleep(20);
+flushSync();
+const asking = [location.pathname, router.path, router.navigating?.path];
+decide_pop(false);
+await sleep(20);
+flushSync();
+off_pop();
+check("an async hook refusing the browser's back puts the browser back where it was", [...asking, location.pathname, router.path, router.navigating], ['/repo/', '/items', '/', '/repo/items', '/items', null]);
+
+const links = document.body.appendChild(document.createElement('div'));
+const label = createRawSnippet(() => ({ render: () => '<span>link</span>' }));
+mount(Link, { target: links, props: { href: 'https://example.com/', children: label, testid: 'away' } });
+mount(Link, { target: links, props: { href: '/items?tab=a', children: label, testid: 'tab-a' } });
+mount(Link, { target: links, props: { href: '/items?tab=b', children: label, testid: 'tab-b' } });
+await navigate('/items?tab=a');
+flushSync();
+let followed_away: boolean | null = null;
+document.addEventListener(
+	'click',
+	(e) => {
+		followed_away = !e.defaultPrevented;
+		e.preventDefault();
+	},
+	{ once: true }
+);
+by_id('away')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+const inner = by_id('tab-b')!.querySelector('span')!;
+inner.addEventListener('click', (e) => e.preventDefault());
+click(inner);
+check('a Link to another site is a plain link, one with a query is active only on that query, and one whose click was handled already stays put', [by_id('away')?.getAttribute('href'), followed_away, by_id('tab-a')?.classList.contains('active'), by_id('tab-b')?.classList.contains('active'), router.href], ['https://example.com/', true, true, false, '/items?tab=a']);
+links.remove();
+
+const lazy_host = document.body.appendChild(document.createElement('div'));
+console.error = (...args: unknown[]) => void logged.push(args);
+logged.length = 0;
+mount(Router, { target: lazy_host, props: { routes: { '/items': lazy(async () => ({ default: Separator })), '*': lazy(() => Promise.reject(new Error('gone'))) }, testid: 'lazy-router' } });
+flushSync();
+await sleep(0);
+flushSync();
+const loaded = by_id('lazy-router')?.querySelector('[role="separator"]') != null;
+await navigate('/elsewhere');
+await sleep(0);
+flushSync();
+console.error = error;
+check('a lazy() screen mounts once its import resolves, and a failed one is logged', [loaded, logged.length], [true, 1]);
+lazy_host.remove();
+
 // --- components by themselves, for the props the showcase never gives them ------------
 const host = document.body.appendChild(document.createElement('div'));
 const lone_tabs = [
@@ -448,4 +580,4 @@ check('a Slider steps on its own grid where min has more decimals than step', st
 check('a field with an error says it is invalid, one without does not', [by_id('bad-input')?.getAttribute('aria-invalid'), by_id('name-input')?.getAttribute('aria-invalid')], ['true', 'false']);
 check('Avatar initials keep a whole emoji', text('face'), '😀S');
 
-finish('ui-dom', 99);
+finish('ui-dom', 112);
