@@ -66,6 +66,9 @@ export const aria_checked = (checked: boolean): Record<string, boolean> => (IS_G
 /** What tells a page's screen reader a control is off; GPUI's accessibility tree has no disabled state to set. */
 export const aria_disabled = (disabled: boolean | undefined): Record<string, boolean> => (IS_GPUIX || !disabled ? {} : { 'aria-disabled': true });
 
+/** Marks a page's link to the screen it is on; GPUI's accessibility tree has no such attribute. */
+export const aria_current = (current: boolean): Record<string, string> => (IS_GPUIX || !current ? {} : { 'aria-current': 'page' });
+
 /** The value attributes a DOM slider or progress bar needs; GPUI forwards none of them. */
 export const aria_value = (now: number, min: number, max: number): Record<string, number> => (IS_GPUIX ? {} : { 'aria-valuenow': now, 'aria-valuemin': min, 'aria-valuemax': max });
 

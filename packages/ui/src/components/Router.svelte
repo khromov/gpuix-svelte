@@ -9,6 +9,7 @@
 		routes,
 		initial = '/',
 		mode = 'history',
+		base = '',
 		layout = null,
 		shortcuts = IS_GPUIX,
 		testid = null
@@ -19,6 +20,8 @@
 		initial?: string;
 		/** How a page keeps the URL; a window is always `memory`. */
 		mode?: Mode;
+		/** Where a page in history mode is served from, such as `/repo` on GitHub Pages; stripped before matching and put back on every URL. */
+		base?: string;
 		/** Wraps every screen: `{#snippet layout(content, route)}<Sidebar />{@render content()}{/snippet}`. */
 		layout?: Snippet<[Snippet, Route]> | null;
 		/** ⌘[ / ⌘] and Alt+Left / Alt+Right go back and forward, unless a text field is being edited; on by default in a window, where nothing else provides them. */
@@ -26,10 +29,10 @@
 		testid?: string | null;
 	} = $props();
 
-	// Once per process: a later mount, a hot reload's, keeps the current screen, so only the first values count.
-	start_router(untrack(() => ({ mode, initial })));
-	// Before the first read of `router.params` below, then again whenever the table changes.
+	// Before the router starts, whose hooks read the first screen's pattern and params, then again whenever the table changes.
 	use_routes(untrack(() => Object.keys(routes)));
+	// Once per process: a later mount, a hot reload's, keeps the current screen, so only the first values count.
+	start_router(untrack(() => ({ mode, initial, base })));
 	$effect.pre(() => use_routes(Object.keys(routes)));
 
 	const Entry = $derived(router.pattern === null ? null : routes[router.pattern]);
@@ -58,12 +61,19 @@
 </script>
 
 {#snippet content()}
-	{#key router.generation}
-		{#if Entry !== null}
+	<!-- Keyed on the path, so a change of query or state alone hands the screen new props instead of a fresh mount. -->
+	{#key router.path}
+		{#if Entry !== null && router.ready}
 			{#if typeof Entry === 'function'}
 				<Entry {...screen_props} />
-			{:else}
+			{:else if 'render' in Entry}
 				<RouteSnippet render={Entry.render} {...screen_props} />
+			{:else if Entry.loaded}
+				<Entry.loaded {...screen_props} />
+			{:else}
+				{#await Entry.load() then Loaded}
+					<Loaded {...screen_props} />
+				{:catch}{/await}
 			{/if}
 		{/if}
 	{/key}

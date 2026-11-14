@@ -9,7 +9,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mount_headless, find_test_id, find_all, find_text, click, click_test_id, click_text, click_at, focus, press, type, hover, mouse_down, mouse_move, mouse_up, wheel, drag, bounds, wait, settle, screenshot, check, finish, type TreeNode } from 'gpuix-svelte/test';
-import { before, href, navigate } from 'gpuix-svelte-ui/router';
+import { after, before, href, navigate } from 'gpuix-svelte-ui/router';
 import { DARK } from 'gpuix-svelte-ui/theme';
 import { toast } from 'gpuix-svelte-ui/toast';
 
@@ -286,6 +286,45 @@ off();
 navigate(href('/items/:id', { id: 'a b' }, { tab: 'notes' }));
 settle();
 check('navigate() from code, params decoded and the query kept', [text_in('screen'), text_of('route')], ['Item a b, mounted fresh for this path.', 'At /items/a%20b?tab=notes']);
+const screen_id = () => find_test_id('router')?.children?.[0]?.id;
+const mounted = screen_id();
+await navigate('?tab=files');
+settle();
+const screen_kept = screen_id() === mounted;
+const releases: ((verdict: boolean) => void)[] = [];
+const off_async = before(() => new Promise<boolean>((resolve) => releases.push(resolve)));
+const going = navigate('/items');
+settle();
+const waiting = [text_of('route'), releases.length];
+releases[0](true);
+await going;
+settle();
+off_async();
+check('a query change keeps the screen mounted, and an async hook is waited for', [mounted !== undefined, screen_kept, ...waiting, text_of('route')], [true, true, 'At /items/a%20b?tab=files', 1, 'At /items']);
+await navigate('/items/1');
+await navigate('/items/2');
+settle();
+const asks: ((verdict: boolean | string) => void)[] = [];
+const arrivals: string[] = [];
+const off_asks = before((to) => (to.path === '/' ? true : new Promise<boolean | string>((resolve) => asks.push(resolve))));
+const off_arrivals = after((to, from) => void arrivals.push(`${from.path} > ${to.path}`));
+await tap('back');
+await tap('forward');
+const returned = [text_of('route'), asks.length];
+await tap('back');
+await tap('back');
+const two_back = [text_of('route'), asks.length];
+asks[2]('/');
+await wait(10);
+off_asks();
+off_arrivals();
+const redirected = [text_of('route'), arrivals];
+await tap('forward');
+check(
+	'while a hook waits, Back then Forward asks nothing more, Back twice goes two entries back, and a redirect from there replaces that entry without its screen ever arriving',
+	[...returned, ...two_back, ...redirected, text_of('route')],
+	['At /items/2', 1, 'At /items/2', 3, 'At /', ['/items/2 > /'], 'At /items/1']
+);
 
 // --- toasts, last, since they sit over the lower right ------------------------------
 await reach('toast-plain');
@@ -323,4 +362,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 83);
+finish('ui', 85);
