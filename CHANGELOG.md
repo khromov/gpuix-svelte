@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/khromov/gpuix-svelte/compare/v0.5.0...v0.6.0) (2026-11-14)
+
+
+### Features
+
+* a UI toolkit for both renderers, and [@media](https://github.com/media) and :root variables in a GPUI window ([#71](https://github.com/khromov/gpuix-svelte/issues/71)) ([c4c5bce](https://github.com/khromov/gpuix-svelte/commit/c4c5bcef401ed0e6337115df4197f075e18ee678))
+* build smaller executables with Bun's experimental aot and trim options ([#73](https://github.com/khromov/gpuix-svelte/issues/73)) ([31868bf](https://github.com/khromov/gpuix-svelte/commit/31868bfae9ad3f4d619d895bb572124c1305f3d9))
+* render gpuix-svelte components in a browser DOM too ([#68](https://github.com/khromov/gpuix-svelte/issues/68)) ([090c891](https://github.com/khromov/gpuix-svelte/commit/090c891c8820d39429808d8f4a956fcef58d62e2))
+* static boolean and number props reach GPUI, Escape closes only the top overlay, and more from a review against @gpuix/native ([#76](https://github.com/khromov/gpuix-svelte/issues/76)) ([fd768e5](https://github.com/khromov/gpuix-svelte/commit/fd768e5a392675808245558b997ee8965c0c8a08))
+* try components in a playground on the docs site, and draw wrapped text as HTML does ([#75](https://github.com/khromov/gpuix-svelte/issues/75)) ([4742d68](https://github.com/khromov/gpuix-svelte/commit/4742d68ebcf09f4a0a741f53983b4b4b845342ea))
+
+
+### Bug Fixes
+
+* keep text in order when an element moves past it ([#83](https://github.com/khromov/gpuix-svelte/issues/83)) ([d8a0d42](https://github.com/khromov/gpuix-svelte/commit/d8a0d42bfc8a35ca59cb52cfc95c2ca56d325ec8))
+* keep the custom-renderer conditions when Bun runs the bin as `node` ([#77](https://github.com/khromov/gpuix-svelte/issues/77)) ([e3517c6](https://github.com/khromov/gpuix-svelte/commit/e3517c6e556a59927f03ea35478af4caf2ef2955))
+* let screen readers hear plain text, and open tooltips on keyboard focus ([#74](https://github.com/khromov/gpuix-svelte/issues/74)) ([c72dbdd](https://github.com/khromov/gpuix-svelte/commit/c72dbdd0382c5629bd913313115b3f1c2f9878af))
+* show a bare component in the playground, and build its GPUI frame without warnings ([a2d585e](https://github.com/khromov/gpuix-svelte/commit/a2d585e6d76523f5f05368ab1e6a7fe706293189))
+
 ## [0.5.0](https://github.com/khromov/gpuix-svelte/compare/v0.4.1...v0.5.0) (2026-11-06)
 
 
