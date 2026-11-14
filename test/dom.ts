@@ -499,7 +499,7 @@ unmount(with_vars as never);
 vars_host.remove();
 
 // --- style props and variables on elements: test:style-props and test:scoped-vars expect the same of GPUI ---
-for (const name of ['ScopedCard', 'StylePropsPass', 'StylePropsText']) compile_for_dom(join(root, 'test', `${name}.svelte`));
+for (const name of ['ScopedCard', 'StylePropsBeside', 'StylePropsPass', 'StylePropsText']) compile_for_dom(join(root, 'test', `${name}.svelte`));
 const shade = (id: string, property: 'backgroundColor' | 'color' = 'backgroundColor') => getComputedStyle(by_id(id)!)[property];
 
 const StyleProps = (await import(compile_for_dom(join(root, 'test/StyleProps.svelte')))).default;
@@ -519,6 +519,8 @@ with_props.recolor(null);
 flushSync();
 check('a new value restyles the component, and null takes the variable away', [recolored, shade('shown')], ['#654321', '#000001']);
 check('a portal hangs its content off <body>, outside the wrapper, where the style prop does not reach as it does on GPUI', [by_id('ported')?.closest('svelte-css-wrapper') ?? null, shade('ported', 'color')], [null, '#000002']);
+const group = by_id('beside')?.parentElement;
+check('beside nothing but a <text> the wrapper is an SVG <g>, which a browser paints no HTML in: what docs/dom.md keeps a <div> around', [group?.localName, group?.namespaceURI], ['g', 'http://www.w3.org/2000/svg']);
 unmount(with_props as never);
 props_host.remove();
 
@@ -539,4 +541,4 @@ unmount(with_scoped as never);
 scoped_host.remove();
 
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 96);
+finish('dom', 97);

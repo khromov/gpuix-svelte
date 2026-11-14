@@ -824,36 +824,57 @@ a node, so there is nothing to invalidate: the per-rule cache holds only where n
 reader up declares anything (`scoped` in `build_style`), and under a declaring element a rule is
 parsed per element, about 4 µs for six declarations. A cache per scope would save that in a subtree
 wrapped by one declaring element, at the price of a generation bump on every redeclaration and
-move. Restyles come from three places: `apply_style` sweeps the readers below an element whose own
-declarations changed (`restyle_readers`; a class, an inline style and an `@media` answer all arrive
-there), `insert` sweeps a node that kept its native id through a move to another parent, and the
-commit's purge clears `vars` with the native id, because attributes are not looked at while a node
-has none and may all be gone when it has one again. A pending warning keeps the element the lookup
-started from and is checked again from there at the commit, so a declaration that arrives around a
-reader later in the frame (an `{@attach}`, a parent's effect) is no false alarm.
+move. What such a change makes out of date is queued in `stale` and restyled once by the next
+`commit()`, never where the change is seen: Svelte writes a style prop or a `style:` directive one
+`setAttribute` per variable, and restyling on each write shipped every reader once per variable
+(eight style props over 51 readers were 408 `setStyle` ops). `restyle_readers` queues every element
+below that read a variable, with no record of which one, so a variable that changes on every frame
+belongs on an element with little inside it. `apply_style` calls it for the readers below an element
+whose own declarations changed (a class, an inline style and an `@media` answer all arrive there),
+and `insert` for a node moved to another parent while it, or a style-prop wrapper's children, hold
+native nodes; `insert` queues before it materializes, so a node made in the move is styled once.
+`apply_style` takes its element out of the queue, since whatever restyled it first read the
+declarations as they are. The commit's purge clears `vars` with the native id, because attributes are
+not looked at while a node has none and may all be gone when it has one again. A pending warning
+keeps the element the lookup started from and is checked again from there at the commit, so a
+declaration that arrives around a reader later in the frame (an `{@attach}`, a parent's effect) is no
+false alarm. A cached parse keeps the names it left pending (`unset`), and each element that takes it
+leaves them pending for itself, or an element such a declaration never reached would go unreported
+behind the one it did.
 
 **Style props.** `<Card --accent="red" />` is compiled by Svelte into an element around the
-component, `<svelte-css-wrapper style="display: contents">` (a bare `<g>` where it takes the markup
-for SVG, which is anything directly inside a `<text>`), and `css_props` writes the variables into
-its inline style, so they are scoped variables on that element and the DOM build needs nothing.
+component: `<svelte-css-wrapper style="display: contents">`, or a bare `<g>` where it takes the
+markup for SVG, which is inside a `<text>` or an `<svg>` and in any fragment (a component's root, a
+block, a snippet) whose own elements are all `<text>` or `<svg>`. `css_props` writes the variables
+into its inline style, so they are scoped variables on that element and the DOM build needs nothing.
 GPUI has no `display: contents`, so the wrapper is *boxless* (`is_boxless`): it stays in the shadow
 tree where Svelte holds it, never gets a native id, and its children are natively its parent's
 (`native_parent_of` climbs past it, `first_native_from` looks inside it and `first_native_after`
 continues after it, `attach` re-attaches its children last to first on a move, `retire` destroys
 them when it leaves). It is the one node with no GPUI presence that has children. The compiler
 reaches the anchor inside the wrapper as `wrapper.lastChild`, the only DOM property it reads off a
-node, so `createElement` defines that getter on a wrapper; without it a style prop throws at mount.
-Not reported upstream yet: `test:style-props` asserts the emitted shape, so it fails when the
-compiler goes through the renderer and the getter can go. Text at the edge of such a component
-counts as beside an element, so it is labelled on its own rather than joining the parent's text
-run. Two other designs were built and dropped: the wrapper as a real `div` (a growing or
-percentage-wide root collapses, since the box becomes the flex item), and no wrapper at all, with a
-compile pre-pass moving the props onto a shipped component that scopes by Svelte context (about 130
-lines against 50, a context read per `createElement`, and a value like `--tint="var(--base)"`
-cannot see an element around the component, because a context has no place in the element tree).
+node, so `createElement` defines that getter on an element of either name; without it a style prop
+throws at mount. That read is also all that tells the compiler's wrapper from a `<g>` or a
+`<svelte-css-wrapper>` the app wrote itself, so it is what makes a node boxless (`unbox`), and an
+element of those names that is never read that way is a `<div>` with the unknown-tag warning, like
+any other. Svelte keeps a template out of the tree while something it awaits is pending, so the read
+comes before the wrapper is live; `unbox` still handles one that went up as a `<div>` first, moving
+its children to its parent. Not reported upstream yet: `test:style-props` asserts the emitted
+shape, so it fails when the compiler goes through the renderer, at which point the getter can go
+and the wrapper needs another mark. Text at the edge of such a component counts as beside an
+element, so it is labelled on its own rather than joining the parent's text run. Two other designs
+were built and dropped: the wrapper as a real `div` (a growing or percentage-wide root collapses,
+since the box becomes the flex item), and no wrapper at all, with a compile pre-pass moving the
+props onto a shipped component that scopes by Svelte context (about 130 lines against 50, a context
+read per `createElement`, and a value like `--tint="var(--base)"` cannot see an element around the
+component, because a context has no place in the element tree).
 In the DOM build a `Portal`, `Tooltip` or `Popover` layer hangs off `<body>`, outside both the
 wrapper and any declaring element, so only `:root` and `set_css_vars()` reach it there, while on
-GPUI the layer reads from where it sits in the shadow tree; `test:dom` pins the difference.
+GPUI the layer reads from where it sits in the shadow tree; `test:dom` pins the difference. The `<g>`
+wrapper is an SVG element there, and Chrome paints no HTML inside one that is not in an `<svg>`
+(seen in headless Chrome; happy-dom cannot tell), so in the DOM a style-propped component whose
+only sibling elements are `<svg>` or `<text>` is blank until a `<div>` goes around it, which
+docs/dom.md says. A `<text>` in such a fragment is SVG too and blank with or without style props.
 
 `hot` is a loader saying the module is evaluated again on every reload, and the only thing that
 makes a sheet removable: `compile_svelte` takes it from the `?v=N` query on Node, `plugin.ts` from
@@ -863,10 +884,14 @@ records `mounts`, and `set_native`, which every remount goes through, drops the 
 not declared again since the last one (a rule deleted from its file, a file no longer imported). A
 sheet from a module that evaluates once, such as a package component's, has no count and stays. A
 component imported lazily after the mount carries the next count, so its sheet outlives one reload
-more than it should. A hot file declaring again is a reload, and `define_root_vars` then leaves the
-tree clean: where commits schedule themselves (the wasm build, so the playground) one would run
-between the file's evaluation and the remount, restyle the outgoing tree against the new rules and
-report every variable the edit removed.
+more than it should. A reload evaluates its files before it remounts, and a commit in between (one
+schedules itself on the wasm build, so in the playground) would restyle the outgoing tree against
+the new rules and report every variable the edit removed. So whoever loads those files says so
+first, with `set_remounting(true)`: `import_fresh`, and the playground's GPUI frame around each run.
+Until `set_native` ends it a commit leaves `vars_moved` standing, and a load that fails takes it
+back, which restyles the tree that stays up after all. It is a flag and not "this hot file has
+declared before", which is as true of a component imported again after the remount, whose edited
+rule then never reached the tree.
 
 **Loaders.** There are two because there is no shared API: Bun has no `module.registerHooks`, and
 its `module.register()` is a silent no-op. Both wrap `compile_svelte()` and must be installed before

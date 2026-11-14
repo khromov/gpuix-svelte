@@ -32,6 +32,8 @@ export interface ShadowNode {
 	nativeId: number | null;
 	/** The inner native node holding a text node's string, when `nativeId` is the `text` around it. */
 	textId: number | null;
+	/** The element Svelte itself put around a component given style props: it has no native node, and its children are natively its parent's. */
+	boxless: boolean;
 	/** The custom properties its rules and inline style declare, named without the `--`: what it and everything inside it read ahead of the `:root` ones. */
 	vars: ReadonlyMap<string, string> | null;
 	/** Its style read a `var()`, so a change to the variables has to restyle it. */
@@ -69,11 +71,12 @@ export type Pseudo = 'hover' | 'active' | 'focusVisible' | null;
 /**
  * One `<style>` rule's declarations. A block that reads a `var()` ships as CSS text
  * and is re-parsed whenever the variables change; the rest is parsed at compile time.
- * `vars` are the custom properties the rule declares, named without the `--`.
+ * `vars` are the custom properties the rule declares, named without the `--`, and `unset` the
+ * ones the parse kept in `resolved` read and found no value for.
  */
 export type StyleRule = { pseudo: Pseudo; vars?: Record<string, string> } & (
 	| { style: GpuiStyle; css?: undefined }
-	| { css: string; style?: undefined; generation?: number; resolved?: GpuiStyle }
+	| { css: string; style?: undefined; generation?: number; resolved?: GpuiStyle; unset?: string[] }
 );
 
 /**

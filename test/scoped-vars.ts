@@ -8,7 +8,8 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
-import { build_style, commit, parse_css_text, renderer, set_css_vars, type AnyComponent, type Mutation, type ShadowNode, type StyleRule } from 'gpuix-svelte';
+import { build_style, commit, parse_css_text, renderer, set_css_vars, type AnyComponent, type GpuiStyle, type Mutation, type ShadowNode, type StyleRule } from 'gpuix-svelte';
+import { define_styles } from 'gpuix-svelte/renderer';
 import { flushSync } from 'svelte';
 import { compile_svelte } from '../src/compile.ts';
 import { import_fresh } from '../src/hot.ts';
@@ -92,7 +93,7 @@ act(() => set_css_vars({ tint: null, pinned: null, free: null }));
 act(() => component.set_alt(true));
 check('a class change on the declaring element restyles what reads the variable below it', [color('reader'), color('icon'), bg('by-class'), bg('by-class-tail')], ['#aa00aa', '#aa00aa', '#aa00aa', '#aa00aa']);
 check('leaving a nearer declaration its say', bg('by-inline'), '#0000bb');
-check('and restyling no reader outside it, nor an element that reads no variable', [restyled().has(id_of('reader')!), restyled().has(id_of('outside')!), restyled().has(id_of('static')!)], [true, false, false]);
+check('an element below it that reads another variable is restyled as well, but no reader outside it, nor an element that reads none', [restyled().has(id_of('reader')!), restyled().has(id_of('free')!), restyled().has(id_of('outside')!), restyled().has(id_of('static')!)], [true, true, false, false]);
 
 act(() => component.set_inline('#00bbbb'));
 check('a change to an inline declaration does the same', [bg('by-inline'), bg('by-inline-tail')], ['#00bbbb', '#00bbbb']);
@@ -128,14 +129,63 @@ function element(css: string, parent: ShadowNode | null = null) {
 }
 const shipped = (el: ShadowNode, key: string) => find((n) => n.id === el.nativeId)?.style?.[key] ?? null;
 
+const restyles = (el?: ShadowNode) => ops.filter((op) => op[0] === 'setStyle' && (el === undefined || op[1] === el.nativeId)).length;
+function frame(run: () => void) {
+	settle();
+	ops = [];
+	run();
+	settle();
+}
+
 const a = element('--v: #0a0a0a', root);
 const b = element('--v: #0b0b0b', root);
 const moved = element('color: var(--v)', a);
 settle();
 check('a reader takes the declaration of the element it is in', shipped(moved, 'color'), '#0a0a0a');
-renderer.insert(b, moved, null);
+frame(() => renderer.insert(b, moved, null));
+check('and of the one it is moved into, restyled for the move', [shipped(moved, 'color'), restyles()], ['#0b0b0b', 1]);
+const beside = element('color: var(--v)', b);
+frame(() => renderer.insert(b, beside, moved));
+check('a move within one parent, as a keyed {#each} reorders, restyles nothing', [restyles(), ops.some(([op]) => op === 'insertBefore')], [0, true]);
+
+frame(() => renderer.setAttribute(b, 'style', '--v: #0b0b0b; top: 4px'));
+check('an element restyled with its declarations as they were leaves the readers below it alone', restyles(), 1);
+frame(() => renderer.setAttribute(b, 'style', '--v: #0c0c0c; top: 4px'));
+check('and takes both of them along when one changes', [restyles(), shipped(moved, 'color'), shipped(beside, 'color')], [3, '#0c0c0c', '#0c0c0c']);
+frame(() => {
+	renderer.setAttribute(b, 'style', '--v: #0d0d0d; top: 4px');
+	renderer.setAttribute(b, 'style', '--v: #0d0d0d; --w: 1px; top: 4px');
+	renderer.setAttribute(b, 'style', '--v: #0e0e0e; --w: 2px; top: 4px');
+});
+check('however many of its variables are written in a frame, one after the other, each reader is restyled once', [restyles(moved), restyles(beside), shipped(moved, 'color')], [1, 1, '#0e0e0e']);
+frame(() => {
+	renderer.setAttribute(b, 'style', '--v: #0f0f0f; top: 4px');
+	set_css_vars({ w: '3px' });
+});
+check('and once in a frame that changes a :root variable as well', [restyles(moved), restyles(beside), shipped(moved, 'color')], [1, 1, '#0f0f0f']);
+set_css_vars({ w: null });
+
+const states = renderer.createElement('div');
+for (const attr of ['hover', 'active', 'focus-visible']) renderer.setAttribute(states, attr, 'background-color: var(--v, #000000)');
+renderer.insert(b, states, null);
 settle();
-check('and of the one it is moved into', shipped(moved, 'color'), '#0b0b0b');
+const state = (key: string) => (find((n) => n.id === states.nativeId)?.style?.[key] as GpuiStyle | undefined)?.backgroundColor ?? null;
+check('the hover=, active= and focus-visible= attributes read the element\'s declaration too', ['hover', 'active', 'focusVisible'].map(state), ['#0f0f0f', '#0f0f0f', '#0f0f0f']);
+
+const loud = element('--v: #0a0b0c !important', root);
+const hears = element('color: var(--v)', loud);
+settle();
+check('!important is no part of the value an inline style declares', [shipped(hears, 'color'), [...(loud.vars ?? [])]], ['#0a0b0c', [['v', '#0a0b0c']]]);
+
+// The read of `lastChild` is the compiled code's, and what makes the element Svelte's wrapper.
+const wrapper = renderer.createElement('svelte-css-wrapper') as ShadowNode & { lastChild: ShadowNode | null };
+void wrapper.lastChild;
+const wrapped = element('color: var(--v)', wrapper);
+renderer.insert(a, wrapper, null);
+settle();
+const in_a = shipped(wrapped, 'color');
+frame(() => renderer.insert(b, wrapper, null));
+check('a style-prop wrapper has no native node to restyle, and the readers in it follow it to another parent all the same', [wrapper.nativeId, in_a, shipped(wrapped, 'color'), restyles()], [null, '#0a0a0a', '#0f0f0f', 1]);
 
 renderer.remove(a);
 renderer.insert(a, moved, null);
@@ -170,6 +220,23 @@ settle();
 console.warn = warn;
 check('a variable declared around a reader later in the same frame is not reported', [shipped(early, 'color'), undefined_vars(racing)], ['#0e0e0e', []]);
 
+define_styles('svelte-shared', [{ classes: ['shared'], tag: null, pseudo: null, css: 'color: var(--shared)' }]);
+function sharing(parent: ShadowNode) {
+	const el = renderer.createElement('div');
+	renderer.setAttribute(el, 'class', 'svelte-shared shared');
+	renderer.insert(parent, el, null);
+	return el;
+}
+const cover = element('', root);
+settle();
+const split = capture();
+const covered = sharing(cover);
+const bare = sharing(root);
+renderer.setAttribute(cover, 'style', '--shared: #0e0e0e');
+settle();
+console.warn = warn;
+check('of two elements sharing a rule, the one that declaration does not reach is still reported', [shipped(covered, 'color'), shipped(bare, 'color'), undefined_vars(split).filter((w) => w.includes('var(--shared)')).length], ['#0e0e0e', null, 1]);
+
 // --- render_hot -----------------------------------------------------------------
 // Last, because on Bun every component loaded after the first reload counts as one a reload evaluates again.
 const dir = new URL('./.hot-tmp/', import.meta.url);
@@ -200,4 +267,4 @@ try {
 }
 
 TestGpuixRenderer.prototype.applyBatch = apply_batch;
-finish('scoped-vars', 43);
+finish('scoped-vars', 52);

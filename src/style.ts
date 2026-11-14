@@ -469,11 +469,17 @@ function rule_style(rule: StyleRule, el: Scope | null, scoped: boolean): GpuiSty
 	if (rule.css === undefined) return rule.style;
 
 	vars_read = true;
-	if (!scoped && rule.generation === vars_generation) return rule.resolved!;
+	if (!scoped && rule.generation === vars_generation) {
+		// The commit checks a pending warning from the element that left it, and a declaration may arrive around one element that took this parse and not another.
+		if (rule.unset) for (const name of rule.unset) if (!warned_vars.has(name)) pending_vars.push([name, el]);
+		return rule.resolved!;
+	}
+	const pending = pending_vars.length;
 	const style = parse_css_text(rule.css, el);
 	if (!scoped) {
 		rule.generation = vars_generation;
 		rule.resolved = style;
+		rule.unset = pending_vars.length === pending ? undefined : pending_vars.slice(pending).map(([name]) => name);
 	}
 	return style;
 }

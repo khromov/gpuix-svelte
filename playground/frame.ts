@@ -34,18 +34,21 @@ export function forward_console() {
 	window.addEventListener('unhandledrejection', (event) => post({ type: 'error', text: text_of(event.reason) }));
 }
 
-export function connect(run: (component: unknown) => void) {
+/** `loading` is told when a module is about to be imported and when its run is over, mounted or not. */
+export function connect(run: (component: unknown) => void, loading: (pending: boolean) => void = () => {}) {
 	addEventListener('message', async (event) => {
 		if (event.source !== parent || event.origin !== location.origin || event.data?.type !== 'run') return;
 		const id: unknown = event.data.id;
 		const url = URL.createObjectURL(new Blob([String(event.data.code)], { type: 'text/javascript' }));
 		try {
+			loading(true);
 			const module = (await import(/* @vite-ignore */ url)) as { default: unknown };
 			run(module.default);
 			post({ type: 'mounted', id });
 		} catch (error) {
 			post({ type: 'error', id, text: text_of(error) });
 		} finally {
+			loading(false);
 			URL.revokeObjectURL(url);
 		}
 	});

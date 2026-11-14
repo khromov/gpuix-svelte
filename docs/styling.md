@@ -494,7 +494,8 @@ palette above and set a `--tint` of their own:
 ```
 
 - A `class:` directive, a `style:--tint={value}` that changes and an `@media` block around the
-  rule all restyle the elements inside that read the variable, and only those.
+  rule all restyle the elements inside that read a variable, whichever variable that is, and
+  leave the rest alone. Each is restyled once per update, however many variables changed in it.
 - A variable that reads another (`--edge: var(--tint)`) is worked out on the element that declares
   it. An element further in that declares its own `--tint` does not change what `--edge` is there,
   in a window or in a browser.

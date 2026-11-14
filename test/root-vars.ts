@@ -9,7 +9,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
 import { commit, is_dirty, parse_css_text, set_auto_commit, set_css_vars, type AnyComponent, type Mutation } from 'gpuix-svelte';
-import { define_root_vars } from 'gpuix-svelte/renderer';
+import { define_root_vars, set_remounting } from 'gpuix-svelte/renderer';
 import { compile_svelte } from '../src/compile.ts';
 import { compile_source } from '../src/compile-core.ts';
 import { import_fresh } from '../src/hot.ts';
@@ -176,9 +176,52 @@ try {
 	check('a :root rule deleted from the file goes with the reload, as does the rule of a file no longer imported', pick('hot', 'color', 'outlineColor'), ['#fa11ba', '#c0ffee']);
 	check('while a file that does not reload keeps what it declared', pick('hot', 'backgroundColor', 'borderColor'), ['#101010', '#999999']);
 	check('and the new tree is styled once, not again for what the remount dropped', ops.filter((op) => op[0] === 'setStyle' && op[1] === id_of('hot')).length, 1);
+
+	// A component the app imports once it is up evaluates after the remount, with no other one on its way.
+	const host = new URL('HotHost.svelte', dir);
+	writeFileSync(
+		host,
+		`<script>\n\tlet Lazy = $state(null);\n\texport const load = async () => (Lazy = (await import('./HotLazy.svelte')).default);\n</script>\n\n<div class="reader" testId="reader">reader</div>\n{#if Lazy}<Lazy />{/if}\n\n<style>\n\t.reader { color: var(--hot-lazy, #000000); }\n</style>\n`
+	);
+	const write_lazy = (value: string) => writeFileSync(new URL('HotLazy.svelte', dir), `<div>lazy</div>\n<style>:root { --hot-lazy: ${value}; }</style>\n`);
+	type Host = { load(): Promise<unknown> };
+	async function with_lazy(version: number) {
+		const mounted = mount_headless<Host>((await import_fresh(host, version)).default as AnyComponent);
+		const before = pick('reader', 'color')[0];
+		await mounted.component.load();
+		settle();
+		return { before, unmount: mounted.unmount };
+	}
+	write_lazy('#111111');
+	const lazy = await with_lazy(4);
+	check('a :root rule in a component imported after the mount reaches the tree that is up', [lazy.before, pick('reader', 'color')[0]], ['#000000', '#111111']);
+	write_lazy('#222222');
+	await lazy.unmount();
+	commit();
+	await with_lazy(5);
+	check('and so does an edit to it, imported again after the reload that follows', pick('reader', 'color'), ['#222222']);
+
+	writeFileSync(new URL('HotBroken.svelte', dir), '<div>{</div>\n');
+	const failed = await import_fresh(new URL('HotBroken.svelte', dir), 6).then(
+		() => false,
+		() => true
+	);
+	set_css_vars({ 'hot-lazy': '#333333' });
+	settle();
+	check('a reload that fails to load is followed by no remount, and the tree that stays up goes on being restyled', [failed, pick('reader', 'color')[0]], [true, '#333333']);
+
+	set_remounting(true);
+	set_css_vars({ 'hot-lazy': '#444444' });
+	settle();
+	const held = pick('reader', 'color')[0];
+	set_remounting(false);
+	const asked = is_dirty();
+	settle();
+	check('what the variables became while such a load was under way reaches that tree once it has failed', [held, asked, pick('reader', 'color')[0]], ['#333333', true, '#444444']);
+	set_css_vars({ 'hot-lazy': null });
 } finally {
 	rmSync(dir, { recursive: true, force: true });
 }
 
 TestGpuixRenderer.prototype.applyBatch = apply_batch;
-finish('root-vars', 43);
+finish('root-vars', 47);

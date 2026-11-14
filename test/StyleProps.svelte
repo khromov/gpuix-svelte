@@ -2,6 +2,7 @@
 	// Mounted on GPUI by test:style-props and in the DOM by test:dom, which expect the same of it.
 	import Portal from 'gpuix-svelte/components/Portal.svelte';
 	import ScopedCard from './ScopedCard.svelte';
+	import StylePropsBeside from './StylePropsBeside.svelte';
 	import StylePropsPass from './StylePropsPass.svelte';
 	import StylePropsText from './StylePropsText.svelte';
 
@@ -13,8 +14,10 @@
 	let shown = $state(true);
 	let more = $state(false);
 	let tint = $state<string | null>('#123456');
+	let pair = $state({ tint: '#101010', edge: '#202020' });
 
 	export const reverse = () => (rows = rows.toReversed());
+	export const repaint = () => (pair = { tint: '#303030', edge: '#404040' });
 	export const prepend = () => rows.unshift({ id: 'n', tint: '#ffffff' });
 	export const toggle = () => (shown = !shown);
 	export const expand = () => (more = !more);
@@ -55,8 +58,12 @@
 		<ScopedCard id="slotted" --tint="#cccccc"><div class="slot" testId="slot"></div></ScopedCard>
 		<ScopedCard id="reads-around" --tint="var(--base)" />
 	</div>
+	<div class="row">
+		<ScopedCard id="both" --tint={pair.tint} --edge={pair.edge} />
+	</div>
 	<text testId="label-plain"><StylePropsText text="plain" /></text>
 	<text testId="label-styled"><StylePropsText text="styled" --tint="#010203" /></text>
+	<div class="row" testId="beside-row"><StylePropsBeside /></div>
 	{#if shown}<Portal --tint="#abcdef"><div class="slot" testId="ported"></div></Portal>{/if}
 </div>
 

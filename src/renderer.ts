@@ -228,6 +228,12 @@ let root_media = false;
 /** A variable changed, and the next commit restyles what reads one. */
 let vars_moved = false;
 
+/** Elements whose style read a variable from an ancestor that has since changed, restyled once by the next commit however many variables did. */
+let stale = new Set<ShadowNode>();
+
+/** A reload evaluates the files it changed before it remounts, and a commit in between would restyle the outgoing tree against their `:root` rules, reporting each variable the edit removed. */
+let remounting = false;
+
 let on_dirty: (() => void) | null = null;
 
 /** How the frame loop hears of a mutation made between its ticks (a timer, a fetch), which a display-link wake never reports. */
@@ -269,6 +275,7 @@ function node(kind: NodeKind, name: string, data: string): ShadowNode {
 		listeners: new Map(),
 		nativeId: null,
 		textId: null,
+		boxless: false,
 		vars: null,
 		uses_vars: false,
 		uses_media: false,
@@ -319,13 +326,13 @@ function unlink(child: ShadowNode) {
 const is_blank = (s: string | null | undefined) => s == null || s.trim() === '';
 
 /**
- * The element Svelte puts around a component given style props (`<Card --accent="red" />`): `display: contents` in a
- * browser, and a `<g>` where it takes the markup for SVG, which is anything directly inside a `<text>`.
+ * What Svelte names the element it puts around a component given style props (`<Card --accent="red" />`): `<g>` where it takes
+ * the markup for SVG, which is inside a `<text>` or an `<svg>` and in a fragment whose own elements are all one or the other.
  */
 const STYLE_PROPS = new Set(['svelte-css-wrapper', 'g']);
 
-/** It declares variables and has no box, so it never gets a native node and its children are natively its parent's. */
-const is_boxless = (n: ShadowNode) => STYLE_PROPS.has(n.name);
+/** That element declares variables and has no box (`display: contents` in a browser), so it never gets a native node and its children are natively its parent's. */
+const is_boxless = (n: ShadowNode) => n.boxless;
 
 /**
  * Fragments are never children (every insert splats them), so a fragment parent
@@ -429,7 +436,7 @@ function vars_changed() {
 	mark_dirty();
 }
 
-function cascade_root_vars(restyle = true) {
+function cascade_root_vars() {
 	const vars = new Map<string, string>();
 	const important = new Map<string, string>();
 	root_media = false;
@@ -443,7 +450,7 @@ function cascade_root_vars(restyle = true) {
 			for (const [name, value] of Object.entries(rule.important ?? {})) important.set(name, value);
 		}
 	}
-	if (define_sheet_vars(vars, important) && restyle) vars_changed();
+	if (define_sheet_vars(vars, important)) vars_changed();
 }
 
 function stop_viewport_observer() {
@@ -495,9 +502,15 @@ function inherit_color(el: ShadowNode, style: GpuiStyle) {
 	}
 }
 
-/** Only an element whose style read a variable can come out different, and a declaring element may hold most of the app. */
+/**
+ * Only an element whose style read a variable can come out different, and a declaring element may hold most of the app.
+ * Left to the commit, because Svelte writes a style prop or a `style:` directive one variable at a time.
+ */
 function restyle_readers(n: ShadowNode) {
-	if (n.uses_vars && n.nativeId !== null) apply_style(n);
+	if (n.uses_vars && n.nativeId !== null) {
+		stale.add(n);
+		mark_dirty();
+	}
 	for (let c = n.first; c; c = c.next) restyle_readers(c);
 }
 
@@ -507,9 +520,10 @@ function apply_style(el: ShadowNode) {
 		return;
 	}
 	if (el.nativeId === null) return;
+	stale.delete(el);
 	media_read = false;
 	const rules = class_rules(el);
-	const redeclared = declare_vars(el, rules);
+	if (declare_vars(el, rules)) for (let c = el.first; c; c = c.next) restyle_readers(c);
 	const style = build_style(el.attrs, rules, el);
 	el.uses_vars = used_css_vars();
 
@@ -540,9 +554,22 @@ function apply_style(el: ShadowNode) {
 	}
 
 	emit(['setStyle', el.nativeId, style]);
+}
 
-	// Last, since the nested calls reset `media_read`.
-	if (redeclared) for (let c = el.first; c; c = c.next) restyle_readers(c);
+function unbox(el: ShadowNode) {
+	if (el.boxless) return el;
+	el.boxless = true;
+	const id = el.nativeId;
+	// Svelte keeps a template out of the tree until what it awaits has settled, so this is only for a wrapper that went up as a `<div>` first.
+	if (id !== null) {
+		by_id.delete(id);
+		el.nativeId = null;
+		el.attached = false;
+		attach(el);
+		emit(['destroyElement', id]);
+	}
+	apply_style(el);
+	return el;
 }
 
 function restyle_subtree(el: ShadowNode) {
@@ -723,8 +750,8 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	createFragment: () => node('fragment', '', ''),
 	createElement(name) {
 		const el = node('element', name, '');
-		// The compiler reads the anchor inside the wrapper as `wrapper.lastChild`, the one DOM property it takes off a node.
-		if (is_boxless(el)) Object.defineProperty(el, 'lastChild', { get: () => el.last });
+		// The compiler reads the anchor inside its wrapper as `wrapper.lastChild`, the one DOM property it takes off a node, so the read also tells that wrapper from an element the app gave the same name.
+		if (STYLE_PROPS.has(name)) Object.defineProperty(el, 'lastChild', { get: () => unbox(el).last });
 		return el;
 	},
 	createTextNode: (data) => node('text', '', data),
@@ -827,7 +854,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
-		const [left, right, was_live, from, styled] = [n.prev, n.next, n.live, n.parent, n.nativeId !== null];
+		const [left, right, was_live, from] = [n.prev, n.next, n.live, n.parent];
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
 		if (was_live) rewrap_beside(left, right);
@@ -836,13 +863,13 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 
 		if (n.live) {
 			pending_destroy.delete(n); // resurrected before the next commit
+			// Before `materialize`: the native nodes it kept have styles resolved against the variables of the ancestors it had, and the ones made now read the new.
+			if (from !== parent && (n.nativeId !== null || is_boxless(n))) restyle_readers(n);
 			materialize(n);
 			attach(n); // GPUI reparents on insertBefore/appendChild
 			attach_portals();
 			rewrap(n);
 			rewrap_beside(n.prev, n.next);
-			// It kept its native node and so its style, resolved against the variables of the ancestors it had.
-			if (styled && from !== parent) restyle_readers(n);
 		} else if ((n.nativeId !== null && n.attached) || is_boxless(n)) {
 			// Native has no detach op (removeChild is gone in 0.6), so commit()
 			// destroys the subtree; it re-materializes if it becomes live again.
@@ -915,10 +942,14 @@ export function define_styles(scope: string, rules: ClassRule[]) {
 
 /** At import time too, as a browser has a sheet's variables once the sheet loads; `hot` is a file `render_hot` evaluates again on every reload. */
 export function define_root_vars(file: string, rules: RootRule[], hot = false) {
-	// A hot file evaluated again is a reload, and where commits schedule themselves one would run before the remount: on the outgoing tree, reporting each variable the edit removed.
-	const reloading = hot && root_sheets.has(file);
 	root_sheets.set(file, { rules, mount: hot ? mounts : null });
-	cascade_root_vars(!reloading);
+	cascade_root_vars();
+}
+
+/** For whoever loads a reload's files to set before it does; `set_native` ends it, and so does that loader when the load fails. */
+export function set_remounting(pending: boolean) {
+	remounting = pending;
+	if (!pending && vars_moved) mark_dirty();
 }
 
 /**
@@ -957,6 +988,8 @@ export function set_native(instance: NativeSink) {
 	mounts++;
 	cascade_root_vars();
 	vars_moved = false;
+	remounting = false;
+	stale = new Set();
 	focused_input = null;
 	root_node = null;
 	portals = new Set();
@@ -1106,13 +1139,17 @@ function retire(n: ShadowNode) {
 
 /** Ships the whole frame's mutations as one call across the FFI boundary. */
 export function commit() {
-	if (vars_moved) {
+	if (vars_moved && !remounting) {
 		vars_moved = false;
 		// Not what left the tree, which is destroyed below: after a hot reload that is the old tree, and it would be reported for every variable the edit removed.
 		for (const n of by_id.values()) {
 			if (n.uses_vars && n.live) apply_style(n);
 		}
 	}
+	for (const n of stale) {
+		if (n.live && n.nativeId !== null) apply_style(n);
+	}
+	stale.clear();
 
 	// Above the empty-queue return below: a frame that only restyled still has to report.
 	flush_var_warnings();

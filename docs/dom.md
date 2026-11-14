@@ -236,6 +236,12 @@ is a whole library written this way, typechecked as DOM markup and as GPUI marku
   `set_css_vars` reach it, while on GPUI it reads the variables of the place it was written in. So
   give a layer its variables in `:root`, or through the `style` a tooltip and a popover forward
   ([Styling](styling.md#variables-on-an-element)).
+- Keep a `<div>` around a component given style props wherever its only neighbours are `<svg>` or
+  `<text>` elements. Svelte reads a fragment (a component's markup, an `{#if}` or `{#each}` block,
+  a snippet) whose own elements are all one of those two as SVG, and wraps the component in an SVG
+  `<g>` there, inside which a browser paints no HTML. A `<text>` in such a fragment is an SVG
+  element too and stays blank with or without style props, which is one more reason to write text
+  in a `div`. A window draws all of it.
 - Event handlers that only react, without reading GPUI-specific fields, work as they are.
   `e.stopPropagation()` exists on both: in the DOM it stops a mouse event from bubbling; on GPUI,
   where mouse events never bubble, it skips the key handlers still to come.
