@@ -72,4 +72,18 @@ renderer.insert(offscreen, moved, null);
 settle();
 check('left parked offscreen, it stops painting', has_moved(), false);
 
-finish('reorder', 19);
+const row = renderer.createElement('div');
+const mover = renderer.createElement('div');
+renderer.insert(mover, renderer.createTextNode('mover'), null);
+for (const n of [renderer.createTextNode('left'), mover, renderer.createTextNode('right')]) renderer.insert(row, n, null);
+renderer.insert(root, row, anchor);
+const in_row = () => all_text().filter((t) => ['left', 'mover', 'right'].includes(t));
+settle();
+check('text around an element starts in order', in_row(), ['left', 'mover', 'right']);
+
+// The texts left beside each other are rebuilt without their wrappers, which has to happen where the mover now is natively.
+renderer.insert(row, mover, null);
+settle();
+check('moving the element past the second text keeps the texts in order', in_row(), ['left', 'right', 'mover']);
+
+finish('reorder', 21);

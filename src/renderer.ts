@@ -780,7 +780,6 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 		const [left, right, was_live] = [n.prev, n.next, n.live];
 		if (n.parent) unlink(n); // insert doubles as move
 		link(parent, n, anchor);
-		if (was_live) rewrap_beside(left, right);
 
 		set_live(n, parent.live === true);
 
@@ -797,6 +796,9 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			pending_destroy.add(n);
 			mark_dirty();
 		}
+
+		// Only once `n` is in its new native place, because rebuilding a neighbour's wrapper anchors on the shadow order.
+		if (was_live) rewrap_beside(left, right);
 	},
 
 	remove(n) {
