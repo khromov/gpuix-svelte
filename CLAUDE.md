@@ -840,7 +840,9 @@ custom element types. So the renderer keeps a JS shadow tree and *projects* it:
   highlight, selection and copy treat adjacent text leaves under one parent as one run, so text
   beside other text (`Hello {#if}there{/if}`) stays bare: `wants_wrapper` reads the nearest real
   siblings, and `insert`, `remove` and the blank transitions in `setText` `rewrap` the ones either
-  side. `unwrap_text` folds the wrappers back out of what `tree()`, `automation_tree()`,
+  side. A rewrap places the rebuilt text by the shadow order, so `insert` rewraps a moved node's
+  old neighbours only after attaching it, or a move within one parent swapped them natively.
+  `unwrap_text` folds the wrappers back out of what `tree()`, `automation_tree()`,
   `test_app()` and the live automation server read.
 - Ids are allocated lazily, when a node first becomes reachable from the root (`live`). Svelte
   renders offscreen constantly, and eager creation would leak a Rust node per abandoned render.
