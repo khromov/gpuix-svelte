@@ -1217,6 +1217,11 @@ itself, and svelte-check (part of `typecheck`) checks them.
 - Make file changes with the Edit/Write tools so every change shows as a diff; Bash is for
   reading, running scripts and tests, and scratch files under `$TMPDIR`. Anything worth
   remembering goes in this file, not in Claude Code's memory directory.
+- Nothing unreleased needs backwards compatibility. A feature, API or package no published version
+  carries yet (check npm, or whether it is still waiting in the release PR) changes freely: no
+  shims, fallbacks, deprecations or overloads that keep an earlier shape working, no breaking-change
+  or migration notes, and the PR title stays `feat:` or `fix:`, never `feat!:`. Judge each
+  behaviour on its merits, not by what `main` did before.
 - The headless renderer (Metal) and every window crash under Claude Code's Bash sandbox ("Swift
   Fatal error: Array index out of range", hiservices XPC errors) — run `npm test`, `consume` and
   the demos with the sandbox disabled.
