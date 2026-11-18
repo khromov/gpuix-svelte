@@ -789,13 +789,30 @@ one in the sample below, which shows the other samples' toasts too). A toast goe
 is in memory, and a hot reload keeps the current screen; in a page the stack is the browser's, so
 the address bar, back and forward and deep links work (`mode="history"`, the default, or
 `mode="hash"` for a static host that cannot rewrite every URL to `index.html`; `mode="memory"`
-leaves the URL alone). The table maps patterns to components, with `:param` segments and a `*`
-fallback, and a screen receives `params` and `query` props; `screen(snippet)` puts a snippet in
-the table instead, for an app small enough to keep its screens in one file. Every navigation
-mounts the screen fresh, so state that should survive a round trip lives in a module or in the
-hidden `state` a navigation can carry. A `#fragment` is the browser's and never part of the
-route: in history mode a deep link keeps it, `navigate('/items#top')` puts it in the address bar,
-and a plain `<a href="#section">` on a screen scrolls without navigating.
+leaves the URL alone). A page served below the root, such as `/repo/` on GitHub Pages, sets
+`base="/repo"`: it is stripped before matching and put back on every URL.
+
+The table maps patterns to screens. A `:param` segment matches one segment, a trailing `/*` the
+rest of the path (as `params['*']`, below any pattern that names those segments), and a bare `*`
+whatever nothing else does. Where two patterns fit, the one with a literal at the earliest
+position where they differ wins, so `/items/new` beats `/items/:id` in any order. A screen is a
+component receiving `params` and `query` props, `screen(snippet)` for an app small enough to keep
+its screens in one file, or `lazy(() => import('./Settings.svelte'))` for one imported on its first
+visit (a failed import is logged and tried again next time).
+
+`router.path` and `router.href` are percent-encoded as an address bar has them (`/caf%C3%A9`), in
+a window too, so a route reads the same whether it was navigated to, reloaded or gone back to;
+`params` holds the decoded values. `params['*']` is the remaining segments, each decoded, joined
+with `/`, so a segment with an escaped slash in it (`a%2Fb`) cannot be told from two: a value
+that may hold a slash belongs in the query. A param that is only `.` or `..` is a param like any
+other in a window and in hash mode, but a history-mode URL cannot hold such a segment (the
+browser collapses it), so there the screen shows while the address bar, and a reload, lose it.
+
+A screen mounts fresh when the path changes; a change of query or hidden `state` alone hands the
+same screen new props, so a search field that writes `?q=` as you type keeps its focus. State that
+should survive a round trip lives in a module or in that `state`. A `#fragment` is the browser's
+and never part of the route: in history mode a deep link keeps it, `navigate('/items#top')` puts it
+in the address bar, and a plain `<a href="#section">` on a screen scrolls without navigating.
 
 ```svelte
 <script>
@@ -814,15 +831,42 @@ and a plain `<a href="#section">` on a screen scrolls without navigating.
 </Router>
 ```
 
-- `navigate(path, { replace, state })`, `back()` and `forward()` do the same from code;
-  `router.path`, `router.params`, `router.query`, `router.state`, `router.can_go_back` and
-  `router.can_go_forward` are reactive wherever they are read.
-- `href('/items/:id', { id: 3 })` builds a path with its params typed from the pattern, plus an
-  optional query object.
-- `before((to, from) => …)` runs before every navigation, a Link, `navigate()`, the keyboard and
-  the browser's buttons alike: `false` cancels it, a string redirects it. It returns the
-  unsubscribe. The first screen is not a navigation: a reload on a path a hook would redirect
-  shows that screen, so check `router.path` once on mount for that case.
+- `navigate(path, { replace, state })`, `back()` and `forward()` do the same from code.
+  `navigate()` returns a promise of whether it arrived: `false` when a hook cancelled it or a
+  newer navigation overtook it, and a rejection when the history API refuses the entry (a `state`
+  it cannot clone). With synchronous hooks all of that has happened by the time it returns, so it
+  is awaited only for the answer.
+- A path resolves as a link on the current screen would: `edit` and `../list` from the current
+  path, `?page=2` on it, and an empty path or a bare `#fragment` stays on the route. A path from
+  the root is taken as written, dots included, which is what keeps a param that is `..` a param.
+  A navigation to the URL already shown replaces its entry rather than stacking a second one,
+  while in history mode one to another fragment of it is a new entry, as a fragment link's is,
+  so Back returns to the first.
+- `router.path`, `router.params`, `router.query`, `router.state`, `router.can_go_back` and
+  `router.can_go_forward` are reactive wherever they are read, and `router.search` is the query as
+  `URLSearchParams`, for a key that repeats (`router.search.getAll('tag')`).
+- `href('/items/:id', { id: 3 }, { tag: ['a', 'b'] })` builds a path with its params typed from
+  the pattern, plus an optional query whose arrays repeat their key.
+- `before((to, from) => …)` runs before every navigation (a Link, `navigate()`, the keyboard, the
+  browser's buttons and the first screen alike): `false` cancels it, a string redirects it, and a
+  promise of either is waited for, so a hook can ask in a `Dialog` before leaving unsaved changes.
+  Hooks are asked in order, and `router.navigating` holds the route while one decides. A newer
+  navigation overtakes one still waiting, whose remaining hooks are not asked. A hook that throws
+  or rejects cancels, a redirect loop gives up after ten hops, both logged, and a hook that calls
+  `navigate()` itself replaces the navigation it was asked about. Only the route a redirect ends
+  on arrives: the screen redirected away from never shows. It returns the unsubscribe.
+- Back and forward have moved the stack by the time a hook hears of them, in a window as in a
+  browser. While the hook decides, `router.can_go_back` and `router.can_go_forward` describe the
+  entry gone to, and a second Back goes one further; a no moves the stack back, and a redirect
+  replaces the entry gone to. Coming back onto the screen still shown (Back, then Forward) asks
+  nothing, and a `navigate()` made meanwhile starts from the screen shown, which in a page means
+  once the browser is back on its entry.
+- Register hooks before the `Router` mounts for them to see the first screen. There `from` is
+  `to` itself, an async hook is waited for (`router.ready` is false and the Router renders
+  nothing meanwhile), and a redirect replaces the screen before it shows. Nothing is shown yet to
+  stay on, so `false` lets the first screen through: a hook that guards a screen redirects.
+- `after((to, from) => …)` runs once a route has arrived, the first screen included, for a title,
+  analytics or moving focus.
 - In a window, ⌘[ and ⌘] (Alt+Left and Alt+Right elsewhere) go back and forward unless a text
   field has focus; a page leaves those keys to the browser, which has them already.
   `shortcuts` sets either way.
@@ -879,9 +923,12 @@ use this one only inside a window.
 ![Links in a GPUI window on /items/3: Home plain, and both Items and Item 3 highlighted as active.](assets/ui-link.png)
 
 `<Link href="/items/3">` navigates on click. It is a real `<a>` in a page, so a modified click
-opens a new tab, and a focusable box in a window. Its content snippet gets `{ active }`, true on
-that screen and the ones below it (`exact` limits it to the path itself), and `replace` and
-`state` go to the navigation. A `Link` needs no `Router` near it: these drive the same store as
+opens a new tab, a click a child handler already prevented is left alone, and an `href` to another
+site (`https:`, `mailto:`) is followed by the browser; in a window it is a focusable box, which
+has nothing to open another site with. Its content snippet gets `{ active }`, true on that screen
+and the ones below it (`exact` limits it to the path itself, and a query in `href` has to match
+too), and a page's active link carries `aria-current="page"`. `replace` and `state` go to the
+navigation. A `Link` needs no `Router` near it: these drive the same store as
 the sample above.
 
 ```svelte demo link

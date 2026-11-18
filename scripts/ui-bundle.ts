@@ -22,9 +22,9 @@ const showcase = relative(out, join(root, 'packages/ui/showcase/Showcase.svelte'
 writeFileSync(
 	entry,
 	`export { default as Showcase } from '${showcase.startsWith('.') ? showcase : `./${showcase}`}';
-export { Avatar, Slider, Tabs, TextField } from 'gpuix-svelte-ui';
-export { router, navigate, back, forward, before, href, match, start_router, stop_router } from 'gpuix-svelte-ui/router';
-export { mount, unmount, flushSync } from 'svelte';
+export { Avatar, Link, Router, Separator, Slider, Tabs, TextField } from 'gpuix-svelte-ui';
+export { router, navigate, back, forward, before, after, href, screen, lazy, match, resolve, to_url, start_router, stop_router } from 'gpuix-svelte-ui/router';
+export { mount, unmount, flushSync, createRawSnippet } from 'svelte';
 `
 );
 

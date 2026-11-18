@@ -584,14 +584,38 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   each entry's `history.state.__ui`, which is how `can_go_back` / `can_go_forward` stay right
   through the browser's own buttons; `router.ts`'s comments cover each case. The invariant is that
   the entry the page is on always carries the current length (an entry is stamped again when a pop
-  arrives on it with a stale one). A known limit: the router can't count entries other code pushes
-  without a `popstate`, so the flags can be off by one around them.
+  arrives on it with a stale one, the router's own move back from a refused pop included). A known
+  limit: the router can't count entries other code pushes without a `popstate`, so the flags can
+  be off by one around them. Hooks may be async, so every navigation, pop and step is a `trip()`
+  through `decide()`, which takes a `ticket` and drops a verdict that arrives after a newer ticket
+  (a hook's own `navigate()` included), and stays synchronous while every hook answers
+  synchronously, which the tests and a click's same-frame commit rely on. A redirect is a further
+  hop of the same trip, so only the route it ends on arrives, and `use_routes` runs before
+  `start_router` so the first trip's hooks see a pattern. On a pop the browser has moved already,
+  so `index` follows it at once and `shown` keeps the entry `current` came from; a window's
+  `back()` moves `index` the same way, so both behave alike while a hook waits. A pop back onto
+  `shown` is no navigation and drops the one waiting. A refusal is `history.go(shown - index)`,
+  never by 0 (a reload), and lands a task later. Chrome drops a traversal asked for while another
+  is pending, so the router asks for one at a time (`moving`): a further `back()` waits in `held`
+  for the one before to land, and so does a `navigate()` that would be written on the entry the
+  browser has yet to leave (it moves back first itself when a pop still waits). `travel()` arms a
+  one-second valve, since a traversal that only moves an iframe never pops and nothing may wait on
+  it for ever. The pop after an undo is trusted to be the undo's own, so `history.go()` called
+  twice in one task past the router, with a synchronous refusal, is still misread. Paths are
+  resolved by hand in `describe()`, not by `new URL`, which reads `item:3` as a scheme, `//x` as a
+  host, and collapses a `..` that `href()` wrote for a param; `escape()` is `encodeURI` without
+  the double escaping, more than a browser escapes, so a route compares equal before and after the
+  browser stored it. `Router` keys the screen on `router.path`, not `generation`, so a query-only
+  change keeps it mounted.
 - **Tests and demos.** `packages/ui/showcase/Showcase.svelte` places the components with test ids;
   `demo:ui` opens it, `demo:ui-dom` serves it, `test/ui.ts` clicks through it headlessly (wheeling
   each target into the ~540 px viewport first) and `test/ui-dom.ts` under happy-dom from the Vite
-  bundle `scripts/ui-bundle.ts` writes (on Node even under Bun). That test replaces happy-dom's
-  `HistoryItemList.prototype.replace`, whose `replaceState` drops the entries ahead of the current
-  one as no browser does.
+  bundle `scripts/ui-bundle.ts` writes (on Node even under Bun). That test patches happy-dom's
+  history where no browser agrees with it: `HistoryItemList.prototype.replace`, whose
+  `replaceState` drops the entries ahead of the current one, and `go`/`back`/`forward`, which run
+  inside the call rather than a task later. A change to the pop handling is worth a pass in
+  headless Chrome as well: that bundle behind a server that answers every path with one page,
+  driven over CDP (`Page.navigateToHistoryEntry` is the browser's own Back and Forward).
 
 ## Hard constraints
 
