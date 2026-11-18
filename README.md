@@ -134,15 +134,15 @@ files, spawn processes, open SQLite databases and load native addons directly.
 - **Svelte components render in both gpuix-svelte and a normal DOM.** The same components can be shared
   between a gpuix-svelte app and a normal Svelte app such as SvelteKit: a Vite or SvelteKit build
   gets DOM versions of every helper and component under the same imports, and `IS_GPUIX` tells a
-  component which renderer it is on (next release, 0.6.0). → [docs/dom.md](docs/dom.md), and a SvelteKit site and a GPUI window
+  component which renderer it is on. → [docs/dom.md](docs/dom.md), and a SvelteKit site and a GPUI window
   sharing one component library:
   [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo)
 - **A UI toolkit for both renderers.** `gpuix-svelte-ui` is buttons, fields, choices, menus,
   dialogs, toasts, layout and feedback components and a router for an app's screens, written once
-  for a GPUI window and the DOM, with the theme behind them (next release, 0.6.0).
+  for a GPUI window and the DOM, with the theme behind them.
   → [docs/ui.md](docs/ui.md)
 - **Media queries.** `@media` over the window's width, height and orientation in a `<style>`
-  block, and `media_query()` for JavaScript, on both renderers (next release, 0.6.0).
+  block, and `media_query()` for JavaScript, on both renderers.
   → [docs/styling.md](docs/styling.md#media-queries)
 
 ## Documentation

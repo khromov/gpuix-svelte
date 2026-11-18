@@ -2,10 +2,6 @@
 
 ![Orbit, a small deployment dashboard built from the toolkit, in a GPUI window: a sidebar with the Orbit logo, a Pro badge, Overview, Deployments and a selected Settings link, key caps for back and forward and Ada Lovelace's account; the Settings screen with Discard and Save changes buttons, General, Members and a dimmed Billing tab, a Project card with Name, Region and Description fields, a Builds card with two toggles, a checkbox, a Node.js radio group with an info button and a Concurrent builds slider, a Danger zone card with a Delete project button, and a Settings saved toast in the corner.](assets/ui-app.png)
 
-> [!NOTE]
-> **Not released yet.** `gpuix-svelte-ui` ships alongside the next gpuix-svelte release (0.6.0),
-> which is the first with the [DOM build](dom.md) it needs.
-
 `gpuix-svelte-ui` is a set of components written once for both renderers: a native window through
 gpuix-svelte, and a browser DOM through Vite or SvelteKit. Buttons, fields, choices, menus, dialogs,
 toasts, a few layout and feedback pieces, a router for the screens of an app, and the theme behind
