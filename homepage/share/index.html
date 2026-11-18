@@ -162,6 +162,11 @@ ul{list-style:none}
 .c-shot .dock img{display:block;width:84px;height:84px}
 .c-shot .dock .finder-tile{position:relative;width:68px;height:68px;overflow:hidden;border-radius:15px;background:linear-gradient(#5fc0f9,#1d7fe0)}
 .c-shot .dock .finder-tile::after{content:"";position:absolute;top:0;bottom:0;left:50%;right:0;background:rgba(255,255,255,.72)}
+.c-shot .win.web{top:56px;left:40px;right:auto;width:560px}
+.c-shot .win.app{top:290px;right:36px;width:560px}
+.c-shot .chrome.url span{top:10px;left:120px;right:24px;height:30px;border-radius:8px;background:rgba(255,255,255,.07);font:400 17px/30px var(--mono);letter-spacing:-.02em}
+.c-shot .dock .mark-tile{display:grid;place-items:center;width:68px;height:68px;border-radius:15px;background:#000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.24)}
+.c-shot .dock .mark-tile svg{width:46px;height:46px}
 .c-shot .dock .running{position:relative}
 .c-shot .dock .running::after{content:"";position:absolute;left:50%;bottom:-6px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff}
 .chrome{position:relative;display:flex;align-items:center;gap:10px;height:50px;padding:0 20px;background:#1a1a24;border-bottom:1px solid rgba(255,255,255,.08);border-radius:16px 16px 0 0;font-size:19px;color:var(--text-2)}
@@ -227,6 +232,22 @@ ul{list-style:none}
 .v-crash.col{flex-direction:column;gap:6px;font-size:24px}
 .v-crash.col span{height:54px;padding:0 18px}
 .v-crash.col svg{width:24px;height:24px}
+.v-kit{display:flex;align-items:center;gap:26px}
+.v-kit .toggle{position:relative;width:76px;height:42px;border-radius:21px;background:var(--accent)}
+.v-kit .toggle::after{content:"";position:absolute;top:5px;right:5px;width:32px;height:32px;border-radius:50%;background:#fff}
+.v-kit .check{display:grid;place-items:center;width:40px;height:40px;border-radius:9px;background:var(--accent);color:#fff}
+.v-kit .check svg{width:28px;height:28px}
+.v-kit .badge{height:44px;padding:0 18px;border-radius:22px;background:rgba(255,62,0,.14);box-shadow:inset 0 0 0 1px rgba(255,62,0,.4);color:#ff6a3a;font-size:24px;font-weight:500;line-height:44px}
+.v-kit .btn{background:var(--text)}
+.v-split{display:grid;justify-items:center;gap:4px;font:500 25px/1 var(--mono);letter-spacing:-.035em}
+.v-split span{display:flex;align-items:center;height:44px;padding:0 18px;border:1px solid var(--line-3);border-radius:13px;background:#000}
+.v-split i{font-style:normal;color:var(--text-3)}
+.v-split div{display:flex;gap:12px}
+.v-split div span{border-color:var(--accent);background:rgba(255,62,0,.1)}
+.v-code{display:grid;gap:14px;padding:22px 28px;border:1px solid var(--line-3);border-radius:16px;background:#000;font:500 26px/1.2 var(--mono);letter-spacing:-.035em;white-space:nowrap;color:var(--text-2)}
+.v-code b{font-weight:500;color:var(--c-k)}
+.v-code s{text-decoration:none;color:var(--c-t)}
+.v-code em{font-style:normal;color:var(--c-n)}
 .btn{flex:none;display:grid;place-items:center;height:60px;padding:0 26px;border-radius:13px;background:var(--accent);color:#000;font-size:26px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
 
 .c-poster{display:flex;flex-direction:column;padding:56px 64px 44px;background:#ff3e00;color:#000}
@@ -276,6 +297,47 @@ ul{list-style:none}
 <script>
 // Newest first. Each release keeps its own Bento tiles and Showcase desktop, so older cards still render.
 const RELEASES = [
+	{
+		version: '0.6.0',
+		previous: '0.5.0',
+		date: '18 Nov 2026',
+		lead: 'The same components on desktop and in the browser',
+		install: 'npm i gpuix-svelte@0.6.0',
+		wall: '../assets/wall/wall-mac-light-stream-red.webp',
+		url: 'gpuix-svelte.stanislav.garden',
+		facts: [
+			{ label: 'ui components', value: '22 + a router' },
+			{ label: 'aot + trim build', value: '139 → 80 MB' },
+			{ label: 'try it in the', value: 'docs playground' }
+		],
+		log: [
+			{ kind: 'new', icon: 'ui', text: 'UI toolkit with 22 components and a router' },
+			{ kind: 'new', icon: 'web', text: 'Components render in a browser DOM too' },
+			{ kind: 'new', icon: 'css', text: 'CSS `@media` queries and scoped variables' },
+			{ kind: 'fix', icon: 'bug', text: '10 bug fixes' }
+		],
+		tiles: (r) => `
+			<div class="t t-wide">
+				<div class="viz"><div class="v-kit"><span class="toggle"></span><span class="check">${icon('check')}</span><span class="badge">Pro</span><span class="btn">Save changes</span></div></div>
+				<p class="cap">${fmt(r.log[0].text)}</p>
+			</div>
+			<div class="t">
+				<div class="viz"><div class="v-split"><span>&lt;Toggle /&gt;</span><i>↓</i><div><span>GPUI</span><span>DOM</span></div></div></div>
+				<p class="cap">${fmt(r.log[1].text)}</p>
+			</div>
+			<div class="t">
+				<div class="viz"><div class="v-crash col"><span class="was">VoiceOver: silence</span><i>↓</i><span class="now">${icon('check')}reads the text</span></div></div>
+				<p class="cap">${fmt(r.log[3].text)}</p>
+			</div>
+			<div class="t t-wide">
+				<div class="viz"><div class="v-code"><p><b>@media</b> (max-width: <em>600px</em>) { … }</p><p>&lt;<b>Card</b> <s>--accent</s>=<em>"#ff3e00"</em> /&gt;</p></div></div>
+				<p class="cap">${fmt(r.log[2].text)}</p>
+			</div>`,
+		desk: () => `
+			<div class="win web"><div class="chrome url"><i></i><i></i><i></i><span>localhost:5173</span></div><img src="0.6.0-dom.webp" alt=""></div>
+			<div class="win app">${chrome('gpuix-svelte-ui')}<img src="0.6.0-gpui.webp" alt=""></div>
+			<div class="dock"><div class="finder-tile"></div><div class="running"><div class="mark-tile">${mark()}</div></div></div>`
+	},
 	{
 		version: '0.5.0',
 		previous: '0.4.1',
@@ -388,7 +450,10 @@ const ICONS = {
 	bug: '<rect x="8" y="8" width="8" height="12" rx="4"/><path d="M10 8.5 8.5 5M14 8.5 15.5 5M8 14H3.5M20.5 14H16M8.5 10.5 5 8M15.5 10.5 19 8M8.5 17.5 5 20M15.5 17.5 19 20"/>',
 	check: '<path d="M4.5 12.5 10 18 19.5 7"/>',
 	update: '<path d="M19.5 10.5A7.7 7.7 0 0 0 5.6 7.4M4.5 13.5a7.7 7.7 0 0 0 13.9 3.1"/><path d="M4.5 4v4h4M19.5 20v-4h-4"/>',
-	flow: '<circle cx="6.5" cy="5.5" r="2.2"/><circle cx="6.5" cy="18.5" r="2.2"/><circle cx="17.5" cy="12" r="2.2"/><path d="M6.5 7.7v8.6M6.5 8.5c0 3 2.5 3.5 8.8 3.5"/>'
+	flow: '<circle cx="6.5" cy="5.5" r="2.2"/><circle cx="6.5" cy="18.5" r="2.2"/><circle cx="17.5" cy="12" r="2.2"/><path d="M6.5 7.7v8.6M6.5 8.5c0 3 2.5 3.5 8.8 3.5"/>',
+	ui: '<rect x="2.5" y="7" width="19" height="10" rx="5"/><circle cx="16.5" cy="12" r="2.4"/>',
+	web: '<rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M3 9h18M6.2 6.8h.01M8.7 6.8h.01"/>',
+	css: '<path d="M9 4.5H8a2 2 0 0 0-2 2v3A2.5 2.5 0 0 1 3.5 12 2.5 2.5 0 0 1 6 14.5v3a2 2 0 0 0 2 2h1M15 4.5h1a2 2 0 0 1 2 2v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2 2 0 0 1-2 2h-1"/>'
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 
