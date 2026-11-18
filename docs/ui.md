@@ -11,9 +11,9 @@ gpuix-svelte, and a browser DOM through Vite or SvelteKit. Buttons, fields, choi
 toasts, a few layout and feedback pieces, a router for the screens of an app, and the theme behind
 them. The window above is [`examples/ui-app`](../examples/ui-app/App.svelte), a small app built
 from most of them (`npm run demo:ui-app` in the repository). Every component has a section of its
-own below, with a sample that runs live on this page, in the DOM, and a picture of the same sample
-in a GPUI window above it. `npm run demo:ui` opens the showcase, every component on one screen, in
-a GPUI window, and `npm run demo:ui-dom` serves it as a page.
+own below, with a sample that runs live on this page, in the DOM. `npm run demo:ui` opens the
+showcase, every component on one screen, in a GPUI window, and `npm run demo:ui-dom` serves it as a
+page.
 
 ## Setup
 
@@ -104,8 +104,6 @@ page follows it.
 
 ### Button
 
-![Buttons in a GPUI window: Default, Primary, Ghost, Danger and a dimmed Disabled; below them Count 3, a search icon button and a hovered Hover me button with its tooltip under it.](assets/ui-button.png)
-
 `Button` is a focusable box: Enter and Space press it, `variant` is `default`, `primary`, `ghost`
 or `danger`, `size` is `md` or `sm`, and `disabled` takes it out of the tab order. `label` names a
 button whose content is an icon. It spreads `onmouseenter` / `onmouseleave`, which is what lets a
@@ -143,8 +141,6 @@ focus.
 
 ### Badge
 
-![Badges in a GPUI window, one per tone: neutral, accent, success, warning and danger.](assets/ui-badge.png)
-
 `Badge` is a short label in a pill, coloured by its `tone`: `neutral` (the default), `accent`,
 `success`, `warning` or `danger`, the same tones `Progress` and the toasts take.
 
@@ -167,8 +163,6 @@ focus.
 ```
 
 ### Kbd
-
-![Key caps in a GPUI window: ⌘K opens the palette, Esc closes it and Tab walks the controls.](assets/ui-kbd.png)
 
 `Kbd` draws its content as a key cap, for a shortcut written into a sentence.
 
@@ -193,8 +187,6 @@ focus.
 ```
 
 ### Icon
-
-![Icons in a GPUI window: every glyph by name, from check to search, each labelled, and an orange star drawn from SVG markup in the accent colour around it.](assets/ui-icon.png)
 
 `Icon` draws one of the toolkit's glyphs by `name`, or any SVG markup through `source`, `size`
 pixels square in the colour of the text around it. `ICONS` holds the glyphs by name, as markup.
@@ -231,8 +223,6 @@ pixels square in the colour of the text around it. `ICONS` holds the glyphs by n
 
 ### Card
 
-![A card in a GPUI window: the title Export over its description, a green ready badge at the right, a line of body text, and Cancel and Start buttons in the footer.](assets/ui-card.png)
-
 `Card` holds a `title`, a `description`, an `actions` snippet at the right of the title, the body
 and a `footer` snippet; `pad` and `gap` space it out.
 
@@ -258,8 +248,6 @@ and a `footer` snippet; `pad` and `gap` space it out.
 ```
 
 ### Stack
-
-![Stacks in a GPUI window: one, two and three in a row; start and end pushed apart; and a fixed box beside one that grows to fill the row.](assets/ui-stack.png)
 
 `Stack` is a flex box with its spacing as props (`direction`, `gap`, `align`, `justify`, `wrap`,
 `pad`, `grow`), in the names both renderers know (`start` and `end`, not `flex-start`).
@@ -292,8 +280,6 @@ and a `footer` snippet; `pad` and `gap` space it out.
 
 ### Separator
 
-![Separators in a GPUI window: a line labelled or between two sign-in options, a plain line, and vertical lines between Help, Privacy and Terms.](assets/ui-separator.png)
-
 `Separator` is a hairline across, or between the items of a row with `direction="vertical"`, and
 an optional `label` sits in the middle of it.
 
@@ -325,8 +311,6 @@ an optional `label` sits in the middle of it.
 
 ### Progress
 
-![Progress bars in a GPUI window: Upload at 55% in orange, Disk at 92% in red, a thin green bar three quarters full, and an Advance button.](assets/ui-progress.png)
-
 `Progress` draws `value` out of `max` (100 by default) in a `tone`, with an optional `label` and,
 with `show_value`, the percentage beside it; `size` is `md` or `sm`.
 
@@ -354,8 +338,6 @@ with `show_value`, the percentage beside it; `size` is `md` or `sm`.
 
 ### Spinner
 
-![Three spinners of growing size in a GPUI window, beside the text Fetching three files.](assets/ui-spinner.png)
-
 `Spinner` turns while something loads, `size` pixels across; `label` is what a screen reader
 announces (`Loading` by default).
 
@@ -378,8 +360,6 @@ announces (`Loading` by default).
 ```
 
 ### Skeleton
-
-![A skeleton in a GPUI window: a round placeholder beside two bars of different lengths, and a Load button under them.](assets/ui-skeleton.png)
 
 `Skeleton` is a pulsing placeholder for content still loading: `width` in pixels or as CSS text
 such as `60%`, `height` and `radius`.
@@ -418,8 +398,6 @@ such as `60%`, `height` and `radius`.
 
 ### Avatar
 
-![Four avatars of growing size in a GPUI window, showing the initials AL, GH, AT and KJ.](assets/ui-avatar.png)
-
 `Avatar` shows the image at `src` (a path, a `data:` URL or an http(s) URL on GPUI, any image URL
 in a browser) and the initials of `name` until it has one, `size` pixels across.
 
@@ -443,8 +421,6 @@ in a browser) and the initials of `name` until it has one, `size` pixels across.
 ## Fields
 
 ### TextField
-
-![Text fields in a GPUI window: an empty Name field with its hint, an Email field holding ada@ outlined in red with the error Needs a domain, and a dimmed, disabled Workspace field.](assets/ui-textfield.png)
 
 `TextField` wraps a real input: `value` in, `onchange(value)` on every edit, and `onsubmit(value)`
 on Enter. It is controlled, so keep `value` in your state. `label`, `hint` and `error` go around
@@ -473,8 +449,6 @@ set.
 
 ### TextArea
 
-![A text area in a GPUI window labelled Notes, holding two lines, with the hint 2 lines.](assets/ui-textarea.png)
-
 `TextArea` takes the same props for more than one line, and `rows` for its height. On GPUI it
 grows from `rows` up to `max_rows` as the text does, and Enter inserts a newline unless
 `onsubmit` is set, when Shift+Enter still does.
@@ -496,8 +470,6 @@ grows from `rows` up to `max_rows` as the text does, and Enter inserts a newline
 ```
 
 ### Select
-
-![A select in a GPUI window labelled Fruit, open on Banana: its list shows Apple, a checked Banana, a dimmed Cherry and Durian with its description.](assets/ui-select.png)
 
 `Select` is a trigger and a list in a `Popover`: `options` are `{ value, label, disabled?,
 description? }`, `value` is the chosen one or `null`, and arrows, Enter and Escape work on the
@@ -531,8 +503,6 @@ trigger.
 
 ### Toggle
 
-![Toggles in a GPUI window: Wi-Fi on, Bluetooth off, and a dimmed, disabled Airplane mode.](assets/ui-toggle.png)
-
 `Toggle` is a switch: `checked` and `onchange(checked)`, with a `label` beside it, and `disabled`
 takes it out of the tab order.
 
@@ -557,8 +527,6 @@ takes it out of the tab order.
 
 ### Checkbox
 
-![Checkboxes in a GPUI window: Accept the terms checked with its description, Send me the newsletter checked, and a dimmed, disabled Beta features.](assets/ui-checkbox.png)
-
 `Checkbox` takes `checked` and `onchange(checked)` too, with a `label` and a `description` under
 it.
 
@@ -582,8 +550,6 @@ it.
 ```
 
 ### RadioGroup
-
-![Radio groups in a GPUI window: Free, Pro and Team in a column with Pro picked and Team dimmed, and S, M and L in a row with M picked.](assets/ui-radiogroup.png)
 
 `RadioGroup` picks one of its `options` (`{ value, label, description?, disabled? }`): `value`
 and `onchange(value)`, a `label` that names the group to a screen reader, and `direction="row"` to
@@ -618,8 +584,6 @@ set the options side by side. The arrow keys move the selection and skip a disab
 
 ### Tabs
 
-![Tabs in a GPUI window: Overview, a selected Activity and a dimmed Billing, over the panel text Nothing has happened this week.](assets/ui-tabs.png)
-
 `Tabs` is a row of tabs over `items` of `{ value, label, disabled? }`, with `value` and
 `onchange(value)`; the panel under it is yours to render. The arrow keys move between tabs and
 skip a disabled one, and only the selected tab is a tab stop (the first enabled one while `value`
@@ -648,8 +612,6 @@ names none).
 
 ### Slider
 
-![Sliders in a GPUI window: Volume at 40% and Temperature at 21.0 °C.](assets/ui-slider.png)
-
 `Slider` takes `value`, `min`, `max`, `step` and `onchange(value)`: drag it, past the window's
 edge too, click the track, or use the arrows, Home and End. `format` prints the readout beside its
 `label`.
@@ -675,8 +637,6 @@ edge too, click the track, or use the arrows, Home and End. `format` prints the 
 ## Menus, dialogs and toasts
 
 ### Menu
-
-![A menu in a GPUI window, open under its Actions button: Rename and Duplicate with their shortcuts, a dimmed Archive, a separator and a red Delete.](assets/ui-menu.png)
 
 `Menu` is a `Popover` with `items`: `{ label, onselect, disabled?, danger?, shortcut? }`, or
 `{ separator: true }`. You own `open`, the trigger toggles it, and an item that runs closes it, as
@@ -716,8 +676,6 @@ a context menu.
 
 ### Dialog
 
-![A dialog in a GPUI window over a dimmed Delete project button: Delete this project?, its description, a close button, and Cancel and Delete buttons.](assets/ui-dialog.png)
-
 `Dialog` paints a scrim and a panel in a `Portal`: `open`, `onclose`, `title`, `description`, the
 body and an `actions` snippet; `size` is `sm`, `md` or `lg`. Escape, the close button and a click
 on the scrim call `onclose`, unless `dismissable` is false. Escape closes one overlay per press,
@@ -753,8 +711,6 @@ keyboard focus into itself yet, so Tab still walks the controls behind a dialog.
 
 ### Toaster
 
-![Toasts in a GPUI window, stacked in the bottom right corner: Saved, Export finished with an Open action, and Disk almost full with a warning stripe.](assets/ui-toaster.png)
-
 `toast('Saved')` or `toast({ title, description, tone, duration, action })` queues a toast from
 anywhere, and a `<Toaster>` rendered once, at any `position`, shows the queue (this page's is the
 one in the sample below, which shows the other samples' toasts too). A toast goes by itself after
@@ -782,8 +738,6 @@ one in the sample below, which shows the other samples' toasts too). A toast goe
 ## Screens and routing
 
 ### Router
-
-![The router sample in a GPUI window on /items/2: the Items link highlighted, Back enabled and Forward dimmed, and the screen reading Item 2, with params typed from its pattern.](assets/ui-router.png)
 
 `Router` switches between screens by path, with a history stack behind it. In a window the stack
 is in memory, and a hot reload keeps the current screen; in a page the stack is the browser's, so
@@ -920,8 +874,6 @@ use this one only inside a window.
 
 ### Link
 
-![Links in a GPUI window on /items/3: Home plain, and both Items and Item 3 highlighted as active.](assets/ui-link.png)
-
 `<Link href="/items/3">` navigates on click. It is a real `<a>` in a page, so a modified click
 opens a new tab, a click a child handler already prevented is left alone, and an `href` to another
 site (`https:`, `mailto:`) is followed by the browser; in a window it is a focusable box, which
@@ -953,15 +905,13 @@ the sample above.
 
 ## Responsive layouts
 
-![The responsive sample in a GPUI window 760 px wide: the three cards stacked one under another, and a badge reading stacked.](assets/ui-responsive.png)
-
 Both renderers answer `@media` queries over the window's width and height
 ([Styling](styling.md#media-queries)), and `media_query()` answers the same from JavaScript
 ([Guide](guide.md#media-queries)). The toolkit adds named breakpoints: `BREAKPOINTS` is
 `{ sm: 480, md: 768, lg: 1024, xl: 1280 }`, `min_width('md')` is `media_query('(min-width: 768px)')`
 and `max_width('md')` is `media_query('(width < 768px)')`, everything narrower, in the range form
-that leaves no fractional width between the two. The window in the picture is 760 px wide, under
-`md`, so it stacks; resize the browser to see both halves of this sample agree:
+that leaves no fractional width between the two. Under `md` this sample stacks its cards and says
+so; resize the browser to see both halves agree:
 
 ```svelte demo responsive
 <script>

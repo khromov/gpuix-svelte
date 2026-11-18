@@ -67,10 +67,7 @@ npm run og                 # homepage/og.png from index.html#og through headless
                            # does docs/assets/og-docs.png. Rerun after changing the hero
 npm run shots              # every other screenshot the homepage, README and docs carry (scripts/shots.ts,
                            # through the bin; macOS or Windows, Bun and Chrome; -- --only hn,demos), including
-                           # examples/ui-app's Settings screen as docs/assets/ui-app.png, atop docs/ui.md, and
-                           # a picture of every `svelte demo` in docs/ui.md but theme, as docs/assets/ui-<name>.png
-                           # (scripts/ui-shot frames it in a window as wide as the docs column, cut 24 px under
-                           # the lowest element unless UI_STATES gives a height; -- --only ui after changing one)
+                           # examples/ui-app's Settings screen as docs/assets/ui-app.png, atop docs/ui.md
 npm run wallpapers         # macOS only: Apple's wallpapers for the share cards, gitignored since they may
                            # not be republished; -- --use <slug> writes the tracked webp a release's `wall` names
 npm run vendor             # re-vendor svelte; see "Hard constraints"
