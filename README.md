@@ -8,12 +8,6 @@ the Zed editor. It talks to GPUI through [`@gpuix/native`](https://www.npmjs.com
 
 ![Four gpuix-svelte demos running as native macOS windows](https://raw.githubusercontent.com/khromov/gpuix-svelte/main/.github/resources/demos.png)
 
-> [!WARNING]
-> **Experimental.** gpuix-svelte is built on Svelte's unreleased
-> [custom renderer API](https://github.com/sveltejs/svelte/pull/18511), so every release ships the
-> exact Svelte build it was tested against (see [About the Svelte
-> version](#about-the-svelte-version)). Expect breaking changes between minor versions.
-
 ## Quick start
 
 ```bash
@@ -86,9 +80,13 @@ simple one of its own ([details](docs/guide.md#title-bar-on-gnome)).
 
 ```ts
 // app.ts
-import { render_hot } from 'gpuix-svelte';
+import { render_hot } from "gpuix-svelte";
 
-render_hot(new URL('./App.svelte', import.meta.url), { title: 'My app', width: 640, height: 480 });
+render_hot(new URL("./App.svelte", import.meta.url), {
+  title: "My app",
+  width: 640,
+  height: 480,
+});
 ```
 
 ```bash
@@ -147,17 +145,17 @@ files, spawn processes, open SQLite databases and load native addons directly.
 
 ## Documentation
 
-| | |
-|---|---|
-| [Styling](docs/styling.md) | Every CSS property and value GPUI understands, what is dropped, theming with variables |
-| [Components](docs/components.md) | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on |
-| [Guide](docs/guide.md) | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload |
-| [Accessibility](docs/accessibility.md) | What reaches a screen reader, what GPUI lacks and what to use instead, keyboard patterns for menus, dialogs and lists |
-| [Testing](docs/testing.md) | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window |
-| [Shipping](docs/shipping.md) | Standalone binaries, signed macOS apps, and running in a browser via WebGPU |
-| [DOM](docs/dom.md) | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers |
-| [UI toolkit](docs/ui.md) | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
-| [Updating](docs/updating.md) | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow |
+|                                        |                                                                                                                                                                             |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Styling](docs/styling.md)             | Every CSS property and value GPUI understands, what is dropped, theming with variables                                                                                      |
+| [Components](docs/components.md)       | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on                                                             |
+| [Guide](docs/guide.md)                 | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload                            |
+| [Accessibility](docs/accessibility.md) | What reaches a screen reader, what GPUI lacks and what to use instead, keyboard patterns for menus, dialogs and lists                                                       |
+| [Testing](docs/testing.md)             | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window                                                                        |
+| [Shipping](docs/shipping.md)           | Standalone binaries, signed macOS apps, and running in a browser via WebGPU                                                                                                 |
+| [DOM](docs/dom.md)                     | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers  |
+| [UI toolkit](docs/ui.md)               | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
+| [Updating](docs/updating.md)           | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow                                                                           |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)). To try
 a component without installing anything, the [playground](https://gpuix-svelte.stanislav.garden/playground.html)
@@ -222,10 +220,10 @@ GPUI elements, it also needs the `gpuixHTML` namespace:
     "skipLibCheck": true,
     "paths": {
       "svelte": ["./node_modules/gpuix-svelte/node_modules/svelte"],
-      "svelte/*": ["./node_modules/gpuix-svelte/node_modules/svelte/*"]
-    }
+      "svelte/*": ["./node_modules/gpuix-svelte/node_modules/svelte/*"],
+    },
   },
-  "svelteOptions": { "namespace": "gpuixHTML" }
+  "svelteOptions": { "namespace": "gpuixHTML" },
 }
 ```
 
@@ -254,20 +252,20 @@ Every example under [`examples/`](examples/) is an ordinary app: its `.svelte` c
 `npm create gpuix-svelte` (`liquid-glass-ffi` also needs the `liquid-glass` component beside it).
 The scripts below run them in a clone of the repository (`bun install`, then the command):
 
-| | |
-|---|---|
-| `npm run demo:counter` | The counter, hot-reloading on save |
-| `npm run demo:tictactoe` | Tic-tac-toe with score tracking |
-| `npm run demo:hn` | Hacker News reader: live network data in a scrolling list |
-| `npm run demo:glass` | A translucent control center over macOS vibrancy (`demo:glass-ffi`: NSGlassEffectView via FFI, macOS 26 and Node 26.1 or later) |
-| `npm run demo:styling` | Which CSS reaches GPUI and which is dropped, side by side |
-| `npm run demo:desktop` | Window controls, file picker and drops, live image pixels, selection, focus, accessibility |
-| `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts |
-| `npm run demo:web` | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun) |
-| `npm run demo:cross` | One component on both renderers: a GPUI window here, a browser DOM through Vite with `npm run demo:dom` |
-| `npm run demo:ui` | The UI toolkit's showcase, every `gpuix-svelte-ui` component in a GPUI window; the same page in a browser with `npm run demo:ui-dom` |
-| `npm run demo:ui-app` | Orbit, a small deployment dashboard built from the UI toolkit: a sidebar, three screens behind its router, forms, a dialog and toasts |
-| `npm run tutorial` | A 12-step interactive guide to the renderer, itself a gpuix-svelte app |
+|                            |                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run demo:counter`     | The counter, hot-reloading on save                                                                                                    |
+| `npm run demo:tictactoe`   | Tic-tac-toe with score tracking                                                                                                       |
+| `npm run demo:hn`          | Hacker News reader: live network data in a scrolling list                                                                             |
+| `npm run demo:glass`       | A translucent control center over macOS vibrancy (`demo:glass-ffi`: NSGlassEffectView via FFI, macOS 26 and Node 26.1 or later)       |
+| `npm run demo:styling`     | Which CSS reaches GPUI and which is dropped, side by side                                                                             |
+| `npm run demo:desktop`     | Window controls, file picker and drops, live image pixels, selection, focus, accessibility                                            |
+| `npm run demo:native-0.11` | What `@gpuix/native` 0.11 added: keyboard focus styles and dimming, Tab, layout and scroll events, new styles, fonts                  |
+| `npm run demo:web`         | Tic-tac-toe in a browser on GPUI's WebAssembly build (Bun)                                                                            |
+| `npm run demo:cross`       | One component on both renderers: a GPUI window here, a browser DOM through Vite with `npm run demo:dom`                               |
+| `npm run demo:ui`          | The UI toolkit's showcase, every `gpuix-svelte-ui` component in a GPUI window; the same page in a browser with `npm run demo:ui-dom`  |
+| `npm run demo:ui-app`      | Orbit, a small deployment dashboard built from the UI toolkit: a sidebar, three screens behind its router, forms, a dialog and toasts |
+| `npm run tutorial`         | A 12-step interactive guide to the renderer, itself a gpuix-svelte app                                                                |
 
 Each of these, apart from `demo:web` (which always runs on Bun) and `demo:dom` / `demo:ui-dom`
 (Vite), has a Bun twin under a `bun:` prefix, such as `npm run bun:demo:counter`.
