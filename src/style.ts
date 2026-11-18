@@ -5,7 +5,7 @@
  */
 
 import type { StyleDesc } from '@gpuix/native/host';
-import type { GpuiStyle, ShadowAttrs, StyleRule, StyleValue } from './types.ts';
+import type { GpuiStyle, ShadowAttrs, ShadowNode, StyleRule, StyleValue } from './types.ts';
 
 /** A set that has to name every one of `K`, so a key a native bump adds, or a typo, fails typecheck. */
 export const set_of =
@@ -178,9 +178,9 @@ const warned = new Set<string>();
 export const forget_style_warnings = () => warned.clear();
 
 /**
- * `var(--name)` values in the three layers a browser's cascade ranks them in: `:root` rules, over them what
- * `set_css_vars()` set (the DOM build writes those on `<html>`'s inline style), and over both the `:root`
- * declarations marked `!important`. Every rule or inline style that reads one re-resolves on change.
+ * `var(--name)` values. The nearest declaration on the element or an ancestor wins, as a custom property inherits in a
+ * browser. Past those come the three layers its cascade ranks on `<html>`: `:root` rules, over them what `set_css_vars()`
+ * set (the DOM build writes those on `<html>`'s inline style), and over both the `:root` declarations marked `!important`.
  */
 let sheet_vars: ReadonlyMap<string, string> = new Map();
 const css_vars = new Map<string, string>();
@@ -188,9 +188,36 @@ let important_vars: ReadonlyMap<string, string> = new Map();
 let vars_generation = 0;
 let vars_read = false;
 const warned_vars = new Set<string>();
-const pending_vars = new Set<string>();
+const pending_vars: Array<[string, Scope | null]> = [];
 
-const declared = (name: string) => important_vars.get(name) ?? css_vars.get(name) ?? sheet_vars.get(name);
+/** As much of a shadow node as a lookup climbs. */
+export type Scope = Pick<ShadowNode, 'vars'> & { parent: Scope | null };
+
+/** A variable's value as written and the element that declares it, null for the `:root` layers. */
+function declared(name: string, from: Scope | null): [string | undefined, Scope | null] {
+	for (let at = from; at; at = at.parent) {
+		const value = at.vars?.get(name);
+		if (value !== undefined) return [value, at];
+	}
+	return [important_vars.get(name) ?? css_vars.get(name) ?? sheet_vars.get(name), null];
+}
+
+/** Records what an element's rules and inline style declare, the inline style last as the cascade has it; true when that changed. */
+export function declare_vars(el: Pick<ShadowNode, 'attrs' | 'vars'>, rules: readonly StyleRule[]): boolean {
+	let vars: Map<string, string> | null = null;
+	for (const rule of rules) {
+		for (const name in rule.vars) (vars ??= new Map()).set(name, rule.vars[name]);
+	}
+	const inline = el.attrs.style;
+	if (typeof inline === 'string' && inline.includes('--')) {
+		for (const [property, value] of split_declarations(inline)) {
+			if (property.startsWith('--')) (vars ??= new Map()).set(property.slice(2), value);
+		}
+	}
+	const before = el.vars;
+	el.vars = vars;
+	return vars === null || before === null ? vars !== before : !same_vars(vars, before);
+}
 
 /** Keys with or without the `--`; false when nothing moved, so an identical palette costs no restyle. */
 export function define_css_vars(vars: Record<string, string | number | null>): boolean {
@@ -223,42 +250,49 @@ export function define_sheet_vars(vars: ReadonlyMap<string, string>, important: 
 
 /** Deferred to the commit, since Svelte styles the tree before the root's `$effect` can set the palette. */
 export function flush_var_warnings() {
-	for (const name of pending_vars) {
-		if (declared(name) !== undefined) continue;
+	for (const [name, from] of pending_vars) {
+		if (warned_vars.has(name) || declared(name, from)[0] !== undefined) continue;
 		warned_vars.add(name);
-		console.warn(`[gpuix-svelte] \`var(--${name})\` is not defined — declare it in a \`:root\` rule, set it with set_css_vars() or give it a fallback`);
+		console.warn(
+			`[gpuix-svelte] \`var(--${name})\` is not defined — declare it in a \`:root\` rule or on an element around the one that reads it, set it with set_css_vars() or give it a fallback`
+		);
 	}
-	pending_vars.clear();
+	pending_vars.length = 0;
 }
 
 /** Whether the last `build_style` read a variable, so the renderer knows what to restyle. */
 export const used_css_vars = () => vars_read;
 
-const resolving: string[] = [];
-const cyclic = new Set<string>();
+type Resolving = [name: string, at: Scope | null];
+const resolving: Resolving[] = [];
+const cyclic = new Set<Resolving>();
 
-/** As CSS has it, a variable that reads an unset one with no fallback is unset itself, and so is every member of a cycle. */
-function resolve_var(name: string): string | undefined {
-	const value = declared(name);
+/**
+ * As CSS has it, a variable that reads an unset one with no fallback is unset itself, and so is every member of a cycle.
+ * The `var()`s in its value read from the element that declares it, not from the one reading it.
+ */
+function resolve_var(name: string, from: Scope | null): string | undefined {
+	const [value, at] = declared(name, from);
 	if (value === undefined || !value.includes('var(')) return value;
 
-	const at = resolving.indexOf(name);
-	if (at !== -1) {
-		for (const member of resolving.slice(at)) cyclic.add(member);
+	const index = resolving.findIndex((entry) => entry[0] === name && entry[1] === at);
+	if (index !== -1) {
+		for (const member of resolving.slice(index)) cyclic.add(member);
 		return undefined;
 	}
 
-	resolving.push(name);
-	const resolved = substitute_vars(value);
+	const entry: Resolving = [name, at];
+	resolving.push(entry);
+	const resolved = substitute_vars(value, at);
 	resolving.pop();
-	return cyclic.delete(name) || resolved === null ? undefined : resolved;
+	return cyclic.delete(entry) || resolved === null ? undefined : resolved;
 }
 
 /**
- * Replaces each `var(--name[, fallback])` in a value. Null means a variable was
- * undefined with no fallback, and the declaration has to be dropped.
+ * Replaces each `var(--name[, fallback])` in a value, read from `from` upwards. Null means a variable
+ * was undefined with no fallback, and the declaration has to be dropped.
  */
-function substitute_vars(value: string): string | null {
+function substitute_vars(value: string, from: Scope | null): string | null {
 	let out = '';
 	let at = 0;
 
@@ -283,13 +317,13 @@ function substitute_vars(value: string): string | null {
 		const name = (comma === -1 ? inner : inner.slice(0, comma)).trim().replace(/^--/, '');
 		vars_read = true;
 
-		let resolved: string | null | undefined = resolve_var(name);
+		let resolved: string | null | undefined = resolve_var(name, from);
 		if (resolved === undefined) {
 			if (comma === -1) {
-				if (!warned_vars.has(name)) pending_vars.add(name);
+				if (!warned_vars.has(name)) pending_vars.push([name, from]);
 				return null;
 			}
-			resolved = substitute_vars(inner.slice(comma + 1).trim());
+			resolved = substitute_vars(inner.slice(comma + 1).trim(), from);
 			if (resolved === null) return null;
 		}
 
@@ -367,12 +401,20 @@ function expand(out: GpuiStyle, key: string, value: string) {
 }
 
 // Splits the way Svelte's `style:` read-modify-write does, so a `;` inside quotes, `(...)` or a comment stays in its value.
-function split_declarations(css: string): string[] {
-	const out: string[] = [];
+function split_declarations(css: string): Array<[property: string, value: string]> {
+	const out: Array<[string, string]> = [];
 	let quote = '';
 	let depth = 0;
 	let comment = false;
 	let start = 0;
+
+	const take = (end: number) => {
+		const decl = css.slice(start, end);
+		const colon = decl.indexOf(':');
+		const property = decl.slice(0, colon).trim();
+		const value = decl.slice(colon + 1).trim().replace(IMPORTANT, '');
+		if (colon !== -1 && property !== '' && value !== '') out.push([property, value]);
+	};
 
 	for (let i = 0; i < css.length; i++) {
 		const c = css[i];
@@ -391,45 +433,55 @@ function split_declarations(css: string): string[] {
 		} else if (c === ')') {
 			if (depth > 0) depth--;
 		} else if (c === ';' && depth === 0) {
-			out.push(css.slice(start, i));
+			take(i);
 			start = i + 1;
 		}
 	}
-	out.push(css.slice(start));
+	take(css.length);
 	return out;
 }
 
-export function parse_css_text(css: string | null | undefined): GpuiStyle {
+/** `from` is the element whose style this is, for the variables declared on it and around it. */
+export function parse_css_text(css: string | null | undefined, from: Scope | null = null): GpuiStyle {
 	const out: GpuiStyle = {};
 	if (!css) return out;
 
-	for (const decl of split_declarations(css)) {
-		const colon = decl.indexOf(':');
-		if (colon === -1) continue;
+	for (const [property, raw] of split_declarations(css)) {
+		// A custom property styles nothing itself: `declare_vars` has it.
+		if (property.startsWith('--')) continue;
 
-		const key = camel(decl.slice(0, colon).trim());
-		const raw = decl.slice(colon + 1).trim().replace(IMPORTANT, '');
-		if (key === '' || raw === '') continue;
-
-		const value = raw.includes('var(') ? substitute_vars(raw) : raw;
+		const value = raw.includes('var(') ? substitute_vars(raw, from) : raw;
 		if (value === null) continue;
 
+		const key = camel(property);
 		if (!expand(out, key, value)) assign(out, key, value);
 	}
 
 	return out;
 }
 
-/** A rule that reads a variable ships as CSS text and is parsed here, once per change. */
-function rule_style(rule: StyleRule): GpuiStyle {
+/**
+ * A rule that reads a variable ships as CSS text and is parsed here: once per change of the `:root` layers where
+ * no element from `el` up declares one, and once per element where one does (`scoped`), which leaves nothing to
+ * invalidate when that element's rules, inline style or place in the tree change.
+ */
+function rule_style(rule: StyleRule, el: Scope | null, scoped: boolean): GpuiStyle {
 	if (rule.css === undefined) return rule.style;
 
-	if (rule.generation !== vars_generation) {
-		rule.generation = vars_generation;
-		rule.resolved = parse_css_text(rule.css);
-	}
 	vars_read = true;
-	return rule.resolved!;
+	if (!scoped && rule.generation === vars_generation) {
+		// The commit checks a pending warning from the element that left it, and a declaration may arrive around one element that took this parse and not another.
+		if (rule.unset) for (const name of rule.unset) if (!warned_vars.has(name)) pending_vars.push([name, el]);
+		return rule.resolved!;
+	}
+	const pending = pending_vars.length;
+	const style = parse_css_text(rule.css, el);
+	if (!scoped) {
+		rule.generation = vars_generation;
+		rule.resolved = style;
+		rule.unset = pending_vars.length === pending ? undefined : pending_vars.slice(pending).map(([name]) => name);
+	}
+	return style;
 }
 
 /**
@@ -438,24 +490,27 @@ function rule_style(rule: StyleRule): GpuiStyle {
  * attributes (or as `:hover`/`:active`/`:focus-visible` rules) and get folded back in here.
  *
  * `attrs` are the raw attribute strings off the shadow node; `rules` the element's
- * matching `<style>` rules, weakest first.
+ * matching `<style>` rules, weakest first; `el` the node itself, once `declare_vars` has seen it.
  */
-export function build_style(attrs: ShadowAttrs, rules: readonly StyleRule[] = []): GpuiStyle {
+export function build_style(attrs: ShadowAttrs, rules: readonly StyleRule[] = [], el: Scope | null = null): GpuiStyle {
 	vars_read = false;
 	const style: GpuiStyle = {};
 	const pseudo: Partial<Record<'hover' | 'active' | 'focusVisible', GpuiStyle>> = {};
 
+	let scoped = false;
+	for (let at = el; at !== null && !scoped; at = at.parent) scoped = at.vars !== null;
+
 	for (const rule of rules) {
-		const declared = rule_style(rule);
+		const declared = rule_style(rule, el, scoped);
 		if (rule.pseudo) pseudo[rule.pseudo] = merge(pseudo[rule.pseudo] ?? {}, declared);
 		else merge(style, declared);
 	}
 
 	// Inline wins over a class, as in CSS.
-	merge(style, parse_css_text(attrs.style as string | undefined));
+	merge(style, parse_css_text(attrs.style as string | undefined, el));
 	for (const [key, attr] of PSEUDO_ATTRS) {
 		const inline = attrs[attr] as string | undefined;
-		if (pseudo[key] || inline) style[key] = merge(pseudo[key] ?? {}, parse_css_text(inline));
+		if (pseudo[key] || inline) style[key] = merge(pseudo[key] ?? {}, parse_css_text(inline, el));
 	}
 
 	return style;

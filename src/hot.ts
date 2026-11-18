@@ -7,15 +7,22 @@ import { watch } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { render } from './render.ts';
+import { set_remounting } from './renderer.ts';
 import type { AnyComponent, RenderOptions } from './types.ts';
 
 // Set by `plugin.ts`, since Bun keys ES modules by path alone and the `?v=N` below reaches nothing there.
 const INVALIDATE = Symbol.for('gpuix-svelte.invalidate');
 
-/** The newest `url` and the components under it; `.svelte.ts` modules keep their single instance. */
+/** The newest `url` and the components under it, for the caller to mount next; `.svelte.ts` modules keep their single instance. */
 export async function import_fresh(url: URL, version: number): Promise<Record<string, unknown>> {
 	(globalThis as Record<symbol, (() => void) | undefined>)[INVALIDATE]?.();
-	return import(`${url.href}?v=${version}`);
+	set_remounting(true);
+	try {
+		return (await import(`${url.href}?v=${version}`)) as Record<string, unknown>;
+	} catch (error) {
+		set_remounting(false);
+		throw error;
+	}
 }
 
 /** What a change under the entry's directory calls for; `compile.ts` never busts a package's specifiers, so a remount there would load the same code. */

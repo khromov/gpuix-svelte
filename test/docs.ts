@@ -119,7 +119,22 @@ click(leaf('Light theme'));
 await sleep(0);
 check('and the button flips it', [paper(), leaf('Dark theme') !== null], ['#fafafa', true]);
 
-// Every page that loads the bundle, not only the two above: a demo added to another page has to mount there too.
+show('styling');
+check('styling.html mounts its two demos', bundle.mount_demos(), { mounted: ['styling-palette', 'styling-scoped'], failed: [] });
+await sleep(0);
+const token = (name: string) => document.documentElement.style.getPropertyValue(`--${name}`);
+check('the palette demo puts its dark palette on :root', [token('paper'), token('brand')], ['#0c0a09', '#fb923c']);
+click(leaf('Light mode'));
+await sleep(0);
+check('and its button puts the light one there', [token('paper'), token('brand'), leaf('Dark mode') !== null], ['#f5f5f4', '#c2410c', true]);
+const tags = () => [...document.querySelectorAll<HTMLElement>('[class~="tag"]')].map((tag) => getComputedStyle(tag).backgroundColor);
+check('each card of the scoped demo reads the nearest declaration: :root, its class, its inline style', tags(), ['#f472b6', '#a8a29e', '#38bdf8']);
+click(leaf('Remove .muted'));
+click(document.querySelectorAll<HTMLElement>('[class~="swatch"]')[2]);
+await sleep(0);
+check('and follows a class taken off and a new inline value', tags(), ['#f472b6', '#f472b6', '#4ade80']);
+
+// Every page that loads the bundle, not only the ones above: a demo added to another page has to mount there too.
 const with_demos = readdirSync(out)
 	.filter((name) => name.endsWith('.html') && readFileSync(join(out, name), 'utf8').includes('src="demos.js"'))
 	.sort();
@@ -132,7 +147,7 @@ check(
 	'every page that loads the bundle mounts all of its demos',
 	[with_demos, everywhere],
 	[
-		['components.html', 'dom.html', 'ui.html'],
+		['components.html', 'dom.html', 'styling.html', 'ui.html'],
 		with_demos.map((name) => [name, [], true])
 	]
 );
@@ -253,4 +268,4 @@ check(
 	[{ source: counter, target: 'dom' }, true, { source: counter, target: 'gpui' }, { source: null, target: 'dom' }]
 );
 
-finish('docs', 41);
+finish('docs', 46);

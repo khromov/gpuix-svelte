@@ -498,5 +498,47 @@ check('and null or an empty string gives the rule its say back', cascade(), ['#1
 unmount(with_vars as never);
 vars_host.remove();
 
+// --- style props and variables on elements: test:style-props and test:scoped-vars expect the same of GPUI ---
+for (const name of ['ScopedCard', 'StylePropsBeside', 'StylePropsPass', 'StylePropsText']) compile_for_dom(join(root, 'test', `${name}.svelte`));
+const shade = (id: string, property: 'backgroundColor' | 'color' = 'backgroundColor') => getComputedStyle(by_id(id)!)[property];
+
+const StyleProps = (await import(compile_for_dom(join(root, 'test/StyleProps.svelte')))).default;
+const props_host = document.createElement('div');
+document.body.append(props_host);
+const with_props = mount(StyleProps, { target: props_host }) as { recolor(value: string | null): void };
+flushSync();
+const wrapper = by_id('s')?.parentElement;
+check('a style prop reaches the component and no other', [shade('s'), shade('s-tail'), shade('p')], ['#cc0000', '#cc0000', '#000001']);
+check("through Svelte's own wrapper, which a browser gives no box", [wrapper?.localName, wrapper?.style.display], ['svelte-css-wrapper', 'contents']);
+check('each row of an {#each} has its own, a wrapper inside a wrapper hands it on', [shade('g'), shade('b-tail'), shade('deep-r')], ['#00ff00', '#0000ff', '#ff0000']);
+check('it outranks a declaration around the component, reaches markup rendered inside it, and may read a variable from around it', [shade('inherits'), shade('overrides'), shade('slot', 'color'), shade('reads-around')], ['#aaaaaa', '#bbbbbb', '#cccccc', '#dddddd']);
+with_props.recolor('#654321');
+flushSync();
+const recolored = shade('shown');
+with_props.recolor(null);
+flushSync();
+check('a new value restyles the component, and null takes the variable away', [recolored, shade('shown')], ['#654321', '#000001']);
+check('a portal hangs its content off <body>, outside the wrapper, where the style prop does not reach as it does on GPUI', [by_id('ported')?.closest('svelte-css-wrapper') ?? null, shade('ported', 'color')], [null, '#000002']);
+const group = by_id('beside')?.parentElement;
+check('beside nothing but a <text> the wrapper is an SVG <g>, which a browser paints no HTML in: what docs/dom.md keeps a <div> around', [group?.localName, group?.namespaceURI], ['g', 'http://www.w3.org/2000/svg']);
+unmount(with_props as never);
+props_host.remove();
+
+const ScopedVars = (await import(compile_for_dom(join(root, 'test/ScopedVars.svelte')))).default;
+const scoped_host = document.createElement('div');
+document.body.append(scoped_host);
+const with_scoped = mount(ScopedVars, { target: scoped_host }) as { set_alt(on: boolean): void };
+flushSync();
+check('a variable declared by a class rule or an inline style is that element\'s and what is inside it', [shade('outside'), shade('by-class'), shade('reader', 'color'), shade('by-inline')], ['#00aa00', '#aa0000', '#aa0000', '#0000bb']);
+check('an element reads its own, the inline style over the rule, and outranks a :root declaration marked !important', [shade('self', 'color'), shade('pinned', 'color')], ['#5e1f00', '#aa5500']);
+dom.set_css_vars({ tint: '#123123', pinned: '#00ff00' });
+check('set_css_vars reaches a reader outside and loses to an element\'s own declaration', [shade('outside'), shade('by-class'), shade('pinned', 'color')], ['#123123', '#aa0000', '#aa5500']);
+dom.set_css_vars({ tint: null, pinned: null });
+with_scoped.set_alt(true);
+flushSync();
+check('a class change on the declaring element reaches the readers below it, bar one under a nearer declaration', [shade('by-class'), shade('by-inline')], ['#aa00aa', '#0000bb']);
+unmount(with_scoped as never);
+scoped_host.remove();
+
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 86);
+finish('dom', 97);
