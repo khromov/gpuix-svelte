@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { build_txiki_bundle } from '../src/txiki-bundle.ts';
@@ -170,12 +171,84 @@ function output(command: string, args: string[]): string {
 	return result.stdout.trim();
 }
 
+function executable(path: string): boolean {
+	try { accessSync(path, process.platform === 'win32' ? constants.F_OK : constants.X_OK); return true; } catch { return false; }
+}
+
+export function ios_build_tools(env: NodeJS.ProcessEnv = process.env, home = homedir()): { cmake: string; ninja: string; xcodegen: string } {
+	const sdk = env.ANDROID_HOME ?? env.ANDROID_SDK_ROOT ?? join(home, 'Library/Android/sdk');
+	let versions: string[] = [];
+	try { versions = readdirSync(join(sdk, 'cmake')).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })); } catch { /* Android Studio may not be installed. */ }
+	const paths = (env.PATH ?? '').split(delimiter).map(path => path || '.');
+	const sdk_bins = versions.map(version => join(sdk, 'cmake', version, 'bin'));
+	const find = (name: string, fallback: string[]) => [...paths, ...fallback].map(path => resolve(path, name)).find(executable);
+	const cmake = find('cmake', sdk_bins);
+	const ninja = find('ninja', sdk_bins);
+	const xcodegen = find('xcodegen', []);
+	const missing = [!cmake && 'cmake', !ninja && 'ninja', !xcodegen && 'xcodegen'].filter(Boolean);
+	if (missing.length) error(`missing iOS build tools: ${missing.join(', ')}. Install them with: brew install ${missing.join(' ')}`);
+	return { cmake: cmake!, ninja: ninja!, xcodegen: xcodegen! };
+}
+
+export function find_gradle(env: NodeJS.ProcessEnv = process.env, project = root): string | undefined {
+	const find = (command: string) => {
+		if (command.includes('/') || command.includes('\\')) return executable(command) ? command : undefined;
+		const names = process.platform === 'win32' ? [`${command}.bat`, `${command}.cmd`, `${command}.exe`, command] : [command];
+		return (env.PATH ?? '').split(delimiter).flatMap(dir => names.map(name => join(dir || '.', name))).find(executable);
+	};
+	if (env.GRADLE) return find(env.GRADLE);
+	const wrapper = join(project, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+	if (executable(wrapper)) return wrapper;
+	const installed = find('gradle');
+	if (installed) return installed;
+	const home = env.GRADLE_USER_HOME ?? join(homedir(), '.gradle');
+	const distributions = join(home, 'wrapper/dists/gradle-9.4.1-bin');
+	try {
+		for (const dir of readdirSync(distributions).sort()) {
+			const binary = join(distributions, dir, 'gradle-9.4.1/bin', process.platform === 'win32' ? 'gradle.bat' : 'gradle');
+			if (executable(binary)) return binary;
+		}
+	} catch { /* The wrapper cache may not exist yet. */ }
+	return undefined;
+}
+
+const WRAPPER_SHA256 = '55243ef57851f12b070ad14f7f5bb8302daceeebc5bce5ece5fa6edb23e1145c';
+const DISTRIBUTION_SHA256 = '2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb';
+
+export async function gradle_wrapper(directory: string, download: (url: string) => Promise<Response> = fetch): Promise<string> {
+	const jar = join(directory, 'gradle/wrapper/gradle-wrapper.jar');
+	const valid = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex') === WRAPPER_SHA256;
+	if (!existsSync(jar) || !valid(readFileSync(jar))) {
+		console.log('[mobile] downloading the Gradle 9.4.1 wrapper');
+		const response = await download('https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar');
+		if (!response.ok) throw new Error(`[mobile] could not download the Gradle wrapper: HTTP ${response.status}`);
+		const bytes = new Uint8Array(await response.arrayBuffer());
+		if (!valid(bytes)) throw new Error('[mobile] Gradle wrapper checksum mismatch');
+		write_file(jar, bytes);
+	}
+	write_file(join(directory, 'gradle/wrapper/gradle-wrapper.properties'), `distributionUrl=https\\://services.gradle.org/distributions/gradle-9.4.1-bin.zip\ndistributionSha256Sum=${DISTRIBUTION_SHA256}\n`);
+	return jar;
+}
+
 async function build(platform: 'android' | 'ios', run_after: boolean, options: { simulator: boolean; device?: string }) {
 	const config = read_mobile_config(root);
+	const entry = resolve(root, config.entry);
+	if (!existsSync(entry)) error(`entry does not exist: ${entry}; set entry in gpuix.mobile.json to your app's entry file`);
+	const ios_tools = platform === 'ios' ? ios_build_tools() : undefined;
+	let gradle = platform === 'android' ? find_gradle() : undefined;
+	let gradle_args: string[] = [];
+	if (platform === 'android' && !gradle) {
+		if (process.env.GRADLE) error(`GRADLE executable not found: ${process.env.GRADLE}`);
+		gradle = process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'java.exe' : 'java') : 'java';
+		const java = spawnSync(gradle, ['-version'], { stdio: 'ignore' });
+		if (java.error || java.status !== 0) error('Java not found; install JDK 17 or later and set JAVA_HOME or add java to PATH');
+		const android = join(generated, 'android');
+		safe_generated_dir();
+		gradle_args = ['-classpath', await gradle_wrapper(android), 'org.gradle.wrapper.GradleWrapperMain'];
+		run_command(gradle, [...gradle_args, '--version'], android);
+	}
 	run_command(process.execPath, [join(scripts, 'prepare-native-deps.mjs')]);
 	scaffold(config);
-	const entry = resolve(root, config.entry);
-	if (!existsSync(entry)) error(`entry does not exist: ${entry}`);
 	const files = await build_txiki_bundle(entry, { platform, production: true });
 	const assets = join(generated, platform === 'android' ? 'android/app/src/main/assets' : 'ios/assets');
 	for (const [name, bytes] of files) write_file(join(assets, name), bytes);
@@ -190,7 +263,7 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 		const llvm = join(ndk, 'toolchains/llvm/prebuilt', host);
 		const env = { ANDROID_HOME: sdk, ANDROID_NDK_HOME: ndk, CLANG_PATH: process.env.CLANG_PATH ?? join(llvm, 'bin/clang'), BINDGEN_EXTRA_CLANG_ARGS: `${process.env.BINDGEN_EXTRA_CLANG_ARGS ?? ''} --sysroot=${join(llvm, 'sysroot')}`, CARGO_TARGET_DIR: cargo_target, GPUIX_TXIKI_SOURCE: source };
 		for (const abi of config.android.abis) run_command('cargo', ['ndk', '-t', abi, '-P', String(config.android.minSdk), '-o', join(generated, 'android/app/src/main/jniLibs'), 'build', '--manifest-path', manifest, '--lib', '--release'], join(generated, 'native'), env);
-		run_command(process.env.GRADLE ?? 'gradle', ['assembleDebug'], join(generated, 'android'), env);
+		run_command(gradle!, [...gradle_args, 'assembleDebug'], join(generated, 'android'), env);
 		if (run_after) {
 			const devices = output('adb', ['devices']).split('\n').filter(line => /\tdevice$/.test(line)).map(line => line.split('\t')[0]!);
 			const selected = options.device ?? devices[0];
@@ -201,9 +274,9 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 	} else {
 		const arch = ios_architecture(options.simulator);
 		const sdk = output('xcrun', ['--sdk', options.simulator ? 'iphonesimulator' : 'iphoneos', '--show-sdk-path']);
-		const library = build_txiki_ios(source, work, options.simulator, arch.xcode, config.ios.deploymentTarget);
+		const library = build_txiki_ios(source, work, options.simulator, arch.xcode, config.ios.deploymentTarget, ios_tools!);
 		run_command('cargo', ['build', '--manifest-path', manifest, '--lib', '--release', '--target', arch.rust], root, { ...ios_cargo_env(config, output('xcrun', ['--find', 'clang']), `-isysroot ${sdk}`), CARGO_TARGET_DIR: cargo_target });
-		run_command('xcodegen', ['generate', '--spec', 'project.yml'], join(generated, 'ios'));
+		run_command(ios_tools!.xcodegen, ['generate', '--spec', 'project.yml'], join(generated, 'ios'));
 		const args = ['-project', join(generated, 'ios', `${config.name}.xcodeproj`), '-scheme', config.name, '-configuration', 'Debug', '-derivedDataPath', join(generated, 'ios/DerivedData'), '-destination', options.device ? `id=${options.device}` : options.simulator ? 'generic/platform=iOS Simulator' : 'generic/platform=iOS', `ARCHS=${arch.xcode}`, 'ONLY_ACTIVE_ARCH=YES', `TXIKI_SOURCE=${source}`, `TXIKI_LIB=${library}`, `GPUIX_RUST_LIB=${join(cargo_target, arch.rust, 'release/libgpuix_app.a')}`];
 		if (options.simulator) args.push('CODE_SIGNING_ALLOWED=NO');
 		run_command('xcodebuild', [...args, 'build']);

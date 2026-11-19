@@ -59,10 +59,10 @@ export function prepare_txiki(platform: 'android' | 'ios', work: string): string
 	return source;
 }
 
-export function build_txiki_ios(source: string, work: string, simulator: boolean, architecture: string, deployment: string): string {
+export function build_txiki_ios(source: string, work: string, simulator: boolean, architecture: string, deployment: string, tools: { cmake: string; ninja: string } = { cmake: 'cmake', ninja: 'ninja' }): string {
 	const build = join(work, `build-${simulator ? 'sim' : 'device'}-${architecture}`);
-	txiki_command('cmake', ['-S', source, '-B', build, '-G', 'Ninja', '-DCMAKE_SYSTEM_NAME=iOS', `-DCMAKE_OSX_SYSROOT=${simulator ? 'iphonesimulator' : 'iphoneos'}`, `-DCMAKE_OSX_ARCHITECTURES=${architecture}`, `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deployment}`, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_WITH_MIMALLOC=OFF', '-DBUILD_WITH_FFI=OFF', '-DBUILD_WITH_WASM=OFF', '-DBUILD_WITH_SQLITE=OFF']);
-	txiki_command('cmake', ['--build', build, '--target', 'tjs', '-j', '8']);
+	txiki_command(tools.cmake, ['-S', source, '-B', build, '-G', 'Ninja', `-DCMAKE_MAKE_PROGRAM=${tools.ninja}`, '-DCMAKE_SYSTEM_NAME=iOS', `-DCMAKE_OSX_SYSROOT=${simulator ? 'iphonesimulator' : 'iphoneos'}`, `-DCMAKE_OSX_ARCHITECTURES=${architecture}`, `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deployment}`, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_WITH_MIMALLOC=OFF', '-DBUILD_WITH_FFI=OFF', '-DBUILD_WITH_WASM=OFF', '-DBUILD_WITH_SQLITE=OFF']);
+	txiki_command(tools.cmake, ['--build', build, '--target', 'tjs', '-j', '8']);
 	const archives: string[] = [];
 	function walk(path: string) {
 		for (const item of readdirSync(path, { withFileTypes: true })) {

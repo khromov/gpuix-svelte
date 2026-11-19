@@ -1,14 +1,14 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_MOBILE_CONFIG, validate_mobile_config } from '../scripts/mobile-config.ts';
-import { ios_architecture, ios_cargo_env } from '../scripts/mobile.ts';
+import { find_gradle, gradle_wrapper, ios_architecture, ios_build_tools, ios_cargo_env } from '../scripts/mobile.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 const config = validate_mobile_config(structuredClone(DEFAULT_MOBILE_CONFIG));
-check('default mobile config retains the normal entry', config.entry, 'src/main.ts');
+check('default mobile config uses the starter entry', config.entry, 'app.ts');
 check('default Android ABI and SDK levels are explicit', [config.android.abis, config.android.compileSdk, config.android.minSdk], [['arm64-v8a'], 36, 26]);
 let invalid_id = false;
 try { validate_mobile_config({ ...config, appId: 'not-an-app-id' }); } catch (error) { invalid_id = (error as Error).message.includes('appId'); }
@@ -30,6 +30,9 @@ try {
 	const initialized = spawnSync(process.execPath, [mobile_cli, 'mobile', 'init'], { cwd: scaffold_root, encoding: 'utf8' });
 	const native = join(scaffold_root, '.gpuix/mobile/native');
 	const cargo = readFileSync(join(native, 'Cargo.toml'), 'utf8');
+	check('init defaults to app.ts without an existing entry', JSON.parse(readFileSync(join(scaffold_root, 'gpuix.mobile.json'), 'utf8')).entry, 'app.ts');
+	const missing_entry = spawnSync(process.execPath, [mobile_cli, 'mobile', 'build', 'android'], { cwd: scaffold_root, encoding: 'utf8' });
+	check('missing entry fails before preparing native sources', missing_entry.status !== 0 && missing_entry.stderr.includes('set entry in gpuix.mobile.json') && !missing_entry.stdout.includes('[gpuix] prepared'), true);
 	const android = readFileSync(join(scaffold_root, '.gpuix/mobile/android/settings.gradle.kts'), 'utf8');
 	const rust = readFileSync(join(native, 'src/android.rs'), 'utf8');
 	const android_manifest = readFileSync(join(scaffold_root, '.gpuix/mobile/android/app/src/main/AndroidManifest.xml'), 'utf8');
@@ -41,6 +44,34 @@ try {
 	check('Android activity resizes its content for the input method', android_manifest.includes('android:windowSoftInputMode="adjustResize"'), true);
 	check('iOS scaffold declares a launch screen and supported orientations', ios_project.includes('path: Info.plist') && ios_project.includes('UILaunchScreen: {}') && ios_project.includes('UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]'), true);
 	check('iOS cargo environment targets the configured deployment version', ios_cargo_env(config, '/toolchain/clang', '--sysroot=/sdk').IPHONEOS_DEPLOYMENT_TARGET, config.ios.deploymentTarget);
+	const tool_bin = join(scaffold_root, 'bin');
+	const sdk_bin = join(scaffold_root, 'sdk/cmake/3.22.1/bin');
+	mkdirSync(tool_bin, { recursive: true });
+	mkdirSync(sdk_bin, { recursive: true });
+	for (const path of [join(tool_bin, 'xcodegen'), join(sdk_bin, 'cmake'), join(sdk_bin, 'ninja')]) { writeFileSync(path, ''); chmodSync(path, 0o755); }
+	const tool_env = { PATH: tool_bin, ANDROID_HOME: join(scaffold_root, 'sdk') };
+	check('iOS finds CMake and Ninja in the Android SDK', ios_build_tools(tool_env), { cmake: join(sdk_bin, 'cmake'), ninja: join(sdk_bin, 'ninja'), xcodegen: join(tool_bin, 'xcodegen') });
+	writeFileSync(join(tool_bin, 'cmake'), ''); chmodSync(join(tool_bin, 'cmake'), 0o755);
+	check('iOS prefers tools on PATH', ios_build_tools(tool_env).cmake, join(tool_bin, 'cmake'));
+	let tools_error = '';
+	try { ios_build_tools({ PATH: '', ANDROID_HOME: join(scaffold_root, 'missing-sdk') }, scaffold_root); } catch (error) { tools_error = (error as Error).message; }
+	check('missing iOS tools name an installation command', tools_error.includes('brew install cmake ninja xcodegen'), true);
+	const gradle_root = join(scaffold_root, 'gradle-home');
+	const cached = join(gradle_root, 'wrapper/dists/gradle-9.4.1-bin/hash/gradle-9.4.1/bin', process.platform === 'win32' ? 'gradle.bat' : 'gradle');
+	mkdirSync(join(cached, '..'), { recursive: true });
+	writeFileSync(cached, '');
+	chmodSync(cached, 0o755);
+	const no_path = { PATH: '', GRADLE_USER_HOME: gradle_root };
+	check('uses the cached Gradle distribution when gradle is not on PATH', find_gradle(no_path, scaffold_root), cached);
+	check('an invalid explicit GRADLE does not silently fall back', find_gradle({ ...no_path, GRADLE: join(scaffold_root, 'missing') }, scaffold_root) === undefined, true);
+	const missing_home = { PATH: '', GRADLE_USER_HOME: join(scaffold_root, 'empty') };
+	check('reports a missing Gradle distribution', find_gradle(missing_home, scaffold_root) === undefined, true);
+	let rejected = false;
+	try {
+		await gradle_wrapper(join(scaffold_root, 'wrapper-test'), async () => new Response('corrupt'));
+	} catch (error) { rejected = (error as Error).message.includes('checksum mismatch'); }
+	check('rejects a corrupt downloaded Gradle wrapper', rejected, true);
+	check('does not save a corrupt Gradle wrapper', existsSync(join(scaffold_root, 'wrapper-test/gradle/wrapper/gradle-wrapper.jar')), false);
 	const blocked = mkdtempSync(join(tmpdir(), 'gpuix-mobile-blocked-'));
 	try {
 		mkdirSync(join(blocked, '.gpuix/mobile'), { recursive: true });
@@ -48,4 +79,4 @@ try {
 		check('init refuses an unmarked generated directory without creating config', refused.status !== 0 && !existsSync(join(blocked, 'gpuix.mobile.json')), true);
 	} finally { rmSync(blocked, { recursive: true, force: true }); }
 } finally { rmSync(scaffold_root, { recursive: true, force: true }); }
-finish('mobile-config', 16);
+finish('mobile-config', 26);

@@ -197,7 +197,7 @@ Edit `gpuix.mobile.json` to set the TypeScript entry, app name and identifier, i
 target/team, and Android SDK/NDK/ABIs. The scaffold builds pinned txiki.js sources and uses the
 reusable `gpui-mobile/android` Gradle library. `mobile init` refuses to overwrite an
 existing config or an unmarked `.gpuix/mobile` directory. Android builds require Rust Android
-linker targets, Java, Gradle, Android SDK/NDK and platform-tools. iOS builds require Rust iOS
+linker targets, Java, Android SDK/NDK and platform-tools; Gradle is downloaded if needed. iOS builds require Rust iOS
 targets, Xcode command-line tools and XcodeGen; signing a physical-device build requires an Apple
 team configured in the file. These commands create and build local projects only; they do not
 publish packages or test on a device automatically. Mobile support remains experimental; see

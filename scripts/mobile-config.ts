@@ -12,7 +12,7 @@ export interface MobileConfig {
 }
 
 export const DEFAULT_MOBILE_CONFIG: MobileConfig = {
-	entry: 'src/main.ts',
+	entry: 'app.ts',
 	name: 'My App',
 	appId: 'dev.example.myapp',
 	ios: { deploymentTarget: '16.0' },

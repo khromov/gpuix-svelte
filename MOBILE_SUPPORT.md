@@ -13,9 +13,14 @@ gpuix-svelte mobile build ios --simulator
 gpuix-svelte mobile run ios --simulator --device <udid>
 ```
 
-Configure entry, app ID, target SDKs and ABIs in `gpuix.mobile.json`. Android needs the SDK, NDK,
-Java 17 or later, Gradle, Rust targets, `cargo-ndk`, CMake and Ninja. iOS needs Xcode, XcodeGen,
-CMake, Ninja and the appropriate Rust target; a physical-device build also needs signing. Set
+Configure entry, app ID, target SDKs and ABIs in `gpuix.mobile.json`. `mobile init` defaults to the
+starter's `app.ts`; set `entry` to your own entry file if it differs. Android needs the SDK, NDK,
+Java 17 or later, Rust targets, `cargo-ndk`, CMake and Ninja. The CLI uses `GRADLE`, a project
+wrapper, Gradle on `PATH`, or a cached Gradle 9.4.1 distribution, in that order. If none is present,
+it downloads the verified Gradle 9.4.1 wrapper and distribution on first build. iOS needs Xcode,
+XcodeGen, CMake, Ninja and the appropriate Rust target; a physical-device build also needs signing.
+Install the tools with `brew install cmake ninja xcodegen`, or use the CMake and Ninja installed in
+the Android SDK by Android Studio. Set
 `TXIKI_SOURCE` to reuse an unmodified checkout of the pinned txiki revision and `CARGO_TARGET_DIR`
 to share the Rust build cache. Generated files live under `.gpuix/mobile`.
 
