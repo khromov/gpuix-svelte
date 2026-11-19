@@ -20,8 +20,10 @@ starter/package-lock.json
 starter/bun.lock
 
 # output
+.generated/
 out
 dist
+**/.gpuix/mobile/
 
 # the JS and declarations scripts/publish.ts and scripts/publish-ui.ts emit for the tarballs, and the scaffolder's copy of starter/
 lib

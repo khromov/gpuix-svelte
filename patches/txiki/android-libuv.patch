@@ -1,0 +1,28 @@
+--- a/deps/libuv/src/unix/process.c
++++ b/deps/libuv/src/unix/process.c
+@@ -589,6 +589,7 @@
+ }
+ 
+ 
++#if !defined(__ANDROID__) || __ANDROID_API__ >= 28
+ static int uv__spawn_set_posix_spawn_attrs(
+     posix_spawnattr_t* attrs,
+     const uv_process_options_t* options) {
+@@ -992,5 +993,17 @@
+   return UV__ERR(err);
+ }
+ 
++#else
++static int uv__spawn_and_init_child_posix_spawn(
++    uv_loop_t* loop,
++    const uv_process_options_t* options,
++    int stdio_count,
++    int (*pipes)[2],
++    pid_t* pid) {
++  (void) loop; (void) options; (void) stdio_count; (void) pipes; (void) pid;
++  return UV_ENOSYS;
++}
++#endif
++
+ 
+ static int uv__spawn_and_init_child_fork(const uv_process_options_t* options,

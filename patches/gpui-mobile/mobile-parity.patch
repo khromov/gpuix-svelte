@@ -1,0 +1,1555 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -60,6 +60,7 @@
+ parking_lot  = "0.12"
+ futures      = "0.3"
+ raw-window-handle = "0.6"
++accesskit = "0.24"
+ 
+ # ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
+ gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false }
+@@ -94,6 +95,7 @@
+ [target.'cfg(target_os = "android")'.dependencies]
+ # JNI / NDK bindings
+ jni         = "0.22"
++accesskit_android = "=0.7.0"
+ libc        = "0.2"
+ # Keep `ndk` on the baseline `nativewindow` feature set. Enabling
+ # `api-level-31` links API 31 symbols directly, so the shared library
+--- a/src/ios/window.rs
++++ b/src/ios/window.rs
+@@ -16,8 +16,8 @@
+ use crate::frame_demand::FrameDemand;
+ 
+ use gpui::{
+-    point, px, size, AnyWindowHandle, AtlasKey, AtlasTextureId, AtlasTextureKind, AtlasTile,
+-    Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels,
++    point, px, size, A11yCallbacks, AnyWindowHandle, AtlasKey, AtlasTextureId, AtlasTextureKind,
++    AtlasTile, Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels,
+     PlatformAtlas, PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformWindow, Point,
+     PromptButton, PromptLevel, RequestFrameOptions, Scene, Size, TileId, WindowAppearance,
+     WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowParams, WindowVisibility,
+@@ -627,6 +627,8 @@
+     /// `request_frame` callback) can acquire a mutable reference without
+     /// conflicting with the outer `&self` borrow.
+     renderer: Mutex<Option<WgpuRenderer>>,
++    /// Per-window retained UIKit virtual accessibility elements and AccessKit state.
++    accessibility: super::accessibility::IosAccessibilityState,
+ }
+ 
+ // Required for raw_window_handle
+@@ -640,6 +642,7 @@
+         // freed memory. Pointer matches the one passed to `register_with_ffi`
+         // (the window lives at a stable address in a Box for its whole lifetime).
+         super::ffi::deregister_window(self as *const Self);
++        super::accessibility::deinitialize(self.view);
+     }
+ }
+ 
+@@ -759,6 +762,7 @@
+                 next_touch_id: Cell::new(0),
+                 fling_guard: RefCell::new(FlingGuard::new()),
+                 renderer: Mutex::new(None),
++                accessibility: super::accessibility::new_state(),
+             };
+ 
+             // Create the wgpu renderer using the Metal backend.
+@@ -1378,6 +1382,29 @@
+ }
+ 
+ impl PlatformWindow for IosWindow {
++    fn a11y_init(&self, callbacks: A11yCallbacks) {
++        super::accessibility::initialize(
++            self.view,
++            &self.accessibility,
++            callbacks.activation,
++            callbacks.action,
++            self.scale_factor.get(),
++        );
++    }
++
++    fn a11y_tree_update(&self, tree_update: accesskit::TreeUpdate) {
++        super::accessibility::update_tree(
++            self.view,
++            &self.accessibility,
++            tree_update,
++            self.scale_factor.get(),
++        );
++    }
++
++    fn a11y_update_window_bounds(&self) {
++        super::accessibility::notify_layout_changed(self.view);
++    }
++
+     fn insets(&self) -> gpui::WindowInsets {
+         self.current_window_insets()
+     }
+--- a/src/ios/mod.rs
++++ b/src/ios/mod.rs
+@@ -7,6 +7,7 @@
+ //! - Metal for GPU rendering
+ //! - CoreFoundation for many utilities
+ 
++mod accessibility;
+ pub(crate) mod cg_types;
+ mod dispatcher;
+ mod display;
+--- /dev/null
++++ b/src/ios/accessibility.rs
+@@ -0,0 +1,585 @@
++//! UIKit presentation for GPUI's AccessKit tree.
++//!
++//! GPUI owns the semantic tree and action routing. UIKit elements are retained
++//! per GPUI window and updated in place so VoiceOver focus remains stable.
++
++use accesskit::{Action, ActionRequest, Node, NodeId, TreeId, TreeUpdate};
++use objc2::runtime::{AnyClass, AnyObject, ClassBuilder, Sel};
++use objc2::{class, msg_send, sel};
++use parking_lot::Mutex;
++use std::{
++    collections::{HashMap, HashSet},
++    ffi::CStr,
++    sync::{Arc, Mutex as StdMutex, Once, OnceLock, Weak},
++};
++
++static ELEMENT_CLASS: Once = Once::new();
++static WINDOWS: OnceLock<StdMutex<HashMap<usize, Weak<Mutex<AccessibilityState>>>>> =
++    OnceLock::new();
++
++fn windows() -> &'static StdMutex<HashMap<usize, Weak<Mutex<AccessibilityState>>>> {
++    WINDOWS.get_or_init(|| StdMutex::new(HashMap::new()))
++}
++
++#[derive(Default)]
++struct A11yTreeState {
++    nodes: HashMap<NodeId, Node>,
++    root: Option<NodeId>,
++    tree_id: Option<TreeId>,
++}
++
++impl A11yTreeState {
++    fn apply(&mut self, update: TreeUpdate) -> HashMap<NodeId, Node> {
++        self.tree_id = Some(update.tree_id);
++        if let Some(tree) = update.tree {
++            self.root = Some(tree.root);
++        }
++        for (id, node) in update.nodes {
++            self.nodes.insert(id, node);
++        }
++        let Some(root) = self.root else {
++            return HashMap::new();
++        };
++        let mut reachable = HashMap::new();
++        let mut stack = vec![root];
++        while let Some(id) = stack.pop() {
++            if reachable.contains_key(&id) {
++                continue;
++            }
++            if let Some(node) = self.nodes.get(&id) {
++                reachable.insert(id, node.clone());
++                stack.extend(node.children().iter().rev().copied());
++            }
++        }
++        self.nodes = reachable.clone();
++        reachable
++    }
++}
++
++pub(super) struct AccessibilityState {
++    tree: A11yTreeState,
++    elements: HashMap<NodeId, *mut AnyObject>,
++    action: Option<Arc<Mutex<Box<dyn Fn(ActionRequest) + Send>>>>,
++}
++
++impl Default for AccessibilityState {
++    fn default() -> Self {
++        Self {
++            tree: A11yTreeState::default(),
++            elements: HashMap::new(),
++            action: None,
++        }
++    }
++}
++
++impl Drop for AccessibilityState {
++    fn drop(&mut self) {
++        unsafe {
++            for element in self.elements.drain().map(|(_, element)| element) {
++                if !element.is_null() {
++                    let _: () = msg_send![element, release];
++                }
++            }
++        }
++    }
++}
++
++unsafe impl Send for AccessibilityState {}
++
++fn send_action(this: *mut AnyObject, action: Action) -> bool {
++    unsafe {
++        let container: *mut AnyObject = msg_send![this, accessibilityContainer];
++        if container.is_null() {
++            return false;
++        }
++        let state = windows()
++            .lock()
++            .unwrap()
++            .get(&(container as usize))
++            .and_then(Weak::upgrade);
++        let Some(state) = state else {
++            return false;
++        };
++        let identifier: *mut AnyObject = msg_send![this, accessibilityIdentifier];
++        if identifier.is_null() {
++            return false;
++        }
++        let utf8: *const std::ffi::c_char = msg_send![identifier, UTF8String];
++        if utf8.is_null() {
++            return false;
++        }
++        let key = CStr::from_ptr(utf8).to_string_lossy();
++        let Ok(target_node) = key.parse::<u64>() else {
++            return false;
++        };
++        let state = state.lock();
++        let target_node = NodeId(target_node);
++        let Some(node) = state.tree.nodes.get(&target_node) else {
++            return false;
++        };
++        let activate_input = action == Action::Click
++            && matches!(node.role(), accesskit::Role::TextInput | accesskit::Role::MultilineTextInput | accesskit::Role::SearchInput)
++            && node.supports_action(Action::Focus);
++        if !node.supports_action(action) && !activate_input {
++            return false;
++        }
++        let tree_id = state.tree.tree_id.unwrap_or(TreeId::ROOT);
++        let callback = state.action.clone();
++        drop(state);
++        if let Some(callback) = callback {
++            (callback.lock())(ActionRequest {
++                action,
++                target_tree: tree_id,
++                target_node,
++                data: None,
++            });
++            true
++        } else {
++            false
++        }
++    }
++}
++
++extern "C" fn accessibility_activate(this: *mut AnyObject, _cmd: Sel) -> objc2::runtime::Bool {
++    if send_action(this, Action::Click) {
++        return true.into();
++    }
++    send_action(this, Action::Focus).into()
++}
++
++extern "C" fn accessibility_did_become_focused(this: *mut AnyObject, _cmd: Sel) {
++    send_action(this, Action::Focus);
++}
++
++extern "C" fn accessibility_increment(this: *mut AnyObject, _cmd: Sel) {
++    send_action(this, Action::Increment);
++}
++
++extern "C" fn accessibility_decrement(this: *mut AnyObject, _cmd: Sel) {
++    send_action(this, Action::Decrement);
++}
++
++fn element_class() -> &'static AnyClass {
++    ELEMENT_CLASS.call_once(|| unsafe {
++        let mut decl =
++            ClassBuilder::new(c"GPUIXAccessibilityElement", class!(UIAccessibilityElement))
++                .unwrap();
++        decl.add_method(
++            sel!(accessibilityActivate),
++            accessibility_activate as extern "C" fn(*mut AnyObject, Sel) -> objc2::runtime::Bool,
++        );
++        decl.add_method(
++            sel!(accessibilityElementDidBecomeFocused),
++            accessibility_did_become_focused as extern "C" fn(*mut AnyObject, Sel),
++        );
++        decl.add_method(
++            sel!(accessibilityIncrement),
++            accessibility_increment as extern "C" fn(*mut AnyObject, Sel),
++        );
++        decl.add_method(
++            sel!(accessibilityDecrement),
++            accessibility_decrement as extern "C" fn(*mut AnyObject, Sel),
++        );
++        decl.register();
++    });
++    class!(GPUIXAccessibilityElement)
++}
++
++/// Per-window UIKit accessibility adapter state.
++pub(super) type IosAccessibilityState = Arc<Mutex<AccessibilityState>>;
++
++pub(super) fn new_state() -> IosAccessibilityState {
++    Arc::new(Mutex::new(AccessibilityState::default()))
++}
++
++/// Initialize GPUI accessibility callbacks and attach a per-window state to its UIView.
++pub(super) fn initialize(
++    view: *mut AnyObject,
++    state: &IosAccessibilityState,
++    activation: Box<dyn Fn() -> Option<TreeUpdate> + Send>,
++    action: Box<dyn Fn(ActionRequest) + Send>,
++    scale: f32,
++) {
++    state.lock().action = Some(Arc::new(Mutex::new(action)));
++    windows()
++        .lock()
++        .unwrap()
++        .insert(view as usize, Arc::downgrade(state));
++    if let Some(update) = activation() {
++        update_tree(view, state, update, scale);
++    }
++}
++
++/// Notify UIKit that the accessible frame geometry changed.
++pub(super) fn notify_layout_changed(_view: *mut AnyObject) {
++    unsafe {
++        UIAccessibilityPostNotification(
++            UIAccessibilityLayoutChangedNotification,
++            std::ptr::null_mut(),
++        );
++    }
++}
++
++/// Remove this view's callback route; its retained elements are released with its state.
++pub(super) fn deinitialize(view: *mut AnyObject) {
++    windows().lock().unwrap().remove(&(view as usize));
++    unsafe {
++        let _: () = msg_send![view, setAccessibilityElements: std::ptr::null_mut::<AnyObject>()];
++    }
++}
++
++/// Apply an AccessKit update, retaining elements by node ID and mutating them in place.
++pub(super) fn update_tree(
++    view: *mut AnyObject,
++    state: &IosAccessibilityState,
++    update: TreeUpdate,
++    scale: f32,
++) {
++    let mut state = state.lock();
++    let prior_nodes = state.tree.nodes.clone();
++    let nodes = state.tree.apply(update);
++    let changed = prior_nodes != nodes;
++    if !changed {
++        return;
++    }
++    let Some(root) = state.tree.root else {
++        return;
++    };
++
++    let (ordered, consumed_text) = visible_nodes(&nodes, root);
++    let ordered_ids: HashSet<_> = ordered.iter().map(|(id, _, _)| *id).collect();
++    let removed: Vec<_> = state
++        .elements
++        .keys()
++        .filter(|id| !ordered_ids.contains(id))
++        .copied()
++        .collect();
++
++    unsafe {
++        let array: *mut AnyObject = msg_send![class!(NSMutableArray), array];
++        let scale = scale.max(0.01) as f64;
++        for (id, node, synthesized_label) in &ordered {
++            let element = if let Some(element) = state.elements.get(id) {
++                *element
++            } else {
++                let element: *mut AnyObject = msg_send![element_class(), alloc];
++                let element: *mut AnyObject =
++                    msg_send![element, initWithAccessibilityContainer: view];
++                let identifier = std::ffi::CString::new(id.0.to_string()).unwrap();
++                let ns_id: *mut AnyObject =
++                    msg_send![class!(NSString), stringWithUTF8String: identifier.as_ptr()];
++                let _: () = msg_send![element, setAccessibilityIdentifier: ns_id];
++                state.elements.insert(*id, element);
++                element
++            };
++
++            let label = node.label().or(synthesized_label.as_deref());
++            set_string(element, 0, label);
++            set_string(element, 1, node.value().or_else(|| toggled_value(node)));
++            set_string(element, 2, node.description());
++            if let Some(bounds) = node.bounds() {
++                let rect = super::cg_types::ObjcCGRect::new(
++                    bounds.min_x() / scale,
++                    bounds.min_y() / scale,
++                    bounds.width() / scale,
++                    bounds.height() / scale,
++                );
++                let _: () = msg_send![element, setAccessibilityFrameInContainerSpace: rect];
++                let screen_rect = UIAccessibilityConvertFrameToScreenCoordinates(rect, view);
++                let _: () = msg_send![element, setAccessibilityFrame: screen_rect];
++            } else {
++                let _: () = msg_send![element, setAccessibilityFrameInContainerSpace: super::cg_types::ObjcCGRect::default()];
++            }
++            let _: () = msg_send![element, setIsAccessibilityElement: true];
++            let traits = role_traits(node);
++            let _: () = msg_send![element, setAccessibilityTraits: traits];
++            let _: () = msg_send![array, addObject: element];
++        }
++
++        // Updating the explicit list excludes the hidden UITextInputView proxy from
++        // VoiceOver traversal; GPUI's corresponding AccessKit input node remains exposed.
++        let _: () = msg_send![view, setAccessibilityElements: array];
++        let _: () = msg_send![view, setIsAccessibilityElement: false];
++
++        for id in removed {
++            if let Some(element) = state.elements.remove(&id) {
++                let _: () = msg_send![element, release];
++            }
++        }
++
++        // UIKit's notification is a C function, not a UIAccessibility class method.
++        if changed {
++            UIAccessibilityPostNotification(
++                UIAccessibilityLayoutChangedNotification,
++                std::ptr::null_mut(),
++            );
++        }
++    }
++    let _ = consumed_text;
++}
++
++unsafe fn set_string(element: *mut AnyObject, property: u8, value: Option<&str>) {
++    let ns_value = value.map(|value| {
++        let value = std::ffi::CString::new(value).unwrap_or_default();
++        let ns: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: value.as_ptr()];
++        ns
++    });
++    let value = ns_value.unwrap_or(std::ptr::null_mut());
++    match property {
++        0 => {
++            let _: () = msg_send![element, setAccessibilityLabel: value];
++        }
++        1 => {
++            let _: () = msg_send![element, setAccessibilityValue: value];
++        }
++        _ => {
++            let _: () = msg_send![element, setAccessibilityHint: value];
++        }
++    }
++}
++
++fn toggled_value(node: &Node) -> Option<&'static str> {
++    match node.toggled() {
++        Some(accesskit::Toggled::False) => Some("Off"),
++        Some(accesskit::Toggled::True) => Some("On"),
++        Some(accesskit::Toggled::Mixed) => Some("Mixed"),
++        None => None,
++    }
++}
++
++fn role_traits(node: &Node) -> u64 {
++    unsafe {
++        let mut traits: u64 = match node.role() {
++            accesskit::Role::Button
++            | accesskit::Role::DefaultButton
++            | accesskit::Role::CheckBox
++            | accesskit::Role::RadioButton
++            | accesskit::Role::Switch
++            | accesskit::Role::MenuItem
++            | accesskit::Role::Tab
++            | accesskit::Role::DisclosureTriangle => UIAccessibilityTraitButton,
++            accesskit::Role::Link => UIAccessibilityTraitLink,
++            accesskit::Role::Image => UIAccessibilityTraitImage,
++            accesskit::Role::Label | accesskit::Role::TextRun | accesskit::Role::Paragraph => {
++                UIAccessibilityTraitStaticText
++            }
++            accesskit::Role::Heading
++            | accesskit::Role::Header
++            | accesskit::Role::RowHeader
++            | accesskit::Role::ColumnHeader => UIAccessibilityTraitHeader,
++            accesskit::Role::SearchInput | accesskit::Role::Search => {
++                UIAccessibilityTraitSearchField
++            }
++            accesskit::Role::Slider | accesskit::Role::SpinButton => UIAccessibilityTraitAdjustable,
++            _ => 0,
++        };
++        if node.is_disabled() {
++            traits |= UIAccessibilityTraitNotEnabled;
++        }
++        if node.is_selected().unwrap_or(false) {
++            traits |= UIAccessibilityTraitSelected;
++        }
++        traits
++    }
++}
++
++fn visible_nodes(
++    nodes: &HashMap<NodeId, Node>,
++    root: NodeId,
++) -> (Vec<(NodeId, Node, Option<String>)>, HashSet<NodeId>) {
++    let mut output = Vec::new();
++    let mut consumed_text = HashSet::new();
++    let mut stack = vec![root];
++    while let Some(id) = stack.pop() {
++        let Some(node) = nodes.get(&id) else {
++            continue;
++        };
++        if node.is_hidden() {
++            continue;
++        }
++        let synthesized = if id != root && can_have_synthesized_label(node.role()) {
++            let mut text = Vec::new();
++            collect_text(nodes, id, &mut text, &mut consumed_text);
++            if node.label().is_none() {
++                let label = text.join(" ");
++                (!label.is_empty()).then_some(label)
++            } else {
++                None
++            }
++        } else {
++            None
++        };
++        let meaningful = node.label().is_some()
++            || node.value().is_some()
++            || synthesized.is_some()
++            || node.supports_action(Action::Click)
++            || node.supports_action(Action::Focus)
++            || node.supports_action(Action::Increment)
++            || node.supports_action(Action::Decrement);
++        if id != root && meaningful && !consumed_text.contains(&id) {
++            output.push((id, node.clone(), synthesized));
++        }
++        stack.extend(node.children().iter().rev().copied());
++    }
++    (output, consumed_text)
++}
++
++fn can_have_synthesized_label(role: accesskit::Role) -> bool {
++    matches!(
++        role,
++        accesskit::Role::Label
++            | accesskit::Role::Paragraph
++            | accesskit::Role::Button
++            | accesskit::Role::DefaultButton
++            | accesskit::Role::CheckBox
++            | accesskit::Role::RadioButton
++            | accesskit::Role::Switch
++            | accesskit::Role::Link
++            | accesskit::Role::MenuItem
++            | accesskit::Role::Tab
++    )
++}
++
++fn collect_text(
++    nodes: &HashMap<NodeId, Node>,
++    parent: NodeId,
++    text: &mut Vec<String>,
++    consumed: &mut HashSet<NodeId>,
++) {
++    let Some(node) = nodes.get(&parent) else {
++        return;
++    };
++    for child_id in node.children() {
++        let Some(child) = nodes.get(child_id) else {
++            continue;
++        };
++        if child.is_hidden()
++            || child.supports_action(Action::Click)
++            || child.supports_action(Action::Focus)
++            || child.supports_action(Action::Increment)
++            || child.supports_action(Action::Decrement)
++        {
++            continue;
++        }
++        if let Some(value) = child.value().or(child.label()) {
++            if matches!(
++                child.role(),
++                accesskit::Role::TextRun | accesskit::Role::Label
++            ) {
++                text.push(value.to_owned());
++                consumed.insert(*child_id);
++                continue;
++            }
++        }
++        collect_text(nodes, *child_id, text, consumed);
++    }
++}
++
++#[link(name = "UIKit", kind = "framework")]
++unsafe extern "C" {
++    fn UIAccessibilityConvertFrameToScreenCoordinates(
++        rect: super::cg_types::ObjcCGRect,
++        view: *mut AnyObject,
++    ) -> super::cg_types::ObjcCGRect;
++    static UIAccessibilityTraitButton: u64;
++    static UIAccessibilityTraitLink: u64;
++    static UIAccessibilityTraitImage: u64;
++    static UIAccessibilityTraitStaticText: u64;
++    static UIAccessibilityTraitHeader: u64;
++    static UIAccessibilityTraitSearchField: u64;
++    static UIAccessibilityTraitAdjustable: u64;
++    static UIAccessibilityTraitNotEnabled: u64;
++    static UIAccessibilityTraitSelected: u64;
++    static UIAccessibilityLayoutChangedNotification: u32;
++    fn UIAccessibilityPostNotification(notification: u32, argument: *mut AnyObject);
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use accesskit::{Role, Tree};
++
++    #[test]
++    fn tree_deltas_prune_removed_nodes_and_actions_follow_node_support() {
++        let parent = NodeId(1);
++        let child = NodeId(2);
++        let mut root = Node::new(Role::Window);
++        root.set_children(vec![child]);
++        let mut button = Node::new(Role::Button);
++        button.set_label("Run");
++        button.add_action(Action::Click);
++        let mut state = A11yTreeState::default();
++        let first = state.apply(TreeUpdate {
++            nodes: vec![(parent, root), (child, button)],
++            tree: Some(Tree::new(parent)),
++            tree_id: TreeId::ROOT,
++            focus: child,
++        });
++        assert!(first[&child].supports_action(Action::Click));
++        assert!(!first[&child].supports_action(Action::Increment));
++
++        let mut parent_without_child = Node::new(Role::Window);
++        parent_without_child.set_children(Vec::new());
++        let after_remove = state.apply(TreeUpdate {
++            nodes: vec![(parent, parent_without_child)],
++            tree: None,
++            tree_id: TreeId::ROOT,
++            focus: parent,
++        });
++        assert_eq!(after_remove.len(), 1);
++        assert!(!after_remove.contains_key(&child));
++    }
++
++    #[test]
++    fn traits_and_toggled_values_match_uikit() {
++        let heading = Node::new(Role::Heading);
++        let search = Node::new(Role::SearchInput);
++        unsafe {
++            assert_eq!(role_traits(&heading), UIAccessibilityTraitHeader);
++            assert_eq!(role_traits(&search), UIAccessibilityTraitSearchField);
++        }
++        let mut toggle = Node::new(Role::Switch);
++        assert_eq!(toggled_value(&toggle), None);
++        toggle.set_toggled(accesskit::Toggled::True);
++        assert_eq!(toggled_value(&toggle), Some("On"));
++        toggle.set_toggled(accesskit::Toggled::False);
++        assert_eq!(toggled_value(&toggle), Some("Off"));
++        toggle.set_toggled(accesskit::Toggled::Mixed);
++        assert_eq!(toggled_value(&toggle), Some("Mixed"));
++    }
++
++    #[test]
++    fn hidden_parent_filters_descendants_and_button_synthesizes_text_label() {
++        let root_id = NodeId(1);
++        let button_id = NodeId(2);
++        let text_id = NodeId(3);
++        let hidden_id = NodeId(4);
++        let hidden_child_id = NodeId(5);
++        let mut root = Node::new(Role::Window);
++        root.set_children(vec![button_id, hidden_id]);
++        let mut button = Node::new(Role::Button);
++        button.set_children(vec![text_id]);
++        let mut text = Node::new(Role::TextRun);
++        text.set_value("Save");
++        let mut hidden = Node::new(Role::Group);
++        hidden.set_hidden();
++        hidden.set_children(vec![hidden_child_id]);
++        let mut hidden_child = Node::new(Role::Button);
++        hidden_child.set_label("Hidden");
++        let nodes = HashMap::from([
++            (root_id, root),
++            (button_id, button),
++            (text_id, text),
++            (hidden_id, hidden),
++            (hidden_child_id, hidden_child),
++        ]);
++        let (visible, consumed) = visible_nodes(&nodes, root_id);
++        assert!(visible
++            .iter()
++            .any(|(id, _, label)| *id == button_id && label.as_deref() == Some("Save")));
++        assert!(!visible
++            .iter()
++            .any(|(id, _, _)| *id == text_id || *id == hidden_child_id));
++        assert!(consumed.contains(&text_id));
++    }
++}
+--- a/src/ios/platform.rs
++++ b/src/ios/platform.rs
+@@ -189,11 +189,21 @@
+ 
+     fn open_url(&self, url: &str) {
+         unsafe {
+-            let url_string: *mut AnyObject =
+-                msg_send![class!(NSString), stringWithUTF8String: url.as_ptr()];
+-            let url: *mut AnyObject = msg_send![class!(NSURL), URLWithString: url_string];
++            let url_string = super::util::nsstring(url);
++            let native_url: *mut AnyObject =
++                msg_send![class!(NSURL), URLWithString: url_string];
++            if native_url.is_null() {
++                log::error!("Could not parse iOS URL: {url}");
++                return;
++            }
+             let app: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+-            let _: () = msg_send![app, openURL: url, options: std::ptr::null::<AnyObject>(), completionHandler: std::ptr::null::<AnyObject>()];
++            if app.is_null() {
++                log::error!("UIApplication is unavailable while opening URL: {url}");
++                return;
++            }
++            let _: () = msg_send![app, openURL: native_url,
++                options: std::ptr::null::<AnyObject>(),
++                completionHandler: std::ptr::null::<AnyObject>()];
+         }
+     }
+ 
+@@ -307,11 +317,10 @@
+     }
+ 
+     fn write_to_clipboard(&self, item: ClipboardItem) {
+-        unsafe {
+-            let pasteboard: *mut AnyObject = msg_send![class!(UIPasteboard), generalPasteboard];
+-            if let Some(text) = item.text() {
+-                let ns_string: *mut AnyObject =
+-                    msg_send![class!(NSString), stringWithUTF8String: text.as_ptr()];
++        if let Some(text) = item.text() {
++            unsafe {
++                let pasteboard: *mut AnyObject = msg_send![class!(UIPasteboard), generalPasteboard];
++                let ns_string = super::util::nsstring(&text);
+                 let _: () = msg_send![pasteboard, setString: ns_string];
+             }
+         }
+--- a/src/android/window.rs
++++ b/src/android/window.rs
+@@ -1225,6 +1225,7 @@
+ /// `AndroidWindow` methods.
+ #[allow(clippy::type_complexity)]
+ pub struct AndroidPlatformWindow {
++    accessibility: RefCell<Option<super::accessibility::Accessibility>>,
+     window: Arc<AndroidWindow>,
+     display: Option<Rc<dyn PlatformDisplay>>,
+     input_handler: Rc<RefCell<Option<PlatformInputHandler>>>,
+@@ -1237,6 +1238,7 @@
+     /// Create a new `AndroidPlatformWindow` wrapping an existing `AndroidWindow`.
+     pub fn new(window: Arc<AndroidWindow>, display: Option<Rc<dyn PlatformDisplay>>) -> Self {
+         Self {
++            accessibility: RefCell::new(None),
+             window,
+             display,
+             input_handler: Rc::new(RefCell::new(None)),
+@@ -1282,6 +1284,19 @@
+ }
+ 
+ impl PlatformWindow for AndroidPlatformWindow {
++    fn a11y_init(&self, callbacks: gpui::A11yCallbacks) {
++        match super::accessibility::Accessibility::new(callbacks) {
++            Ok(adapter) => *self.accessibility.borrow_mut() = Some(adapter),
++            Err(error) => log::error!("Android accessibility initialization failed: {error}"),
++        }
++    }
++
++    fn a11y_tree_update(&self, update: accesskit::TreeUpdate) {
++        if let Some(adapter) = self.accessibility.borrow_mut().as_mut() {
++            adapter.update(update);
++        }
++    }
++
+     fn insets(&self) -> gpui::WindowInsets {
+         let state = self.window.state.lock();
+         crate::logical_window_insets(
+--- a/src/android/mod.rs
++++ b/src/android/mod.rs
+@@ -152,6 +152,7 @@
+ pub mod dispatcher;
+ pub mod display;
+ mod document_picker;
++mod accessibility;
+ pub(crate) mod frame_source;
+ pub mod host;
+ pub mod jni;
+--- /dev/null
++++ b/src/android/accessibility.rs
+@@ -0,0 +1,350 @@
++use accesskit::{ActionHandler, ActionRequest, ActivationHandler, TreeUpdate};
++use accesskit_android::{jni, Adapter, PlatformAction, QueuedEvents};
++use gpui::A11yCallbacks;
++use jni::{
++    objects::{GlobalRef, JClass, JObject},
++    sys::{jboolean, jfloat, jint, jlong, JNI_FALSE, JNI_TRUE},
++    JNIEnv, NativeMethod,
++};
++use std::{
++    collections::BTreeMap,
++    ffi::c_void,
++    sync::{
++        atomic::{AtomicI64, Ordering},
++        Arc, Mutex, OnceLock, Weak,
++    },
++};
++
++struct Activate(Box<dyn Fn() -> Option<TreeUpdate> + Send>);
++impl ActivationHandler for Activate {
++    fn request_initial_tree(&mut self) -> Option<TreeUpdate> {
++        (self.0)()
++    }
++}
++struct Actions(Box<dyn Fn(ActionRequest) + Send>);
++impl ActionHandler for Actions {
++    fn do_action(&mut self, request: ActionRequest) {
++        (self.0)(request);
++    }
++}
++struct State {
++    adapter: Adapter,
++    activation: Activate,
++    actions: Actions,
++}
++static NEXT: AtomicI64 = AtomicI64::new(1);
++static STATES: Mutex<Option<BTreeMap<i64, Weak<Mutex<State>>>>> = Mutex::new(None);
++static CALLBACKS: Mutex<
++    Option<BTreeMap<i64, (i64, Box<dyn FnOnce(&mut JNIEnv, &JObject) + Send>)>>,
++> = Mutex::new(None);
++static CLASS: OnceLock<GlobalRef> = OnceLock::new();
++fn state(id: jlong) -> Option<Arc<Mutex<State>>> {
++    STATES
++        .lock()
++        .unwrap()
++        .as_ref()?
++        .get(&id)
++        .and_then(Weak::upgrade)
++}
++fn raise(env: &mut JNIEnv, host: &JObject, events: Option<QueuedEvents>) {
++    if let Some(events) = events {
++        events.raise(env, host);
++    }
++}
++
++extern "system" fn create_node<'a>(
++    mut env: JNIEnv<'a>,
++    _: JClass<'a>,
++    id: jlong,
++    host: JObject<'a>,
++    virtual_id: jint,
++) -> JObject<'a> {
++    let Some(s) = state(id) else {
++        return JObject::null();
++    };
++    let mut s = s.lock().unwrap();
++    let State {
++        adapter,
++        activation,
++        ..
++    } = &mut *s;
++    adapter.create_accessibility_node_info(activation, &mut env, &host, virtual_id)
++}
++extern "system" fn find_focus<'a>(
++    mut env: JNIEnv<'a>,
++    _: JClass<'a>,
++    id: jlong,
++    host: JObject<'a>,
++    focus: jint,
++) -> JObject<'a> {
++    let Some(s) = state(id) else {
++        return JObject::null();
++    };
++    let mut s = s.lock().unwrap();
++    let State {
++        adapter,
++        activation,
++        ..
++    } = &mut *s;
++    adapter.find_focus(activation, &mut env, &host, focus)
++}
++extern "system" fn perform_action(
++    mut env: JNIEnv,
++    _: JClass,
++    id: jlong,
++    host: JObject,
++    virtual_id: jint,
++    action: jint,
++    args: JObject,
++) -> jboolean {
++    let Some(action) = PlatformAction::from_java(&mut env, action, &args) else {
++        return JNI_FALSE;
++    };
++    let Some(s) = state(id) else { return JNI_FALSE };
++    let events = {
++        let mut state = s.lock().unwrap();
++        let State {
++            adapter, actions, ..
++        } = &mut *state;
++        adapter.perform_action(actions, virtual_id, &action)
++    };
++    let Some(events) = events else {
++        return JNI_FALSE;
++    };
++    raise(&mut env, &host, Some(events));
++    JNI_TRUE
++}
++extern "system" fn hover(
++    mut env: JNIEnv,
++    _: JClass,
++    id: jlong,
++    host: JObject,
++    action: jint,
++    x: jfloat,
++    y: jfloat,
++) -> jboolean {
++    let Some(s) = state(id) else { return JNI_FALSE };
++    let events = {
++        let mut s = s.lock().unwrap();
++        let State {
++            adapter,
++            activation,
++            ..
++        } = &mut *s;
++        adapter.on_hover_event(activation, action, x, y)
++    };
++    if events.is_none() {
++        return JNI_FALSE;
++    }
++    raise(&mut env, &host, events);
++    JNI_TRUE
++}
++extern "system" fn run_callback(mut env: JNIEnv, _: JClass, host: JObject, callback_id: jlong) {
++    let callback = CALLBACKS
++        .lock()
++        .unwrap()
++        .as_mut()
++        .and_then(|m| m.remove(&callback_id));
++    if let Some((owner, callback)) = callback {
++        if state(owner).is_some() {
++            callback(&mut env, &host);
++        }
++    }
++}
++
++fn helper(env: &mut JNIEnv, activity: &JObject) -> Result<GlobalRef, String> {
++    if let Some(class) = CLASS.get() {
++        return Ok(class.clone());
++    }
++    let loader = env
++        .call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
++        .and_then(|v| v.l())
++        .map_err(|e| e.to_string())?;
++    let name = env
++        .new_string("dev.gpui.mobile.GpuiAccessibility")
++        .map_err(|e| e.to_string())?;
++    let cls = env
++        .call_method(
++            loader,
++            "loadClass",
++            "(Ljava/lang/String;)Ljava/lang/Class;",
++            &[(&name).into()],
++        )
++        .and_then(|v| v.l())
++        .map_err(|e| e.to_string())?;
++    let class = JClass::from(cls);
++    env.register_native_methods(
++        &class,
++        &[
++            NativeMethod {
++                name: "createNode".into(),
++                sig: "(JLandroid/view/View;I)Landroid/view/accessibility/AccessibilityNodeInfo;"
++                    .into(),
++                fn_ptr: create_node as *mut c_void,
++            },
++            NativeMethod {
++                name: "findFocus".into(),
++                sig: "(JLandroid/view/View;I)Landroid/view/accessibility/AccessibilityNodeInfo;"
++                    .into(),
++                fn_ptr: find_focus as *mut c_void,
++            },
++            NativeMethod {
++                name: "performAction".into(),
++                sig: "(JLandroid/view/View;IILandroid/os/Bundle;)Z".into(),
++                fn_ptr: perform_action as *mut c_void,
++            },
++            NativeMethod {
++                name: "hover".into(),
++                sig: "(JLandroid/view/View;IFF)Z".into(),
++                fn_ptr: hover as *mut c_void,
++            },
++            NativeMethod {
++                name: "runCallback".into(),
++                sig: "(Landroid/view/View;J)V".into(),
++                fn_ptr: run_callback as *mut c_void,
++            },
++        ],
++    )
++    .map_err(|e| e.to_string())?;
++    let global = env.new_global_ref(class).map_err(|e| e.to_string())?;
++    let _ = CLASS.set(global.clone());
++    Ok(global)
++}
++
++pub(super) struct Accessibility {
++    vm: jni::JavaVM,
++    class: GlobalRef,
++    host: jni::objects::WeakRef,
++    id: i64,
++    state: Arc<Mutex<State>>,
++    deactivate: Box<dyn Fn() + Send>,
++}
++impl Accessibility {
++    pub(super) fn new(callbacks: A11yCallbacks) -> Result<Self, String> {
++        let vm = unsafe { jni::JavaVM::from_raw(super::jni::java_vm().cast()) }
++            .map_err(|e| e.to_string())?;
++        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
++        let raw = super::jni::activity_as_ptr();
++        if raw.is_null() {
++            return Err("Activity unavailable during accessibility initialization".into());
++        }
++        // activity_as_ptr is borrowed (often a global JNI ref); do not let a
++        // JObject wrapper delete the borrowed handle when this scope ends.
++        let activity_borrowed =
++            std::mem::ManuallyDrop::new(unsafe { JObject::from_raw(raw.cast()) });
++        let activity = env
++            .new_local_ref(&*activity_borrowed)
++            .map_err(|e| e.to_string())?;
++        let host = env
++            .call_method(
++                &activity,
++                "findViewById",
++                "(I)Landroid/view/View;",
++                &[16908290.into()],
++            )
++            .and_then(|v| v.l())
++            .map_err(|e| e.to_string())?;
++        if host.is_null() {
++            return Err("Android content view unavailable".into());
++        }
++        let class = helper(&mut env, &activity)?;
++        let id = NEXT.fetch_add(1, Ordering::Relaxed);
++        let state = Arc::new(Mutex::new(State {
++            adapter: Adapter::default(),
++            activation: Activate(callbacks.activation),
++            actions: Actions(callbacks.action),
++        }));
++        STATES
++            .lock()
++            .unwrap()
++            .get_or_insert_with(BTreeMap::new)
++            .insert(id, Arc::downgrade(&state));
++        let class_local = JClass::from(
++            env.new_local_ref(class.as_obj())
++                .map_err(|e| e.to_string())?,
++        );
++        env.call_static_method(
++            &class_local,
++            "install",
++            "(Landroid/view/View;J)V",
++            &[(&host).into(), id.into()],
++        )
++        .map_err(|e| e.to_string())?;
++        let host = env
++            .new_weak_ref(&host)
++            .map_err(|e| e.to_string())?
++            .ok_or("Unable to retain Android host")?;
++        drop(env);
++        Ok(Self {
++            vm,
++            class,
++            host,
++            id,
++            state,
++            deactivate: callbacks.deactivation,
++        })
++    }
++    pub(super) fn update(&mut self, update: TreeUpdate) {
++        let events = self
++            .state
++            .lock()
++            .unwrap()
++            .adapter
++            .update_if_active(|| update);
++        let Some(events) = events else { return };
++        let Ok(mut env) = self.vm.attach_current_thread() else {
++            return;
++        };
++        let Ok(Some(host)) = self.host.upgrade_local(&env) else {
++            return;
++        };
++        let callback_id = NEXT.fetch_add(1, Ordering::Relaxed);
++        CALLBACKS
++            .lock()
++            .unwrap()
++            .get_or_insert_with(BTreeMap::new)
++            .insert(
++                callback_id,
++                (self.id, Box::new(move |env, host| events.raise(env, host))),
++            );
++        let posted = env.new_local_ref(self.class.as_obj()).and_then(|class| {
++            env.call_static_method(
++                JClass::from(class),
++                "postCallback",
++                "(Landroid/view/View;J)Z",
++                &[(&host).into(), callback_id.into()],
++            )?
++            .z()
++        });
++        if !matches!(posted, Ok(true)) {
++            let _ = env.exception_clear();
++            if let Some(map) = CALLBACKS.lock().unwrap().as_mut() {
++                map.remove(&callback_id);
++            }
++        }
++    }
++}
++impl Drop for Accessibility {
++    fn drop(&mut self) {
++        if let Ok(mut env) = self.vm.attach_current_thread() {
++            if let Ok(Some(host)) = self.host.upgrade_local(&env) {
++                if let Ok(class_local) = env.new_local_ref(self.class.as_obj()) {
++                    let class_local = JClass::from(class_local);
++                    let _ = env.call_static_method(
++                        &class_local,
++                        "uninstall",
++                        "(Landroid/view/View;J)V",
++                        &[(&host).into(), self.id.into()],
++                    );
++                }
++            }
++        }
++        if let Some(map) = STATES.lock().unwrap().as_mut() {
++            map.remove(&self.id);
++        }
++        if let Some(map) = CALLBACKS.lock().unwrap().as_mut() {
++            map.retain(|_, (owner, _)| *owner != self.id);
++        }
++        (self.deactivate)();
++    }
++}
+--- a/src/android/platform.rs
++++ b/src/android/platform.rs
+@@ -64,26 +64,61 @@
+ 
+ // ── stub: clipboard ───────────────────────────────────────────────────────────
+ 
+-/// Android clipboard (thin wrapper over `ClipboardManager` via JNI).
+-///
+-/// A real implementation would call into Java via `jni-rs`; for now we use
+-/// an in-process string store so the rest of the platform compiles.
++/// Android clipboard backed by the app's `ClipboardManager` helper.
+ #[derive(Default)]
+-pub struct AndroidClipboard {
+-    contents: Option<String>,
+-}
++pub struct AndroidClipboard;
+ 
+ impl AndroidClipboard {
+     pub fn read(&self) -> Option<String> {
+-        self.contents.clone()
+-    }
+-
+-    pub fn write(&mut self, text: String) {
+-        self.contents = Some(text);
+-    }
+-
+-    pub fn clear(&mut self) {
+-        self.contents = None;
++        super::jni::with_env(|env| {
++            use jni::objects::JValue;
++            let activity = super::jni::activity(env)?;
++            let class = super::jni::find_app_class(env, "dev.gpui.mobile.GpuiClipboard")?;
++            let value = env
++                .call_static_method(
++                    &class,
++                    jni::jni_str!("getText"),
++                    jni::jni_sig!("(Landroid/app/Activity;)Ljava/lang/String;"),
++                    &[JValue::Object(&activity)],
++                )
++                .and_then(|value| value.l())
++                .map_err(|error| {
++                    env.exception_clear();
++                    error.to_string()
++                })?;
++            if value.is_null() {
++                Ok(None)
++            } else {
++                Ok(Some(super::jni::get_string(env, &value)))
++            }
++        }).ok().flatten()
++    }
++
++    pub fn write(&self, text: String) {
++        let result = super::jni::with_env(|env| {
++            use jni::objects::JValue;
++            let activity = super::jni::activity(env)?;
++            let class = super::jni::find_app_class(env, "dev.gpui.mobile.GpuiClipboard")?;
++            let text = env.new_string(text).map_err(|error| error.to_string())?;
++            env.call_static_method(
++                &class,
++                jni::jni_str!("setText"),
++                jni::jni_sig!("(Landroid/app/Activity;Ljava/lang/String;)V"),
++                &[JValue::Object(&activity), JValue::Object(&text)],
++            )
++            .map(|_| ())
++            .map_err(|error| {
++                env.exception_clear();
++                error.to_string()
++            })
++        });
++        if let Err(error) = result {
++            log::error!("Android clipboard write failed: {error}");
++        }
++    }
++
++    pub fn clear(&self) {
++        self.write(String::new());
+     }
+ }
+ 
+@@ -1133,9 +1168,44 @@
+     }
+ 
+     fn open_url(&self, url: &str) {
+-        // A full implementation would call startActivity with an ACTION_VIEW
+-        // Intent via JNI.  For now, log the request.
+-        log::info!("AndroidPlatform::open_url({url}) — Intent launch not yet implemented");
++        let result = super::jni::with_env(|env| {
++            use jni::objects::JValue;
++            use super::jni::JniExt;
++
++            let activity = super::jni::activity(env)?;
++            let uri_string = env.new_string(url).e()?;
++            let uri = env
++                .call_static_method(
++                    jni::jni_str!("android/net/Uri"),
++                    jni::jni_str!("parse"),
++                    jni::jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
++                    &[JValue::Object(&uri_string)],
++                )
++                .and_then(|value| value.l())
++                .e()?;
++            let action = env.new_string("android.intent.action.VIEW").e()?;
++            let intent = env
++                .new_object(
++                    jni::jni_str!("android/content/Intent"),
++                    jni::jni_sig!("(Ljava/lang/String;Landroid/net/Uri;)V"),
++                    &[JValue::Object(&action), JValue::Object(&uri)],
++                )
++                .e()?;
++            env.call_method(
++                &activity,
++                jni::jni_str!("startActivity"),
++                jni::jni_sig!("(Landroid/content/Intent;)V"),
++                &[JValue::Object(&intent)],
++            )
++            .map(|_| ())
++            .map_err(|error| {
++                env.exception_clear();
++                error.to_string()
++            })
++        });
++        if let Err(error) = result {
++            log::error!("Failed to launch Android URL {url}: {error}");
++        }
+     }
+ 
+     fn on_open_urls(&self, callback: Box<dyn FnMut(Vec<String>)>) {
+@@ -1609,23 +1679,8 @@
+         assert!(!p.is_active());
+     }
+ 
+-    // ── clipboard ─────────────────────────────────────────────────────────────
+-
+-    #[test]
+-    fn clipboard_round_trip() {
+-        let p = headless();
+-        assert!(p.read_from_clipboard().is_none());
+-        p.write_to_clipboard("hello android".to_string());
+-        assert_eq!(p.read_from_clipboard().as_deref(), Some("hello android"));
+-    }
+-
+-    #[test]
+-    fn clipboard_overwrite() {
+-        let p = headless();
+-        p.write_to_clipboard("first".to_string());
+-        p.write_to_clipboard("second".to_string());
+-        assert_eq!(p.read_from_clipboard().as_deref(), Some("second"));
+-    }
++    // Clipboard integration requires an attached Android Activity and is
++    // covered by the Android app smoke test rather than headless unit tests.
+ 
+     // ── credentials ───────────────────────────────────────────────────────────
+ 
+--- a/android/src/main/AndroidManifest.xml
++++ b/android/src/main/AndroidManifest.xml
+@@ -1,4 +1,7 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+     <uses-permission android:name="android.permission.INTERNET" />
++    <application>
++        <activity android:name="dev.gpui.mobile.GpuiPathPicker" android:exported="false" />
++    </application>
+ </manifest>
+--- /dev/null
++++ b/android/src/main/java/dev/gpui/mobile/GpuiAccessibility.java
+@@ -0,0 +1,60 @@
++package dev.gpui.mobile;
++
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.view.MotionEvent;
++import android.view.View;
++import android.view.accessibility.AccessibilityNodeInfo;
++import android.view.accessibility.AccessibilityNodeProvider;
++import java.util.WeakHashMap;
++
++public final class GpuiAccessibility extends View.AccessibilityDelegate implements View.OnHoverListener {
++    private static final Handler MAIN = new Handler(Looper.getMainLooper());
++    private static final WeakHashMap<View, GpuiAccessibility> INSTALLED = new WeakHashMap<>();
++    private final long handle;
++
++    private GpuiAccessibility(long handle) { this.handle = handle; }
++
++    private static native AccessibilityNodeInfo createNode(long handle, View host, int id);
++    private static native AccessibilityNodeInfo findFocus(long handle, View host, int focus);
++    private static native boolean performAction(long handle, View host, int id, int action, Bundle args);
++    private static native boolean hover(long handle, View host, int action, float x, float y);
++    private static native void runCallback(View host, long callback);
++
++    public static void install(View host, long handle) {
++        MAIN.post(() -> {
++            GpuiAccessibility delegate = new GpuiAccessibility(handle);
++            INSTALLED.put(host, delegate);
++            host.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
++            host.setAccessibilityDelegate(delegate);
++            host.setOnHoverListener(delegate);
++        });
++    }
++
++    public static void uninstall(View host, long handle) {
++        MAIN.post(() -> {
++            GpuiAccessibility delegate = INSTALLED.get(host);
++            if (delegate == null || delegate.handle != handle) return;
++            INSTALLED.remove(host);
++            host.setAccessibilityDelegate(null);
++            host.setOnHoverListener(null);
++        });
++    }
++
++    public static boolean postCallback(View host, long callback) {
++        return MAIN.post(() -> runCallback(host, callback));
++    }
++
++    @Override public AccessibilityNodeProvider getAccessibilityNodeProvider(final View host) {
++        return new AccessibilityNodeProvider() {
++            @Override public AccessibilityNodeInfo createAccessibilityNodeInfo(int id) { return createNode(handle, host, id); }
++            @Override public AccessibilityNodeInfo findFocus(int focus) { return GpuiAccessibility.findFocus(handle, host, focus); }
++            @Override public boolean performAction(int id, int action, Bundle args) { return GpuiAccessibility.performAction(handle, host, id, action, args); }
++        };
++    }
++
++    @Override public boolean onHover(View host, MotionEvent event) {
++        return hover(handle, host, event.getAction(), event.getX(), event.getY());
++    }
++}
+--- /dev/null
++++ b/android/src/main/java/dev/gpui/mobile/GpuiPathPicker.java
+@@ -0,0 +1,159 @@
++package dev.gpui.mobile;
++
++import android.app.Activity;
++import android.content.Intent;
++import android.database.Cursor;
++import android.net.Uri;
++import android.os.Bundle;
++import android.os.Looper;
++import android.provider.OpenableColumns;
++
++import java.io.File;
++import java.io.FileOutputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.util.ArrayList;
++import java.util.UUID;
++import java.util.concurrent.CountDownLatch;
++
++/** GPUI file prompts import SAF documents into cache before releasing URI access. */
++public final class GpuiPathPicker extends Activity {
++    private static final int PICK_FILES = 9010;
++    private static Request pending;
++    private Request request;
++
++    private static final class Request {
++        final CountDownLatch done = new CountDownLatch(1);
++        final boolean multiple;
++        String[] paths;
++        Exception error;
++
++        Request(boolean multiple) { this.multiple = multiple; }
++
++        synchronized void complete(String[] paths, Exception error) {
++            if (done.getCount() == 0) return;
++            this.paths = paths;
++            this.error = error;
++            done.countDown();
++        }
++    }
++
++    /** Called by a Rust worker, never the UI or GPUI event thread. */
++    public static String[] openFiles(Activity activity, boolean multiple) throws Exception {
++        if (Looper.myLooper() == Looper.getMainLooper()) {
++            throw new IllegalStateException("File prompts must run on a worker thread");
++        }
++        final Request current = new Request(multiple);
++        synchronized (GpuiPathPicker.class) {
++            if (pending != null) throw new IllegalStateException("A file picker is already open");
++            pending = current;
++        }
++        try {
++            activity.runOnUiThread(() -> {
++                try {
++                    activity.startActivity(new Intent(activity, GpuiPathPicker.class));
++                } catch (Exception error) {
++                    current.complete(null, error);
++                }
++            });
++            current.done.await();
++            if (current.error != null) throw current.error;
++            return current.paths;
++        } finally {
++            synchronized (GpuiPathPicker.class) {
++                if (pending == current) pending = null;
++            }
++        }
++    }
++
++    @Override protected void onCreate(Bundle state) {
++        super.onCreate(state);
++        synchronized (GpuiPathPicker.class) { request = pending; }
++        // After process death the original GPUI request no longer exists.
++        if (request == null) { finish(); return; }
++        if (state != null) return;
++        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
++        intent.addCategory(Intent.CATEGORY_OPENABLE);
++        intent.setType("*/*");
++        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, request.multiple);
++        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
++        try {
++            startActivityForResult(intent, PICK_FILES);
++        } catch (Exception error) {
++            request.complete(null, error);
++            finish();
++        }
++    }
++
++    @Override protected void onActivityResult(int code, int result, Intent data) {
++        super.onActivityResult(code, result, data);
++        if (code != PICK_FILES || request == null) return;
++        if (result != RESULT_OK || data == null) {
++            request.complete(null, null);
++            finish();
++            return;
++        }
++        ArrayList<Uri> uris = new ArrayList<>();
++        if (data.getClipData() != null) {
++            for (int i = 0; i < data.getClipData().getItemCount(); i++) {
++                Uri uri = data.getClipData().getItemAt(i).getUri();
++                if (uri != null) uris.add(uri);
++            }
++        } else if (data.getData() != null) {
++            uris.add(data.getData());
++        }
++        // Keep this Activity (and its temporary URI grants) alive while reading.
++        // Files from remote providers can be large, so copying cannot run on UI.
++        new Thread(() -> {
++            ArrayList<File> imported = new ArrayList<>();
++            try {
++                for (Uri uri : uris) imported.add(importFile(uri));
++                String[] paths = new String[imported.size()];
++                for (int i = 0; i < paths.length; i++) paths[i] = imported.get(i).getAbsolutePath();
++                request.complete(paths, null);
++            } catch (Exception error) {
++                for (File file : imported) {
++                    file.delete();
++                    file.getParentFile().delete();
++                }
++                request.complete(null, error);
++            } finally {
++                runOnUiThread(this::finish);
++            }
++        }, "gpui-file-import").start();
++    }
++
++    private File importFile(Uri uri) throws IOException {
++        String name = null;
++        try (Cursor cursor = getContentResolver().query(uri,
++                new String[] { OpenableColumns.DISPLAY_NAME }, null, null, null)) {
++            if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
++        }
++        // Keep the original extension and Unicode filename for attachment checks,
++        // but never allow a provider's display name to escape the import directory.
++        if (name == null || name.isEmpty()) name = uri.getLastPathSegment();
++        if (name == null) name = "attachment";
++        name = name.replace('/', '_').replace('\\', '_').replace('\0', '_');
++        if (name.isEmpty() || name.equals(".") || name.equals("..")) name = "attachment";
++        File directory = new File(getCacheDir(), "gpui-import-" + UUID.randomUUID());
++        if (!directory.mkdir()) throw new IOException("Could not create import directory");
++        File file = new File(directory, name);
++        try (InputStream input = getContentResolver().openInputStream(uri);
++             FileOutputStream output = new FileOutputStream(file)) {
++            if (input == null) throw new IOException("Could not read selected document");
++            byte[] buffer = new byte[64 * 1024];
++            int count;
++            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
++        } catch (Exception error) {
++            file.delete();
++            directory.delete();
++            throw error;
++        }
++        return file;
++    }
++
++    @Override protected void onDestroy() {
++        if (isFinishing() && request != null) request.complete(null, null);
++        super.onDestroy();
++    }
++}
+--- /dev/null
++++ b/android/src/main/java/dev/gpui/mobile/GpuiClipboard.java
+@@ -0,0 +1,24 @@
++package dev.gpui.mobile;
++
++import android.app.Activity;
++import android.content.ClipData;
++import android.content.ClipboardManager;
++import android.content.Context;
++
++public final class GpuiClipboard {
++    public static void setText(Activity activity, String text) {
++        ClipboardManager manager = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
++        if (manager != null) manager.setPrimaryClip(ClipData.newPlainText("text", text));
++    }
++
++    public static String getText(Activity activity) {
++        ClipboardManager manager = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
++        if (manager == null || !manager.hasPrimaryClip()) return null;
++        ClipData clip = manager.getPrimaryClip();
++        if (clip == null || clip.getItemCount() == 0) return null;
++        CharSequence text = clip.getItemAt(0).getText();
++        return text == null ? null : text.toString();
++    }
++
++    private GpuiClipboard() {}
++}
+--- a/android/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
++++ b/android/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
+@@ -111,6 +111,7 @@
+             if (isDestroyed() || isFinishing()) return;
+             if (input == null) {
+                 input = new InputProxy();
++                input.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                 input.setAlpha(0f);
+                 input.setPadding(0, 0, 0, 0);
+                 addContentView(input, new ViewGroup.LayoutParams(1, 1));

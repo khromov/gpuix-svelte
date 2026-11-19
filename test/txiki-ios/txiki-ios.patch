@@ -1,0 +1,28 @@
+--- a/src/mod_posix-socket.c
++++ b/src/mod_posix-socket.c
+@@ -4,7 +4,8 @@
+ #include <sys/socket.h>
+ #include <unistd.h>
+ 
+-#ifdef __APPLE__
++#include <TargetConditionals.h>
++#if defined(__APPLE__) && !TARGET_OS_IPHONE
+ #include <libproc.h>
+ #include <sys/proc_info.h>
+ #endif
+@@ -278,7 +279,14 @@
+     JSValue socket_info = JS_NewObject(ctx);
+ 
+     int cnt = 0;
+-#ifdef __APPLE__
++#if defined(__APPLE__) && TARGET_OS_IPHONE
++    int val;
++    socklen_t len = sizeof(val);
++    if (getsockopt(s->sock, SOL_SOCKET, SO_TYPE, &val, &len) == 0) {
++        JS_SetPropertyStr(ctx, socket_info, "type", JS_NewInt32(ctx, val));
++        cnt++;
++    }
++#elif defined(__APPLE__)
+     struct socket_fdinfo sock_fd_info;
+     int rc = proc_pidfdinfo(getpid(), s->sock, PROC_PIDFDSOCKETINFO, &sock_fd_info, sizeof sock_fd_info);
+     if (rc > 0) {

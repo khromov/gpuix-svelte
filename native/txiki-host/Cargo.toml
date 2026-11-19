@@ -1,0 +1,12 @@
+[package]
+name = "gpuix-svelte-txiki-host"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+gpuix-core = { path = "../../.generated/gpuix/packages/core" }
+gpui-mobile = { path = "../../.generated/gpuix/.generated/gpui-mobile", default-features = false, features = ["path_provider"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"

@@ -21,12 +21,8 @@ A counter opens in its own window. Edit `App.svelte`, save, and the window hot-r
 
 ![The starter app's window: a dark card with the count 2, a minus button, a plus button and the hint "Edit App.svelte and save — the window hot-reloads."](https://raw.githubusercontent.com/khromov/gpuix-svelte/main/homepage/assets/shots/hot-before.png)
 
-You need **Node.js 24 or later** or **Bun 1.4 or later**, on macOS (Apple Silicon), Windows (x64
-or arm64) or Linux (x64). The GPUI binary comes prebuilt from npm, so `npm install` is all the
-setup there is. On Bun, run `bun create gpuix-svelte my-app`, then `cd my-app`, `bun install` and
-`bun run start`. Building the app for distribution (`npm run build`: a `.app` on macOS, an `.exe`
-on Windows, a binary on Linux) needs [Bun](https://bun.com) even if you develop on Node; see
-[Shipping](docs/shipping.md).
+Desktop apps run on Node by default, or on Bun when launched with Bun or `--bun`. Mobile apps use
+txiki.js; Bun bundles Svelte before the mobile runtime starts.
 
 On Linux the binary loads `libxcb`, `libxkbcommon` and `libxkbcommon-x11`. Desktop installs have
 them, a minimal container does not (`apt install libxcb1 libxkbcommon0 libxkbcommon-x11-0`), and a
@@ -96,8 +92,8 @@ npx gpuix-svelte --bun app.ts    # Bun
 
 Runes, snippets, `{#each}`, `{#if}`, `{#await}`, `<svelte:boundary>` and `.svelte.ts` state modules
 all work. Scoped `<style>` blocks work for class rules (the [styling page](docs/styling.md) has
-the details). GPUI paints the window on the GPU. Your app runs in Node or Bun, so it can read
-files, spawn processes, open SQLite databases and load native addons directly.
+the details). GPUI paints the window on the GPU. Mobile has a subset of Node APIs; see
+[MOBILE_SUPPORT.md](MOBILE_SUPPORT.md) for its runtime and limitations.
 
 ## Coming from Svelte on the web
 
@@ -182,23 +178,30 @@ Svelte version](#about-the-svelte-version)). Run your entry through the package'
 }
 ```
 
-The bin starts Node, or Bun when you pass `--bun` or launch it with `bun run`. Before your entry
-loads, it points `svelte` at the build with the custom renderer API and teaches the runtime to
-import `.svelte` files. Your `.ts` files need nothing extra: Node and Bun run TypeScript
-themselves.
+The bin runs `.svelte` components on Node, or Bun when invoked with Bun or `--bun`.
+Arguments after the entry are passed to the app.
 
-Runtime flags go before the entry, and a flag that takes a value needs the `=` form
-(`gpuix-svelte --experimental-ffi app.ts`, `gpuix-svelte --import=tsx app.ts`). Arguments after
-the entry go to your script. Spelled out, the bin runs:
+### Local Android and iOS apps
 
-```bash
-node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.ts
-bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
+Generate native mobile shells around a bundled Svelte entry:
+
+```sh
+gpuix-svelte mobile init       # writes gpuix.mobile.json and .gpuix/mobile/
+gpuix-svelte mobile build android
+gpuix-svelte mobile run android
+gpuix-svelte mobile build ios --simulator
+gpuix-svelte mobile run ios --simulator --device <simulator-udid>
 ```
 
-The two `--conditions` flags matter: without them `svelte` resolves to its server build and
-`mount()` does not exist. A `bunfig.toml` preload on its own is not enough for a plain `bun file.ts`
-run, so go through the bin.
+Edit `gpuix.mobile.json` to set the TypeScript entry, app name and identifier, iOS deployment
+target/team, and Android SDK/NDK/ABIs. The scaffold builds pinned txiki.js sources and uses the
+reusable `gpui-mobile/android` Gradle library. `mobile init` refuses to overwrite an
+existing config or an unmarked `.gpuix/mobile` directory. Android builds require Rust Android
+linker targets, Java, Gradle, Android SDK/NDK and platform-tools. iOS builds require Rust iOS
+targets, Xcode command-line tools and XcodeGen; signing a physical-device build requires an Apple
+team configured in the file. These commands create and build local projects only; they do not
+publish packages or test on a device automatically. Mobile support remains experimental; see
+[MOBILE_SUPPORT.md](MOBILE_SUPPORT.md) for the filesystem subset, accessibility and validation limits.
 
 ### TypeScript
 

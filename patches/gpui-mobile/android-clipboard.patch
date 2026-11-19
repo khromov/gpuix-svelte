@@ -1,0 +1,54 @@
+--- a/android/src/main/java/dev/gpui/mobile/GpuiClipboard.java
++++ b/android/src/main/java/dev/gpui/mobile/GpuiClipboard.java
+@@ -4,20 +4,43 @@
+ import android.content.ClipData;
+ import android.content.ClipboardManager;
+ import android.content.Context;
++import android.os.Looper;
++import java.util.concurrent.Callable;
++import java.util.concurrent.FutureTask;
++import java.util.concurrent.TimeUnit;
+ 
+ public final class GpuiClipboard {
+     public static void setText(Activity activity, String text) {
+-        ClipboardManager manager = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+-        if (manager != null) manager.setPrimaryClip(ClipData.newPlainText("text", text));
++        onMain(activity, () -> {
++            ClipboardManager manager = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
++            if (manager != null) manager.setPrimaryClip(ClipData.newPlainText("text", text));
++            return null;
++        });
+     }
+ 
+     public static String getText(Activity activity) {
+-        ClipboardManager manager = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+-        if (manager == null || !manager.hasPrimaryClip()) return null;
+-        ClipData clip = manager.getPrimaryClip();
+-        if (clip == null || clip.getItemCount() == 0) return null;
+-        CharSequence text = clip.getItemAt(0).getText();
+-        return text == null ? null : text.toString();
++        return onMain(activity, () -> {
++            ClipboardManager manager = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
++            if (manager == null || !manager.hasPrimaryClip()) return null;
++            ClipData clip = manager.getPrimaryClip();
++            if (clip == null || clip.getItemCount() == 0) return null;
++            CharSequence text = clip.getItemAt(0).getText();
++            return text == null ? null : text.toString();
++        });
++    }
++
++    // Older Android clipboard services require a thread with a Looper.
++    private static <T> T onMain(Activity activity, Callable<T> operation) {
++        FutureTask<T> task = new FutureTask<>(operation);
++        try {
++            if (Looper.myLooper() == Looper.getMainLooper()) return operation.call();
++            activity.runOnUiThread(task);
++            return task.get(2, TimeUnit.SECONDS);
++        } catch (Exception error) {
++            task.cancel(false);
++            if (error instanceof InterruptedException) Thread.currentThread().interrupt();
++            throw new IllegalStateException("Clipboard operation failed", error);
++        }
+     }
+ 
+     private GpuiClipboard() {}

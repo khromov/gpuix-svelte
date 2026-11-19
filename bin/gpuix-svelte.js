@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * `gpuix-svelte [--bun] [runtime flags] <entry> [args]` — runs the entry with the
- * conditions Svelte's custom renderer needs and the `.svelte` loader installed.
+ * `gpuix-svelte <entry> [args]` runs on Node or Bun.
  * `bun run <script>` runs a body that starts with `node` on real Node (Bun puts a
  * copy of itself named `node` first on PATH only under `--bun`, or where Node is not
  * installed), so the runtime is read off how this launcher was invoked rather than
@@ -17,8 +16,23 @@ import { fileURLToPath } from 'node:url';
 const args = process.argv.slice(2);
 const at = args.findIndex((arg) => !arg.startsWith('--'));
 if (at === -1) {
-	console.error('usage: gpuix-svelte [--bun] [runtime flags] <entry.ts> [args]\n       gpuix-svelte update keygen | manifest | verify');
+	console.error('usage: gpuix-svelte [--node|--bun] <entry.ts> [args]\n       gpuix-svelte update keygen | manifest | verify');
 	process.exit(2);
+}
+
+// Local mobile project generation/building does not enter an app runtime.
+if (args[at] === 'mobile') {
+	// Mobile builds bundle with Bun; `init` remains usable with Node alone.
+	if (!process.versions.bun && args[at + 1] !== 'init') {
+		const script = fileURLToPath(import.meta.resolve('gpuix-svelte/mobile-cli'));
+		const child = spawn('bun', [script, ...args.slice(at + 1)], { stdio: 'inherit', shell: process.platform === 'win32' });
+		child.on('error', (error) => { console.error(`gpuix-svelte: mobile builds require Bun: ${error.message}`); process.exit(1); });
+		const code = await new Promise((done) => child.on('exit', (status) => done(status ?? 1)));
+		process.exit(code);
+	}
+	const { run } = await import('gpuix-svelte/mobile-cli');
+	await run(args.slice(at + 1));
+	process.exit(0);
 }
 
 // The release-side commands of gpuix-svelte/update need no runtime flags or loader.
@@ -55,7 +69,7 @@ const shell = runtime === 'bun' && process.platform === 'win32';
 // cmd.exe receives one string, so each argument is quoted by hand or a path with a space splits.
 const quote = (/** @type {string} */ arg) => (shell ? `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"` : arg);
 
-const child = spawn(runtime, [...flags.filter((flag) => flag !== '--bun'), ...conditions, ...loader, entry, ...rest].map(quote), {
+const child = spawn(runtime, [...flags.filter((flag) => flag !== '--bun' && flag !== '--node'), ...conditions, ...loader, entry, ...rest].map(quote), {
 	stdio: 'inherit',
 	shell
 });

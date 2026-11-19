@@ -1,0 +1,83 @@
+diff --git a/src/android/accessibility.rs b/src/android/accessibility.rs
+--- a/src/android/accessibility.rs
++++ b/src/android/accessibility.rs
+@@ -48,7 +48,10 @@
+ }
+ fn raise(env: &mut JNIEnv, host: &JObject, events: Option<QueuedEvents>) {
+     if let Some(events) = events {
+-        events.raise(env, host);
++        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| events.raise(env, host))).is_err() {
++            let _ = env.exception_clear();
++            log::warn!("Android accessibility event delivery failed");
++        }
+     }
+ }
+ 
+@@ -139,14 +142,14 @@
+     raise(&mut env, &host, events);
+     JNI_TRUE
+ }
+-extern "system" fn run_callback(mut env: JNIEnv, _: JClass, host: JObject, callback_id: jlong) {
++extern "system" fn run_callback(mut env: JNIEnv, _: JClass, host: JObject, callback_id: jlong, deliver: jboolean) {
+     let callback = CALLBACKS
+         .lock()
+         .unwrap()
+         .as_mut()
+         .and_then(|m| m.remove(&callback_id));
+     if let Some((owner, callback)) = callback {
+-        if state(owner).is_some() {
++        if deliver != JNI_FALSE && state(owner).is_some() {
+             callback(&mut env, &host);
+         }
+     }
+@@ -200,7 +203,7 @@
+             },
+             NativeMethod {
+                 name: "runCallback".into(),
+-                sig: "(Landroid/view/View;J)V".into(),
++                sig: "(Landroid/view/View;JZ)V".into(),
+                 fn_ptr: run_callback as *mut c_void,
+             },
+         ],
+@@ -305,7 +308,7 @@
+             .get_or_insert_with(BTreeMap::new)
+             .insert(
+                 callback_id,
+-                (self.id, Box::new(move |env, host| events.raise(env, host))),
++                (self.id, Box::new(move |env, host| raise(env, host, Some(events)))),
+             );
+         let posted = env.new_local_ref(self.class.as_obj()).and_then(|class| {
+             env.call_static_method(
+diff --git a/android/src/main/java/dev/gpui/mobile/GpuiAccessibility.java b/android/src/main/java/dev/gpui/mobile/GpuiAccessibility.java
+--- a/android/src/main/java/dev/gpui/mobile/GpuiAccessibility.java
++++ b/android/src/main/java/dev/gpui/mobile/GpuiAccessibility.java
+@@ -5,6 +5,7 @@
+ import android.os.Looper;
+ import android.view.MotionEvent;
+ import android.view.View;
++import android.view.accessibility.AccessibilityManager;
+ import android.view.accessibility.AccessibilityNodeInfo;
+ import android.view.accessibility.AccessibilityNodeProvider;
+ import java.util.WeakHashMap;
+@@ -20,7 +21,7 @@
+     private static native AccessibilityNodeInfo findFocus(long handle, View host, int focus);
+     private static native boolean performAction(long handle, View host, int id, int action, Bundle args);
+     private static native boolean hover(long handle, View host, int action, float x, float y);
+-    private static native void runCallback(View host, long callback);
++    private static native void runCallback(View host, long callback, boolean deliver);
+ 
+     public static void install(View host, long handle) {
+         MAIN.post(() -> {
+@@ -43,7 +44,11 @@
+     }
+ 
+     public static boolean postCallback(View host, long callback) {
+-        return MAIN.post(() -> runCallback(host, callback));
++        return MAIN.post(() -> {
++            AccessibilityManager manager = host.getContext().getSystemService(AccessibilityManager.class);
++            // Android throws if queued events are sent after the accessibility client disconnects.
++            runCallback(host, callback, host.isAttachedToWindow() && manager != null && manager.isEnabled());
++        });
+     }
+ 
+     @Override public AccessibilityNodeProvider getAccessibilityNodeProvider(final View host) {

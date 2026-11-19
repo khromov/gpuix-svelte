@@ -1,0 +1,22 @@
+include: [../../examples/mobile/.gpuix/mobile/ios/project.yml]
+name: ProductMobileTests
+targets:
+  ProductUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [ProductUITests.swift]
+    dependencies:
+      - target: Mobile Counter
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.gpuix.svelte.mobilecounter.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Mobile Counter
+schemes:
+  ProductMobileTests:
+    build:
+      targets:
+        Mobile Counter: all
+        ProductUITests: test
+    test:
+      targets: [ProductUITests]

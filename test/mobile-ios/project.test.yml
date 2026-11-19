@@ -1,0 +1,23 @@
+include:
+  - project.yml
+name: QuickJSNativeTests
+targets:
+  QuickJSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [QuickJSUITests.swift]
+    dependencies:
+      - target: QuickJS Fixture
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.gpuix.quickjsfixture.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: QuickJS Fixture
+schemes:
+  QuickJSNativeTests:
+    build:
+      targets:
+        QuickJS Fixture: all
+        QuickJSUITests: test
+    test:
+      targets: [QuickJSUITests]

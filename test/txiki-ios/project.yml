@@ -1,0 +1,33 @@
+name: TxikiSvelte
+options:
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  TxikiSvelte:
+    type: application
+    platform: iOS
+    sources:
+      - main.m
+      - bridge.c
+      - gpui_ios.h
+      - path: ../../dist/txiki-ios/assets/app.mjs
+        buildPhase: resources
+      - path: ../../dist/txiki-ios/assets/main.mjs
+        buildPhase: resources
+    info:
+      path: Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.gpuix.txikisvelte
+        INFOPLIST_KEY_CFBundleDisplayName: Txiki Svelte
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        CLANG_ENABLE_OBJC_ARC: YES
+        ENABLE_BITCODE: NO
+        ENABLE_DEBUG_DYLIB: NO
+        HEADER_SEARCH_PATHS: ["$(TXIKI_SOURCE)/src", "$(TXIKI_SOURCE)/deps/quickjs", "$(TXIKI_SOURCE)/deps/libuv/include"]
+        OTHER_LDFLAGS: ["-force_load $(GPUIX_RUST_LIB)", "-force_load $(TXIKI_LIB)", "-lc++", "-lz", "-framework UIKit", "-framework Metal", "-framework MetalKit", "-framework QuartzCore", "-framework CoreGraphics", "-framework CoreText", "-framework CoreFoundation", "-framework Foundation", "-framework Security", "-framework SystemConfiguration", "-framework AudioToolbox", "-framework WebKit", "-framework CoreMedia", "-framework AVFoundation", "-framework LocalAuthentication", "-framework Contacts", "-framework EventKit", "-framework StoreKit", "-framework CoreMotion", "-ObjC"]

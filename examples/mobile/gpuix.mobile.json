@@ -1,0 +1,7 @@
+{
+  "entry": "main.ts",
+  "name": "Mobile Counter",
+  "appId": "dev.gpuix.svelte.mobilecounter",
+  "ios": { "deploymentTarget": "16.0" },
+  "android": { "abis": ["arm64-v8a"], "compileSdk": 36, "minSdk": 26, "targetSdk": 36, "ndkVersion": "29.0.14206865" }
+}

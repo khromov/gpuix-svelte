@@ -1,0 +1,14 @@
+--- a/src/android/jni.rs
++++ b/src/android/jni.rs
+@@ -569,6 +569,11 @@
+                             };
+ 
+                             let key_code: u32 = key_event.key_code().into();
++                            // NativeActivity needs an unhandled Back event to run Android's default navigation.
++                            if key_code == 4 {
++                                return android_activity::InputStatus::Unhandled;
++                            }
++
+                             let meta_state: u32 = key_event.meta_state().0;
+ 
+                             let unicode_char = unicode_char_for_key_event(
