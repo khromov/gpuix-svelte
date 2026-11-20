@@ -8,10 +8,10 @@ import { Parser, type CallExpression, type Expression, type Literal, type Node, 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import module, { createRequire } from 'node:module';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppOptions, AppUpdateOptions } from './types.ts';
+import type { AppAndroidOptions, AppIosOptions, AppOptions, AppUpdateOptions } from './types.ts';
 import { is_public_key } from './update.ts';
 import { write_zip } from './zip.ts';
 
@@ -27,6 +27,10 @@ export interface AppInfo {
 	publisher?: string;
 	description?: string;
 	update?: AppUpdateOptions;
+	buildNumber?: number;
+	assets?: string[];
+	ios?: AppIosOptions;
+	android?: AppAndroidOptions;
 }
 
 /** What the executable knows about itself at runtime: `AppInfo` without the build-only icon, as `GPUIX_APP_INFO`. */
@@ -95,6 +99,25 @@ export function read_app_options(source: string): EntryApp {
 		return undefined;
 	}
 
+	function number_val(node: Expression | undefined): number | undefined {
+		const value = node && follow(node);
+		if (value?.type === 'Literal' && typeof value.value === 'number') return value.value;
+		return undefined;
+	}
+
+	function string_array(node: Expression | undefined, path: string): string[] {
+		const value = node && follow(node);
+		if (!value || value.type !== 'ArrayExpression') throw new Error(`${path} is \`${text(node!)}\`; ${UNREADABLE}`);
+		const result: string[] = [];
+		for (const el of value.elements) {
+			if (!el || el.type === 'SpreadElement') throw new Error(`${path} has \`${text(el!)}\`; ${UNREADABLE}`);
+			const s = string(el);
+			if (s === undefined) throw new Error(`${path} has \`${text(el)}\`; ${UNREADABLE}`);
+			result.push(s);
+		}
+		return result;
+	}
+
 	function object(node: Expression | SpreadElement, path: string): Map<string, Expression> {
 		const value = follow(node);
 		if (value.type !== 'ObjectExpression') throw new Error(`${path} is \`${text(node)}\`; ${UNREADABLE}`);
@@ -110,7 +133,7 @@ export function read_app_options(source: string): EntryApp {
 	const options = calls[0].arguments[1];
 	if (!options) return {};
 	const fields = object(options, "render()'s second argument");
-	const app: Record<string, string | Record<string, string>> = {};
+	const app: Record<string, unknown> = {};
 	const declared = fields.get('app');
 	if (declared) {
 		for (const [key, node] of object(declared, 'app')) {
@@ -131,6 +154,48 @@ export function read_app_options(source: string): EntryApp {
 				app[key] = update;
 				continue;
 			}
+			if (key === 'ios') {
+				const ios: Record<string, string> = {};
+				for (const [field, inner] of object(node, 'app.ios')) {
+					if (field !== 'deploymentTarget' && field !== 'teamId') throw new Error(`app.ios.${field} is not an option (deploymentTarget and teamId are)`);
+					const value = string(inner);
+					if (value === undefined || inner.type === 'NewExpression') throw new Error(`app.ios.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
+					ios[field] = value;
+				}
+				app[key] = ios;
+				continue;
+			}
+			if (key === 'android') {
+				const android: Record<string, unknown> = {};
+				for (const [field, inner] of object(node, 'app.android')) {
+					if (!['abis', 'compileSdk', 'minSdk', 'targetSdk', 'ndkVersion'].includes(field)) {
+						throw new Error(`app.android.${field} is not an option (abis, compileSdk, minSdk, targetSdk, ndkVersion are)`);
+					}
+					if (field === 'abis') {
+						android[field] = string_array(inner, 'app.android.abis');
+					} else if (['compileSdk', 'minSdk', 'targetSdk'].includes(field)) {
+						const value = number_val(inner);
+						if (value === undefined) throw new Error(`app.android.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
+						android[field] = value;
+					} else if (field === 'ndkVersion') {
+						const value = string(inner);
+						if (value === undefined || inner.type === 'NewExpression') throw new Error(`app.android.${field} is \`${text(inner)}\`; ${UNREADABLE}`);
+						android[field] = value;
+					}
+				}
+				app[key] = android;
+				continue;
+			}
+			if (key === 'assets') {
+				app[key] = string_array(node, 'app.assets');
+				continue;
+			}
+			if (key === 'buildNumber') {
+				const value = number_val(node);
+				if (value === undefined) throw new Error(`app.${key} is \`${text(node)}\`; ${UNREADABLE}`);
+				app[key] = value;
+				continue;
+			}
 			const value = string(node);
 			if (value === undefined) throw new Error(`app.${key} is \`${text(node)}\`; ${UNREADABLE}`);
 			app[key] = value;
@@ -139,6 +204,20 @@ export function read_app_options(source: string): EntryApp {
 	// A title worked out at runtime only costs the name its fallback, and package.json covers that.
 	const title = string(fields.get('title'));
 	return (title === undefined ? app : { ...app, title }) as EntryApp;
+}
+
+export function read_entry_source_app(source: string): EntryApp {
+	const js = process.versions.bun
+		? new Bun.Transpiler({ loader: 'ts' }).transformSync(source)
+		: module.stripTypeScriptTypes
+			? module.stripTypeScriptTypes(source)
+			: source;
+	return read_app_options(js);
+}
+
+export function read_entry_app(entry: string): EntryApp {
+	const source = readFileSync(entry, 'utf8');
+	return read_entry_source_app(source);
 }
 
 function is_manifest_url(url: string): boolean {
@@ -166,13 +245,17 @@ export function resolve_app_info(declared: EntryApp, entry: string): AppInfo {
 	return {
 		name,
 		slug,
-		identifier: declared.identifier || `local.${slug}`,
+		identifier: declared.identifier || (declared as { appId?: string }).appId || `local.${slug}`,
 		version: declared.version || pkg?.version || '0.0.0',
 		icon: declared.icon ? icon_path(declared.icon, entry) : DEFAULT_ICON,
 		copyright: declared.copyright,
 		publisher: declared.publisher,
 		description: declared.description,
-		update: declared.update
+		update: declared.update,
+		buildNumber: declared.buildNumber,
+		assets: declared.assets,
+		ios: declared.ios,
+		android: declared.android
 	};
 }
 
@@ -213,12 +296,12 @@ export function update_fragment(info: Pick<AppInfo, 'version'>, archive: string,
 	return { platform, version: info.version, file: basename(archive), sha256: sha256_file(archive), size: statSync(archive).size };
 }
 
-function icon_path(icon: string | URL, entry: string): string {
+export function icon_path(icon: string | URL, entry: string): string {
 	const text = String(icon);
 	return text.startsWith('file:') ? fileURLToPath(text) : resolve(dirname(entry), text);
 }
 
-function nearest_package(dir: string): { name?: string; version?: string } | null {
+export function nearest_package(dir: string): { name?: string; version?: string } | null {
 	for (let at = dir; ; at = dirname(at)) {
 		const file = join(at, 'package.json');
 		if (existsSync(file)) {

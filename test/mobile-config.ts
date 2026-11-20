@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_MOBILE_CONFIG, validate_mobile_config } from '../scripts/mobile-config.ts';
-import { copy_asset, find_gradle, gradle_wrapper, ios_architecture, ios_build_tools, ios_cargo_env, watchable } from '../scripts/mobile.ts';
+import { DEFAULT_MOBILE_CONFIG, read_mobile_config, validate_mobile_config } from '../scripts/mobile-config.ts';
+import { copy_asset, find_gradle, gradle_wrapper, ios_architecture, ios_build_tools, ios_cargo_env, scaffold, watchable } from '../scripts/mobile.ts';
 import { check, finish } from 'gpuix-svelte/test';
 
 const config = validate_mobile_config(structuredClone(DEFAULT_MOBILE_CONFIG));
@@ -48,15 +48,39 @@ try {
 	const initialized = spawnSync(process.execPath, [mobile_cli, 'mobile', 'init'], { cwd: scaffold_root, encoding: 'utf8' });
 	const native = join(scaffold_root, '.gpuix/mobile/native');
 	const cargo = readFileSync(join(native, 'Cargo.toml'), 'utf8');
-	check('init defaults to app.ts without an existing entry', JSON.parse(readFileSync(join(scaffold_root, 'gpuix.mobile.json'), 'utf8')).entry, 'app.ts');
+	check('init does not create gpuix.mobile.json', [initialized.status, existsSync(join(scaffold_root, '.gpuix/mobile')), existsSync(join(scaffold_root, 'gpuix.mobile.json'))], [0, true, false]);
 	const missing_entry = spawnSync(process.execPath, [mobile_cli, 'mobile', 'build', 'android'], { cwd: scaffold_root, encoding: 'utf8' });
-	check('missing entry fails before preparing native sources', missing_entry.status !== 0 && missing_entry.stderr.includes('set entry in gpuix.mobile.json') && !missing_entry.stdout.includes('[gpuix] prepared'), true);
+	check('missing entry fails before preparing native sources', missing_entry.status !== 0 && missing_entry.stderr.includes('entry does not exist') && !missing_entry.stdout.includes('[gpuix] prepared'), true);
+	
+	writeFileSync(join(scaffold_root, 'app.ts'), `import { render } from 'gpuix-svelte';
+import App from './App.svelte';
+render(App, {
+	title: 'My Custom App',
+	app: {
+		name: 'My Custom App',
+		identifier: 'dev.custom.myapp',
+		version: '2.3.4',
+		buildNumber: 42,
+		assets: ['assets/icon.png'],
+		ios: { deploymentTarget: '17.0', teamId: 'TEAMID1234' },
+		android: { abis: ['arm64-v8a', 'x86_64'], compileSdk: 35, minSdk: 28, targetSdk: 35, ndkVersion: '28.0.12345' }
+	}
+});
+`);
+	const custom_config = read_mobile_config('app.ts', scaffold_root);
+	check(
+		'entry file app options configure mobile settings directly',
+		[custom_config.name, custom_config.appId, custom_config.version, custom_config.buildNumber, custom_config.assets, custom_config.ios.deploymentTarget, custom_config.ios.teamId, custom_config.android.compileSdk, custom_config.android.minSdk, custom_config.android.ndkVersion],
+		['My Custom App', 'dev.custom.myapp', '2.3.4', 42, ['assets/icon.png'], '17.0', 'TEAMID1234', 35, 28, '28.0.12345']
+	);
+	scaffold(custom_config, scaffold_root);
+
 	const android = readFileSync(join(scaffold_root, '.gpuix/mobile/android/settings.gradle.kts'), 'utf8');
 	const rust = readFileSync(join(native, 'src/android.rs'), 'utf8');
 	const android_manifest = readFileSync(join(scaffold_root, '.gpuix/mobile/android/app/src/main/AndroidManifest.xml'), 'utf8');
 	const ios_project = readFileSync(join(scaffold_root, '.gpuix/mobile/ios/project.yml'), 'utf8');
 	const android_build = readFileSync(join(scaffold_root, '.gpuix/mobile/android/app/build.gradle.kts'), 'utf8');
-	check('mobile versions reach both platforms', android_build.includes('versionCode = 1') && android_build.includes('versionName = "0.1.0"') && ios_project.includes('CFBundleShortVersionString: "0.1.0"') && ios_project.includes('CFBundleVersion: "1"'), true);
+	check('mobile versions and custom configs reach both platforms', android_build.includes('versionCode = 42') && android_build.includes('versionName = "2.3.4"') && android_build.includes('namespace = "dev.custom.myapp"') && ios_project.includes('CFBundleShortVersionString: "2.3.4"') && ios_project.includes('CFBundleVersion: "42"') && ios_project.includes('PRODUCT_BUNDLE_IDENTIFIER: dev.custom.myapp') && ios_project.includes('DEVELOPMENT_TEAM: TEAMID1234'), true);
 	check('init generates a generic Rust launcher with the txiki host', initialized.status === 0 && cargo.includes('gpuix-svelte-txiki-host') && cargo.includes('.generated/gpui-pre') && !cargo.includes('gpuix-qjs') && rust.includes('EmbeddedRenderer') && !rust.includes('Counter'), true);
 	check('Android scaffold consumes the reusable local GPUI mobile library', android.includes('include(":app", ":gpui-mobile")') && android.includes('.generated/gpui-mobile/android') && cargo.includes('.generated/gpui-mobile') && cargo.includes('.generated/gpui-pre-wgpu'), true);
 	check('mobile launcher provisions OS app directories for txiki', cargo.includes('features = ["path_provider"]') && cargo.includes('gpuix-svelte-txiki-host') && !rust.includes('gpuix_qjs'), true);
@@ -107,4 +131,4 @@ try {
 		check('init refuses an unmarked generated directory without creating config', refused.status !== 0 && !existsSync(join(blocked, 'gpuix.mobile.json')), true);
 	} finally { rmSync(blocked, { recursive: true, force: true }); }
 } finally { rmSync(scaffold_root, { recursive: true, force: true }); }
-finish('mobile-config', 35);
+finish('mobile-config', 36);

@@ -1,12 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { read_mobile_config } from '../../scripts/mobile-config.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const example = resolve(here, '../../examples/mobile');
 const ios = join(example, '.gpuix/mobile/ios');
-const { name } = JSON.parse(readFileSync(join(example, 'gpuix.mobile.json'), 'utf8'));
+const { name } = read_mobile_config('main.ts', example);
 const device = process.env.IOS_SIMULATOR_UDID;
 if (!device) throw new Error('Set IOS_SIMULATOR_UDID to a booted simulator; build examples/mobile for iOS first');
 const arch = process.arch === 'arm64' ? 'arm64' : process.arch === 'x64' ? 'x86_64' : null;

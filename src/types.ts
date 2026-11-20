@@ -192,6 +192,21 @@ export type WindowNative = Partial<
 	>
 >;
 
+export type AndroidAbi = 'arm64-v8a' | 'x86_64' | 'armeabi-v7a';
+
+export interface AppIosOptions {
+	deploymentTarget?: string;
+	teamId?: string;
+}
+
+export interface AppAndroidOptions {
+	abis?: AndroidAbi[];
+	compileSdk?: number;
+	minSdk?: number;
+	targetSdk?: number;
+	ndkVersion?: string;
+}
+
 /**
  * What `gpuix-svelte/build` packages the executable with: the `.app` bundle on macOS, the
  * version info on Windows. At runtime `name` is the window title's fallback and the name in macOS's
@@ -212,6 +227,14 @@ export interface AppOptions {
 	description?: string;
 	/** Where `gpuix-svelte/update` looks for a newer version; the build bakes it into the executable. */
 	update?: AppUpdateOptions;
+	/** Mobile build number / Android versionCode / iOS CFBundleVersion; positive integer. */
+	buildNumber?: number;
+	/** Project-relative assets to package with the mobile app for `asset_path()`. */
+	assets?: string[];
+	/** iOS-specific options. */
+	ios?: AppIosOptions;
+	/** Android-specific options. */
+	android?: AppAndroidOptions;
 }
 
 export interface AppUpdateOptions {

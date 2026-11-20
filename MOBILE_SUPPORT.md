@@ -15,14 +15,14 @@ gpuix-svelte mobile run android --device <serial> --watch
 gpuix-svelte mobile build android --release
 ```
 
-Configure entry, app ID, version, build number, target SDKs and ABIs in `gpuix.mobile.json`. Optional
+Configure app options (name, identifier, version, build number, assets, target SDKs and ABIs) in
+`render(App, { app: { ... } })` in your entry file, just like desktop gpuix apps. Optional
 `icon` names a square PNG (1024×1024 for iOS). `--release` builds an Android release APK and AAB or
 an iOS Release app; Android releases are unsigned unless `GPUIX_ANDROID_KEYSTORE` (absolute path),
 `GPUIX_ANDROID_STORE_PASSWORD`, `GPUIX_ANDROID_KEY_ALIAS` and `GPUIX_ANDROID_KEY_PASSWORD` are set.
 iOS distribution still requires an Xcode archive, signing and export. Increase
 `buildNumber` for every distributed build; it becomes Android's version code and iOS's bundle version.
-`mobile init` defaults to the
-starter's `app.ts`; set `entry` to your own entry file if it differs. Android needs the SDK, NDK,
+Android needs the SDK, NDK,
 Java 17 or later, Rust targets, `cargo-ndk`, CMake and Ninja. The CLI uses `GRADLE`, a project
 wrapper, Gradle on `PATH`, or a cached Gradle 9.4.1 distribution, in that order. If none is present,
 it downloads the verified Gradle 9.4.1 wrapper and distribution on first build. iOS needs Xcode,
@@ -47,7 +47,7 @@ addons are not supported. The `open`, `xdg-open` and Windows `start` URL-launchi
 platform URL opener. Relative filesystem paths resolve against `process.cwd()`, the app's data
 directory. txiki's Web APIs, including fetch, are available. Image and font imports and static
 `new URL('./file', import.meta.url)` resources are packaged with the app. To package paths assembled
-at runtime, list project-relative files or directories in `assets` in `gpuix.mobile.json` and read
+at runtime, list project-relative files or directories in `assets` under `app` options in `render()` and read
 `asset_path('assets/example.png')` from `gpuix-svelte`. A directory URL such as `new URL('.', import.meta.url)`
 points at the bundled module's directory and does not package the source directory's contents.
 A desktop layout is not automatically redesigned for a phone: fixed widths and non-wrapping rows may

@@ -186,20 +186,20 @@ Arguments after the entry are passed to the app.
 Generate native mobile shells around a bundled Svelte entry:
 
 ```sh
-gpuix-svelte mobile init       # writes gpuix.mobile.json and .gpuix/mobile/
+gpuix-svelte mobile init       # writes .gpuix/mobile/
 gpuix-svelte mobile build android
 gpuix-svelte mobile run android
 gpuix-svelte mobile build ios --simulator
 gpuix-svelte mobile run ios --simulator --device <simulator-udid>
 ```
 
-Edit `gpuix.mobile.json` to set the TypeScript entry, app name and identifier, iOS deployment
-target/team, and Android SDK/NDK/ABIs. The scaffold builds pinned txiki.js sources and uses the
-reusable `gpui-mobile/android` Gradle library. `mobile init` refuses to overwrite an
-existing config or an unmarked `.gpuix/mobile` directory. Android builds require Rust Android
-linker targets, Java, Android SDK/NDK and platform-tools; Gradle is downloaded if needed. iOS builds require Rust iOS
+Configure app name and identifier, version, iOS deployment target/team, and Android SDK/NDK/ABIs in
+`render(App, { app: { ... } })` in your entry file, just like desktop apps. The scaffold builds pinned
+txiki.js sources and uses the reusable `gpui-mobile/android` Gradle library. `mobile init` refuses to
+overwrite an unmarked `.gpuix/mobile` directory. Android builds require Rust Android linker targets,
+Java, Android SDK/NDK and platform-tools; Gradle is downloaded if needed. iOS builds require Rust iOS
 targets, Xcode command-line tools and XcodeGen; signing a physical-device build requires an Apple
-team configured in the file. These commands create and build local projects only; they do not
+team configured under `app.ios.teamId`. These commands create and build local projects only; they do not
 publish packages or test on a device automatically. Mobile support remains experimental; see
 [MOBILE_SUPPORT.md](MOBILE_SUPPORT.md) for the filesystem subset, accessibility and validation limits.
 

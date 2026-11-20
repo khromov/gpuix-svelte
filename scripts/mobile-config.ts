@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, relative, resolve } from 'node:path';
+import { nearest_package, read_entry_app, resolve_app_info, type EntryApp } from '../src/app-bundle.ts';
+import type { AndroidAbi } from '../src/types.ts';
 
-export type AndroidAbi = 'arm64-v8a' | 'x86_64' | 'armeabi-v7a';
+export type { AndroidAbi };
 
 export interface MobileConfig {
 	entry: string;
@@ -54,10 +56,63 @@ export function validate_mobile_config(value: unknown): MobileConfig {
 	return config as MobileConfig;
 }
 
-export function read_mobile_config(root = process.cwd()): MobileConfig {
-	const path = resolve(root, 'gpuix.mobile.json');
-	let value: unknown;
-	try { value = JSON.parse(readFileSync(path, 'utf8')); }
-	catch (error) { fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`); }
-	return validate_mobile_config(value);
+export function find_entry(root: string, explicit_entry?: string): string {
+	if (explicit_entry) return resolve(root, explicit_entry);
+	const candidates = ['app.ts', 'main.ts', 'src/app.ts', 'src/main.ts', 'standalone.ts', 'src/standalone.ts'];
+	for (const candidate of candidates) {
+		const full = resolve(root, candidate);
+		if (existsSync(full)) return full;
+	}
+	return resolve(root, 'app.ts');
+}
+
+export function read_mobile_config(explicit_entry?: string, root = process.cwd()): MobileConfig {
+	const entry_path = find_entry(root, explicit_entry);
+	if (existsSync(entry_path)) {
+		let declared: EntryApp;
+		try {
+			declared = read_entry_app(entry_path);
+		} catch (error) {
+			return fail(`cannot read entry app options from ${entry_path}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+		const app = resolve_app_info(declared, entry_path);
+		const rel_entry = relative(root, entry_path) || basename(entry_path);
+		const raw_id = declared.identifier || (declared as { appId?: string }).appId;
+		const appId = raw_id || (app.identifier.includes('-') ? `dev.example.${app.slug.replace(/[^a-zA-Z0-9_]/g, '') || 'myapp'}` : app.identifier);
+		const config: MobileConfig = {
+			entry: rel_entry,
+			name: app.name,
+			appId,
+			version: app.version,
+			buildNumber: app.buildNumber ?? 1,
+			...(declared.icon && { icon: relative(root, app.icon) }),
+			...(app.assets && { assets: app.assets }),
+			ios: {
+				deploymentTarget: app.ios?.deploymentTarget ?? DEFAULT_MOBILE_CONFIG.ios.deploymentTarget,
+				...(app.ios?.teamId && { teamId: app.ios.teamId })
+			},
+			android: {
+				abis: app.android?.abis ?? DEFAULT_MOBILE_CONFIG.android.abis,
+				compileSdk: app.android?.compileSdk ?? DEFAULT_MOBILE_CONFIG.android.compileSdk,
+				minSdk: app.android?.minSdk ?? DEFAULT_MOBILE_CONFIG.android.minSdk,
+				targetSdk: app.android?.targetSdk ?? DEFAULT_MOBILE_CONFIG.android.targetSdk,
+				ndkVersion: app.android?.ndkVersion ?? DEFAULT_MOBILE_CONFIG.android.ndkVersion
+			}
+		};
+		return validate_mobile_config(config);
+	}
+
+	const rel_entry = relative(root, entry_path) || basename(entry_path);
+	const pkg = nearest_package(root);
+	const name = pkg?.name || DEFAULT_MOBILE_CONFIG.name;
+	const config: MobileConfig = {
+		entry: rel_entry,
+		name,
+		appId: DEFAULT_MOBILE_CONFIG.appId,
+		version: pkg?.version || DEFAULT_MOBILE_CONFIG.version,
+		buildNumber: 1,
+		ios: structuredClone(DEFAULT_MOBILE_CONFIG.ios),
+		android: structuredClone(DEFAULT_MOBILE_CONFIG.android)
+	};
+	return validate_mobile_config(config);
 }

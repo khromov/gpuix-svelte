@@ -5,7 +5,7 @@ import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { build_txiki_bundle } from '../src/txiki-bundle.ts';
-import { DEFAULT_MOBILE_CONFIG, read_mobile_config, type MobileConfig } from './mobile-config.ts';
+import { read_mobile_config, type MobileConfig } from './mobile-config.ts';
 import { prepare_txiki, build_txiki_ios, txiki_command } from './txiki-source.ts';
 
 const root = process.cwd();
@@ -14,7 +14,7 @@ const scripts = join(package_root, 'scripts');
 const gpuix = join(package_root, '.generated/gpuix');
 const generated = join(root, '.gpuix/mobile');
 const marker = join(generated, '.gpuix-mobile');
-const usage = 'usage: gpuix-svelte mobile init | build|run android|ios [--simulator] [--device <id>] [--release] [--watch]';
+const usage = 'usage: gpuix-svelte mobile init [<entry>] | build|run android|ios [<entry>] [--simulator] [--device <id>] [--release] [--watch]';
 const error = (message: string): never => { throw new Error(`[mobile] ${message}\n${usage}`); };
 const esc = (value: string) => JSON.stringify(value);
 const template = (name: string) => readFileSync(join(package_root, 'native/mobile', name), 'utf8');
@@ -77,19 +77,20 @@ gpui-pre-wgpu = { path = ${esc(join(gpuix, '.generated/gpui-pre-wgpu'))} }
 `;
 }
 
-function android_files(config: MobileConfig) {
+function android_files(config: MobileConfig, project_root = root) {
+	const gen = join(project_root, '.gpuix/mobile');
 	const icon = config.icon ? ' android:icon="@drawable/gpuix_icon"' : '';
-	if (config.icon) write_file(join(generated, 'android/app/src/main/res/drawable-nodpi/gpuix_icon.png'), readFileSync(resolve(root, config.icon)));
+	if (config.icon) write_file(join(gen, 'android/app/src/main/res/drawable-nodpi/gpuix_icon.png'), readFileSync(resolve(project_root, config.icon)));
 	const dependency = join(gpuix, '.generated/gpui-mobile/android').replaceAll('\\', '/');
-	write_file(join(generated, 'android/settings.gradle.kts'), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+	write_file(join(gen, 'android/settings.gradle.kts'), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
 rootProject.name = ${esc(config.name)}
 include(":app", ":gpui-mobile")
 project(":gpui-mobile").projectDir = file(${esc(dependency)})
 `);
-	write_file(join(generated, 'android/build.gradle.kts'), 'plugins { id("com.android.application") version "9.1.0" apply false }\n');
-	write_file(join(generated, 'android/gradle.properties'), 'android.useAndroidX=true\n');
-	write_file(join(generated, 'android/app/build.gradle.kts'), `plugins { id("com.android.application") }
+	write_file(join(gen, 'android/build.gradle.kts'), 'plugins { id("com.android.application") version "9.1.0" apply false }\n');
+	write_file(join(gen, 'android/gradle.properties'), 'android.useAndroidX=true\n');
+	write_file(join(gen, 'android/app/build.gradle.kts'), `plugins { id("com.android.application") }
 android {
     namespace = ${esc(config.appId)}
     compileSdk = ${config.android.compileSdk}
@@ -118,12 +119,12 @@ android {
 }
 dependencies { implementation(project(":gpui-mobile")) }
 `);
-	write_file(join(generated, 'android/app/src/main/AndroidManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
+	write_file(join(gen, 'android/app/src/main/AndroidManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><application android:label=${esc(config.name)}${icon} android:theme="@android:style/Theme.Material.Light.NoActionBar"><activity android:name="dev.gpuix.mobile.MainActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="adjustResize" android:exported="true"><meta-data android:name="android.app.lib_name" android:value="gpuix_app"/><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
 `);
-	write_file(join(generated, 'android/app/src/main/java/dev/gpuix/mobile/MainActivity.java'), template('MainActivity.java'));
-	write_file(join(generated, 'android/app/src/main/cpp/bridge.c'), template('android.c'));
-	write_file(join(generated, 'android/app/src/main/cpp/CMakeLists.txt'), template('CMakeLists.txt'));
+	write_file(join(gen, 'android/app/src/main/java/dev/gpuix/mobile/MainActivity.java'), template('MainActivity.java'));
+	write_file(join(gen, 'android/app/src/main/cpp/bridge.c'), template('android.c'));
+	write_file(join(gen, 'android/app/src/main/cpp/CMakeLists.txt'), template('CMakeLists.txt'));
 }
 
 export function ios_architecture(simulator: boolean, host_arch: string = process.arch) {
@@ -135,16 +136,17 @@ export function ios_cargo_env(config: MobileConfig, clang: string, bindgen_args:
 	return { CLANG_PATH: process.env.CLANG_PATH ?? clang, BINDGEN_EXTRA_CLANG_ARGS: bindgen_args, IPHONEOS_DEPLOYMENT_TARGET: config.ios.deploymentTarget };
 }
 
-function ios_files(config: MobileConfig) {
+function ios_files(config: MobileConfig, project_root = root) {
+	const gen = join(project_root, '.gpuix/mobile');
 	if (config.icon) {
-		const catalog = join(generated, 'ios/Images.xcassets/AppIcon.appiconset');
-		write_file(join(catalog, 'icon.png'), readFileSync(resolve(root, config.icon)));
+		const catalog = join(gen, 'ios/Images.xcassets/AppIcon.appiconset');
+		write_file(join(catalog, 'icon.png'), readFileSync(resolve(project_root, config.icon)));
 		write_file(join(catalog, 'Contents.json'), JSON.stringify({ images: [{ filename: 'icon.png', idiom: 'universal', platform: 'ios', size: '1024x1024' }], info: { author: 'xcode', version: 1 } }));
 	}
 	const icon_source = config.icon ? '      - Images.xcassets\n' : '';
 	const icon_setting = config.icon ? '        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon\n' : '';
 	const team = config.ios.teamId ? `        DEVELOPMENT_TEAM: ${config.ios.teamId}\n` : '';
-	write_file(join(generated, 'ios/project.yml'), `name: ${config.name}
+	write_file(join(gen, 'ios/project.yml'), `name: ${config.name}
 schemes:
   ${config.name}:
     build:
@@ -197,26 +199,29 @@ ${team}${icon_setting}        CLANG_ENABLE_OBJC_ARC: YES
         HEADER_SEARCH_PATHS: ["$(TXIKI_SOURCE)/src", "$(TXIKI_SOURCE)/deps/quickjs", "$(TXIKI_SOURCE)/deps/libuv/include"]
         OTHER_LDFLAGS: ["-force_load $(GPUIX_RUST_LIB)", "-force_load $(TXIKI_LIB)", "-lc++", "-lz", "-framework UIKit", "-framework Metal", "-framework MetalKit", "-framework QuartzCore", "-framework CoreGraphics", "-framework CoreText", "-framework CoreFoundation", "-framework Foundation", "-framework Security", "-framework SystemConfiguration", "-framework AudioToolbox", "-framework WebKit", "-framework CoreMedia", "-framework AVFoundation", "-framework LocalAuthentication", "-framework Contacts", "-framework EventKit", "-framework StoreKit", "-framework CoreMotion", "-ObjC"]
 `);
-	for (const [from, to] of [['main.m', 'main.m'], ['ios.c', 'bridge.c'], ['gpui_ios.h', 'gpui_ios.h']]) write_file(join(generated, 'ios', to!), template(from!));
+	for (const [from, to] of [['main.m', 'main.m'], ['ios.c', 'bridge.c'], ['gpui_ios.h', 'gpui_ios.h']]) write_file(join(gen, 'ios', to!), template(from!));
 }
 
-export function scaffold(config: MobileConfig) {
-	safe_generated_dir();
-	write_file(join(generated, 'native/Cargo.toml'), rust_files());
-	write_file(join(generated, 'native/src/lib.rs'), '#[cfg(target_os = "android")]\nmod android;\n#[cfg(target_os = "ios")]\nmod ios;\n');
-	for (const name of ['android.rs', 'ios.rs']) write_file(join(generated, 'native/src', name), template(name));
-	write_file(join(generated, 'native/.gpuix-mobile'), 'Generated by gpuix-svelte mobile; safe to replace.\n');
-	android_files(config);
-	ios_files(config);
+export function scaffold(config: MobileConfig, project_root = root) {
+	const gen = join(project_root, '.gpuix/mobile');
+	const mark = join(gen, '.gpuix-mobile');
+	if (existsSync(gen) && !existsSync(mark)) error(`refusing to write ${gen}: it is not marked as gpuix-svelte generated`);
+	mkdirSync(gen, { recursive: true });
+	writeFileSync(mark, 'Generated by gpuix-svelte mobile; this directory is safe to replace.\n');
+
+	write_file(join(gen, 'native/Cargo.toml'), rust_files());
+	write_file(join(gen, 'native/src/lib.rs'), '#[cfg(target_os = "android")]\nmod android;\n#[cfg(target_os = "ios")]\nmod ios;\n');
+	for (const name of ['android.rs', 'ios.rs']) write_file(join(gen, 'native/src', name), template(name));
+	write_file(join(gen, 'native/.gpuix-mobile'), 'Generated by gpuix-svelte mobile; safe to replace.\n');
+	android_files(config, project_root);
+	ios_files(config, project_root);
 }
 
-function init() {
-	const path = join(root, 'gpuix.mobile.json');
-	if (existsSync(path)) error('gpuix.mobile.json already exists; edit it instead of overwriting it');
+function init(explicit_entry?: string) {
 	safe_generated_dir();
-	write_file(path, `${JSON.stringify(DEFAULT_MOBILE_CONFIG, null, 2)}\n`);
-	scaffold(read_mobile_config(root));
-	console.log(`[mobile] created gpuix.mobile.json and ${generated}; edit the app settings before building`);
+	const config = read_mobile_config(explicit_entry, root);
+	scaffold(config);
+	console.log(`[mobile] created ${generated}; configure app settings in render()`);
 }
 
 function output(command: string, args: string[]): string {
@@ -284,10 +289,10 @@ export async function gradle_wrapper(directory: string, download: (url: string) 
 	return jar;
 }
 
-async function build(platform: 'android' | 'ios', run_after: boolean, options: { simulator: boolean; device?: string; release: boolean }) {
-	const config = read_mobile_config(root);
+async function build(platform: 'android' | 'ios', run_after: boolean, options: { simulator: boolean; device?: string; release: boolean; entry?: string }) {
+	const config = read_mobile_config(options.entry, root);
 	const entry = resolve(root, config.entry);
-	if (!existsSync(entry)) error(`entry does not exist: ${entry}; set entry in gpuix.mobile.json to your app's entry file`);
+	if (!existsSync(entry)) error(`entry does not exist: ${entry}; set entry file or create app.ts with render()`);
 	const ios_tools = platform === 'ios' ? ios_build_tools() : undefined;
 	let gradle = platform === 'android' ? find_gradle() : undefined;
 	let gradle_args: string[] = [];
@@ -362,20 +367,24 @@ export function watchable(path: string) {
 
 export async function run(argv = process.argv.slice(2)) {
 	const [action, platform, ...rest] = argv;
-	if (action === 'init' && platform === undefined) return init();
+	if (action === 'init') {
+		const entry = platform && !platform.startsWith('--') ? platform : rest.find(arg => !arg.startsWith('--'));
+		return init(entry);
+	}
 	if (action !== 'build' && action !== 'run') error('expected init, build or run');
 	if (platform !== 'android' && platform !== 'ios') error('expected android or ios');
-	let simulator = false; let release = false; let watching = false; let device: string | undefined;
+	let simulator = false; let release = false; let watching = false; let device: string | undefined; let entry: string | undefined;
 	for (let index = 0; index < rest.length; index++) {
 		if (rest[index] === '--simulator') simulator = true;
 		else if (rest[index] === '--release') release = true;
 		else if (rest[index] === '--watch') watching = true;
 		else if (rest[index] === '--device' && rest[index + 1]) device = rest[++index];
+		else if (!rest[index]!.startsWith('--') && !entry) entry = rest[index];
 		else error(`unknown option ${rest[index]}`);
 	}
 	if (watching && action !== 'run') error('--watch requires mobile run');
 	if (watching && release) error('--watch cannot be combined with --release');
-	const options = { simulator, device, release };
+	const options = { simulator, device, release, entry };
 	await build(platform as 'android' | 'ios', action === 'run', options);
 	if (!watching) return;
 	let timer: ReturnType<typeof setTimeout> | undefined;
