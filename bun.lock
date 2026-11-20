@@ -37,7 +37,7 @@
     },
     "packages/ui": {
       "name": "gpuix-svelte-ui",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "devDependencies": {
         "gpuix-svelte": "workspace:*",
       },

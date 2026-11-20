@@ -1249,11 +1249,10 @@ can lag). Merging the release PR publishes `gpuix-svelte`, `create-gpuix-svelte`
 `gpuix-svelte-ui` on Linux with npm trusted publishing (OIDC, `id-token: write`); each package has
 its own trusted publisher on npmjs.com (`khromov/gpuix-svelte`, workflow `release.yml`), and each
 publish step skips a version already on npm, so a job that failed part-way can be re-run. npm only
-lets a trusted publisher be configured on a package that already exists, so **`gpuix-svelte-ui`'s
-first version (0.6.0) is published by hand**: `npm run publish:ui` with an npm token **from the
-release PR's own branch**, before that PR merges. From `main` the version would still be 0.5.0, a
-toolkit that fails at import against `gpuix-svelte@0.5.0` (no `IS_GPUIX`, `media_query` or DOM
-build) and whose version number npm never gives back. `bun.lock` records the workspace's `version`,
+lets a trusted publisher be configured on a package that already exists, so a new package starts
+from an empty placeholder published by hand and then deprecated (`gpuix-svelte-ui@0.0.1`), and npm
+may hold a first publish in staged review for a while, showing only a `0.0.0-stage` stub.
+`bun.lock` records the workspace's `version`,
 which release-please does not bump; `bun install --frozen-lockfile` accepts the mismatch and the next
 plain `bun install` rewrites that line, which is fine to commit.
 **PR titles must be conventional commits** (`feat:`, `fix:`, `docs:`, `chore:` …) — squash merges
