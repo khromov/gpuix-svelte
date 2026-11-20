@@ -100,11 +100,13 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 	const first = <T>(reply: Promise<T>, ms: number) => Promise.race([reply, sleep(ms).then(() => 'timed out')]);
 	let ticks = 0;
+	let ticked_at = 0;
 	const hooks: { ticked?: () => void; wake?: (() => void) | null; committed?: () => void } = {};
 	const native = {
 		requiresTick: () => true,
 		tick() {
 			ticks++;
+			ticked_at = performance.now();
 			hooks.ticked?.();
 			return true;
 		},
@@ -153,10 +155,16 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	loop.stop();
 
 	loop = start_frame_loop(native, 100);
-	await after_tick();
-	const before_pair = ticks;
-	wake();
-	check('a wake straight after a tick, as a busy loop turn runs them, does not pump again', ticks - before_pair, 0);
+	// A busy runner can stall past the loop's 2 ms between the tick and this wake, which proves nothing, so that pair is taken again.
+	let paired = -1;
+	for (let tries = 0; tries < 10 && paired < 0; tries++) {
+		await after_tick();
+		const before_pair = ticks;
+		const tick = ticked_at;
+		wake();
+		if (performance.now() - tick < 2) paired = ticks - before_pair;
+	}
+	check('a wake straight after a tick, as a busy loop turn runs them, does not pump again', paired, 0);
 	await sleep(4);
 	const before_wake = ticks;
 	wake();
