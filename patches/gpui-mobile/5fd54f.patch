@@ -52,8 +52,8 @@ index 12d59a5..1d93073 100644
 +each launch, independent bindings, HOME/resume, rotation and post-rotation input.
 +Activity destruction starts a fresh app; HOME/resume and handled rotation retain
 +its state. This is not physical-device or production-readiness validation. The
-+repeatable harness is `gpuix-svelte/test/mobile-android/lifecycle.mjs` in the local
-+frontend fork. IME coverage and remaining platform limitations must be reported
++historical standalone-host harness is no longer maintained in the frontend.
++IME coverage and remaining platform limitations must be reported
 +separately from successful Activity recreation.
  
  ## Quick Start

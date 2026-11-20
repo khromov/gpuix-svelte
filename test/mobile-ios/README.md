@@ -11,5 +11,4 @@ focuses a text input and inserts text through UIKit, checks filesystem and clipb
 its delegate to simulate cancellation and selection, and verifies URL handoff. It does not
 operate the Files UI or VoiceOver, and it is not a physical-device test.
 
-`QuickJSUITests.swift` and `project.test.yml` are historical tests for the removed standalone
-QuickJS host, not txiki tests. Use `test/txiki-ios/test.sh` for the current mobile runtime.
+Use `test/txiki-ios/test.sh` for the txiki runtime integration test.
