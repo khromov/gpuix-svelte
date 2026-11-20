@@ -11,11 +11,11 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const version = '0.3.6';
 const checksum = 'a0437c0b83e636a92bd1a39fa1d05fb632ae671289537497b35871ffbe231b84';
-const patch = join(root, 'patches/gpui-pre', `${version}.patch`);
+const patches = [`${version}.patch`, 'mobile-interactions.patch'].map(name => join(root, 'patches/gpui-pre', name));
 const destination = join(root, '.generated/gpuix/.generated/gpui-pre');
 /** @param {Uint8Array} bytes */
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-const stamp = `${checksum}\n${sha256(readFileSync(patch))}\n`;
+const stamp = `${checksum}\n${patches.map(patch => sha256(readFileSync(patch))).join('\n')}\n`;
 const marker = '.gpuix-prepared';
 
 /** @param {string} program @param {string[]} args @param {string} cwd */
@@ -68,7 +68,7 @@ async function main() {
     writeFileSync(crate, await archive());
     command('tar', ['-xzf', crate, '-C', temp], temp);
     const source = join(temp, `gpui-pre-${version}`);
-    command('patch', ['--batch', '-p1', '-i', patch], source);
+    for (const patch of patches) command('patch', ['--batch', '-p1', '-i', patch], source);
     writeFileSync(join(source, marker), stamp);
     if (existsSync(destination)) rmSync(destination, { recursive: true });
     renameSync(source, destination);

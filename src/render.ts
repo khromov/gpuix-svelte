@@ -285,6 +285,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	const {
 		props = {},
 		rootStyle,
+		autoInsets,
 		onEvent,
 		onKeyDown,
 		onKeyUp,
@@ -314,7 +315,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 			handle_event(event, onEvent);
 		});
 
-		slot.native.init(window_options);
+		slot.native.init({ ...window_options, ...(autoInsets !== undefined && { autoInsets }) });
 		// Spelled out, not read through env() or a local const, so build()'s define folds the branch and its import away.
 		if (typeof process !== 'undefined' && process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');

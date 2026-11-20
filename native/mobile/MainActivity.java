@@ -17,6 +17,23 @@ public class MainActivity extends GpuiInputActivity {
     private final ArrayBlockingQueue<String> replies = new ArrayBlockingQueue<>(1);
     private volatile boolean closed;
     private Thread worker;
+    private boolean pendingBack;
+
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::onBackPressed);
+        }
+    }
+
+    @Override public synchronized void onBackPressed() { pendingBack = true; }
+    public synchronized boolean takeBack() {
+        boolean pending = pendingBack;
+        pendingBack = false;
+        return pending;
+    }
+    public void finishBack() { runOnUiThread(() -> super.onBackPressed()); }
 
     public boolean isEmulator() {
         return Build.FINGERPRINT.startsWith("generic") || Build.FINGERPRINT.contains("sdk_gphone") || Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish");
@@ -29,13 +46,8 @@ public class MainActivity extends GpuiInputActivity {
         File directory = new File(getFilesDir(), "txiki");
         try {
             if (!directory.isDirectory() && !directory.mkdirs()) throw new IllegalStateException("Cannot create bundle directory");
-            for (String name : new String[] {"main.mjs", "app.mjs"}) {
-                try (InputStream input = getAssets().open(name);
-                     FileOutputStream output = new FileOutputStream(new File(directory, name))) {
-                    byte[] buffer = new byte[8192];
-                    int n;
-                    while ((n = input.read(buffer)) != -1) output.write(buffer, 0, n);
-                }
+            for (String name : getAssets().list("")) {
+                if (name.equals("main.mjs") || name.equals("app.mjs") || name.startsWith("gpuix-asset-") || name.equals("gpuix-resources")) extractAsset(name, directory);
             }
         } catch (Exception error) {
             closed = true;
@@ -50,6 +62,22 @@ public class MainActivity extends GpuiInputActivity {
             }
         }, "txiki-owner");
         worker.start();
+    }
+
+    private void extractAsset(String name, File directory) throws Exception {
+        String[] children = getAssets().list(name);
+        if (children != null && children.length > 0) {
+            for (String child : children) extractAsset(name + "/" + child, directory);
+            return;
+        }
+        File destination = new File(directory, name);
+        File parent = destination.getParentFile();
+        if (!parent.isDirectory() && !parent.mkdirs()) throw new IllegalStateException("Cannot create asset directory");
+        try (InputStream input = getAssets().open(name); FileOutputStream output = new FileOutputStream(destination)) {
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = input.read(buffer)) != -1) output.write(buffer, 0, n);
+        }
     }
 
     public String exchange(String request) {

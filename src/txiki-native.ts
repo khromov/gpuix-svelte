@@ -1,4 +1,5 @@
 import type { EventPayload, PathPromptOptions } from '@gpuix/native';
+import { handle_back } from './back.ts';
 
 declare global {
 	var __gpuixCall: (request: string) => string;
@@ -26,14 +27,16 @@ export const hasTestGpuixRenderer = () => false;
 let next_prompt = 0;
 let next_upload = 0;
 
-function upload(bytes: Uint8Array, kind: string, ...args: unknown[]) {
+const MAX_UPLOAD = 32 * 1024 * 1024;
+function upload<T = void>(bytes: Uint8Array, kind: string, ...args: unknown[]): T {
+	if (bytes.byteLength > MAX_UPLOAD) throw new RangeError('Mobile upload exceeds 32 MiB');
 	const id = ++next_upload;
 	call('beginUpload', id, bytes.byteLength);
 	try {
 		for (let offset = 0; offset < bytes.length; offset += 64 * 1024) {
 			call('uploadChunk', id, Array.from(bytes.subarray(offset, offset + 64 * 1024)));
 		}
-		call('finishUpload', id, kind, ...args);
+		return call<T>('finishUpload', id, kind, ...args);
 	} catch (error) {
 		try { call('cancelUpload', id); } catch { /* Keep the original upload error if the session closed. */ }
 		throw error;
@@ -43,14 +46,25 @@ function upload(bytes: Uint8Array, kind: string, ...args: unknown[]) {
 export class GpuixRenderer {
 	private callback: (error: null, event: EventPayload) => void;
 	constructor(callback: (error: null, event: EventPayload) => void) { this.callback = callback; }
-	init(options?: unknown) { call('init', options ?? null); }
+	init(options?: { autoInsets?: boolean }) {
+		call('setAutoInsets', options?.autoInsets !== false);
+		call('init', options ?? null);
+	}
 	isInitialized(): boolean { return call('isInitialized'); }
-	applyBatch(json: string): number[] { return call<number[]>('applyBatch', json); }
+	applyBatch(json: string): number[] {
+		const request = JSON.stringify({ method: 'applyBatch', args: [json] });
+		if (request.length < 2 * 1024 * 1024) return call<number[]>('applyBatch', json);
+		if (json.length > MAX_UPLOAD) throw new Error('Failed to parse batch: mobile batch exceeds 32 MiB');
+		const bytes = new TextEncoder().encode(json);
+		if (bytes.byteLength > MAX_UPLOAD) throw new Error('Failed to parse batch: mobile batch exceeds 32 MiB');
+		return upload<number[]>(bytes, 'batch');
+	}
 	requiresTick() { return true; }
 	setFrameWakeCallback() { return false; }
 	tick(): boolean {
-		const { running, events } = call<{ running: boolean; events: EventPayload[] }>('tick');
+		const { running, events, back } = call<{ running: boolean; events: EventPayload[]; back?: boolean }>('tick');
 		for (const event of events) this.callback(null, event);
+		if (back && !handle_back()) call('finishBack');
 		return running;
 	}
 	getWindowSize() { return call('getWindowSize'); }
@@ -88,9 +102,6 @@ export class GpuixRenderer {
 	registerFont(bytes: Uint8Array) { upload(bytes, 'font'); }
 	setWindowTitle(title: string) { call('setWindowTitle', title); }
 	activateWindow() { call('activateWindow'); }
-	minimizeWindow() { call('minimizeWindow'); }
-	zoomWindow() { call('zoomWindow'); }
-	toggleFullscreen() { call('toggleFullscreen'); }
 	setDebugFrameOverlay(mode: string) { return call('setDebugFrameOverlay', mode); }
 	cycleDebugFrameOverlay() { return call('cycleDebugFrameOverlay'); }
 	getDebugFrameOverlay() { return call('getDebugFrameOverlay'); }

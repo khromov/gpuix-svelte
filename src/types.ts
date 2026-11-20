@@ -226,6 +226,8 @@ export interface RenderOptions extends WindowOptions {
 	/** Read by `gpuix-svelte/build`; the window takes only its title fallback, macOS menu name and app id from it. See `AppOptions`. */
 	app?: AppOptions;
 	rootStyle?: GpuiStyle;
+	/** Mobile pads the root by safe-area and keyboard insets by default; false leaves them to the app. */
+	autoInsets?: boolean;
 	onEvent?: (event: EventPayload) => void;
 	/** `on_window_key` handlers kept across remounts. */
 	onKeyDown?: (event: GpuixEvent) => void;

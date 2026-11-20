@@ -1,0 +1,66 @@
+--- a/src/ios/text_system.rs
++++ b/src/ios/text_system.rs
+@@ -137,21 +137,23 @@
+                     font_ids
+                 };
+ 
+-            let candidate_properties: SmallVec<[font_kit::properties::Properties; 4]> = candidates
+-                .iter()
+-                .map(|font_id| lock.fonts[font_id.0].properties())
+-                .collect();
+-
+-            let ix = font_kit::matching::find_best_match(
+-                &candidate_properties,
+-                &font_kit::properties::Properties {
+-                    style: font_style_to_fontkit(font.style),
+-                    weight: font_weight_to_fontkit(font.weight),
+-                    stretch: Default::default(),
+-                },
+-            )?;
+-
+-            let font_id = candidates[ix];
++            let font_id = if candidates.len() == 1 {
++                candidates[0]
++            } else {
++                let candidate_properties: SmallVec<[font_kit::properties::Properties; 4]> = candidates
++                    .iter()
++                    .map(|font_id| lock.fonts[font_id.0].properties())
++                    .collect();
++                let ix = font_kit::matching::find_best_match(
++                    &candidate_properties,
++                    &font_kit::properties::Properties {
++                        style: font_style_to_fontkit(font.style),
++                        weight: font_weight_to_fontkit(font.weight),
++                        stretch: Default::default(),
++                    },
++                )?;
++                candidates[ix]
++            };
+             lock.font_selections.insert(font.clone(), font_id);
+             Ok(font_id)
+         }
+@@ -238,8 +240,8 @@
+         let family = self
+             .memory_source
+             .select_family_by_name(name)
+-            .or_else(|_| self.system_source.select_family_by_name(name))?;
+-        for font in family.fonts() {
++            .or_else(|_| self.system_source.select_family_by_name(name));
++        for font in family.iter().flat_map(|family| family.fonts()) {
+             let mut font = font.load()?;
+ 
+             apply_features_and_fallbacks(&mut font, features, fallbacks)?;
+@@ -302,6 +304,13 @@
+             self.postscript_names_by_font_id
+                 .insert(font_id, postscript_name);
+             self.fonts.push(font);
++        }
++        if font_ids.is_empty() {
++            if let Ok(native) = core_text::font::new_from_name(name, 16.0) {
++                if native.family_name().eq_ignore_ascii_case(name) {
++                    font_ids.push(self.id_for_native_font(native));
++                }
++            }
+         }
+         Ok(font_ids)
+     }

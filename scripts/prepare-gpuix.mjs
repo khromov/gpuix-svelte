@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const revision = 'a53b294401280014e94eb9bd98a7c7ed1929f92d';
 const checksum = 'ce2fb9a377be4625e1c7444ed2e894a3c3baccd6685c8d5f85838f481dc52ef9';
-const patches = ['embedded.patch', 'mobile-parity.patch'].map(name => join(root, 'patches/gpuix', name));
+const patches = ['embedded.patch', 'mobile-parity.patch', 'interactions.patch'].map(name => join(root, 'patches/gpuix', name));
 const parent = join(root, '.generated');
 const destination = join(parent, 'gpuix');
 const marker = '.gpuix-prepared';

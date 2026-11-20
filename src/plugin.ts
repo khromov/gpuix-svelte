@@ -4,7 +4,7 @@
  * so the hooks are also exported for a build script to wire up itself.
  */
 
-import { plugin, type OnLoadArgs, type OnLoadResult, type OnResolveArgs, type PluginBuilder } from 'bun';
+import { plugin, type OnLoadArgs, type OnResolveArgs, type PluginBuilder } from 'bun';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
@@ -21,14 +21,14 @@ let reloading = false;
 
 // Older Bun kept `render_hot`'s `?v=N` cache-buster in `args.path`, so strip it before touching
 // the filesystem; 1.4.4 drops it, and `invalidate_svelte` below empties `require.cache` instead.
-export function load_svelte(args: OnLoadArgs): OnLoadResult {
+export function load_svelte(args: OnLoadArgs): { contents: string; loader: 'js' } {
 	const path = args.path.replace(/\?.*$/, '');
 	const query = args.path.slice(path.length);
 
 	return { contents: compile_svelte(path, query, query !== '' || (reloading && reloads(path))), loader: 'js' };
 }
 
-export function load_module(args: OnLoadArgs): OnLoadResult {
+export function load_module(args: OnLoadArgs): { contents: string; loader: 'js' } {
 	const path = args.path.replace(/\?.*$/, '');
 	const source = path.endsWith('.ts') ? transpiler.transformSync(readFileSync(path, 'utf8')) : undefined;
 

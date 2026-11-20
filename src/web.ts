@@ -24,6 +24,8 @@ export {
 	dismiss_layer
 } from './renderer.ts';
 export { dismiss_scope } from './layers.ts';
+export { on_window_back } from './back.ts';
+export { asset_path } from './assets.ts';
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
 export {

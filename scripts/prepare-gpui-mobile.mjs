@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const revision = '5fd54f4554263ae06753e90472c7f2e2ff5d7495';
 const checksum = 'fb062e5ac28e866edf98018020e657d2b4e92677dbba1e84c9e975f8a18656ac';
-const patches = ['5fd54f.patch', 'mobile-parity.patch', 'accessibility-events.patch', 'android-back.patch', 'android-clipboard.patch'].map(name => join(root, 'patches/gpui-mobile', name));
+const patches = ['5fd54f.patch', 'mobile-parity.patch', 'accessibility-events.patch', 'android-back.patch', 'android-clipboard.patch', 'ios-fonts.patch'].map(name => join(root, 'patches/gpui-mobile', name));
 const parent = join(root, '.generated/gpuix/.generated');
 const destination = join(parent, 'gpui-mobile');
 const marker = '.gpuix-prepared';

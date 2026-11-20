@@ -1,0 +1,117 @@
+--- a/src/window.rs
++++ b/src/window.rs
+@@ -5739,6 +5739,38 @@
+                 if started {
+                     self.touch_gestures
+                         .resolve_touch_drag(self.default_prevented);
++                }
++                // Captured desktop drags must see the same stream when the pointer is a finger.
++                if self.captured_hitbox.is_some() {
++                    self.mouse_position = touch_drag.position;
++                    cx.propagate_event = true;
++                    match touch_drag.phase {
++                        crate::TouchPhase::Started => self.dispatch_mouse_event(&crate::MouseDownEvent {
++                            position: touch_drag.position,
++                            button: crate::MouseButton::Left,
++                            click_count: 1,
++                            ..Default::default()
++                        }, cx),
++                        crate::TouchPhase::Moved => self.dispatch_mouse_event(&crate::MouseMoveEvent {
++                            position: touch_drag.position,
++                            pressed_button: Some(crate::MouseButton::Left),
++                            ..Default::default()
++                        }, cx),
++                        crate::TouchPhase::Ended => self.dispatch_mouse_event(&crate::MouseUpEvent {
++                            position: touch_drag.position,
++                            button: crate::MouseButton::Left,
++                            click_count: 1,
++                            ..Default::default()
++                        }, cx),
++                        crate::TouchPhase::Cancelled => {
++                            self.dispatch_mouse_event(&crate::MouseMoveEvent {
++                                position: touch_drag.position,
++                                pressed_button: None,
++                                ..Default::default()
++                            }, cx);
++                            self.release_pointer();
++                        }
++                    }
+                 }
+             }
+             RecognizedTouchGesture::LongPress(long_press) => {
+--- a/src/elements/div.rs
++++ b/src/elements/div.rs
+@@ -24,7 +24,7 @@
+     MouseClickEvent, MouseDownEvent, MouseExitEvent, MouseMoveEvent, MousePressureEvent,
+     MouseUpEvent, OngoingScroll, Overflow, ParentElement, PinchEvent, Pixels, Point, Render,
+     ScrollWheelEvent, SharedString, Size, Style, StyleRefinement, Styled, Task, TooltipId,
+-    TouchPhase, Visibility, Window, WindowControlArea, point, px, size,
++    TouchDragEvent, TouchPhase, Visibility, Window, WindowControlArea, point, px, size,
+ };
+ use collections::HashMap;
+ use gpui_util::ResultExt;
+@@ -895,6 +895,12 @@
+         self
+     }
+ 
++    /// Handle a long press without also delivering a tap.
++    fn on_long_press(mut self, listener: impl Fn(&LongPressEvent, &mut Window, &mut App) + 'static) -> Self {
++        self.interactivity().long_press_listeners.push(Box::new(listener));
++        self
++    }
++
+     /// Capture the pointer on left mouse down so move and up keep targeting this
+     /// element after the pointer leaves its bounds. Released on mouse up, or when
+     /// this element is not painted.
+@@ -2188,6 +2194,7 @@
+         Box<dyn Fn(&dyn Any, &mut Window, &mut App) -> StyleRefinement>,
+     )>,
+     pub(crate) group_drag_over_styles: Vec<(TypeId, GroupStyle)>,
++    pub(crate) long_press_listeners: Vec<Box<dyn Fn(&LongPressEvent, &mut Window, &mut App)>>,
+     pub(crate) mouse_down_listeners: Vec<MouseDownListener>,
+     pub(crate) mouse_up_listeners: Vec<MouseUpListener>,
+     pub(crate) mouse_pressure_listeners: Vec<MousePressureListener>,
+@@ -2456,6 +2463,7 @@
+             || !self.drag_over_styles.is_empty()
+             || self.tooltip_builder.is_some()
+             || self.capture_pointer
++            || !self.long_press_listeners.is_empty()
+             || window.is_inspector_picking(cx)
+     }
+ 
+@@ -2823,9 +2831,35 @@
+             window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
+                 listener(event, phase, &hitbox, window, cx);
+             })
++        }
++
++        for listener in self.long_press_listeners.drain(..) {
++            let hitbox = hitbox.clone();
++            window.on_mouse_event(move |event: &LongPressEvent, phase, window, cx| {
++                if phase == DispatchPhase::Bubble
++                    && !window.default_prevented()
++                    && hitbox.is_hovered_at(event.start_position, window)
++                {
++                    listener(event, window, cx);
++                    window.prevent_default();
++                    cx.stop_propagation();
++                }
++            });
+         }
+ 
+         if self.capture_pointer {
++            let touch_hitbox = hitbox.clone();
++            window.on_mouse_event(move |event: &TouchDragEvent, phase, window, cx| {
++                if event.phase == TouchPhase::Started
++                    && phase == DispatchPhase::Bubble
++                    && !window.default_prevented()
++                    && touch_hitbox.is_hovered_at(event.start_position, window)
++                {
++                    window.capture_pointer(touch_hitbox.id);
++                    window.prevent_default();
++                    cx.stop_propagation();
++                }
++            });
+             let hitbox = hitbox.clone();
+             window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
+                 if phase == DispatchPhase::Bubble && event.button == MouseButton::Left && hitbox.is_hovered(window) {

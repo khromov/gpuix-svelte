@@ -1306,6 +1306,23 @@ workflow is optional: an interactive run asks (and for `owner/repo`, which it wr
 `consume` gets. `--no-github` removes `.github/`, `release-please-config.json` and
 `.release-please-manifest.json` after the copy.
 
+## Mobile
+
+`gpuix-svelte mobile` bundles a txiki.js entry and builds a native shell; `MOBILE_SUPPORT.md` has the
+setup and limitations. Imported images and fonts are copied beside `main.mjs` under hashed names;
+Android extracts them from assets and iOS copies their original bytes after Xcode's resource phase,
+since Xcode's PNG conversion produces CgBI images GPUI cannot decode. The synchronous bridge chunks
+large mutation batches as well as image and font uploads, so a single `applyBatch` remains atomic.
+Relative filesystem paths resolve against the app data directory reported by `process.cwd()`; async
+filesystem calls run on host workers, while synchronous calls block. The bridge caps individual file
+reads, writes, images and fonts at 32 MiB. Statically imported assets and literal `new URL` assets
+are bundled; configured `assets` retain their names and `asset_path()` resolves them at runtime.
+The mobile GPUI patches bridge captured touch drags to mouse handlers, long presses to secondary
+clicks and tooltips, slider accessibility adjustments to arrow keys, and Android Back through IME,
+dismiss layers and the router before the OS. `--watch` rebuilds and relaunches, not hot-reloads.
+`test/txiki-android/parity-test.py` and `test/txiki-ios/parity-test.sh` drive a built mobile fixture;
+physical devices and screen readers still need testing.
+
 ## Runtime
 
 Node 26 (`.nvmrc`; `nvm use` before anything). Install with `bun install` (CI: `--frozen-lockfile`;

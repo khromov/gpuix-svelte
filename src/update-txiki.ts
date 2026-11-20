@@ -1,4 +1,5 @@
 export type { EmbeddedAppInfo, UpdateFragment } from './app-bundle.ts';
+export { updated_from, wait_for_previous_instance, type PreviousInstance } from './txiki-previous-instance.ts';
 import type { CheckOptions, UpdateErrorCode } from './update.ts';
 
 export type {
@@ -27,14 +28,13 @@ export function app_info(): null {
 	return null;
 }
 
-export function check_for_update(_options?: CheckOptions): Promise<null> {
+export async function check_for_update(_options?: CheckOptions): Promise<null> {
 	void _options;
-	return Promise.reject(unavailable());
+	return null;
 }
 
-export function finish_update(_target?: string): never {
+export function finish_update(_target?: string): void {
 	void _target;
-	throw unavailable();
 }
 
 export function generate_keys(..._args: unknown[]): never { void _args; throw unavailable(); }

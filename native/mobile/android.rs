@@ -41,8 +41,20 @@ impl Session {
                 .and_then(|v| v.l()).map_err(|e| e.to_string())?;
             if request.is_null() { return Ok(()); }
             let request = platform::get_string(env, &request);
-            let result = serde_json::from_str(&request)
-                .map_err(anyhow::Error::from).and_then(|request| gpuix_svelte_txiki_host::dispatch::dispatch(&self.renderer, &self.events, &self.prompts, request));
+            let result = (|| -> anyhow::Result<serde_json::Value> {
+                let request: gpuix_svelte_txiki_host::dispatch::Request = serde_json::from_str(&request)?;
+                if request.method == "finishBack" {
+                    env.call_method(&self.activity, jni::jni_str!("finishBack"), jni::jni_sig!("()V"), &[])?;
+                    return Ok(serde_json::Value::Null);
+                }
+                let tick = request.method == "tick";
+                let mut result = gpuix_svelte_txiki_host::dispatch::dispatch(&self.renderer, &self.events, &self.prompts, request)?;
+                if tick {
+                    let back = env.call_method(&self.activity, jni::jni_str!("takeBack"), jni::jni_sig!("()Z"), &[])?.z()?;
+                    result["back"] = json!(back);
+                }
+                Ok(result)
+            })();
             let reply = match result {
                 Ok(value) => json!({ "value": value }),
                 Err(error) => json!({ "error": error.to_string() }),

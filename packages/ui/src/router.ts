@@ -7,7 +7,7 @@
 
 import type { Snippet } from 'svelte';
 import { createSubscriber } from 'svelte/reactivity';
-import { IS_GPUIX, type AnyComponent } from 'gpuix-svelte';
+import { IS_GPUIX, on_window_back, type AnyComponent } from 'gpuix-svelte';
 
 /** `history` keeps the URL through the history API, `hash` through `#/path`; a window is always `memory`. */
 export type Mode = 'history' | 'hash' | 'memory';
@@ -108,6 +108,7 @@ const win = (): Window | null => (IS_GPUIX ? null : (globalThis.window ?? null))
 let mode: Mode = 'memory';
 let base = '';
 let started = false;
+let off_back: (() => void) | undefined;
 let patterns: readonly string[] = [];
 let hooks: Hook[] = [];
 let afters: AfterHook[] = [];
@@ -441,6 +442,11 @@ export function use_routes(table: readonly string[]) {
 export function start_router({ mode: wanted = 'history', initial = '/', base: prefix = '' }: { mode?: Mode; initial?: string; base?: string } = {}) {
 	if (started) return;
 	started = true;
+	if (IS_GPUIX) off_back = on_window_back(() => {
+		if (index <= 0) return false;
+		void back();
+		return true;
+	});
 	const w = win();
 	mode = w && wanted !== 'memory' ? wanted : 'memory';
 	// Through the URL parser, so it reads as `location.pathname` does and a base with a space in it is still stripped.
@@ -480,6 +486,8 @@ export function start_router({ mode: wanted = 'history', initial = '/', base: pr
 export function stop_router() {
 	if (!started) return;
 	started = false;
+	off_back?.();
+	off_back = undefined;
 	win()?.removeEventListener('popstate', on_pop);
 	hooks = [];
 	afters = [];

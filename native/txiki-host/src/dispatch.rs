@@ -4,11 +4,11 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 type PromptResult = Result<Option<Vec<String>>, String>;
 #[derive(Default)]
-pub struct Prompts(Arc<Mutex<HashMap<u64, Option<PromptResult>>>>, Mutex<HashMap<u64, (usize, Vec<u8>)>>);
+pub struct Prompts(Arc<Mutex<HashMap<u64, Option<PromptResult>>>>, Mutex<HashMap<u64, (usize, Vec<u8>)>>, Arc<Mutex<HashMap<u64, Option<String>>>>);
 
 #[derive(Deserialize)]
 pub struct Request {
-    method: String,
+    pub method: String,
     args: Vec<Value>,
 }
 
@@ -31,9 +31,36 @@ pub fn dispatch(renderer: &gpuix_core::EmbeddedRenderer, events: &Mutex<Vec<gpui
     Ok(match request.method.as_str() {
         "paths" => crate::paths()?,
         "fs" => json!(crate::fs::dispatch(arg(0)?.to_string())),
+        "beginFs" => {
+            let id = arg(0)?.as_u64().ok_or_else(|| anyhow::anyhow!("Invalid filesystem job id"))?;
+            let request = arg(1)?.to_string();
+            let jobs = prompts.2.clone();
+            {
+                let mut pending = jobs.lock().unwrap();
+                if pending.len() >= 16 || pending.contains_key(&id) { anyhow::bail!("Too many pending filesystem jobs"); }
+                pending.insert(id, None);
+            }
+            if let Err(error) = std::thread::Builder::new().name("gpuix-fs".into()).spawn(move || {
+                let result = crate::fs::dispatch(request);
+                jobs.lock().unwrap().insert(id, Some(result));
+            }) {
+                prompts.2.lock().unwrap().remove(&id);
+                return Err(error.into());
+            }
+            Value::Null
+        }
+        "pollFs" => {
+            let id = arg(0)?.as_u64().ok_or_else(|| anyhow::anyhow!("Invalid filesystem job id"))?;
+            let mut jobs = prompts.2.lock().unwrap();
+            match jobs.get(&id) {
+                None => anyhow::bail!("Unknown filesystem job id"),
+                Some(None) => json!({ "done": false }),
+                Some(Some(_)) => json!({ "done": true, "value": jobs.remove(&id).unwrap().unwrap() }),
+            }
+        }
         "beginUpload" => {
             let id = arg(0)?.as_u64().ok_or_else(|| anyhow::anyhow!("Invalid upload id"))?;
-            let length = arg(1)?.as_u64().filter(|n| *n <= 256 * 1024 * 1024).ok_or_else(|| anyhow::anyhow!("Upload exceeds 256 MiB"))? as usize;
+            let length = arg(1)?.as_u64().filter(|n| *n <= 32 * 1024 * 1024).ok_or_else(|| anyhow::anyhow!("Upload exceeds 32 MiB"))? as usize;
             let mut uploads = prompts.1.lock().unwrap();
             if !uploads.is_empty() { anyhow::bail!("Upload already in progress"); }
             uploads.insert(id, (length, Vec::new()));
@@ -57,6 +84,7 @@ pub fn dispatch(renderer: &gpuix_core::EmbeddedRenderer, events: &Mutex<Vec<gpui
             let (length, data) = prompts.1.lock().unwrap().remove(&id).ok_or_else(|| anyhow::anyhow!("Unknown upload"))?;
             if data.len() != length { anyhow::bail!("Incomplete upload"); }
             match string(1)?.as_str() {
+                "batch" => return Ok(json!(r.apply_batch(String::from_utf8(data)?)?)),
                 "image" => r.set_image_bytes(number(2)?, data)?,
                 "pixels" => r.set_image_pixels_bytes(number(2)?, number(3)?, number(4)?, data, serde_json::from_value(arg(5)?)?)?,
                 "font" => r.register_font_bytes(data)?,
@@ -64,6 +92,7 @@ pub fn dispatch(renderer: &gpuix_core::EmbeddedRenderer, events: &Mutex<Vec<gpui
             }
             Value::Null
         }
+        "setAutoInsets" => { r.set_auto_insets(boolean(0)?)?; Value::Null }
         "init" => { r.init(serde_json::from_value(arg(0)?)?)?; Value::Null }
         "isInitialized" => json!(r.is_initialized()),
         "applyBatch" => json!(r.apply_batch(string(0)?)?),

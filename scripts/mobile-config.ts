@@ -7,6 +7,10 @@ export interface MobileConfig {
 	entry: string;
 	name: string;
 	appId: string;
+	version?: string;
+	buildNumber?: number;
+	icon?: string;
+	assets?: string[];
 	ios: { deploymentTarget: string; teamId?: string };
 	android: { abis: AndroidAbi[]; compileSdk: number; minSdk: number; targetSdk: number; ndkVersion: string };
 }
@@ -15,6 +19,8 @@ export const DEFAULT_MOBILE_CONFIG: MobileConfig = {
 	entry: 'app.ts',
 	name: 'My App',
 	appId: 'dev.example.myapp',
+	version: '0.1.0',
+	buildNumber: 1,
 	ios: { deploymentTarget: '16.0' },
 	android: { abis: ['arm64-v8a'], compileSdk: 36, minSdk: 26, targetSdk: 36, ndkVersion: '29.0.14206865' }
 };
@@ -31,6 +37,10 @@ export function validate_mobile_config(value: unknown): MobileConfig {
 	if (!/^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$/.test(name)) fail('name may contain letters, numbers, spaces, dots, underscores and hyphens');
 	const appId = str(config.appId, 'appId');
 	if (!/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(appId)) fail('appId must be a reverse-domain identifier, such as dev.example.app');
+	if (config.version !== undefined && !/^\d+\.\d+\.\d+$/.test(str(config.version, 'version'))) fail('version must have three numeric components');
+	if (config.buildNumber !== undefined && positive(config.buildNumber, 'buildNumber') > 2100000000) fail('buildNumber must not exceed 2100000000');
+	if (config.icon !== undefined) str(config.icon, 'icon');
+	if (config.assets !== undefined && (!Array.isArray(config.assets) || config.assets.some(path => typeof path !== 'string' || !path || path.startsWith('/') || path.split(/[\\/]/).some(part => !part || part === '.' || part === '..')))) fail('assets must be relative file or directory paths within the project');
 	if (!config.ios || typeof config.ios !== 'object') fail('ios settings are required');
 	const ios = config.ios as MobileConfig['ios'];
 	if (!/^\d+\.\d+$/.test(str(ios.deploymentTarget, 'ios.deploymentTarget'))) fail('ios.deploymentTarget must be a version such as 16.0');

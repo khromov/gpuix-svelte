@@ -1,4 +1,3 @@
-const cwd = globalThis.process?.cwd?.() || '/';
 export const sep = '/';
 export const delimiter = ':';
 function asPath(value: string): string {
@@ -32,7 +31,7 @@ export function resolve(...paths: string[]): string {
 		const part = asPath(paths[i]!);
 		if (part) result = `${part}/${result}`;
 	}
-	if (!result.startsWith(sep)) result = `${cwd}/${result}`;
+	if (!result.startsWith(sep)) result = `${globalThis.process?.cwd?.() || '/'}/${result}`;
 	const resolved = normalize(result);
 	return resolved.length > 1 ? resolved.replace(/\/$/, '') : resolved;
 }
@@ -55,7 +54,33 @@ export function basename(path: string, suffix?: string): string {
 	return base;
 }
 export function extname(path: string): string {
-	const base = basename(path); const index = base.lastIndexOf('.');
+	const base = basename(path);
+	const index = base.lastIndexOf('.');
 	return index <= 0 || base === '..' ? '' : base.slice(index);
 }
-export default { sep, delimiter, isAbsolute, normalize, join, resolve, dirname, basename, extname };
+export function relative(from: string, to: string): string {
+	const left = resolve(from).split('/').filter(Boolean);
+	const right = resolve(to).split('/').filter(Boolean);
+	let shared = 0;
+	while (shared < left.length && shared < right.length && left[shared] === right[shared]) shared++;
+	return [...left.slice(shared).map(() => '..'), ...right.slice(shared)].join('/');
+}
+export interface ParsedPath { root: string; dir: string; base: string; ext: string; name: string }
+export function parse(value: string): ParsedPath {
+	const path = asPath(value);
+	const root = path.startsWith('/') ? '/' : '';
+	const base = basename(path);
+	const parent = dirname(path);
+	const dir = parent === '.' ? '' : parent;
+	const ext = extname(base);
+	return { root, dir, base, ext, name: base.slice(0, base.length - ext.length) };
+}
+export function format(path: Partial<ParsedPath>): string {
+	if (!path || typeof path !== 'object') throw new TypeError('path must be an object');
+	const dir = path.dir || path.root || '';
+	const ext = path.ext && !path.ext.startsWith('.') ? `.${path.ext}` : path.ext || '';
+	const base = path.base || `${path.name || ''}${ext}`;
+	return dir ? dir === path.root ? dir + base : `${dir}/${base}` : base;
+}
+export const posix = { sep, delimiter, isAbsolute, normalize, join, resolve, dirname, basename, extname, relative, parse, format, get posix() { return posix; } };
+export default posix;

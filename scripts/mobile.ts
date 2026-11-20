@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { delimiter, dirname, join, resolve } from 'node:path';
+import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
+import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { build_txiki_bundle } from '../src/txiki-bundle.ts';
@@ -14,7 +14,7 @@ const scripts = join(package_root, 'scripts');
 const gpuix = join(package_root, '.generated/gpuix');
 const generated = join(root, '.gpuix/mobile');
 const marker = join(generated, '.gpuix-mobile');
-const usage = 'usage: gpuix-svelte mobile init | build|run android|ios [--simulator] [--device <id>]';
+const usage = 'usage: gpuix-svelte mobile init | build|run android|ios [--simulator] [--device <id>] [--release] [--watch]';
 const error = (message: string): never => { throw new Error(`[mobile] ${message}\n${usage}`); };
 const esc = (value: string) => JSON.stringify(value);
 const template = (name: string) => readFileSync(join(package_root, 'native/mobile', name), 'utf8');
@@ -23,6 +23,25 @@ const run_command = (command: string, args: string[], cwd = root, env: NodeJS.Pr
 function write_file(path: string, content: string | Uint8Array) {
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, content);
+}
+
+export function copy_asset(name: string, assets: string) {
+	const base = realpathSync(root);
+	const requested = resolve(root, name);
+	if (lstatSync(requested).isSymbolicLink()) error(`asset symlinks are not supported: ${requested}`);
+	const source = realpathSync(requested);
+	const inside = relative(base, source);
+	if (!inside || inside === '..' || inside.startsWith(`..${sep}`)) error(`asset escapes the project: ${name}`);
+	const copy = (from: string, to: string) => {
+		if (lstatSync(from).isSymbolicLink()) error(`asset symlinks are not supported: ${from}`);
+		const real = realpathSync(from);
+		const rel = relative(base, real);
+		if (rel === '..' || rel.startsWith(`..${sep}`)) error(`asset escapes the project: ${from}`);
+		if (statSync(real).isDirectory()) {
+			for (const child of readdirSync(real)) copy(join(real, child), join(to, child));
+		} else write_file(to, readFileSync(real));
+	};
+	copy(source, join(assets, 'gpuix-resources', name));
 }
 
 function safe_generated_dir() {
@@ -59,6 +78,8 @@ gpui-pre-wgpu = { path = ${esc(join(gpuix, '.generated/gpui-pre-wgpu'))} }
 }
 
 function android_files(config: MobileConfig) {
+	const icon = config.icon ? ' android:icon="@drawable/gpuix_icon"' : '';
+	if (config.icon) write_file(join(generated, 'android/app/src/main/res/drawable-nodpi/gpuix_icon.png'), readFileSync(resolve(root, config.icon)));
 	const dependency = join(gpuix, '.generated/gpui-mobile/android').replaceAll('\\', '/');
 	write_file(join(generated, 'android/settings.gradle.kts'), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
@@ -77,10 +98,20 @@ android {
         applicationId = ${esc(config.appId)}
         minSdk = ${config.android.minSdk}
         targetSdk = ${config.android.targetSdk}
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = ${config.buildNumber ?? 1}
+        versionName = ${esc(config.version ?? '0.1.0')}
         ndk { abiFilters += listOf(${config.android.abis.map(esc).join(', ')}) }
         externalNativeBuild { cmake { targets += listOf("txiki_app"); arguments += listOf("-DTXIKI_SOURCE=" + (System.getenv("GPUIX_TXIKI_SOURCE") ?: error("Missing txiki source")), "-DBUILD_WITH_FFI=OFF", "-DBUILD_WITH_WASM=OFF", "-DBUILD_WITH_MIMALLOC=OFF", "-DBUILD_WITH_SQLITE=OFF") } }
+    }
+    val releaseStore = System.getenv("GPUIX_ANDROID_KEYSTORE")
+    if (releaseStore != null) {
+        signingConfigs.create("gpuixRelease") {
+            storeFile = file(releaseStore)
+            storePassword = System.getenv("GPUIX_ANDROID_STORE_PASSWORD") ?: error("Missing GPUIX_ANDROID_STORE_PASSWORD")
+            keyAlias = System.getenv("GPUIX_ANDROID_KEY_ALIAS") ?: error("Missing GPUIX_ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("GPUIX_ANDROID_KEY_PASSWORD") ?: error("Missing GPUIX_ANDROID_KEY_PASSWORD")
+        }
+        buildTypes.getByName("release").signingConfig = signingConfigs.getByName("gpuixRelease")
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
@@ -88,7 +119,7 @@ android {
 dependencies { implementation(project(":gpui-mobile")) }
 `);
 	write_file(join(generated, 'android/app/src/main/AndroidManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><application android:label=${esc(config.name)} android:theme="@android:style/Theme.Material.Light.NoActionBar"><activity android:name="dev.gpuix.mobile.MainActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="adjustResize" android:exported="true"><meta-data android:name="android.app.lib_name" android:value="gpuix_app"/><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><application android:label=${esc(config.name)}${icon} android:theme="@android:style/Theme.Material.Light.NoActionBar"><activity android:name="dev.gpuix.mobile.MainActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="adjustResize" android:exported="true"><meta-data android:name="android.app.lib_name" android:value="gpuix_app"/><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
 `);
 	write_file(join(generated, 'android/app/src/main/java/dev/gpuix/mobile/MainActivity.java'), template('MainActivity.java'));
 	write_file(join(generated, 'android/app/src/main/cpp/bridge.c'), template('android.c'));
@@ -105,6 +136,13 @@ export function ios_cargo_env(config: MobileConfig, clang: string, bindgen_args:
 }
 
 function ios_files(config: MobileConfig) {
+	if (config.icon) {
+		const catalog = join(generated, 'ios/Images.xcassets/AppIcon.appiconset');
+		write_file(join(catalog, 'icon.png'), readFileSync(resolve(root, config.icon)));
+		write_file(join(catalog, 'Contents.json'), JSON.stringify({ images: [{ filename: 'icon.png', idiom: 'universal', platform: 'ios', size: '1024x1024' }], info: { author: 'xcode', version: 1 } }));
+	}
+	const icon_source = config.icon ? '      - Images.xcassets\n' : '';
+	const icon_setting = config.icon ? '        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon\n' : '';
 	const team = config.ios.teamId ? `        DEVELOPMENT_TEAM: ${config.ios.teamId}\n` : '';
 	write_file(join(generated, 'ios/project.yml'), `name: ${config.name}
 schemes:
@@ -123,23 +161,39 @@ targets:
       - main.m
       - bridge.c
       - gpui_ios.h
-      - path: assets
+${icon_source}      - path: assets
         buildPhase: resources
+    postBuildScripts:
+      - name: Copy GPUI assets
+        script: |
+          for asset in "$SRCROOT"/assets/gpuix-asset-*; do
+            [ -f "$asset" ] || continue
+            cp -f "$asset" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"
+          done
+          if [ -d "$SRCROOT/assets/gpuix-resources" ]; then
+            rm -rf "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/gpuix-resources"
+            cp -R "$SRCROOT/assets/gpuix-resources" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"
+          fi
     info:
       path: Info.plist
       properties:
+        CFBundleShortVersionString: "${config.version ?? '0.1.0'}"
+        CFBundleVersion: "${config.buildNumber ?? 1}"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ${config.appId}
+        MARKETING_VERSION: ${config.version ?? '0.1.0'}
+        CURRENT_PROJECT_VERSION: ${config.buildNumber ?? 1}
         INFOPLIST_KEY_CFBundleDisplayName: ${config.name}
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
-${team}        CLANG_ENABLE_OBJC_ARC: YES
+${team}${icon_setting}        CLANG_ENABLE_OBJC_ARC: YES
         ENABLE_BITCODE: NO
         ENABLE_DEBUG_DYLIB: NO
+        COMPRESS_PNG_FILES: NO
         HEADER_SEARCH_PATHS: ["$(TXIKI_SOURCE)/src", "$(TXIKI_SOURCE)/deps/quickjs", "$(TXIKI_SOURCE)/deps/libuv/include"]
         OTHER_LDFLAGS: ["-force_load $(GPUIX_RUST_LIB)", "-force_load $(TXIKI_LIB)", "-lc++", "-lz", "-framework UIKit", "-framework Metal", "-framework MetalKit", "-framework QuartzCore", "-framework CoreGraphics", "-framework CoreText", "-framework CoreFoundation", "-framework Foundation", "-framework Security", "-framework SystemConfiguration", "-framework AudioToolbox", "-framework WebKit", "-framework CoreMedia", "-framework AVFoundation", "-framework LocalAuthentication", "-framework Contacts", "-framework EventKit", "-framework StoreKit", "-framework CoreMotion", "-ObjC"]
 `);
@@ -230,7 +284,7 @@ export async function gradle_wrapper(directory: string, download: (url: string) 
 	return jar;
 }
 
-async function build(platform: 'android' | 'ios', run_after: boolean, options: { simulator: boolean; device?: string }) {
+async function build(platform: 'android' | 'ios', run_after: boolean, options: { simulator: boolean; device?: string; release: boolean }) {
 	const config = read_mobile_config(root);
 	const entry = resolve(root, config.entry);
 	if (!existsSync(entry)) error(`entry does not exist: ${entry}; set entry in gpuix.mobile.json to your app's entry file`);
@@ -251,7 +305,9 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 	scaffold(config);
 	const files = await build_txiki_bundle(entry, { platform, production: true });
 	const assets = join(generated, platform === 'android' ? 'android/app/src/main/assets' : 'ios/assets');
+	if (existsSync(assets)) for (const name of readdirSync(assets)) if (name.startsWith('gpuix-asset-') || name === 'gpuix-resources') rmSync(join(assets, name), { recursive: true, force: true });
 	for (const [name, bytes] of files) write_file(join(assets, name), bytes);
+	for (const name of config.assets ?? []) copy_asset(name, assets);
 	const manifest = join(generated, 'native/Cargo.toml');
 	const cargo_target = process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(generated, 'native/target');
 	const work = join(generated, 'txiki');
@@ -263,12 +319,13 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 		const llvm = join(ndk, 'toolchains/llvm/prebuilt', host);
 		const env = { ANDROID_HOME: sdk, ANDROID_NDK_HOME: ndk, CLANG_PATH: process.env.CLANG_PATH ?? join(llvm, 'bin/clang'), BINDGEN_EXTRA_CLANG_ARGS: `${process.env.BINDGEN_EXTRA_CLANG_ARGS ?? ''} --sysroot=${join(llvm, 'sysroot')}`, CARGO_TARGET_DIR: cargo_target, GPUIX_TXIKI_SOURCE: source };
 		for (const abi of config.android.abis) run_command('cargo', ['ndk', '-t', abi, '-P', String(config.android.minSdk), '-o', join(generated, 'android/app/src/main/jniLibs'), 'build', '--manifest-path', manifest, '--lib', '--release'], join(generated, 'native'), env);
-		run_command(gradle!, [...gradle_args, 'assembleDebug'], join(generated, 'android'), env);
+		run_command(gradle!, [...gradle_args, ...(options.release ? ['assembleRelease', 'bundleRelease'] : ['assembleDebug'])], join(generated, 'android'), env);
 		if (run_after) {
+			if (options.release && !process.env.GPUIX_ANDROID_KEYSTORE) error('running a release APK requires GPUIX_ANDROID_KEYSTORE and signing credentials');
 			const devices = output('adb', ['devices']).split('\n').filter(line => /\tdevice$/.test(line)).map(line => line.split('\t')[0]!);
 			const selected = options.device ?? devices[0];
 			if (!selected || !devices.includes(selected)) error('no authorized Android device/emulator matches; connect one or pass --device <serial>');
-			run_command('adb', ['-s', selected!, 'install', '-r', join(generated, 'android/app/build/outputs/apk/debug/app-debug.apk')]);
+			run_command('adb', ['-s', selected!, 'install', '-r', join(generated, options.release ? 'android/app/build/outputs/apk/release/app-release.apk' : 'android/app/build/outputs/apk/debug/app-debug.apk')]);
 			run_command('adb', ['-s', selected!, 'shell', 'am', 'start', '-n', `${config.appId}/dev.gpuix.mobile.MainActivity`]);
 		}
 	} else {
@@ -277,13 +334,13 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 		const library = build_txiki_ios(source, work, options.simulator, arch.xcode, config.ios.deploymentTarget, ios_tools!);
 		run_command('cargo', ['build', '--manifest-path', manifest, '--lib', '--release', '--target', arch.rust], root, { ...ios_cargo_env(config, output('xcrun', ['--find', 'clang']), `-isysroot ${sdk}`), CARGO_TARGET_DIR: cargo_target });
 		run_command(ios_tools!.xcodegen, ['generate', '--spec', 'project.yml'], join(generated, 'ios'));
-		const args = ['-project', join(generated, 'ios', `${config.name}.xcodeproj`), '-scheme', config.name, '-configuration', 'Debug', '-derivedDataPath', join(generated, 'ios/DerivedData'), '-destination', options.device ? `id=${options.device}` : options.simulator ? 'generic/platform=iOS Simulator' : 'generic/platform=iOS', `ARCHS=${arch.xcode}`, 'ONLY_ACTIVE_ARCH=YES', `TXIKI_SOURCE=${source}`, `TXIKI_LIB=${library}`, `GPUIX_RUST_LIB=${join(cargo_target, arch.rust, 'release/libgpuix_app.a')}`];
+		const args = ['-project', join(generated, 'ios', `${config.name}.xcodeproj`), '-scheme', config.name, '-configuration', options.release ? 'Release' : 'Debug', '-derivedDataPath', join(generated, 'ios/DerivedData'), '-destination', options.device ? `id=${options.device}` : options.simulator ? 'generic/platform=iOS Simulator' : 'generic/platform=iOS', `ARCHS=${arch.xcode}`, 'ONLY_ACTIVE_ARCH=YES', `TXIKI_SOURCE=${source}`, `TXIKI_LIB=${library}`, `GPUIX_RUST_LIB=${join(cargo_target, arch.rust, 'release/libgpuix_app.a')}`];
 		if (options.simulator) args.push('CODE_SIGNING_ALLOWED=NO');
 		run_command('xcodebuild', [...args, 'build']);
 		if (run_after) {
 			const device = options.device;
 			if (!device) error('iOS run needs --device <UDID>; use --simulator for a simulator destination');
-			const app = join(generated, `ios/DerivedData/Build/Products/Debug-${options.simulator ? 'iphonesimulator' : 'iphoneos'}`, `${config.name}.app`);
+			const app = join(generated, `ios/DerivedData/Build/Products/${options.release ? 'Release' : 'Debug'}-${options.simulator ? 'iphonesimulator' : 'iphoneos'}`, `${config.name}.app`);
 			if (options.simulator) {
 				const booted = JSON.parse(output('xcrun', ['simctl', 'list', 'devices', 'booted', '--json'])).devices as Record<string, { udid: string }[]>;
 				if (!Object.values(booted).flat().some(item => item.udid === device)) run_command('xcrun', ['simctl', 'boot', device!]);
@@ -299,18 +356,55 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 	console.log(`[mobile] txiki ${platform} ${run_after ? 'build and launch' : 'build'} complete`);
 }
 
+export function watchable(path: string) {
+	return !path.split(/[\\/]/).some(part => part === '.gpuix' || part === '.git' || part === 'node_modules' || part === 'dist');
+}
+
 export async function run(argv = process.argv.slice(2)) {
 	const [action, platform, ...rest] = argv;
 	if (action === 'init' && platform === undefined) return init();
 	if (action !== 'build' && action !== 'run') error('expected init, build or run');
 	if (platform !== 'android' && platform !== 'ios') error('expected android or ios');
-	let simulator = false; let device: string | undefined;
+	let simulator = false; let release = false; let watching = false; let device: string | undefined;
 	for (let index = 0; index < rest.length; index++) {
 		if (rest[index] === '--simulator') simulator = true;
+		else if (rest[index] === '--release') release = true;
+		else if (rest[index] === '--watch') watching = true;
 		else if (rest[index] === '--device' && rest[index + 1]) device = rest[++index];
 		else error(`unknown option ${rest[index]}`);
 	}
-	await build(platform as 'android' | 'ios', action === 'run', { simulator, device });
+	if (watching && action !== 'run') error('--watch requires mobile run');
+	if (watching && release) error('--watch cannot be combined with --release');
+	const options = { simulator, device, release };
+	await build(platform as 'android' | 'ios', action === 'run', options);
+	if (!watching) return;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let building = false;
+	let pending = false;
+	const rebuild = async () => {
+		if (building) { pending = true; return; }
+		building = true;
+		try {
+			console.log('[mobile] rebuilding after a change');
+			await build(platform as 'android' | 'ios', true, options);
+		} catch (error) { console.error(error); }
+		finally {
+			building = false;
+			if (pending) { pending = false; timer = setTimeout(rebuild, 300); }
+		}
+	};
+	const watcher = watch(root, { recursive: true }, (_event, name) => {
+		if (!name || !watchable(name.toString())) return;
+		clearTimeout(timer);
+		timer = setTimeout(rebuild, 300);
+	});
+	console.log('[mobile] watching the project; changes rebuild and relaunch the app');
+	await new Promise<void>((resolve, reject) => {
+		const stop = () => { clearTimeout(timer); watcher.close(); resolve(); };
+		watcher.on('error', reject);
+		process.once('SIGINT', stop);
+		process.once('SIGTERM', stop);
+	});
 }
 
 if (import.meta.main) await run();
