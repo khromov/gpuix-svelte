@@ -5,6 +5,14 @@ Android or iOS app with txiki.js and GPUI. The same Svelte renderer runs on the 
 owns the UI thread, and bounded requests and events cross between them. Mobile builds need a network
 connection on first use to fetch pinned native sources, Rust and the platform toolchains.
 
+The package ships with prebuilt Rust libraries for common mobile targets, so the first build skips
+compiling the heavy GPUI dependency tree from source. When prebuilts are available for your target,
+the build copies the prebuilt library instead of running `cargo build`, reducing first-build time
+from many minutes to seconds. Prebuilts cover Android (arm64-v8a, x86_64) and iOS (arm64 device,
+arm64 and x86_64 simulators). If your target has no prebuilt (e.g. armeabi-v7a), the build falls
+back to compiling from source as before. Rebuild the prebuilts after updating gpuix-svelte with
+`npm run prebuild:mobile`.
+
 ```sh
 gpuix-svelte mobile init
 gpuix-svelte mobile build android

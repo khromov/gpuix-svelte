@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +75,27 @@ log = "0.4"
 gpui-pre = { path = ${esc(join(gpuix, '.generated/gpui-pre'))} }
 gpui-pre-wgpu = { path = ${esc(join(gpuix, '.generated/gpui-pre-wgpu'))} }
 `;
+}
+
+/** Check if prebuilt libraries are available for the given platform and ABI. */
+export function has_prebuilt(platform: 'android' | 'ios', abi: string): boolean {
+	const prebuiltDir = join(package_root, 'native/prebuilt', platform, abi);
+	if (platform === 'android') {
+		return existsSync(join(prebuiltDir, 'libgpuix_app.so'));
+	}
+	return existsSync(join(prebuiltDir, 'libgpuix_app.a'));
+}
+
+/** Copy the prebuilt library for the given platform and ABI to the output directory. */
+export function copy_prebuilt(platform: 'android' | 'ios', abi: string, outDir: string) {
+	const prebuiltDir = join(package_root, 'native/prebuilt', platform, abi);
+	mkdirSync(outDir, { recursive: true });
+	if (platform === 'android') {
+		// Android expects jniLibs/<abi>/libgpuix_app.so — outDir is already the abi subdirectory
+		copyFileSync(join(prebuiltDir, 'libgpuix_app.so'), join(outDir, 'libgpuix_app.so'));
+	} else {
+		copyFileSync(join(prebuiltDir, 'libgpuix_app.a'), join(outDir, 'libgpuix_app.a'));
+	}
 }
 
 function android_files(config: MobileConfig, project_root = root) {
@@ -323,7 +344,16 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 		const host = process.platform === 'darwin' ? 'darwin-x86_64' : process.platform === 'linux' ? 'linux-x86_64' : 'windows-x86_64';
 		const llvm = join(ndk, 'toolchains/llvm/prebuilt', host);
 		const env = { ANDROID_HOME: sdk, ANDROID_NDK_HOME: ndk, CLANG_PATH: process.env.CLANG_PATH ?? join(llvm, 'bin/clang'), BINDGEN_EXTRA_CLANG_ARGS: `${process.env.BINDGEN_EXTRA_CLANG_ARGS ?? ''} --sysroot=${join(llvm, 'sysroot')}`, CARGO_TARGET_DIR: cargo_target, GPUIX_TXIKI_SOURCE: source };
-		for (const abi of config.android.abis) run_command('cargo', ['ndk', '-t', abi, '-P', String(config.android.minSdk), '-o', join(generated, 'android/app/src/main/jniLibs'), 'build', '--manifest-path', manifest, '--lib', '--release'], join(generated, 'native'), env);
+		const usePrebuilt = has_prebuilt('android', config.android.abis[0]);
+		if (usePrebuilt) {
+			console.log('[mobile] using prebuilt Rust libraries (skip cargo build)');
+			for (const abi of config.android.abis) {
+				const abiDir = join(generated, 'android/app/src/main/jniLibs', abi);
+				copy_prebuilt('android', abi, abiDir);
+			}
+		} else {
+			for (const abi of config.android.abis) run_command('cargo', ['ndk', '-t', abi, '-P', String(config.android.minSdk), '-o', join(generated, 'android/app/src/main/jniLibs'), 'build', '--manifest-path', manifest, '--lib', '--release'], join(generated, 'native'), env);
+		}
 		run_command(gradle!, [...gradle_args, ...(options.release ? ['assembleRelease', 'bundleRelease'] : ['assembleDebug'])], join(generated, 'android'), env);
 		if (run_after) {
 			if (options.release && !process.env.GPUIX_ANDROID_KEYSTORE) error('running a release APK requires GPUIX_ANDROID_KEYSTORE and signing credentials');
@@ -337,9 +367,20 @@ async function build(platform: 'android' | 'ios', run_after: boolean, options: {
 		const arch = ios_architecture(options.simulator);
 		const sdk = output('xcrun', ['--sdk', options.simulator ? 'iphonesimulator' : 'iphoneos', '--show-sdk-path']);
 		const library = build_txiki_ios(source, work, options.simulator, arch.xcode, config.ios.deploymentTarget, ios_tools!);
-		run_command('cargo', ['build', '--manifest-path', manifest, '--lib', '--release', '--target', arch.rust], root, { ...ios_cargo_env(config, output('xcrun', ['--find', 'clang']), `-isysroot ${sdk}`), CARGO_TARGET_DIR: cargo_target });
+		const iosAbi = arch.xcode + (options.simulator ? '-sim' : '');
+		const usePrebuilt = has_prebuilt('ios', iosAbi);
+		let rustLib;
+		if (usePrebuilt) {
+			console.log('[mobile] using prebuilt Rust libraries (skip cargo build)');
+			const prebuiltOut = join(generated, 'ios/prebuilt');
+			copy_prebuilt('ios', iosAbi, prebuiltOut);
+			rustLib = join(prebuiltOut, 'libgpuix_app.a');
+		} else {
+			run_command('cargo', ['build', '--manifest-path', manifest, '--lib', '--release', '--target', arch.rust], root, { ...ios_cargo_env(config, output('xcrun', ['--find', 'clang']), `-isysroot ${sdk}`), CARGO_TARGET_DIR: cargo_target });
+			rustLib = join(cargo_target, arch.rust, 'release/libgpuix_app.a');
+		}
 		run_command(ios_tools!.xcodegen, ['generate', '--spec', 'project.yml'], join(generated, 'ios'));
-		const args = ['-project', join(generated, 'ios', `${config.name}.xcodeproj`), '-scheme', config.name, '-configuration', options.release ? 'Release' : 'Debug', '-derivedDataPath', join(generated, 'ios/DerivedData'), '-destination', options.device ? `id=${options.device}` : options.simulator ? 'generic/platform=iOS Simulator' : 'generic/platform=iOS', `ARCHS=${arch.xcode}`, 'ONLY_ACTIVE_ARCH=YES', `TXIKI_SOURCE=${source}`, `TXIKI_LIB=${library}`, `GPUIX_RUST_LIB=${join(cargo_target, arch.rust, 'release/libgpuix_app.a')}`];
+		const args = ['-project', join(generated, 'ios', `${config.name}.xcodeproj`), '-scheme', config.name, '-configuration', options.release ? 'Release' : 'Debug', '-derivedDataPath', join(generated, 'ios/DerivedData'), '-destination', options.device ? `id=${options.device}` : options.simulator ? 'generic/platform=iOS Simulator' : 'generic/platform=iOS', `ARCHS=${arch.xcode}`, 'ONLY_ACTIVE_ARCH=YES', `TXIKI_SOURCE=${source}`, `TXIKI_LIB=${library}`, `GPUIX_RUST_LIB=${rustLib}`];
 		if (options.simulator) args.push('CODE_SIGNING_ALLOWED=NO');
 		run_command('xcodebuild', [...args, 'build']);
 		if (run_after) {

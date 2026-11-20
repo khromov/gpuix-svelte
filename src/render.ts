@@ -76,7 +76,7 @@ function host(): Host {
  * host's `onEvent` may let one through, and a handler's must not cost the host its `onEvent`.
  */
 export function handle_event(event: EventPayload, onEvent?: (event: EventPayload) => void) {
-	if (!PAINT_EVENTS.has(event.eventType)) running_loop?.input();
+	if (!PAINT_EVENTS.has(event.eventType)) running_loop?.immediate?.();
 	try {
 		dispatch(event);
 		// Run Svelte's effects now, so the
@@ -96,7 +96,7 @@ export function handle_event(event: EventPayload, onEvent?: (event: EventPayload
 const frame_waiters: Array<() => void> = [];
 
 /** What reaches the running frame loop between its ticks. */
-let running_loop: { soon(): void; input(): void } | null = null;
+let running_loop: { soon(): void; input(): void; immediate?(): void } | null = null;
 
 /** Resolves after the frame loop's next `tick()`, which it brings forward to a frame after the last, or a frame's worth of time where there is no loop. */
 export function next_frame(): Promise<void> {
@@ -232,6 +232,15 @@ export function start_frame_loop(
 		input() {
 			last_active = performance.now();
 			soon();
+		},
+		immediate() {
+			last_active = performance.now();
+			// User input unconditionally forces a reschedule, bypassing both the
+			// display-link guard in soon() and the "don't push back" guard in schedule().
+			if (timer !== null) clearTimeout(timer);
+			timer = null;
+			due = 0;
+			timer = setTimeout(loop, 0);
 		}
 	};
 	// A timer or a fetch changes the tree between wakes, and an idle window's next tick may be a long way off.

@@ -1309,19 +1309,25 @@ workflow is optional: an interactive run asks (and for `owner/repo`, which it wr
 ## Mobile
 
 `gpuix-svelte mobile` bundles a txiki.js entry and builds a native shell; `MOBILE_SUPPORT.md` has the
-setup and limitations. Imported images and fonts are copied beside `main.mjs` under hashed names;
-Android extracts them from assets and iOS copies their original bytes after Xcode's resource phase,
-since Xcode's PNG conversion produces CgBI images GPUI cannot decode. The synchronous bridge chunks
-large mutation batches as well as image and font uploads, so a single `applyBatch` remains atomic.
-Relative filesystem paths resolve against the app data directory reported by `process.cwd()`; async
-filesystem calls run on host workers, while synchronous calls block. The bridge caps individual file
-reads, writes, images and fonts at 32 MiB. Statically imported assets and literal `new URL` assets
-are bundled; configured `assets` retain their names and `asset_path()` resolves them at runtime.
-The mobile GPUI patches bridge captured touch drags to mouse handlers, long presses to secondary
-clicks and tooltips, slider accessibility adjustments to arrow keys, and Android Back through IME,
-dismiss layers and the router before the OS. `--watch` rebuilds and relaunches, not hot-reloads.
-`test/txiki-android/parity-test.py` and `test/txiki-ios/parity-test.sh` drive a built mobile fixture;
-physical devices and screen readers still need testing.
+setup and limitations. The Rust mobile library (gpuix-app) is identical across all consumers — it
+only contains android.rs and ios.rs from `native/mobile/` — so `scripts/build-prebuilt.mjs`
+(`npm run prebuild:mobile`) compiles it once for each target and ships the prebuilt binaries under
+`native/prebuilt/`. The mobile build in `scripts/mobile.ts` checks for prebuilts via `has_prebuilt()`
+and copies them via `copy_prebuilt()` instead of running `cargo build`, skipping the heavy GPUI
+dependency compilation. Prebuilts cover Android arm64-v8a and x86_64, plus iOS arm64 device and
+arm64/x86_64 simulators. Unsupported ABIs fall back to a source build. Imported images and fonts are
+copied beside `main.mjs` under hashed names; Android extracts them from assets and iOS copies their
+original bytes after Xcode's resource phase, since Xcode's PNG conversion produces CgBI images GPUI
+cannot decode. The synchronous bridge chunks large mutation batches as well as image and font uploads,
+so a single `applyBatch` remains atomic. Relative filesystem paths resolve against the app data
+directory reported by `process.cwd()`; async filesystem calls run on host workers, while synchronous
+calls block. The bridge caps individual file reads, writes, images and fonts at 32 MiB. Statically
+imported assets and literal `new URL` assets are bundled; configured `assets` retain their names and
+`asset_path()` resolves them at runtime. The mobile GPUI patches bridge captured touch drags to mouse
+handlers, long presses to secondary clicks and tooltips, slider accessibility adjustments to arrow
+keys, and Android Back through IME, dismiss layers and the router before the OS. `--watch` rebuilds
+and relaunches, not hot-reloads. `test/txiki-android/parity-test.py` and `test/txiki-ios/parity-test.sh`
+drive a built mobile fixture; physical devices and screen readers still need testing.
 
 ## Runtime
 
