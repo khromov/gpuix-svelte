@@ -27,7 +27,8 @@ export function bundle_hot_entries(source: string, path: string): string {
 			if (arg?.type === 'NewExpression' && arg.callee.type === 'Identifier' && arg.callee.name === 'URL' && arg.arguments[0]?.type === 'Literal' && typeof arg.arguments[0].value === 'string') target = arg.arguments[0].value;
 			if (target === undefined) throw new Error(`[txiki] render_hot() in ${path} needs a literal component path; computed paths cannot be bundled for txiki.js`);
 			const component = `__gpuix_txiki_component_${imports.length}`;
-			imports.push(`import ${component} from ${JSON.stringify(resolve(dirname(path), target))};`);
+			const resolved = resolve(dirname(path), target).replace(/\\/g, '/');
+			imports.push(`import ${component} from ${JSON.stringify(resolved)};`);
 			edits.push({ start: arg.start, end: arg.end, value: component });
 		}
 		for (const [key, value] of Object.entries(node)) {
