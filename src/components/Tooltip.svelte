@@ -49,6 +49,8 @@
 
 	let shown = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let long_press_timer: ReturnType<typeof setTimeout> | undefined;
+	let opened_by_longpress = false;
 
 	// A pointer that jumps onto the tip enters it before it leaves the trigger, so hover is tracked per
 	// source rather than by the last event, and the 80 ms grace once none is hovered lets it cross the gap.
@@ -62,8 +64,26 @@
 
 	function hide() {
 		clearTimeout(timer);
+		clearTimeout(long_press_timer);
+		opened_by_longpress = false;
 		over.focus = false;
 		shown = false;
+	}
+
+	function on_press_down() {
+		clearTimeout(long_press_timer);
+		long_press_timer = setTimeout(() => {
+			opened_by_longpress = true;
+			shown = true;
+		}, 500);
+	}
+
+	function on_press_up() {
+		clearTimeout(long_press_timer);
+		if (opened_by_longpress) {
+			opened_by_longpress = false;
+			timer = setTimeout(() => (shown = false), 1500);
+		}
 	}
 
 	const track = (source: Exclude<keyof typeof over, 'focus'>): Hover => ({
@@ -75,6 +95,7 @@
 		},
 		onmouseleave: () => {
 			over[source] = false;
+			clearTimeout(long_press_timer);
 			sync();
 		}
 	});
@@ -106,17 +127,20 @@
 		return dismiss_layer({ onEscape: hide, scope });
 	});
 
-	onDestroy(() => clearTimeout(timer));
+	onDestroy(() => {
+		clearTimeout(timer);
+		clearTimeout(long_press_timer);
+	});
 </script>
 
 <div class="host">
-	<div class="anchor" hitbox="self" {...wrap} testId={testid}>
+	<div class="anchor" hitbox="self" {...wrap} onmousedown={on_press_down} onmouseup={on_press_up} testId={testid}>
 		{@render children(trigger, focus)}
 		{#if open ?? shown}
 			<div class="pin" style:justify-content={x} style:align-items={y}>
 				<div class="dot">
 					<anchored {side} align="start" anchor={CORNERS[side][align]} {gap} occlude={false} class="layer" {...tip}>
-						<div class="tip" {style} testId={testid && `${testid}-tip`}>
+						<div class="tip" role="tooltip" {style} testId={testid && `${testid}-tip`}>
 							{#if typeof content === 'string'}{content}{:else}{@render content()}{/if}
 						</div>
 					</anchored>

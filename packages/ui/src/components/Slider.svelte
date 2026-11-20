@@ -81,7 +81,17 @@
 	function keydown(e: KeyLike) {
 		if (disabled || chorded(e)) return;
 		const key = key_of(e);
-		const delta = key === 'right' || key === 'up' ? step : key === 'left' || key === 'down' ? -step : null;
+		const big_step = Math.max(step, (max - min) / 10);
+		const delta =
+			key === 'right' || key === 'up'
+				? step
+				: key === 'left' || key === 'down'
+					? -step
+					: key === 'pageup'
+						? big_step
+						: key === 'pagedown'
+							? -big_step
+							: null;
 		if (delta !== null) {
 			e.preventDefault();
 			set(value + delta);
@@ -107,6 +117,7 @@
 		class:dragging
 		class:disabled
 		role="slider"
+		aria-orientation="horizontal"
 		aria-label={label}
 		aria-valuetext={format(value)}
 		{...aria_value(value, min, max)}

@@ -4,6 +4,8 @@
  * text, and matched against the window's size: width, height and orientation are all a window has to say.
  */
 
+import { get_rem_size } from './style.ts';
+
 export interface Viewport {
 	width: number;
 	height: number;
@@ -47,7 +49,7 @@ function length(text: string): number | null {
 	const value = parseFloat(match[1]);
 	if (value < 0) return null;
 	if (match[2] === undefined) return value === 0 ? 0 : null;
-	return match[2].toLowerCase() === 'px' ? value : value * 16;
+	return match[2].toLowerCase() === 'px' ? value : value * get_rem_size();
 }
 
 function dimension(text: string): Dimension | null {

@@ -76,7 +76,7 @@ function host(): Host {
  * host's `onEvent` may let one through, and a handler's must not cost the host its `onEvent`.
  */
 export function handle_event(event: EventPayload, onEvent?: (event: EventPayload) => void) {
-	if (!PAINT_EVENTS.has(event.eventType)) running_loop?.immediate?.();
+	if (!PAINT_EVENTS.has(event.eventType)) running_loop?.input();
 	try {
 		dispatch(event);
 		// Run Svelte's effects now, so the
