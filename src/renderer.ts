@@ -23,6 +23,7 @@ import { build_style, declare_vars, define_css_vars, define_sheet_vars, flush_va
 import { media_active, media_changed, type Viewport } from './media.ts';
 import { to_gpui_event, WINDOW_KEY_EVENTS } from './events.ts';
 import { place_layer } from './layers.ts';
+import { set_back_dismiss } from './back.ts';
 import type {
 	ClassRule,
 	DismissLayer,
@@ -75,6 +76,7 @@ const BOOLEAN_PROPS = set_of<PropsOf<boolean>>()([
 	'occlude',
 	'followTail'
 ]);
+const NUMERIC_ARIA = new Set(['aria-valuenow', 'aria-valuemin', 'aria-valuemax']);
 const NUMBER_PROPS = set_of<PropsOf<number>>()([
 	'tabIndex',
 	'aria-level',
@@ -202,6 +204,11 @@ let keystroke: KeystrokeFlags = { id: undefined, prevented: false, stopped: fals
 
 /** Open overlays, the top one last. */
 let layers: DismissLayer[] = [];
+set_back_dismiss(() => {
+	if (layers.length === 0) return false;
+	layers.at(-1)?.onEscape();
+	return true;
+});
 
 /**
  * GPUI's X11 client reports a held key's repeats as fresh presses, with no release in between. So on Linux an
@@ -593,7 +600,7 @@ const prop_name = (key: string) => PROP_ALIASES.get(key.toLowerCase()) ?? key;
 /** As HTML reads a boolean attribute, `readonly`, `readonly=""` and `readonly="readonly"` are all true; `"false"` is not. */
 function normalize_prop(name: string, value: unknown) {
 	if (BOOLEAN_PROPS.has(name)) return typeof value === 'string' ? value !== 'false' : Boolean(value);
-	if (!NUMBER_PROPS.has(name)) return value;
+	if (!NUMBER_PROPS.has(name) && !NUMERIC_ARIA.has(name)) return value;
 	const blank = typeof value === 'string' && value.trim() === '';
 	// A bare `tabindex` has always meant a tab stop here, and a `<button>` that carries one skips its default 0.
 	if (blank && name === 'tabIndex') return 0;
@@ -608,7 +615,7 @@ function normalize_prop(name: string, value: unknown) {
 
 function apply_prop(el: ShadowNode, key: string, value: unknown) {
 	const name = prop_name(key);
-	if (BUILT_IN_TYPES.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name)) return;
+	if (BUILT_IN_TYPES.has(map_tag(el.name)) && !UNIVERSAL_PROPS.has(name) && !NUMERIC_ARIA.has(name)) return;
 	if (el.nativeId === null) return;
 	emit(['setCustomProp', el.nativeId, name, value === null ? null : normalize_prop(name, value)]);
 }

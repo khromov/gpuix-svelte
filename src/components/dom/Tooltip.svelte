@@ -37,6 +37,8 @@
 	let anchor = $state<HTMLElement | null>(null);
 	let shown = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let long_press_timer: ReturnType<typeof setTimeout> | undefined;
+	let opened_by_longpress = false;
 
 	// The wrapper and the trigger's spread handlers report separately, so hover is tracked per source
 	// rather than by the last event, and the 80 ms grace once neither is hovered covers the handoff.
@@ -50,8 +52,26 @@
 
 	function hide() {
 		clearTimeout(timer);
+		clearTimeout(long_press_timer);
+		opened_by_longpress = false;
 		over.focus = false;
 		shown = false;
+	}
+
+	function on_press_down() {
+		clearTimeout(long_press_timer);
+		long_press_timer = setTimeout(() => {
+			opened_by_longpress = true;
+			shown = true;
+		}, 500);
+	}
+
+	function on_press_up() {
+		clearTimeout(long_press_timer);
+		if (opened_by_longpress) {
+			opened_by_longpress = false;
+			timer = setTimeout(() => (shown = false), 1500);
+		}
 	}
 
 	const track = (source: Exclude<keyof typeof over, 'focus'>): Hover => ({
@@ -62,6 +82,7 @@
 		},
 		onmouseleave: () => {
 			over[source] = false;
+			clearTimeout(long_press_timer);
 			sync();
 		}
 	});
@@ -92,11 +113,22 @@
 		return dismiss_layer({ onEscape: hide, scope });
 	});
 
-	onDestroy(() => clearTimeout(timer));
+	onDestroy(() => {
+		clearTimeout(timer);
+		clearTimeout(long_press_timer);
+	});
 </script>
 
 <div class="host">
-	<div class="anchor" {...wrap} data-testid={testid} {@attach (node: HTMLElement) => (anchor = node)}>
+	<div
+		class="anchor"
+		{...wrap}
+		onpointerdown={on_press_down}
+		onpointerup={on_press_up}
+		onpointercancel={on_press_up}
+		data-testid={testid}
+		{@attach (node: HTMLElement) => (anchor = node)}
+	>
 		{@render children(trigger, focus)}
 		{#if open ?? shown}
 			<!-- No pointer, as on GPUI: a tip snapped over its own trigger must not take the trigger's clicks. -->

@@ -191,9 +191,12 @@ and asks the window directly otherwise. Keep any `$derived` over them inside a c
 
 `window_insets` carries `safeArea`, `ime` and `effective` (each `{ top, right, bottom, left }`)
 plus `keyboardTop`, `keyboardVisible` and `visibleHeight`. The names are camelCase, like every
-other value GPUI reports. Only macOS reports real insets; Windows, Linux and headless tests see
-zeros. Headless tests see their real viewport size. Before any window exists, the size reads as
-800×600.
+other value GPUI reports. macOS, Android and iOS report insets; Windows, Linux and headless tests see
+zeros. On mobile the renderer pads its root by `effective`, including the keyboard, so adding those
+insets again adds extra space. Pass `autoInsets: false` to `render()` to manage the padding yourself,
+as in the example above; it is read when the window is first created and has no effect on desktop.
+`window_size` reports the full viewport, not the padded root's size. Headless tests see their real
+viewport size. Before any window exists, the size reads as 800×600.
 
 ## Media queries
 

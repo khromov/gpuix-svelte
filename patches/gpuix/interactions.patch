@@ -1,0 +1,167 @@
+--- a/packages/native/src/renderer/view.rs
++++ b/packages/native/src/renderer/view.rs
+@@ -2054,6 +2054,7 @@
+     let is_text_host = element.element_type == "text" && element.content.is_none();
+     let default_role = is_text_host.then_some(gpui::Role::Label);
+     el = apply_accessibility(el, element.custom_props(), default_role);
++    el = crate::accessibility::apply_a11y_adjust(el, element.custom_props(), element.events(), element.id, ctx.event_callback);
+     if is_text_host && element.custom_props().get("aria-valuetext").is_none() {
+         if let Some(content) = joined_text_content(ctx.tree, element) {
+             el = el.aria_value(content);
+@@ -2291,6 +2292,32 @@
+         }
+     }
+ 
++    if element.events().contains("auxClick") || element.events().contains("mouseEnter") {
++        let callback = ctx.event_callback.clone();
++        let id = element.id;
++        let secondary = element.events().contains("auxClick");
++        el = el.on_long_press(move |event, _, _| {
++            if secondary {
++                if event.phase == gpui::TouchPhase::Started {
++                    emit_event_full(&callback, id, "auxClick", |p| {
++                        let (x, y) = point_to_xy(event.position);
++                        p.x = Some(x);
++                        p.y = Some(y);
++                        p.button = Some(2);
++                        p.click_count = Some(1);
++                        p.is_right_click = Some(true);
++                    });
++                }
++            } else {
++                let entered = event.phase == gpui::TouchPhase::Started;
++                if entered || matches!(event.phase, gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled) {
++                    emit_event_full(&callback, id, if entered { "mouseEnter" } else { "mouseLeave" }, |p| {
++                        p.hovered = Some(entered);
++                    });
++                }
++            }
++        });
++    }
+     if element.events().contains("mouseDown") && element.events().contains("mouseMove") {
+         el = el.capture_pointer();
+     }
+@@ -2884,7 +2911,21 @@
+         el = el.text_size(gpui::px(size as f32));
+     }
+     if let Some(ref family) = style.font_family {
+-        el = el.font_family(family.clone());
++        #[cfg(target_os = "android")]
++        let family = match family.as_str() {
++            "monospace" | "ui-monospace" => "Droid Sans Mono",
++            "sans-serif" | "system-ui" | "ui-sans-serif" => "Roboto",
++            "serif" | "ui-serif" => "Noto Serif",
++            _ => family,
++        };
++        #[cfg(target_os = "ios")]
++        let family = match family.as_str() {
++            "monospace" | "ui-monospace" => "Menlo",
++            "sans-serif" | "system-ui" | "ui-sans-serif" => "Helvetica Neue",
++            "serif" | "ui-serif" => "Georgia",
++            _ => family,
++        };
++        el = el.font_family(family.to_string());
+     }
+     if let Some(ref weight) = style.font_weight {
+         el = el.font_weight(parse_font_weight(weight));
+--- a/packages/native/src/accessibility.rs
++++ b/packages/native/src/accessibility.rs
+@@ -48,6 +48,15 @@
+     if let Some(value) = string_prop(props, "aria-valuetext") {
+         el = el.aria_value(value);
+     }
++    if let Some(value) = props.get("aria-valuenow").and_then(|v| v.as_f64()) {
++        el = el.aria_numeric_value(value);
++    }
++    if let Some(value) = props.get("aria-valuemin").and_then(|v| v.as_f64()) {
++        el = el.aria_min_numeric_value(value);
++    }
++    if let Some(value) = props.get("aria-valuemax").and_then(|v| v.as_f64()) {
++        el = el.aria_max_numeric_value(value);
++    }
+     if let Some(expanded) = bool_prop(props, "aria-expanded") {
+         el = el.aria_expanded(expanded);
+     }
+@@ -105,6 +114,31 @@
+     })
+ }
+ 
++pub(crate) fn apply_a11y_adjust<E: StatefulInteractiveElement>(
++    mut el: E,
++    props: &HashMap<String, serde_json::Value>,
++    events: &std::collections::HashSet<String>,
++    id: u64,
++    callback: &Option<EventCallback>,
++) -> E {
++    if props.get("role").and_then(|v| v.as_str()) != Some("slider")
++        || props.get("tabIndex").and_then(|v| v.as_i64()) == Some(-1)
++        || !events.contains("keyDown")
++    {
++        return el;
++    }
++    for (action, key) in [(AccessibleAction::Increment, "right"), (AccessibleAction::Decrement, "left")] {
++        let callback = callback.clone();
++        el = el.on_a11y_action(action, move |_, _, _| {
++            emit_event_full(&callback, id, "keyDown", |payload| {
++                payload.key = Some(key.to_string());
++                payload.is_held = Some(false);
++            });
++        });
++    }
++    el
++}
++
+ fn string_prop(props: &HashMap<String, serde_json::Value>, key: &str) -> Option<String> {
+     props
+         .get(key)
+--- a/packages/core/src/embedded.rs
++++ b/packages/core/src/embedded.rs
+@@ -42,11 +42,12 @@
+ /// A renderer's window owns the native view, not the JavaScript engine.
+ struct EmbeddedWindow {
+     view: Entity<GpuixView>,
++    auto_insets: bool,
+ }
+ 
+ impl Render for EmbeddedWindow {
+     fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+-        let insets = window.insets().effective();
++        let insets = if self.auto_insets { window.insets().effective() } else { gpui::Edges::default() };
+         gpui::div()
+             .size_full()
+             .pt(insets.top)
+@@ -66,6 +67,7 @@
+     app: RefCell<Option<AsyncApp>>,
+     window: Cell<Option<WindowHandle<EmbeddedWindow>>>,
+     initialized: Cell<bool>,
++    auto_insets: Cell<bool>,
+ }
+ 
+ impl EmbeddedRenderer {
+@@ -77,7 +79,14 @@
+             app: RefCell::new(None),
+             window: Cell::new(None),
+             initialized: Cell::new(false),
++            auto_insets: Cell::new(true),
+         }
++    }
++
++    pub fn set_auto_insets(&self, enabled: bool) -> Result<()> {
++        if self.initialized.get() { bail!("Insets policy must be set before initialization"); }
++        self.auto_insets.set(enabled);
++        Ok(())
+     }
+ 
+     pub fn init(&self, options: Option<WindowOptions>) -> Result<()> {
+@@ -128,9 +137,10 @@
+         let tree = self.tree.clone();
+         let selection = self.selection.clone();
+         let callback = self.event_callback.clone();
++        let auto_insets = self.auto_insets.get();
+         let handle = app.open_window(native_options, move |_window, cx| {
+             let view = cx.new(|_cx| GpuixView::new(tree, callback, None, selection));
+-            cx.new(|_cx| EmbeddedWindow { view })
++            cx.new(|_cx| EmbeddedWindow { view, auto_insets })
+         })?;
+         if options.focus.unwrap_or(true) && options.show.unwrap_or(true) {
+             app.update(|cx| cx.activate(true));

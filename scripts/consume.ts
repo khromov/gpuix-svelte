@@ -112,6 +112,12 @@ finish('consumer-ui', 1);
 const pm = bun ? 'bun' : 'npm';
 run(pm, bun ? ['install'] : ['install', '--no-audit', '--no-fund'], consumer);
 
+const mobile = join(consumer, 'mobile-smoke');
+mkdirSync(mobile);
+run(process.execPath, [join(consumer, 'node_modules/gpuix-svelte/bin/gpuix-svelte.js'), 'mobile', 'init'], mobile);
+if (!existsSync(join(mobile, '.gpuix/mobile/native/Cargo.toml'))) throw new Error('the packaged mobile CLI did not create its scaffold');
+run('bun', ['-e', "import { build_txiki_bundle } from 'gpuix-svelte/txiki-bundle'; await build_txiki_bundle('app.ts', { platform: 'android' });"], consumer);
+
 // Node refuses to strip types under node_modules, so the installed package must run as plain JS.
 if (existsSync(join(consumer, 'node_modules/tsx'))) throw new Error('tsx was installed into the consumer');
 for (const name of ['gpuix-svelte', 'gpuix-svelte-ui']) {

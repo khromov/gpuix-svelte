@@ -206,6 +206,32 @@ check(
 	[true, true]
 );
 check('a quoted key reads like a bare one', read_app_options(`${head}render(App, { app: { 'name': 'Q' } });`), { name: 'Q' });
+const mobile_entry = `import { render } from 'gpuix-svelte';
+import App from './App.svelte';
+render(App, {
+	title: 'Mobile App',
+	app: {
+		name: 'Mobile App',
+		identifier: 'dev.example.mobile',
+		buildNumber: 15,
+		assets: ['assets/images', 'fonts'],
+		ios: { deploymentTarget: '16.4', teamId: 'ABCDEF1234' },
+		android: { abis: ['arm64-v8a', 'x86_64'], compileSdk: 35, minSdk: 28, targetSdk: 35, ndkVersion: '28.0.0' }
+	}
+});`;
+check(
+	'mobile app options read correctly from AST',
+	read_app_options(as_js(mobile_entry)),
+	{
+		name: 'Mobile App',
+		identifier: 'dev.example.mobile',
+		buildNumber: 15,
+		assets: ['assets/images', 'fonts'],
+		ios: { deploymentTarget: '16.4', teamId: 'ABCDEF1234' },
+		android: { abis: ['arm64-v8a', 'x86_64'], compileSdk: 35, minSdk: 28, targetSdk: 35, ndkVersion: '28.0.0' },
+		title: 'Mobile App'
+	}
+);
 
 check(
 	'the window takes its title fallback, menu name and app id from app',
@@ -229,4 +255,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 41 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 42 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));

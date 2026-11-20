@@ -6,7 +6,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
-import { renderer, parse_css_text, build_style, set_native, create_root, commit, set_css_vars } from 'gpuix-svelte';
+import { renderer, parse_css_text, build_style, set_native, create_root, commit, set_css_vars, get_font_scale, set_font_scale, get_rem_size, set_rem_size } from 'gpuix-svelte';
 import { compile_svelte } from '../src/compile.ts';
 import { mount_headless, find_test_id, check, finish } from 'gpuix-svelte/test';
 
@@ -289,4 +289,14 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 52);
+check('font scaling adjusts rem calculations', [
+	(() => {
+		set_font_scale(1.5);
+		const scaled = parse_css_text('font-size: 1rem');
+		set_font_scale(1);
+		return scaled.fontSize;
+	})(),
+	get_font_scale()
+], [24, 1]);
+
+finish('style', 53);

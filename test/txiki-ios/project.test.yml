@@ -1,0 +1,22 @@
+include: [project.yml]
+name: TxikiSvelteTests
+targets:
+  TxikiUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests.swift]
+    dependencies:
+      - target: TxikiSvelte
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.gpuix.txikisvelte.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: TxikiSvelte
+schemes:
+  TxikiSvelteTests:
+    build:
+      targets:
+        TxikiSvelte: all
+        TxikiUITests: test
+    test:
+      targets: [TxikiUITests]

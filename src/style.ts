@@ -336,11 +336,33 @@ function camel(key: string) {
 	return key.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
+let base_rem_size = 16;
+
+export function get_rem_size(): number {
+	const env_scale = globalThis.process?.env?.GPUIX_FONT_SCALE ?? globalThis.process?.env?.FONT_SCALE;
+	const global_scale =
+		(globalThis as unknown as { __gpuixFontScale?: number }).__gpuixFontScale ??
+		(globalThis as unknown as { gpuixHost?: { fontScale?: number } }).gpuixHost?.fontScale;
+	const scale = typeof global_scale === 'number' ? global_scale : env_scale ? parseFloat(env_scale) : 1;
+	return base_rem_size * (isNaN(scale) || scale <= 0 ? 1 : scale);
+}
+
+export function set_rem_size(size: number) {
+	if (typeof size === 'number' && size > 0) base_rem_size = size;
+}
+
+export function get_font_scale(): number {
+	return get_rem_size() / 16;
+}
+
+export function set_font_scale(scale: number) {
+	if (typeof scale === 'number' && scale > 0) base_rem_size = 16 * scale;
+}
+
 /** `12px` must become `12`, while `50%`, `auto` and `#1e1e2e` stay strings. */
 function coerce(value: string): StyleValue {
 	if (PX.test(value) || NUM.test(value)) return parseFloat(value);
-	// GPUI's rem size is 16 px and gpuix never changes it.
-	if (REM.test(value)) return parseFloat(value) * 16;
+	if (REM.test(value)) return parseFloat(value) * get_rem_size();
 	return value;
 }
 

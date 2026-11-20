@@ -26,6 +26,7 @@ check(
 check('readonly, as HTML spells it, reaches native as readOnly', props('readonly'), { readOnly: true });
 check('diff takes its flags and its count', [props('diff').wordDiff, props('diff').scroll, props('diff').maxLines], [true, false, 5]);
 check('so does a virtual list', [props('list').followTail, props('list').estimatedItemHeight], [true, 20]);
+check('numeric accessibility values reach native as numbers', [props('slider-aria')['aria-valuenow'], props('slider-aria')['aria-valuemin'], props('slider-aria')['aria-valuemax']], [25, 0, 100]);
 check('a bare tabindex is a tab stop, on a div and on a <button> that carries it', [props('tab-bare').tabIndex, props('tab-button').tabIndex], [0, 0]);
 check(
 	'and an anchored layer',
@@ -45,4 +46,4 @@ settle();
 check('and a blank one leaves the prop unset rather than 0', 'minRows' in props('rows-live'), false);
 console.warn = warn;
 
-finish('props', 13);
+finish('props', 14);

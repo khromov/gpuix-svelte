@@ -1,0 +1,2238 @@
+diff --git a/README.md b/README.md
+index 12d59a5..1d93073 100644
+--- a/README.md
++++ b/README.md
+@@ -13,17 +13,51 @@ Implements the `gpui::Platform` trait for mobile targets, following the same arc
+ | **iOS** | Metal via wgpu | CoreText |
+ | **Android** | Vulkan/GL via wgpu | cosmic-text + swash |
+ 
+-**Highlights:** GPU-accelerated rendering, touch input with momentum scrolling, keyboard support, safe area insets, dark mode, and emoji rendering.
++**Highlights:** GPU-accelerated rendering, touch input with momentum scrolling, keyboard support, safe-area and IME insets through GPUI's `PlatformWindow` API, dark mode, and emoji rendering. Android IME inset delivery uses `GpuiInputActivity` and Android `WindowInsets` (with animated updates on API 30+ and a visible-frame fallback on older supported Android versions); custom hosts must forward those insets to the native bridge. Native VoiceOver/TalkBack accessibility-tree integration is not implemented yet.
+ 
+ ## Custom Android hosts
+ 
+ Custom Android hosts should extend `dev.gpui.mobile.GpuiInputActivity` instead of
+ `android.app.NativeActivity` to receive multistage IME composition through a
+-native `InputConnection`. Include `GpuiInputActivity.java` and retain the usual
+-`android.app.lib_name` metadata. For GPUI file prompts, also package
++native `InputConnection`. Add this repository's Gradle Android library as a
++source project dependency; the Java runtime glue lives in `gpui-mobile/android`
++and should not be copied into the app. For example, from an app's Gradle
++settings file:
++
++```kotlin
++include(":gpui-mobile")
++project(":gpui-mobile").projectDir = file("<path-to-gpui-mobile>/android")
++```
++
++Then add `implementation(project(":gpui-mobile"))` to the app module. The app
++must use `compileSdk` 36 or newer and declare its concrete launch Activity in
++its own manifest, including the `android.app.lib_name` metadata naming the Rust
++shared library, `android:configChanges` for handled orientation/screen/keyboard
++changes, and `android:windowSoftInputMode="adjustResize"`. The library manifest
++intentionally declares no app ID, launch Activity, or native library name. For
++GPUI file prompts, also package
+ `GpuiPathPicker.java` and register its non-exported Activity as shown in the
+ example manifest. The picker imports documents into app cache before returning
+-filesystem paths; it does not require broad storage permissions.
++filesystem paths; it does not require broad storage permissions. Save-dialog
++requests are explicitly unsupported on Android and return an error.
++
++**Android session ownership:** each `NativeActivity` gets a new platform/App
++session. Teardown cancels the QuickJS owner, retires GPUI callbacks on the loop
++thread, shuts down foreground dispatch, releases the session GPU device and
++uninstalls the acquired main-looper reference. Surface-bound GPU resources are
++released **before** acknowledging `TerminateWindow`; the raw window wrapper
++retains its `ANativeWindow`. Background/resume rebuilds the surface while keeping
++the logical window and atlas handle. A lost vsync cannot indefinitely strand an
++owed frame; this bounded wait does not render idle windows continuously.
++
++The local QuickJS/Svelte fixture has passed two consecutive three-cycle runs
++(six Back/destroy/relaunch cycles) in one Android **emulator PID**, including new rendering and native input after
++each launch, independent bindings, HOME/resume, rotation and post-rotation input.
++Activity destruction starts a fresh app; HOME/resume and handled rotation retain
++its state. This is not physical-device or production-readiness validation. The
++historical standalone-host harness is no longer maintained in the frontend.
++IME coverage and remaining platform limitations must be reported
++separately from successful Activity recreation.
+ 
+ ## Quick Start
+ 
+diff --git a/android/build.gradle.kts b/android/build.gradle.kts
+new file mode 100644
+index 0000000..154fec6
+--- /dev/null
++++ b/android/build.gradle.kts
+@@ -0,0 +1,17 @@
++plugins {
++    id("com.android.library")
++}
++
++android {
++    namespace = "dev.gpui.mobile"
++    compileSdk = 36
++
++    defaultConfig {
++        minSdk = 26
++    }
++
++    compileOptions {
++        sourceCompatibility = JavaVersion.VERSION_1_8
++        targetCompatibility = JavaVersion.VERSION_1_8
++    }
++}
+diff --git a/android/src/main/AndroidManifest.xml b/android/src/main/AndroidManifest.xml
+new file mode 100644
+index 0000000..19d2638
+--- /dev/null
++++ b/android/src/main/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android">
++    <uses-permission android:name="android.permission.INTERNET" />
++</manifest>
+diff --git a/example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiCamera.java b/android/src/main/java/dev/gpui/mobile/GpuiCamera.java
+similarity index 100%
+rename from example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiCamera.java
+rename to android/src/main/java/dev/gpui/mobile/GpuiCamera.java
+diff --git a/example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiInputActivity.java b/android/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
+similarity index 70%
+rename from example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
+rename to android/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
+index 96880ab..702e4b9 100644
+--- a/example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
++++ b/android/src/main/java/dev/gpui/mobile/GpuiInputActivity.java
+@@ -2,13 +2,20 @@ package dev.gpui.mobile;
+ 
+ import android.app.NativeActivity;
+ import android.content.pm.PackageManager;
++import android.os.Build;
+ import android.os.Bundle;
+ import android.text.Editable;
+ import android.text.InputType;
+ import android.text.Selection;
+ import android.text.TextWatcher;
++import android.graphics.Point;
++import android.graphics.Rect;
+ import android.view.KeyEvent;
++import android.view.View;
+ import android.view.ViewGroup;
++import android.view.WindowInsets;
++import android.view.WindowInsetsAnimation;
++import java.util.List;
+ import android.view.inputmethod.BaseInputConnection;
+ import android.view.inputmethod.EditorInfo;
+ import android.view.inputmethod.InputConnection;
+@@ -30,17 +37,86 @@ public class GpuiInputActivity extends NativeActivity {
+             throw new IllegalStateException(error);
+         }
+         super.onCreate(state);
++        View decor = getWindow().getDecorView();
++        decor.setOnApplyWindowInsetsListener((view, insets) -> {
++            reportInsets(insets);
++            return insets;
++        });
++        if (Build.VERSION.SDK_INT >= 30) {
++            decor.setWindowInsetsAnimationCallback(new WindowInsetsAnimation.Callback(
++                    WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
++                @Override public WindowInsets onProgress(WindowInsets insets,
++                        List<WindowInsetsAnimation> runningAnimations) {
++                    reportInsets(insets);
++                    return insets;
++                }
++            });
++        }
++        if (Build.VERSION.SDK_INT < 30) {
++            decor.getViewTreeObserver().addOnGlobalLayoutListener(
++                    () -> reportLegacyImeInsets(decor));
++        }
++        decor.requestApplyInsets();
++    }
++
++    private void reportInsets(WindowInsets insets) {
++        if (isDestroyed() || isFinishing()) return;
++        if (Build.VERSION.SDK_INT >= 30) {
++            android.graphics.Insets safe = insets.getInsets(
++                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
++            android.graphics.Insets ime = insets.getInsets(WindowInsets.Type.ime());
++            nativeInsetsChanged(safe.top, safe.bottom, safe.left, safe.right,
++                    ime.top, ime.bottom, ime.left, ime.right);
++        } else {
++            int safeBottom = insets.getSystemWindowInsetBottom();
++            nativeInsetsChanged(insets.getSystemWindowInsetTop(), safeBottom,
++                    insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetRight(),
++                    0, estimateLegacyImeBottom(getWindow().getDecorView(), safeBottom), 0, 0);
++        }
+     }
+ 
++    private void reportLegacyImeInsets(View decor) {
++        if (isDestroyed() || isFinishing()) return;
++        if (Build.VERSION.SDK_INT >= 30) return;
++        Rect visible = new Rect();
++        decor.getWindowVisibleDisplayFrame(visible);
++        Point display = new Point();
++        getWindowManager().getDefaultDisplay().getRealSize(display);
++        WindowInsets rootInsets = decor.getRootWindowInsets();
++        int safeTop = rootInsets == null ? 0 : rootInsets.getSystemWindowInsetTop();
++        int safeBottom = rootInsets == null ? 0 : rootInsets.getSystemWindowInsetBottom();
++        int safeLeft = rootInsets == null ? 0 : rootInsets.getSystemWindowInsetLeft();
++        int safeRight = rootInsets == null ? 0 : rootInsets.getSystemWindowInsetRight();
++        int imeBottom = Math.max(display.y - visible.bottom - safeBottom, 0);
++        int threshold = Math.round(100 * getResources().getDisplayMetrics().density);
++        if (imeBottom < threshold) imeBottom = 0;
++        nativeInsetsChanged(safeTop, safeBottom, safeLeft, safeRight, 0, imeBottom, 0, 0);
++    }
++
++    private int estimateLegacyImeBottom(View decor, int safeBottom) {
++        Rect visible = new Rect();
++        decor.getWindowVisibleDisplayFrame(visible);
++        Point display = new Point();
++        getWindowManager().getDefaultDisplay().getRealSize(display);
++        int imeBottom = Math.max(display.y - visible.bottom - safeBottom, 0);
++        int threshold = Math.round(100 * decor.getResources().getDisplayMetrics().density);
++        return imeBottom >= threshold ? imeBottom : 0;
++    }
++
++    private static native void nativeInsetsChanged(int safeTop, int safeBottom,
++            int safeLeft, int safeRight, int imeTop, int imeBottom, int imeLeft, int imeRight);
++
+     public void gpuiShowKeyboard(int keyboardType, long session) {
+         runOnUiThread(() -> {
++            if (isDestroyed() || isFinishing()) return;
+             if (input == null) {
+                 input = new InputProxy();
+                 input.setAlpha(0f);
+                 input.setPadding(0, 0, 0, 0);
+                 addContentView(input, new ViewGroup.LayoutParams(1, 1));
+             }
+-            input.reset(session);
++            boolean newSession = input.session != session;
++            if (newSession) input.reset(session);
+             int type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE;
+             switch (keyboardType) {
+                 case 1: type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS; break;
+@@ -49,11 +125,13 @@ public class GpuiInputActivity extends NativeActivity {
+                 case 4: type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI; break;
+                 case 5: type = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL; break;
+             }
+-            input.setInputType(type);
+-            input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
++            if (newSession) {
++                input.setInputType(type);
++                input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
++            }
+             input.requestFocus();
+             InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+-            imm.restartInput(input);
++            if (newSession) imm.restartInput(input);
+             imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+         });
+     }
+diff --git a/example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiPlatformView.java b/android/src/main/java/dev/gpui/mobile/GpuiPlatformView.java
+similarity index 100%
+rename from example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiPlatformView.java
+rename to android/src/main/java/dev/gpui/mobile/GpuiPlatformView.java
+diff --git a/example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiVideoPlayer.java b/android/src/main/java/dev/gpui/mobile/GpuiVideoPlayer.java
+similarity index 100%
+rename from example/android/gradle/app/src/main/java/dev/gpui/mobile/GpuiVideoPlayer.java
+rename to android/src/main/java/dev/gpui/mobile/GpuiVideoPlayer.java
+diff --git a/example/android/gradle/app/build.gradle.kts b/example/android/gradle/app/build.gradle.kts
+index 18a728c..8776af8 100644
+--- a/example/android/gradle/app/build.gradle.kts
++++ b/example/android/gradle/app/build.gradle.kts
+@@ -19,7 +19,7 @@ plugins {
+ 
+ android {
+     namespace = "dev.gpui.mobile.example"
+-    compileSdk = 34
++    compileSdk = 36
+ 
+     defaultConfig {
+         applicationId = "dev.gpui.mobile.example"
+@@ -94,6 +94,8 @@ android {
+ }
+ 
+ dependencies {
++    implementation(project(":gpui-mobile"))
++
+     // AndroidX core for NotificationCompat (used by GpuiNotifications)
+     implementation("androidx.core:core:1.12.0")
+     // AndroidX SplashScreen compat (used by GpuiActivity to hold splash until native init)
+diff --git a/example/android/gradle/settings.gradle.kts b/example/android/gradle/settings.gradle.kts
+index ce29c11..bbf8dd0 100644
+--- a/example/android/gradle/settings.gradle.kts
++++ b/example/android/gradle/settings.gradle.kts
+@@ -20,4 +20,5 @@ dependencyResolutionManagement {
+ }
+ 
+ rootProject.name = "GPUIMobileExample"
+-include(":app")
++include(":app", ":gpui-mobile")
++project(":gpui-mobile").projectDir = file("../../../android")
+diff --git a/src/android/dispatcher.rs b/src/android/dispatcher.rs
+index 5e75f6c..2817816 100644
+--- a/src/android/dispatcher.rs
++++ b/src/android/dispatcher.rs
+@@ -49,6 +49,8 @@ const ALOOPER_EVENT_INPUT: i32 = 1;
+ unsafe extern "C" {
+     /// Returns the looper associated with the calling thread, or null.
+     fn ALooper_forThread() -> *mut libc_looper_opaque;
++    fn ALooper_acquire(looper: *mut libc_looper_opaque);
++    fn ALooper_release(looper: *mut libc_looper_opaque);
+     /// Adds a file-descriptor to the looper.
+     fn ALooper_addFd(
+         looper: *mut libc_looper_opaque,
+@@ -181,6 +183,9 @@ impl AndroidDispatcher {
+             "AndroidDispatcher::new() must be called on the Android main thread"
+         );
+ 
++        // Tasks may retain this dispatcher after the Activity thread returns.
++        // Keep the native looper valid until the last dispatcher handle drops.
++        unsafe { ALooper_acquire(looper) };
+         let pool_threads = std::thread::available_parallelism()
+             .map(|n| n.get())
+             .unwrap_or(4)
+@@ -257,6 +262,9 @@ impl AndroidDispatcher {
+             return;
+         }
+         let mut q = self.main_queue.lock();
++        if self.shutdown.load(Ordering::SeqCst) {
++            return;
++        }
+         q.tasks.push_back(Box::new(f));
+         wake_pipe(q.write_fd);
+     }
+@@ -282,6 +290,9 @@ impl AndroidDispatcher {
+         }
+         let due = Instant::now() + delay;
+         let mut delayed = self.delayed.lock();
++        if self.shutdown.load(Ordering::SeqCst) {
++            return;
++        }
+         delayed.push(DelayedTask {
+             due,
+             task: Box::new(f),
+@@ -344,9 +355,18 @@ impl AndroidDispatcher {
+     }
+ 
+     /// Stop accepting new tasks and signal the thread-pool to wind down.
++    /// Call on the loop thread, after polling has stopped. Detached executors
++    /// can outlive the Activity, but must never execute its foreground callbacks.
+     pub fn shutdown(&self) {
+-        self.shutdown.store(true, Ordering::SeqCst);
++        if self.shutdown.swap(true, Ordering::SeqCst) {
++            return;
++        }
+         self.unregister_from_looper();
++        let tasks = std::mem::take(&mut self.main_queue.lock().tasks);
++        let delayed = std::mem::take(&mut *self.delayed.lock());
++        // Task destructors may dispatch or release App state; no locks held.
++        drop(tasks);
++        drop(delayed);
+     }
+ 
+     // ── private helpers ───────────────────────────────────────────────────────
+@@ -356,9 +376,8 @@ impl AndroidDispatcher {
+         // is a free `extern "C"` function that reconstructs the Arc from the
+         // raw pointer.
+         //
+-        // SAFETY: `self` outlives the looper registration because we hold an
+-        // `Arc<Self>` for the lifetime of the process (stored in
+-        // `GLOBAL_DISPATCHER`).
++        // SAFETY: this extra Arc belongs to the registration and is reclaimed
++        // exactly once on unregister, after the loop stops polling.
+         let data_ptr = Arc::into_raw(Arc::clone(&self.main_queue)) as *mut std::ffi::c_void;
+ 
+         let ret = unsafe {
+@@ -373,16 +392,20 @@ impl AndroidDispatcher {
+         };
+ 
+         if ret != 1 {
+-            log::warn!(
+-                "ALooper_addFd returned {} (expected 1); foreground dispatch may not work",
+-                ret
+-            );
++            // Drop will reclaim the extra reference even on registration failure.
++            panic!("ALooper_addFd returned {ret} (expected 1)");
+         }
+     }
+ 
+     fn unregister_from_looper(&self) {
++        if self.looper.is_null() {
++            return;
++        }
++        // shutdown must occur on the loop thread (or Drop after it has stopped),
++        // so no callback can be borrowing the registration's queue Arc here.
+         unsafe {
+             ALooper_removeFd(self.looper, self.read_fd);
++            drop(Arc::from_raw(Arc::as_ptr(&self.main_queue)));
+         }
+     }
+ }
+@@ -398,8 +421,10 @@ impl Default for AndroidDispatcher {
+ 
+ impl Drop for AndroidDispatcher {
+     fn drop(&mut self) {
+-        self.shutdown.store(true, Ordering::SeqCst);
+-        self.unregister_from_looper();
++        self.shutdown();
++        if !self.looper.is_null() {
++            unsafe { ALooper_release(self.looper) };
++        }
+         // Close file descriptors.
+         unsafe {
+             libc_close(self.read_fd);
+@@ -414,8 +439,8 @@ impl Drop for AndroidDispatcher {
+ ///
+ /// Drains the entire task queue before returning 1 (keep the fd registered).
+ unsafe extern "C" fn looper_callback(fd: RawFd, _events: i32, data: *mut std::ffi::c_void) -> i32 {
+-    // Reconstruct the Arc without dropping it (we'll re-leak at the end).
+-    let queue_arc = unsafe { Arc::from_raw(data as *const Mutex<MainQueue>) };
++    // Borrow the registration's Arc. shutdown removes it after polling stops.
++    let queue_arc = unsafe { &*(data as *const Mutex<MainQueue>) };
+ 
+     // Drain the wake pipe (ignore errors — just consume the byte(s)).
+     let mut buf = [0u8; 64];
+@@ -438,10 +463,6 @@ unsafe extern "C" fn looper_callback(fd: RawFd, _events: i32, data: *mut std::ff
+         }
+     }
+ 
+-    // Leak the Arc again so it isn't freed — the data pointer lifetime is
+-    // managed by `AndroidDispatcher`.
+-    std::mem::forget(queue_arc);
+-
+     1 // keep fd registered
+ }
+ 
+@@ -526,37 +547,21 @@ impl PlatformDispatcher for AndroidDispatcher {
+         // All non-realtime background tasks go to the thread-pool.
+         // Priority-based scheduling is not yet implemented; all tasks are
+         // treated equally by the pool.
+-        self.pool.dispatch(Box::new(move || {
++        AndroidDispatcher::dispatch(self, move || {
+             runnable.run();
+-        }));
++        });
+     }
+ 
+     fn dispatch_on_main_thread(&self, runnable: RunnableVariant, _priority: Priority) {
+-        if self.shutdown.load(Ordering::Relaxed) {
+-            return;
+-        }
+-        let mut q = self.main_queue.lock();
+-        q.tasks.push_back(Box::new(move || {
++        AndroidDispatcher::dispatch_on_main_thread(self, move || {
+             runnable.run();
+-        }));
+-        wake_pipe(q.write_fd);
++        });
+     }
+ 
+     fn dispatch_after(&self, duration: Duration, runnable: RunnableVariant) {
+-        if self.shutdown.load(Ordering::Relaxed) {
+-            return;
+-        }
+-        let due = Instant::now() + duration;
+-        let mut delayed = self.delayed.lock();
+-        delayed.push(DelayedTask {
+-            due,
+-            task: Box::new(move || {
+-                runnable.run();
+-            }),
++        AndroidDispatcher::dispatch_after(self, duration, move || {
++            runnable.run();
+         });
+-        delayed.sort_by_key(|d| d.due);
+-        drop(delayed);
+-        self.wake_looper();
+     }
+ 
+     fn spawn_realtime(&self, f: Box<dyn FnOnce() + Send>) {
+@@ -576,6 +581,27 @@ impl PlatformDispatcher for AndroidDispatcher {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    #[test]
++    fn shutdown_is_idempotent_and_discards_old_foreground_work() {
++        let dispatcher = AndroidDispatcher::new_headless();
++        let ran = Arc::new(AtomicUsize::new(0));
++        let seen = ran.clone();
++        dispatcher.dispatch_on_main_thread(move || {
++            seen.fetch_add(1, Ordering::SeqCst);
++        });
++        dispatcher.shutdown();
++        dispatcher.shutdown();
++        let seen = ran.clone();
++        dispatcher.dispatch_on_main_thread(move || {
++            seen.fetch_add(1, Ordering::SeqCst);
++        });
++        dispatcher.flush_main_thread_tasks();
++        assert_eq!(ran.load(Ordering::SeqCst), 0);
++        assert!(dispatcher.main_queue.lock().tasks.is_empty());
++        assert!(dispatcher.delayed.lock().is_empty());
++    }
++
+     use std::sync::{
+         atomic::{AtomicUsize, Ordering},
+         Arc,
+diff --git a/src/android/display.rs b/src/android/display.rs
+index 9a227a1..df9b9e4 100644
+--- a/src/android/display.rs
++++ b/src/android/display.rs
+@@ -39,6 +39,8 @@ const DENSITY_DEFAULT: i32 = 160;
+ /// `ANativeWindow_release`), so cloning and dropping are handled automatically.
+ #[derive(Clone)]
+ pub struct AndroidDisplay {
++    /// Synthetic dimensions when no native window exists (headless/tests).
++    headless_size: Size<DevicePixels>,
+     /// The underlying native window, or `None` for headless displays.
+     window: Option<NativeWindow>,
+ 
+@@ -77,6 +79,10 @@ impl AndroidDisplay {
+ 
+         Self {
+             window: Some(window.clone()),
++            headless_size: Size {
++                width: DevicePixels(0),
++                height: DevicePixels(0),
++            },
+             scale_factor,
+             id,
+         }
+@@ -96,6 +102,10 @@ impl AndroidDisplay {
+     pub fn headless(width: i32, height: i32) -> Self {
+         Self {
+             window: None,
++            headless_size: Size {
++                width: DevicePixels(width.max(0)),
++                height: DevicePixels(height.max(0)),
++            },
+             scale_factor: 1.0,
+             id: ((width as u64) << 32) | (height as u64),
+         }
+@@ -107,7 +117,7 @@ impl AndroidDisplay {
+     pub fn physical_width(&self) -> DevicePixels {
+         match &self.window {
+             Some(nw) => DevicePixels(nw.width()),
+-            None => DevicePixels(0),
++            None => self.headless_size.width,
+         }
+     }
+ 
+@@ -115,7 +125,7 @@ impl AndroidDisplay {
+     pub fn physical_height(&self) -> DevicePixels {
+         match &self.window {
+             Some(nw) => DevicePixels(nw.height()),
+-            None => DevicePixels(0),
++            None => self.headless_size.height,
+         }
+     }
+ 
+diff --git a/src/android/frame_source.rs b/src/android/frame_source.rs
+index d744d85..734e163 100644
+--- a/src/android/frame_source.rs
++++ b/src/android/frame_source.rs
+@@ -43,7 +43,7 @@ use std::{
+     ptr,
+     sync::{
+         atomic::{AtomicBool, AtomicPtr, Ordering},
+-        mpsc, OnceLock,
++        mpsc, Mutex, OnceLock,
+     },
+     time::{Duration, Instant},
+ };
+@@ -66,7 +66,25 @@ thread_local! {
+ }
+ 
+ /// The loop thread's `ALooper`, for [`wake`] from other threads.
+-static MAIN_LOOPER: AtomicPtr<ndk_sys::ALooper> = AtomicPtr::new(ptr::null_mut());
++static MAIN_LOOPER: Mutex<Option<OwnedLooper>> = Mutex::new(None);
++
++struct OwnedLooper(*mut ndk_sys::ALooper);
++// SAFETY: the reference is acquired from the owning thread. Only wake (which
++// Android permits from any thread) and release are used through this handle.
++unsafe impl Send for OwnedLooper {}
++impl Drop for OwnedLooper {
++    fn drop(&mut self) {
++        unsafe { ndk_sys::ALooper_release(self.0) };
++    }
++}
++
++fn wake_main_looper() {
++    // Serialize wake against uninstall; an atomic pointer alone permits a wake
++    // to race the final release of a destroyed Activity's looper.
++    if let Some(looper) = MAIN_LOOPER.lock().expect("main looper lock").as_ref() {
++        unsafe { ndk_sys::ALooper_wake(looper.0) };
++    }
++}
+ 
+ /// The vsync thread's `ALooper`; null while it has no choreographer.
+ static VSYNC_LOOPER: AtomicPtr<ndk_sys::ALooper> = AtomicPtr::new(ptr::null_mut());
+@@ -91,7 +109,9 @@ static OFF_THREAD_DEMAND: AtomicBool = AtomicBool::new(false);
+ pub(crate) fn install() {
+     // SAFETY: plain query of the calling thread's looper.
+     let looper = unsafe { ndk_sys::ALooper_forThread() };
+-    MAIN_LOOPER.store(looper, Ordering::Release);
++    assert!(!looper.is_null(), "frame source requires a looper");
++    unsafe { ndk_sys::ALooper_acquire(looper) };
++    *MAIN_LOOPER.lock().expect("main looper lock") = Some(OwnedLooper(looper));
+ 
+     let has_choreographer = *VSYNC_THREAD.get_or_init(spawn_vsync_thread);
+     PACER.with(|slot| {
+@@ -114,6 +134,16 @@ pub(crate) fn install() {
+     });
+ }
+ 
++/// Detach this Activity's frame source before its native thread exits.
++/// Late vsync callbacks may set FRAME_DUE, but cannot wake a released looper.
++pub(crate) fn uninstall() {
++    MAIN_LOOPER.lock().expect("main looper lock").take();
++    PACER.with(|slot| slot.borrow_mut().take());
++    POST_REQUESTED.store(false, Ordering::Release);
++    FRAME_DUE.store(false, Ordering::Release);
++    OFF_THREAD_DEMAND.store(false, Ordering::Release);
++}
++
+ /// Starts the vsync thread and waits until it reports whether it has a
+ /// choreographer, so the caller can pick the pacer to match.
+ fn spawn_vsync_thread() -> bool {
+@@ -173,7 +203,7 @@ unsafe extern "C" fn on_vsync(
+     _data: *mut std::ffi::c_void,
+ ) {
+     FRAME_DUE.store(true, Ordering::Release);
+-    wake_looper(&MAIN_LOOPER);
++    wake_main_looper();
+ }
+ 
+ fn wake_looper(looper: &AtomicPtr<ndk_sys::ALooper>) {
+@@ -249,5 +279,5 @@ pub(crate) fn poll_timeout(next_delayed_task: Option<Instant>, can_draw: bool) -
+ /// the looper's file descriptors (`TEXT_INPUT_DIRTY`, [`schedule_frame`]
+ /// from another thread). A no-op before [`install`].
+ pub(crate) fn wake() {
+-    wake_looper(&MAIN_LOOPER);
++    wake_main_looper();
+ }
+diff --git a/src/android/jni.rs b/src/android/jni.rs
+index 3ecfe2e..9ae328e 100644
+--- a/src/android/jni.rs
++++ b/src/android/jni.rs
+@@ -47,7 +47,7 @@
+ use std::{
+     ffi::c_void,
+     sync::{
+-        atomic::{AtomicBool, Ordering},
++        atomic::{AtomicBool, AtomicI32, Ordering},
+         Arc, OnceLock,
+     },
+     time::Duration,
+@@ -86,6 +86,8 @@ static TERM_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+ static INIT_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+ static WINDOW_RESIZED_PENDING: AtomicBool = AtomicBool::new(false);
+ static CONFIG_CHANGED_PENDING: AtomicBool = AtomicBool::new(false);
++static INSETS_CHANGED_PENDING: AtomicBool = AtomicBool::new(false);
++static HOST_INSETS: [AtomicI32; 8] = [const { AtomicI32::new(0) }; 8];
+ 
+ use android_activity::{AndroidApp, MainEvent, PollEvent};
+ 
+@@ -137,17 +139,19 @@ pub fn obtain_env<T>(f: impl FnOnce(&mut jni::Env) -> Result<T, String>) -> Resu
+ 
+ /// Get the Activity as a [`JObject`].
+ ///
+-/// `activity_as_ptr()` returns a JNI global reference from `android-activity`
+-/// that is valid for the lifetime of the app. We wrap it in a `JObject`.
+-///
+-/// Requires `&Env` because jni 0.22's `JObject::from_raw` binds the
+-/// local-reference-frame lifetime.
+-pub fn activity<'local>(env: &jni::Env<'local>) -> Result<JObject<'local>, String> {
+-    let ptr = activity_as_ptr();
+-    if ptr.is_null() {
+-        return Err("Activity not available".into());
++/// Promotes the current Activity to a local JNI reference while its owning
++/// session is held. Unlike the raw accessor, this reference remains valid if a
++/// worker's JNI call overlaps Activity teardown.
++pub fn activity<'local>(env: &mut jni::Env<'local>) -> Result<JObject<'local>, String> {
++    // Promote to a local reference while the owned AndroidApp/global ref is
++    // still alive. A worker's JNI call can overlap session teardown.
++    if let Some(app) = android_app() {
++        let object = unsafe { JObject::from_raw(env, app.activity_as_ptr() as jni::sys::jobject) };
++        return env.new_local_ref(&object).e();
+     }
+-    Ok(unsafe { JObject::from_raw(env, ptr as jni::sys::jobject) })
++    let slot = HOST_ACTIVITY.lock().expect("poisoned");
++    let object = slot.current.as_ref().ok_or("Activity not available")?;
++    env.new_local_ref(object).e()
+ }
+ 
+ /// Convert a Java String (`JObject` wrapping a `java.lang.String`) to a Rust `String`.
+@@ -228,15 +232,30 @@ pub fn find_app_class<'local>(
+ 
+ // ── global state ─────────────────────────────────────────────────────────────
+ 
+-/// The `AndroidApp` handle from `android-activity`.
+-///
+-/// Set once in `android_main`; read-only thereafter.
+-static ANDROID_APP: OnceLock<AndroidApp> = OnceLock::new();
+-
+-/// Process-global `AndroidPlatform` instance.
+-///
+-/// Initialised once during `android_main`; read-only thereafter.
+-static PLATFORM: OnceLock<Arc<AndroidPlatform>> = OnceLock::new();
++/// Current NativeActivity session. Android may create another Activity and
++/// native looper in the same process after the previous one is destroyed.
++/// Accessors clone handles so no mutex is held through application callbacks.
++struct SessionSlot<T>(Mutex<Option<T>>);
++impl<T: Clone> SessionSlot<T> {
++    fn get(&self) -> Option<T> {
++        self.0.lock().expect("session lock").clone()
++    }
++    fn set(&self, value: T) -> Result<(), T> {
++        let mut slot = self.0.lock().expect("session lock");
++        if slot.is_some() {
++            Err(value)
++        } else {
++            *slot = Some(value);
++            Ok(())
++        }
++    }
++    fn clear(&self) {
++        let old = self.0.lock().expect("session lock").take();
++        drop(old);
++    }
++}
++static ANDROID_APP: SessionSlot<AndroidApp> = SessionSlot(Mutex::new(None));
++static PLATFORM: SessionSlot<Arc<AndroidPlatform>> = SessionSlot(Mutex::new(None));
+ 
+ /// Get the unicode character produced by an Android key event via JNI.
+ ///
+@@ -338,8 +357,9 @@ pub fn java_vm() -> *mut c_void {
+ /// activity's jobject.
+ ///
+ /// NOTE: This returns a jobject (JNI global ref), NOT an `ANativeActivity *`.
+-/// Code that previously used `(*activity).clazz` should use this directly
+-/// as the activity jobject.
++/// It is borrowed from the current Activity session and must not be retained
++/// across teardown. Prefer [`activity`] for an owned local reference, especially
++/// on worker threads.
+ pub fn activity_as_ptr() -> *mut c_void {
+     ANDROID_APP
+         .get()
+@@ -357,7 +377,7 @@ pub fn activity_as_ptr() -> *mut c_void {
+ 
+ /// Returns a clone of the stored `AndroidApp`, if initialised.
+ pub fn android_app() -> Option<AndroidApp> {
+-    ANDROID_APP.get().cloned()
++    ANDROID_APP.get()
+ }
+ 
+ /// Install the platform built by the host-driven path (`super::host`).
+@@ -370,10 +390,10 @@ pub(crate) fn set_host_platform(platform: Arc<AndroidPlatform>) {
+     }
+ }
+ 
+-/// Returns a reference to the global `AndroidPlatform`, if initialised.
++/// Returns an owned handle to the current session's platform, if initialised.
+ ///
+ /// Returns `None` before `android_main` has set it up.
+-pub fn platform() -> Option<&'static Arc<AndroidPlatform>> {
++pub fn platform() -> Option<Arc<AndroidPlatform>> {
+     PLATFORM.get()
+ }
+ 
+@@ -388,9 +408,7 @@ pub fn platform() -> Option<&'static Arc<AndroidPlatform>> {
+ ///
+ /// Returns `None` before `init_platform` has been called.
+ pub fn shared_platform() -> Option<SharedPlatform> {
+-    PLATFORM
+-        .get()
+-        .map(|arc| SharedPlatform::new(Arc::clone(arc)))
++    PLATFORM.get().map(SharedPlatform::new)
+ }
+ 
+ // ── input event types ─────────────────────────────────────────────────────────
+@@ -639,7 +657,6 @@ pub fn run_event_loop(app: &AndroidApp) {
+         if let Some(platform) = PLATFORM.get() {
+             if platform.should_quit() {
+                 log::info!("run_event_loop: platform requested quit");
+-                dispose_all_platform_views();
+                 break;
+             }
+             platform.tick();
+@@ -667,6 +684,24 @@ pub fn run_event_loop(app: &AndroidApp) {
+             _ => {}
+         });
+ 
++        // WindowInsets callbacks are delivered on Android's Java UI thread;
++        // apply them here so GPUI callbacks stay on the native app thread.
++        if INSETS_CHANGED_PENDING.load(Ordering::Acquire) {
++            if let Some(window) = PLATFORM
++                .get()
++                .and_then(|platform| platform.primary_window())
++            {
++                if INSETS_CHANGED_PENDING.swap(false, Ordering::AcqRel) {
++                    let values: [i32; 8] =
++                        std::array::from_fn(|index| HOST_INSETS[index].load(Ordering::Acquire));
++                    window.update_system_insets(
++                        values[0], values[1], values[2], values[3], values[4], values[5],
++                        values[6], values[7],
++                    );
++                }
++            }
++        }
++
+         // ── Deferred lifecycle processing ──
+         //
+         // Between each handler, call poll_events again to drain any
+@@ -683,16 +718,11 @@ pub fn run_event_loop(app: &AndroidApp) {
+             });
+         };
+ 
+-        // 1. TerminateWindow — unconfigure surface, release native window
++        // 1. TerminateWindow — surface was released synchronously before ACK
+         if TERM_WINDOW_PENDING.swap(false, Ordering::Relaxed) {
+             log::info!("deferred: TerminateWindow (iter={})", iteration);
+             INIT_WINDOW_DONE.store(false, Ordering::Relaxed);
+             *LAST_CHROME_STYLE.lock().unwrap() = None;
+-            if let Some(platform) = PLATFORM.get() {
+-                if let Some(win) = platform.primary_window() {
+-                    win.term_window();
+-                }
+-            }
+             // Drain immediately — Java thread may be blocked on InitWindow condvar.
+             drain_events(app);
+         }
+@@ -884,55 +914,105 @@ pub fn run_event_loop(app: &AndroidApp) {
+         }
+     }
+ 
++    finish_session();
+     log::info!("run_event_loop: exiting main loop");
+ }
+ 
++/// End a NativeActivity session on its loop thread, after polling has stopped.
++/// Kept separate so manual poll_events users get the same teardown semantics.
++fn finish_session() {
++    dispose_all_platform_views();
++    if let Some(platform) = PLATFORM.get() {
++        platform.foreground_executor().shutdown();
++        platform.release_session_graphics();
++    }
++    super::frame_source::uninstall();
++    *LAST_CHROME_STYLE.lock().expect("chrome lock") = None;
++    *SHOWN_KEYBOARD.lock().expect("keyboard lock") = None;
++    for inset in &HOST_INSETS {
++        inset.store(0, Ordering::Release);
++    }
++    super::text_input::new_session(); // invalidate late IME callbacks from the old Activity
++    crate::TEXT_INPUT_DIRTY.store(false, Ordering::Release);
++    crate::KEYBOARD_HEIGHT_BITS.store(0, Ordering::Release);
++    NATIVE_INITIALIZED.store(false, Ordering::Release);
++    INIT_WINDOW_DONE.store(false, Ordering::Release);
++    for flag in [
++        &PAUSE_PENDING,
++        &RESUME_PENDING,
++        &TERM_WINDOW_PENDING,
++        &INIT_WINDOW_PENDING,
++        &WINDOW_RESIZED_PENDING,
++        &CONFIG_CHANGED_PENDING,
++        &INSETS_CHANGED_PENDING,
++    ] {
++        flag.store(false, Ordering::Release);
++    }
++    PLATFORM.clear();
++    ANDROID_APP.clear();
++}
++
+ /// Pause all platform views when the app goes to background.
+ fn pause_platform_views() {
+-    let _ = with_env(|env| {
+-        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+-            let _ = env.call_static_method(
+-                &helper_class,
+-                jni::jni_str!("pauseAll"),
+-                jni::jni_sig!("()V"),
+-                &[],
+-            );
++    let result = with_env(|env| {
++        let helper_class = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView")?;
++        env.call_static_method(
++            &helper_class,
++            jni::jni_str!("pauseAll"),
++            jni::jni_sig!("()V"),
++            &[],
++        )
++        .map_err(|error| {
+             env.exception_clear();
+-        }
++            error.to_string()
++        })?;
+         Ok(())
+     });
++    if let Err(error) = result {
++        log::error!("failed to pause Android platform views: {error}");
++    }
+ }
+ 
+ /// Resume all platform views when the app returns to foreground.
+ fn resume_platform_views() {
+-    let _ = with_env(|env| {
+-        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+-            let _ = env.call_static_method(
+-                &helper_class,
+-                jni::jni_str!("resumeAll"),
+-                jni::jni_sig!("()V"),
+-                &[],
+-            );
++    let result = with_env(|env| {
++        let helper_class = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView")?;
++        env.call_static_method(
++            &helper_class,
++            jni::jni_str!("resumeAll"),
++            jni::jni_sig!("()V"),
++            &[],
++        )
++        .map_err(|error| {
+             env.exception_clear();
+-        }
++            error.to_string()
++        })?;
+         Ok(())
+     });
++    if let Err(error) = result {
++        log::error!("failed to resume Android platform views: {error}");
++    }
+ }
+ 
+ /// Dispose all platform views during app shutdown.
+ fn dispose_all_platform_views() {
+-    let _ = with_env(|env| {
+-        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+-            let _ = env.call_static_method(
+-                &helper_class,
+-                jni::jni_str!("disposeAll"),
+-                jni::jni_sig!("()V"),
+-                &[],
+-            );
++    let result = with_env(|env| {
++        let helper_class = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView")?;
++        env.call_static_method(
++            &helper_class,
++            jni::jni_str!("disposeAll"),
++            jni::jni_sig!("()V"),
++            &[],
++        )
++        .map_err(|error| {
+             env.exception_clear();
+-        }
++            error.to_string()
++        })?;
+         Ok(())
+     });
++    if let Err(error) = result {
++        log::error!("failed to dispose Android platform views: {error}");
++    }
+ }
+ 
+ /// Handle a single `MainEvent` from `android-activity`.
+@@ -946,7 +1026,15 @@ fn handle_main_event(_app: &AndroidApp, event: MainEvent<'_>) {
+ 
+         MainEvent::TerminateWindow { .. } => {
+             log::info!("MainEvent::TerminateWindow");
+-            // Defer to after poll_events to avoid deadlock with state lock.
++            // android-activity acknowledges TERM_WINDOW when this callback returns.
++            // Release the swapchain/surface before that ACK lets the UI thread
++            // destroy its Surface. This touches no App or AndroidApp state.
++            if let Some(window) = PLATFORM
++                .get()
++                .and_then(|platform| platform.primary_window())
++            {
++                window.term_window();
++            }
+             TERM_WINDOW_PENDING.store(true, Ordering::Relaxed);
+         }
+ 
+@@ -1036,6 +1124,7 @@ fn handle_main_event(_app: &AndroidApp, event: MainEvent<'_>) {
+ pub fn poll_events(timeout_ms: i32) -> bool {
+     if let Some(platform) = PLATFORM.get() {
+         if platform.should_quit() {
++            finish_session();
+             return true;
+         }
+         platform.tick();
+@@ -1054,13 +1143,20 @@ pub fn poll_events(timeout_ms: i32) -> bool {
+ 
+     app.poll_events(timeout, |event| match event {
+         PollEvent::Main(main_event) => {
+-            handle_main_event(app, main_event);
++            handle_main_event(&app, main_event);
+         }
+         PollEvent::Wake => {}
+         _ => {}
+     });
+ 
+-    process_input_events(app);
++    if PLATFORM
++        .get()
++        .is_some_and(|platform| platform.should_quit())
++    {
++        finish_session();
++        return true;
++    }
++    process_input_events(&app);
+ 
+     // Drive the GPUI rendering pipeline (same as run_event_loop).
+     if let Some(platform) = PLATFORM.get() {
+@@ -1105,23 +1201,25 @@ pub fn install_panic_hook() {
+ 
+ /// Store the `AndroidApp` globally and create the `AndroidPlatform`.
+ ///
+-/// Must be called exactly once from `android_main` before
+-/// `run_event_loop`.  Returns a reference to the platform so the caller
++/// Must be called once per `android_main` session before
++/// `run_event_loop`. Returns an owned platform handle so the caller
+ /// can register callbacks (e.g. `set_on_init_window`) before entering
+ /// the event loop.
+-pub fn init_platform(app: &AndroidApp) -> &'static Arc<AndroidPlatform> {
+-    let _ = ANDROID_APP.set(app.clone());
++pub fn init_platform(app: &AndroidApp) -> Arc<AndroidPlatform> {
++    assert!(
++        ANDROID_APP.set(app.clone()).is_ok(),
++        "overlapping Android activity sessions"
++    );
+     log::info!("init_platform: stored AndroidApp");
+ 
+     let platform = Arc::new(AndroidPlatform::new(false));
+     log::info!("init_platform: AndroidPlatform created");
+ 
+-    PLATFORM
+-        .set(Arc::clone(&platform))
+-        .unwrap_or_else(|_| log::warn!("PLATFORM already set — duplicate init_platform?"));
+-
+-    // SAFETY: we just set it above.
+-    PLATFORM.get().unwrap()
++    assert!(
++        PLATFORM.set(Arc::clone(&platform)).is_ok(),
++        "Android platform already installed"
++    );
++    platform
+ }
+ 
+ // ── system chrome (status bar / navigation bar) ───────────────────────────────
+@@ -1296,7 +1394,7 @@ static SHOWN_KEYBOARD: std::sync::Mutex<Option<crate::KeyboardType>> = std::sync
+ /// Called by [`super::host`] once a recreated Activity's surface is attached. A fresh
+ /// IME session is started, which is what we want: the proxy is a new object.
+ pub(crate) fn restore_keyboard() {
+-    let keyboard_type = *SHOWN_KEYBOARD.lock().expect("poisoned");
++    let keyboard_type = SHOWN_KEYBOARD.lock().expect("poisoned").take();
+     if let Some(keyboard_type) = keyboard_type {
+         log::info!("restore_keyboard: re-showing {keyboard_type:?} on the new Activity");
+         show_keyboard_android(keyboard_type);
+@@ -1308,7 +1406,19 @@ pub(crate) fn restore_keyboard() {
+ /// Unlike NativeActivity's key-event-only connection, its InputConnection
+ /// supports composing text, commits and Unicode surrounding-text deletion.
+ pub fn show_keyboard_android(keyboard_type: crate::KeyboardType) {
+-    *SHOWN_KEYBOARD.lock().expect("poisoned") = Some(keyboard_type);
++    // A tap requests the IME, then GPUI reports FocusGained after painting its
++    // input handler. Coalesce those requests; restarting the proxy here can
++    // discard the first committed characters that arrive between the two.
++    let session = {
++        let mut shown = SHOWN_KEYBOARD.lock().expect("poisoned");
++        let session = if *shown == Some(keyboard_type) {
++            super::text_input::current_session()
++        } else {
++            super::text_input::new_session()
++        };
++        *shown = Some(keyboard_type);
++        session
++    };
+     let kind = match keyboard_type {
+         crate::KeyboardType::Default => 0,
+         crate::KeyboardType::EmailAddress => 1,
+@@ -1317,7 +1427,6 @@ pub fn show_keyboard_android(keyboard_type: crate::KeyboardType) {
+         crate::KeyboardType::URL => 4,
+         crate::KeyboardType::Decimal => 5,
+     };
+-    let session = super::text_input::new_session();
+     if let Err(error) = with_env(|env| {
+         let activity = activity(env)?;
+         env.call_method(
+@@ -1376,6 +1485,36 @@ pub(super) fn reset_keyboard_composition() {
+     });
+ }
+ 
++/// Receive Java WindowInsets updates; the native event loop applies them on the GPUI thread.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiInputActivity_nativeInsetsChanged(
++    _env: *mut c_void,
++    _class: *mut c_void,
++    safe_top: i32,
++    safe_bottom: i32,
++    safe_left: i32,
++    safe_right: i32,
++    ime_top: i32,
++    ime_bottom: i32,
++    ime_left: i32,
++    ime_right: i32,
++) {
++    for (slot, value) in HOST_INSETS.iter().zip([
++        safe_top,
++        safe_bottom,
++        safe_left,
++        safe_right,
++        ime_top,
++        ime_bottom,
++        ime_left,
++        ime_right,
++    ]) {
++        slot.store(value, Ordering::Release);
++    }
++    INSETS_CHANGED_PENDING.store(true, Ordering::Release);
++    super::frame_source::wake();
++}
++
+ /// Receive Java InputConnection updates without touching GPUI on the UI thread.
+ ///
+ /// # Safety
+@@ -1516,6 +1655,24 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiMediaSession_nativeMediaSeek(
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn session_slot_replaces_destroyed_activity_without_reusing_old_handles() {
++        let slot = SessionSlot(Mutex::new(None));
++        let first = Arc::new(1);
++        slot.set(first.clone()).unwrap();
++        let held_by_worker = slot.get().unwrap();
++        assert!(
++            slot.set(Arc::new(2)).is_err(),
++            "overlapping sessions rejected"
++        );
++        slot.clear();
++        assert!(slot.get().is_none());
++        slot.set(Arc::new(2)).unwrap();
++        assert_eq!(*held_by_worker, 1, "owned handles survive teardown safely");
++        assert_eq!(*slot.get().unwrap(), 2, "new callers use the new session");
++        assert!(!Arc::ptr_eq(&held_by_worker, &slot.get().unwrap()));
++    }
++
+     #[test]
+     fn poll_events_returns_false_when_no_platform() {
+         // PLATFORM is not set in a unit-test context, so poll_events should
+diff --git a/src/android/platform.rs b/src/android/platform.rs
+index 0cdea3a..ea91668 100644
+--- a/src/android/platform.rs
++++ b/src/android/platform.rs
+@@ -605,6 +605,38 @@ impl AndroidPlatform {
+         self.state.lock().windows.primary().cloned()
+     }
+ 
++    /// Release the completed Activity's graphics on its loop thread. Do not rely
++    /// on the last externally retained platform/window handle being dropped.
++    pub(crate) fn release_session_graphics(&self) {
++        let (windows, gpu_context, callbacks) = {
++            let mut state = self.state.lock();
++            (
++                std::mem::take(&mut state.windows),
++                std::mem::replace(&mut state.gpu_context, Rc::new(RefCell::new(None))),
++                (
++                    state.finish_launching.take(),
++                    state.quit_callback.take(),
++                    state.reopen_callback.take(),
++                    state.open_urls_callback.take(),
++                    state.keyboard_layout_callback.take(),
++                    state.on_init_window_callback.take(),
++                ),
++            )
++        };
++        drop(callbacks); // GPUI weak Rc callbacks must be dropped on this thread
++        for window in windows.iter() {
++            window.dispose_session();
++        }
++        drop(windows);
++        // App::shutdown has already removed GPUI windows and the runtime. Destroy
++        // the session's device even if a late owned handle still retains an atlas.
++        let context = gpu_context.borrow_mut().take();
++        if let Some(context) = context {
++            context.device.destroy();
++            log::info!("Android session GPU device released");
++        }
++    }
++
+     /// Returns the number of live windows.
+     pub fn window_count(&self) -> usize {
+         self.state.lock().windows.len()
+@@ -936,7 +968,10 @@ impl AndroidPlatform {
+     /// Should be called from the native-activity main loop on every iteration
+     /// to process delayed background tasks.
+     pub fn tick(&self) {
+-        self.state.lock().dispatcher.tick();
++        // Foreground tasks can synchronously call back into the platform (for
++        // example to open a GPUI window). Never run them under the state lock.
++        let dispatcher = self.state.lock().dispatcher.clone();
++        dispatcher.tick();
+     }
+ 
+     /// When the next delayed background task is due; the main loop sleeps
+@@ -949,7 +984,8 @@ impl AndroidPlatform {
+     ///
+     /// Useful in headless tests where there is no real ALooper.
+     pub fn flush_main_thread_tasks(&self) {
+-        self.state.lock().dispatcher.flush_main_thread_tasks();
++        let dispatcher = self.state.lock().dispatcher.clone();
++        dispatcher.flush_main_thread_tasks();
+     }
+ }
+ 
+@@ -1128,7 +1164,9 @@ impl Platform for AndroidPlatform {
+         _suggested_name: Option<&str>,
+     ) -> oneshot::Receiver<Result<Option<PathBuf>>> {
+         let (tx, rx) = oneshot::channel();
+-        let _ = tx.send(Ok(None));
++        let _ = tx.send(Err(anyhow::anyhow!(
++            "Save dialog is not supported on Android"
++        )));
+         rx
+     }
+ 
+@@ -1709,6 +1747,31 @@ mod tests {
+         assert!(headless().primary_window().is_none());
+     }
+ 
++    #[test]
++    fn session_release_detaches_retained_windows_and_is_idempotent() {
++        let platform = headless();
++        let window = AndroidWindow::headless(1080, 1920, 3.0);
++        platform.state.lock().windows.push(window.clone());
++        let callback_owner = Arc::new(());
++        let window_owner = callback_owner.clone();
++        window.on_request_frame(move || {
++            let _ = &window_owner;
++        });
++        let platform_owner = callback_owner.clone();
++        platform.on_reopen(move || {
++            let _ = &platform_owner;
++        });
++        assert_eq!(Arc::strong_count(&callback_owner), 3);
++        assert_eq!(platform.window_count(), 1);
++        platform.release_session_graphics();
++        assert_eq!(platform.window_count(), 0);
++        assert!(!window.is_active());
++        assert!(!window.has_surface());
++        assert!(platform.gpu_context().borrow().is_none());
++        assert_eq!(Arc::strong_count(&callback_owner), 1);
++        platform.release_session_graphics();
++    }
++
+     // ── flush main thread tasks ───────────────────────────────────────────────
+ 
+     #[test]
+@@ -1717,6 +1780,24 @@ mod tests {
+         headless().flush_main_thread_tasks();
+     }
+ 
++    #[test]
++    fn flushed_tasks_can_reenter_platform_state() {
++        let platform = Arc::new(headless());
++        let inner = platform.clone();
++        let unlocked = Arc::new(std::sync::atomic::AtomicBool::new(false));
++        let result = unlocked.clone();
++        platform
++            .foreground_executor()
++            .dispatch_on_main_thread(move || {
++                result.store(
++                    inner.state.try_lock().is_some(),
++                    std::sync::atomic::Ordering::Relaxed,
++                );
++            });
++        platform.flush_main_thread_tasks();
++        assert!(unlocked.load(std::sync::atomic::Ordering::Relaxed));
++    }
++
+     // ── tick ─────────────────────────────────────────────────────────────────
+ 
+     #[test]
+diff --git a/src/android/text_input.rs b/src/android/text_input.rs
+index 756928d..55e344d 100644
+--- a/src/android/text_input.rs
++++ b/src/android/text_input.rs
+@@ -23,6 +23,10 @@ pub(super) struct ImeEvent {
+     pub end: usize,
+ }
+ 
++pub(super) fn current_session() -> u64 {
++    SESSION.load(Ordering::Acquire)
++}
++
+ pub(super) fn new_session() -> u64 {
+     let session = SESSION.fetch_add(1, Ordering::AcqRel) + 1;
+     EVENTS.lock().clear();
+diff --git a/src/android/window.rs b/src/android/window.rs
+index efd697a..7358d7b 100644
+--- a/src/android/window.rs
++++ b/src/android/window.rs
+@@ -56,22 +56,19 @@ use std::sync::{Arc, OnceLock};
+ use super::{AndroidKeyEvent, Bounds, DevicePixels, Pixels, Point, Size, TouchPoint};
+ 
+ /// Lightweight, owned window handle for wgpu surface creation.
+-/// Stores the raw ANativeWindow pointer and implements the traits
+-/// required by `WgpuRenderer::new` (`Clone + Debug + Send + Sync + 'static`).
+-#[derive(Debug, Clone, Copy)]
++/// Retains the ANativeWindow for the lifetime of wgpu's window/display source.
++/// A raw pointer alone does not satisfy HasWindowHandle's lifetime contract.
++#[derive(Debug, Clone)]
+ struct RawAndroidWindow {
+-    nw_ptr: *mut std::ffi::c_void,
++    window: NativeWindow,
+ }
+ 
+-unsafe impl Send for RawAndroidWindow {}
+-unsafe impl Sync for RawAndroidWindow {}
+-
+ impl HasWindowHandle for RawAndroidWindow {
+     fn window_handle(
+         &self,
+     ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
+     {
+-        let ptr = NonNull::new(self.nw_ptr).ok_or(raw_window_handle::HandleError::Unavailable)?;
++        let ptr = self.window.ptr().cast();
+         let handle = AndroidNdkWindowHandle::new(ptr);
+         Ok(unsafe { raw_window_handle::WindowHandle::borrow_raw(handle.into()) })
+     }
+@@ -143,11 +140,12 @@ fn load_set_frame_rate_with_change_strategy() -> Option<SetFrameRateWithChangeSt
+ /// The NDK entry points are resolved with `dlsym` so this library still loads
+ /// on pre-API-30/31 devices where the symbols do not exist.
+ fn request_high_frame_rate(window: &NativeWindow) {
+-    let api_level = unsafe { ndk_sys::android_get_device_api_level() };
+     let native_window = window.ptr().as_ptr();
+-
+-    let status = if api_level >= 31 {
+-        load_set_frame_rate_with_change_strategy().map(|set_frame_rate| unsafe {
++    // Symbol availability is the API check. android_get_device_api_level is
++    // itself only an exported symbol on API 29+, so linking it directly breaks
++    // a host with our API 26 minimum (and native test executables).
++    let status = if let Some(set_frame_rate) = load_set_frame_rate_with_change_strategy() {
++        Some(unsafe {
+             set_frame_rate(
+                 native_window,
+                 HIGH_FRAME_RATE,
+@@ -155,7 +153,7 @@ fn request_high_frame_rate(window: &NativeWindow) {
+                 ONLY_IF_SEAMLESS,
+             )
+         })
+-    } else if api_level >= 30 {
++    } else {
+         load_set_frame_rate().map(|set_frame_rate| unsafe {
+             set_frame_rate(
+                 native_window,
+@@ -163,14 +161,12 @@ fn request_high_frame_rate(window: &NativeWindow) {
+                 DEFAULT_FRAME_RATE_COMPATIBILITY,
+             )
+         })
+-    } else {
+-        None
+     };
+ 
+     match status {
+         Some(0) => log::info!("Requested 120 Hz frame rate"),
+         Some(status) => log::warn!("ANativeWindow_setFrameRate* failed with status {status}"),
+-        None => log::debug!("Skipping high frame rate request on API {api_level}"),
++        None => log::debug!("Skipping high frame rate request: platform API unavailable"),
+     }
+ }
+ 
+@@ -219,7 +215,7 @@ pub enum WindowAppearance {
+ /// These represent the areas of the screen occupied by system UI elements
+ /// (status bar, navigation bar, camera notch, etc.) that the app content
+ /// should avoid drawing into — or at least pad/account for.
+-#[derive(Debug, Clone, Copy, Default)]
++#[derive(Debug, Clone, Copy, Default, PartialEq)]
+ pub struct SafeAreaInsets {
+     /// Top inset in device pixels (status bar / camera notch).
+     pub top: f32,
+@@ -253,7 +249,7 @@ struct WindowState {
+     /// Created once and reused across window re-creations.
+     gpu_context: GpuContext,
+ 
+-    /// The wgpu renderer from `gpui_wgpu`.  `None` while the surface is unavailable.
++    /// The logical wgpu renderer. Surface resources are detached while inactive.
+     renderer: Option<WgpuRenderer>,
+ 
+     /// Cached display geometry.
+@@ -261,12 +257,10 @@ struct WindowState {
+     height: i32,
+     scale_factor: f32,
+ 
+-    /// Safe area insets in physical (device) pixels.
+-    ///
+-    /// Updated from `AndroidApp::content_rect()` during `InitWindow` and
+-    /// `WindowResized`.  The top inset accounts for the status bar / notch,
+-    /// and the bottom inset accounts for the navigation bar / gesture area.
++    /// Safe area and IME insets in physical (device) pixels.
+     safe_area_insets: SafeAreaInsets,
++    ime_insets: SafeAreaInsets,
++    insets_callback: Option<Box<dyn FnMut(gpui::WindowInsets) + Send>>,
+ 
+     /// Current appearance.
+     appearance: WindowAppearance,
+@@ -277,19 +271,6 @@ struct WindowState {
+     /// Whether the window background should be transparent.
+     transparent: bool,
+ 
+-    /// Address of the `ANativeWindow` the renderer's wgpu surface was created from.
+-    ///
+-    /// Vulkan permits one surface per native window, and `replace_surface` builds the
+-    /// new surface *before* dropping the old one. The framework sometimes hands a
+-    /// recreated `SurfaceView` back the very same `ANativeWindow`, and building a second
+-    /// surface for it aborts inside wgpu-hal with `ERROR_NATIVE_WINDOW_IN_USE_KHR`.
+-    /// Comparing against this address lets `init_window` release the old surface before
+-    /// creating the new one. The field is never cleared in `term_window` —
+-    /// `unconfigure_surface` keeps the wgpu surface (and therefore the native window)
+-    /// alive, so a matching address always means the *same live* object rather than a
+-    /// recycled allocation.
+-    surface_window_addr: usize,
+-
+     // ── callbacks ─────────────────────────────────────────────────────────
+     request_frame_callback: Option<RequestFrameCallback>,
+     touch_callback: Option<TouchCallback>,
+@@ -381,7 +362,6 @@ impl AndroidWindow {
+         .context("failed to create gpui_wgpu renderer")?;
+ 
+         let id = native_window.ptr().as_ptr() as u64;
+-        let surface_window_addr = native_window.ptr().as_ptr() as usize;
+ 
+         let state = Arc::new(Mutex::new(WindowState {
+             native_window: Some(native_window),
+@@ -391,10 +371,11 @@ impl AndroidWindow {
+             height,
+             scale_factor,
+             safe_area_insets: SafeAreaInsets::default(),
++            ime_insets: SafeAreaInsets::default(),
++            insets_callback: None,
+             appearance: WindowAppearance::Light,
+             is_active: true,
+             transparent,
+-            surface_window_addr,
+             request_frame_callback: None,
+             touch_callback: None,
+             key_callback: None,
+@@ -425,10 +406,11 @@ impl AndroidWindow {
+             height,
+             scale_factor,
+             safe_area_insets: SafeAreaInsets::default(),
++            ime_insets: SafeAreaInsets::default(),
++            insets_callback: None,
+             appearance: WindowAppearance::Light,
+             is_active: false,
+             transparent: false,
+-            surface_window_addr: 0,
+             request_frame_callback: None,
+             touch_callback: None,
+             key_callback: None,
+@@ -460,83 +442,27 @@ impl AndroidWindow {
+         let mut state = self.state.lock();
+         let transparent = state.transparent;
+ 
+-        // If a renderer already exists (kept alive across term_window), just
+-        // replace its surface.  This preserves the atlas and all cached
+-        // AtlasTextureIds so GPUI's scene cache remains valid.
+-        let incoming_addr = native_window.ptr().as_ptr() as usize;
+-        if state.renderer.is_some() && state.surface_window_addr == incoming_addr {
+-            // Same live `ANativeWindow` as the surface we already hold. Two things
+-            // rule out the paths used elsewhere in this function:
+-            //
+-            // - `replace_surface` creates the new surface *before* dropping the old
+-            //   one, and Vulkan refuses a second surface on a window that is still
+-            //   connected (`ERROR_NATIVE_WINDOW_IN_USE_KHR`, an `expect` inside
+-            //   wgpu-hal that cannot be caught).
+-            // - `update_drawable_size` alone is not enough: `term_window` left the
+-            //   surface unconfigured, and nothing but a surface rebuild re-arms it,
+-            //   so `draw` would keep bailing out and the window would stay black.
+-            //
+-            // `destroy` releases the old surface first; `recover` then rebuilds the
+-            // renderer on the same window while keeping the atlas `Arc` that GPUI
+-            // holds (its tiles are cleared and re-rasterised on the next paint, which
+-            // `force_render_once` below guarantees).
+-            log::info!(
+-                "AndroidWindow::init_window — same native window, rebuilding surface {}×{}",
+-                width,
+-                height
+-            );
+-            let raw = Self::raw_window(&native_window);
+-            let renderer = state.renderer.as_mut().unwrap();
++        if let Some(renderer) = state.renderer.as_mut() {
++            // Always detach the old surface before creating another, even when
++            // Android reuses the same ANativeWindow address. Keep the atlas Arc
++            // that GPUI owns; recover invalidates its tiles for the full repaint.
+             renderer.destroy();
+             renderer
+-                .recover(&raw)
+-                .context("failed to rebuild the wgpu surface on the same native window")?;
++                .recover(&Self::raw_window(&native_window))
++                .context("failed to rebuild the Android wgpu surface")?;
+             renderer.update_drawable_size(gpui::size(
+                 gpui::DevicePixels(width),
+                 gpui::DevicePixels(height),
+             ));
+-        } else if state.renderer.is_some() {
+-            let raw = Self::raw_window(&native_window);
+-            let config = WgpuSurfaceConfig {
+-                size: gpui::size(gpui::DevicePixels(width), gpui::DevicePixels(height)),
+-                transparent,
+-                preferred_present_mode: Some(wgpu::PresentMode::Mailbox),
+-            };
+-            let instance = state
+-                .gpu_context
+-                .borrow()
+-                .as_ref()
+-                .ok_or_else(|| anyhow::anyhow!("gpu_context missing during surface replacement"))?
+-                .instance
+-                .clone();
+-            state
+-                .renderer
+-                .as_mut()
+-                .unwrap()
+-                .replace_surface(&raw, config, &instance)?;
+-            state.surface_window_addr = incoming_addr;
+-            log::info!(
+-                "AndroidWindow::init_window — replaced surface {}×{}",
+-                width,
+-                height
+-            );
+         } else {
+-            // First init or after a full destroy — create a fresh renderer.
+-            let ctx = if state.gpu_context.borrow().is_some() {
+-                Rc::clone(&state.gpu_context)
+-            } else {
+-                // Use the context from the platform; store it in our state too.
+-                state.gpu_context = Rc::clone(&gpu_context);
+-                gpu_context
+-            };
+-            let renderer = Self::create_renderer(&native_window, ctx, width, height, transparent)?;
+-            state.renderer = Some(renderer);
+-            state.surface_window_addr = incoming_addr;
+-            log::info!(
+-                "AndroidWindow::init_window — created new renderer {}×{}",
++            state.gpu_context = Rc::clone(&gpu_context);
++            state.renderer = Some(Self::create_renderer(
++                &native_window,
++                gpu_context,
+                 width,
+-                height
+-            );
++                height,
++                transparent,
++            )?);
+         }
+ 
+         // Store the new native window (drops previous one if any).
+@@ -597,17 +523,17 @@ impl AndroidWindow {
+     /// Called when `APP_CMD_TERM_WINDOW` fires and the surface is about to be
+     /// destroyed.
+     ///
+-    /// Drops the renderer (and therefore the wgpu surface) but keeps the window
+-    /// struct alive so callbacks are preserved.
++    /// Release surface-bound resources before Android acknowledges TERM_WINDOW.
++    /// Keep the logical renderer/atlas handle so GPUI can resume after init_window.
+     pub fn term_window(&self) {
+         let mut state = self.state.lock();
+ 
+-        // Unconfigure the surface so the renderer stops trying to present,
+-        // but keep the renderer alive so the atlas (with all cached
+-        // texture IDs) survives across the background/foreground cycle.
+         if let Some(ref mut renderer) = state.renderer {
++            // unconfigure_surface only flips a flag: it does NOT drop the Vulkan
++            // surface/swapchain. They must not outlive the native surface.
+             renderer.unconfigure_surface();
+-            log::info!("AndroidWindow::term_window — surface unconfigured (renderer kept alive)");
++            renderer.destroy();
++            log::info!("AndroidWindow::term_window — native surface released");
+         }
+ 
+         // Release our reference on the native window.
+@@ -625,6 +551,29 @@ impl AndroidWindow {
+         // seamlessly via init_window().
+     }
+ 
++    /// Retire callbacks on the loop thread even if an owned window handle escapes
++    /// the Activity. Several callbacks contain GPUI's thread-affine Rc state.
++    pub(crate) fn dispose_session(&self) {
++        self.term_window();
++        let retired = {
++            let mut state = self.state.lock();
++            (
++                state.request_frame_callback.take(),
++                state.touch_callback.take(),
++                state.key_callback.take(),
++                state.resize_callback.take(),
++                state.close_callback.take(),
++                state.appearance_callback.take(),
++                state.active_status_callback.take(),
++                state.visibility_callback.take(),
++                state.insets_callback.take(),
++                state.renderer.take(),
++                std::mem::replace(&mut state.gpu_context, Rc::new(RefCell::new(None))),
++            )
++        };
++        drop(retired); // outside the state mutex, and still on the session thread
++    }
++
+     /// Called when `APP_CMD_WINDOW_RESIZED` fires.
+     pub fn handle_resize(&self) {
+         let (new_w, new_h, scale) = {
+@@ -1010,14 +959,113 @@ impl AndroidWindow {
+             insets.left,
+             insets.right,
+         );
+-        state.safe_area_insets = insets;
++        let changed = state.safe_area_insets.top != insets.top
++            || state.safe_area_insets.bottom != insets.bottom
++            || state.safe_area_insets.left != insets.left
++            || state.safe_area_insets.right != insets.right;
++        if changed {
++            state.safe_area_insets = insets;
++        }
++        drop(state);
++        if changed {
++            self.dispatch_insets_changed();
++        }
++    }
++
++    fn dispatch_insets_changed(&self) {
++        let (mut callback, insets) = {
++            let mut state = self.state.lock();
++            let Some(callback) = state.insets_callback.take() else {
++                return;
++            };
++            let insets = crate::logical_window_insets(
++                [
++                    state.safe_area_insets.top,
++                    state.safe_area_insets.bottom,
++                    state.safe_area_insets.left,
++                    state.safe_area_insets.right,
++                ],
++                [
++                    state.ime_insets.top,
++                    state.ime_insets.bottom,
++                    state.ime_insets.left,
++                    state.ime_insets.right,
++                ],
++                state.scale_factor,
++            );
++            (callback, insets)
++        };
++        callback(insets);
++        let mut state = self.state.lock();
++        if state.insets_callback.is_none() {
++            state.insets_callback = Some(callback);
++        }
++    }
++
++    /// Update safe-area and keyboard insets in physical pixels from Android WindowInsets.
++    pub fn update_system_insets(
++        &self,
++        safe_top: i32,
++        safe_bottom: i32,
++        safe_left: i32,
++        safe_right: i32,
++        ime_top: i32,
++        ime_bottom: i32,
++        ime_left: i32,
++        ime_right: i32,
++    ) {
++        let mut state = self.state.lock();
++        let safe = SafeAreaInsets {
++            top: safe_top.max(0) as f32,
++            bottom: safe_bottom.max(0) as f32,
++            left: safe_left.max(0) as f32,
++            right: safe_right.max(0) as f32,
++        };
++        let ime = SafeAreaInsets {
++            top: ime_top.max(0) as f32,
++            bottom: ime_bottom.max(0) as f32,
++            left: ime_left.max(0) as f32,
++            right: ime_right.max(0) as f32,
++        };
++        let changed = state.safe_area_insets != safe || state.ime_insets != ime;
++        if changed {
++            state.safe_area_insets = safe;
++            state.ime_insets = ime;
++        }
++        drop(state);
++        if changed {
++            self.dispatch_insets_changed();
++        }
++    }
++
++    /// Update keyboard occlusion in physical pixels from Android WindowInsets.
++    pub fn update_ime_insets(&self, top: i32, bottom: i32, left: i32, right: i32) {
++        let mut state = self.state.lock();
++        let insets = SafeAreaInsets {
++            top: top.max(0) as f32,
++            bottom: bottom.max(0) as f32,
++            left: left.max(0) as f32,
++            right: right.max(0) as f32,
++        };
++        let changed = state.ime_insets.top != insets.top
++            || state.ime_insets.bottom != insets.bottom
++            || state.ime_insets.left != insets.left
++            || state.ime_insets.right != insets.right;
++        if changed {
++            state.ime_insets = insets;
++        }
++        drop(state);
++        if changed {
++            self.dispatch_insets_changed();
++        }
+     }
+ 
+     // ── state queries ─────────────────────────────────────────────────────────
+ 
+     /// Whether the window currently has an active wgpu surface.
+     pub fn has_surface(&self) -> bool {
+-        self.state.lock().renderer.is_some()
++        let state = self.state.lock();
++        state.native_window.is_some() && state.renderer.is_some()
+     }
+ 
+     /// Returns the sprite atlas from the renderer, if available.
+@@ -1130,16 +1178,9 @@ impl AndroidWindow {
+     /// so we wrap both into a single owned struct that satisfies the
+     /// `Clone + Debug + Send + Sync + 'static` bounds required by `WgpuRenderer::new`.
+     fn raw_window(native_window: &NativeWindow) -> RawAndroidWindow {
+-        let ptr = native_window
+-            .window_handle()
+-            .expect("NativeWindow handle unavailable")
+-            .as_raw();
+-        // Extract the raw pointer from the RawWindowHandle
+-        let nw_ptr = match ptr {
+-            RawWindowHandle::AndroidNdk(h) => h.a_native_window.as_ptr(),
+-            _ => panic!("Expected AndroidNdk window handle"),
+-        };
+-        RawAndroidWindow { nw_ptr }
++        RawAndroidWindow {
++            window: native_window.clone(),
++        }
+     }
+ 
+     /// Create a `WgpuRenderer` for the given `NativeWindow`.
+@@ -1241,6 +1282,34 @@ impl HasDisplayHandle for AndroidPlatformWindow {
+ }
+ 
+ impl PlatformWindow for AndroidPlatformWindow {
++    fn insets(&self) -> gpui::WindowInsets {
++        let state = self.window.state.lock();
++        crate::logical_window_insets(
++            [
++                state.safe_area_insets.top,
++                state.safe_area_insets.bottom,
++                state.safe_area_insets.left,
++                state.safe_area_insets.right,
++            ],
++            [
++                state.ime_insets.top,
++                state.ime_insets.bottom,
++                state.ime_insets.left,
++                state.ime_insets.right,
++            ],
++            state.scale_factor,
++        )
++    }
++
++    fn on_insets_changed(&self, callback: Box<dyn FnMut(gpui::WindowInsets)>) {
++        let callback: Box<dyn FnMut(gpui::WindowInsets) + Send> =
++            unsafe { std::mem::transmute(callback) };
++        // Registration happens while GPUI constructs a Window with App already
++        // borrowed. Initial insets are available via insets(); only subsequent
++        // changes may invoke the callback.
++        self.window.state.lock().insets_callback = Some(callback);
++    }
++
+     fn bounds(&self) -> gpui::Bounds<gpui::Pixels> {
+         let state = self.window.state.lock();
+         let w = state.width as f32 / state.scale_factor;
+@@ -1319,6 +1388,12 @@ impl PlatformWindow for AndroidPlatformWindow {
+         self.input_handler.borrow_mut().take()
+     }
+ 
++    fn request_text_input(&self) {
++        // Also reopens the IME after Back dismissed it without changing native
++        // input focus. show_keyboard coalesces requests for the current session.
++        super::jni::show_keyboard_android(crate::KeyboardType::Default);
++    }
++
+     fn text_input_state_changed(&self, change: gpui::TextInputStateChange) {
+         match change {
+             gpui::TextInputStateChange::FocusGained => {
+diff --git a/src/frame_pacer.rs b/src/frame_pacer.rs
+index 504eee1..aed89c8 100644
+--- a/src/frame_pacer.rs
++++ b/src/frame_pacer.rs
+@@ -11,6 +11,10 @@
+ //! callback is posted or a frame is already due is folded into it, so a
+ //! window that is notified fifty times between two vsyncs still draws once.
+ //!
++//! Posted demand has a three-interval watchdog: a lost callback (for example
++//! across an Android surface transition) must not freeze a live session. Only an
++//! owed frame can use this deadline; an idle window never draws by this clock.
++//!
+ //! Waiting for a vsync only makes sense while the loop keeps up with them.
+ //! Once the previous frame took a whole interval or longer, the vsync it
+ //! would wait for has already passed, and waiting for the next one only
+@@ -48,7 +52,8 @@ pub(crate) struct FramePacer {
+     /// A vsync fired (or the fallback clock ran out) and the frame it owes has
+     /// not been taken yet.
+     due: Cell<bool>,
+-    /// Fallback only: demand is waiting for this instant.
++    /// Clock fallback deadline, or a watchdog for an undelivered vsync. Demand
++    /// must not wait forever when Android abandons a posted callback.
+     fallback_due_at: Cell<Option<Instant>>,
+     /// Fallback only: when the previous frame was taken, to space the next.
+     last_frame_at: Cell<Option<Instant>>,
+@@ -97,6 +102,7 @@ impl FramePacer {
+             Some(_) if interval_elapsed => self.due.set(true),
+             Some(post) => {
+                 self.posted.set(true);
++                self.fallback_due_at.set(Some(now + self.interval * 3));
+                 post();
+             }
+             None => {
+@@ -112,6 +118,7 @@ impl FramePacer {
+     /// The posted vsync callback fired: the frame it owes is now due.
+     pub(crate) fn on_vsync(&self) {
+         self.posted.set(false);
++        self.fallback_due_at.set(None);
+         self.due.set(true);
+     }
+ 
+@@ -119,11 +126,15 @@ impl FramePacer {
+     /// and only then; a frame left untaken (window inactive) stays due.
+     pub(crate) fn take_frame(&self, now: Instant) -> bool {
+         if self.due.replace(false) {
++            self.fallback_due_at.set(None);
+             self.last_frame_at.set(Some(now));
+             return true;
+         }
+         match self.fallback_due_at.get() {
+             Some(due_at) if due_at <= now => {
++                if self.posted.replace(false) {
++                    log::warn!("FramePacer: vsync callback missed deadline; drawing owed frame");
++                }
+                 self.fallback_due_at.set(None);
+                 self.last_frame_at.set(Some(now));
+                 true
+@@ -146,13 +157,14 @@ impl FramePacer {
+     /// dirty.
+     pub(crate) fn resume(&self, now: Instant) {
+         self.posted.set(false);
++        self.fallback_due_at.set(None);
+         self.schedule(now);
+     }
+ 
+     /// How long the loop may block before it has something to do: zero while
+     /// a frame is due, the time until the fallback frame otherwise, and
+-    /// `None` when only the vsync callback (delivered through the looper) or
+-    /// an unrelated wakeup can bring work.
++    /// `None` only when no frame is owed. A posted vsync has a watchdog deadline
++    /// so unrelated wakeups are not required to recover a lost callback.
+     pub(crate) fn poll_timeout(&self, now: Instant) -> Option<Duration> {
+         if self.due.get() {
+             return Some(Duration::ZERO);
+@@ -212,11 +224,33 @@ mod tests {
+         assert!(!pacer.take_frame(now), "nothing is due before the vsync");
+         assert_eq!(
+             pacer.poll_timeout(now),
+-            None,
+-            "the looper delivers the vsync"
++            Some(INTERVAL * 3),
++            "the looper delivers the vsync, with a bounded wait if it is lost"
+         );
+     }
+ 
++    #[test]
++    fn a_lost_vsync_cannot_freeze_demand_or_create_an_idle_render_loop() {
++        let now = Instant::now();
++        let (pacer, posts) = vsync_pacer_after_frame(now);
++        let scheduled = now + Duration::from_millis(1);
++        pacer.schedule(scheduled);
++        assert!(!pacer.take_frame(scheduled + INTERVAL));
++        assert!(pacer.take_frame(scheduled + INTERVAL * 3));
++        assert!(!pacer.has_demand());
++        assert!(!pacer.take_frame(scheduled + Duration::from_secs(60)));
++        assert_eq!(
++            pacer.poll_timeout(scheduled + Duration::from_secs(60)),
++            None
++        );
++        // The next demand still posts a vsync. A late old callback is harmless.
++        pacer.schedule(scheduled + INTERVAL * 3 + Duration::from_millis(1));
++        assert_eq!(posts.get(), 2);
++        pacer.on_vsync();
++        assert!(pacer.take_frame(scheduled + INTERVAL * 4));
++        assert!(!pacer.take_frame(scheduled + INTERVAL * 8));
++    }
++
+     #[test]
+     fn vsync_makes_one_frame_due_and_the_next_demand_posts_again() {
+         let now = Instant::now();
+diff --git a/src/ios/platform_view.rs b/src/ios/platform_view.rs
+index 71124b1..f1bf3c0 100644
+--- a/src/ios/platform_view.rs
++++ b/src/ios/platform_view.rs
+@@ -88,8 +88,10 @@ impl IosPlatformView {
+             );
+ 
+             let view: *mut AnyObject = match view_type {
++                #[cfg(feature = "video_player")]
+                 "video_player" => Self::create_video_player_view(frame, params)?,
+                 "webview" => Self::create_webview_view(frame, params)?,
++                #[cfg(feature = "camera")]
+                 "camera_preview" => Self::create_camera_preview_view(frame, params)?,
+                 _ => Self::create_generic_view(frame)?,
+             };
+@@ -129,7 +131,7 @@ impl IosPlatformView {
+     }
+ 
+     /// Create a UIView with an AVPlayerLayer for video playback.
+-    #[cfg(target_os = "ios")]
++    #[cfg(all(target_os = "ios", feature = "video_player"))]
+     unsafe fn create_video_player_view(
+         frame: ObjcCGRect,
+         params: &PlatformViewParams,
+@@ -224,7 +226,7 @@ impl IosPlatformView {
+     }
+ 
+     /// Create a UIView with AVCaptureVideoPreviewLayer for camera preview.
+-    #[cfg(target_os = "ios")]
++    #[cfg(all(target_os = "ios", feature = "camera"))]
+     unsafe fn create_camera_preview_view(
+         frame: ObjcCGRect,
+         params: &PlatformViewParams,
+diff --git a/src/ios/window.rs b/src/ios/window.rs
+index 709d659..0bfb09e 100644
+--- a/src/ios/window.rs
++++ b/src/ios/window.rs
+@@ -519,6 +519,32 @@ fn register_text_input_view_class() -> &'static AnyClass {
+     class!(GPUITextInputView)
+ }
+ 
++fn update_keyboard_frames(notification: *mut AnyObject) {
++    if notification.is_null() {
++        return;
++    }
++    unsafe {
++        let user_info: *mut AnyObject = msg_send![notification, userInfo];
++        if user_info.is_null() {
++            return;
++        }
++        let frame_key = crate::ios::util::nsstring("UIKeyboardFrameEndUserInfoKey");
++        let frame_value: *mut AnyObject = msg_send![user_info, objectForKey: frame_key];
++        if frame_value.is_null() {
++            return;
++        }
++        let frame: ObjcCGRect = msg_send![frame_value, CGRectValue];
++        if let Some(wrapper) = super::ffi::IOS_WINDOW_LIST.get() {
++            let windows = &*wrapper.0.get();
++            for &window_ptr in windows.iter() {
++                if !window_ptr.is_null() {
++                    (*window_ptr).set_keyboard_frame(frame);
++                }
++            }
++        }
++    }
++}
++
+ /// Handle touch events from the GPUIMetalView
+ fn handle_touches(view: *mut AnyObject, touches: *mut AnyObject, event: *mut AnyObject) {
+     unsafe {
+@@ -575,6 +601,9 @@ pub(crate) struct IosWindow {
+     hover_status_callback: RefCell<Option<Box<dyn FnMut(bool)>>>,
+     /// Callback for resize events
+     resize_callback: RefCell<Option<Box<dyn FnMut(Size<Pixels>, f32)>>>,
++    insets_callback: RefCell<Option<Box<dyn FnMut(gpui::WindowInsets)>>>,
++    last_insets: RefCell<Option<gpui::WindowInsets>>,
++    ime_insets: Cell<[f32; 4]>,
+     /// Callback for move events (not applicable on iOS)
+     moved_callback: RefCell<Option<Box<dyn FnMut()>>>,
+     /// Callback for should close
+@@ -716,6 +745,9 @@ impl IosWindow {
+                 visibility_callback: RefCell::new(None),
+                 hover_status_callback: RefCell::new(None),
+                 resize_callback: RefCell::new(None),
++                insets_callback: RefCell::new(None),
++                last_insets: RefCell::new(None),
++                ime_insets: Cell::new([0.0; 4]),
+                 moved_callback: RefCell::new(None),
+                 should_close_callback: RefCell::new(None),
+                 hit_test_callback: RefCell::new(None),
+@@ -839,61 +871,22 @@ impl IosWindow {
+         self.register_keyboard_observers();
+     }
+ 
+-    /// Register for keyboard show/hide notifications so we can track the
+-    /// keyboard height and allow the UI to shift content above the keyboard.
++    /// Register for keyboard frame changes and publish window-relative occlusion.
+     pub(crate) fn register_keyboard_observers(&self) {
+         unsafe {
+             let notification_center: *mut AnyObject =
+                 msg_send![class!(NSNotificationCenter), defaultCenter];
+-
+-            let show_name = crate::ios::util::nsstring("UIKeyboardWillShowNotification");
+-            let hide_name = crate::ios::util::nsstring("UIKeyboardWillHideNotification");
+-
+-            // Block that fires when the keyboard appears — extracts the
+-            // end-frame height and stores it in the global atomic.
+-            let show_block = block2::RcBlock::new(move |notification: *mut AnyObject| {
+-                if notification.is_null() {
+-                    return;
+-                }
+-                let user_info: *mut AnyObject = msg_send![notification, userInfo];
+-                if user_info.is_null() {
+-                    return;
+-                }
+-                let frame_key = crate::ios::util::nsstring("UIKeyboardFrameEndUserInfoKey");
+-                let frame_value: *mut AnyObject = msg_send![user_info, objectForKey: frame_key];
+-                // frame_key is autoreleased by util::nsstring — no manual release needed
+-                let _ = frame_key;
+-                if frame_value.is_null() {
+-                    return;
+-                }
+-                let frame: ObjcCGRect = msg_send![frame_value, CGRectValue];
+-                let height = frame.height as f32;
+-                log::info!("GPUI iOS: Keyboard will show, height={}", height);
+-                crate::set_keyboard_height(height);
+-            });
+-
+-            let hide_block = block2::RcBlock::new(move |_notification: *mut AnyObject| {
+-                log::info!("GPUI iOS: Keyboard will hide");
+-                crate::set_keyboard_height(0.0);
++            let frame_name = crate::ios::util::nsstring("UIKeyboardWillChangeFrameNotification");
++            let frame_block = block2::RcBlock::new(move |notification: *mut AnyObject| {
++                update_keyboard_frames(notification);
+             });
+-
+             let _: *mut AnyObject = msg_send![notification_center,
+-                addObserverForName: show_name,
++                addObserverForName: frame_name,
+                 object: std::ptr::null::<AnyObject>(),
+                 queue: std::ptr::null::<AnyObject>(),
+-                usingBlock: &*show_block
++                usingBlock: &*frame_block
+             ];
+-            let _: *mut AnyObject = msg_send![notification_center,
+-                addObserverForName: hide_name,
+-                object: std::ptr::null::<AnyObject>(),
+-                queue: std::ptr::null::<AnyObject>(),
+-                usingBlock: &*hide_block
+-            ];
+-            // show_name and hide_name are autoreleased by util::nsstring
+-
+-            // Leak the blocks so they live for the app lifetime.
+-            std::mem::forget(show_block);
+-            std::mem::forget(hide_block);
++            std::mem::forget(frame_block);
+         }
+     }
+ 
+@@ -1003,6 +996,63 @@ impl IosWindow {
+         }
+     }
+ 
++    fn current_window_insets(&self) -> gpui::WindowInsets {
++        let (top, bottom, left, right) = self.safe_area_insets();
++        let scale = self.scale_factor.get().max(f32::EPSILON);
++        crate::logical_window_insets(
++            [top * scale, bottom * scale, left * scale, right * scale],
++            {
++                let ime = self.ime_insets.get();
++                [
++                    ime[0] * scale,
++                    ime[1] * scale,
++                    ime[2] * scale,
++                    ime[3] * scale,
++                ]
++            },
++            scale,
++        )
++    }
++
++    fn refresh_window_insets(&self) {
++        let insets = self.current_window_insets();
++        let changed = {
++            let mut last = self.last_insets.borrow_mut();
++            if last.as_ref() == Some(&insets) {
++                false
++            } else {
++                *last = Some(insets.clone());
++                true
++            }
++        };
++        if changed {
++            if let Some(callback) = self.insets_callback.borrow_mut().as_mut() {
++                callback(insets);
++            }
++        }
++    }
++
++    fn set_keyboard_frame(&self, frame: ObjcCGRect) {
++        unsafe {
++            let frame_in_view: ObjcCGRect =
++                msg_send![self.view, convertRect: frame, fromView: std::ptr::null::<AnyObject>()];
++            let bounds: ObjcCGRect = msg_send![self.view, bounds];
++            let insets = crate::keyboard_occlusion_insets(
++                bounds.width as f32,
++                bounds.height as f32,
++                [
++                    frame_in_view.x as f32,
++                    frame_in_view.y as f32,
++                    frame_in_view.width as f32,
++                    frame_in_view.height as f32,
++                ],
++            );
++            self.ime_insets.set(insets);
++            crate::set_keyboard_height(insets[1]);
++            self.refresh_window_insets();
++        }
++    }
++
+     /// Show the software keyboard with the specified keyboard type.
+     ///
+     /// The actual `becomeFirstResponder` call is deferred to the next run-loop
+@@ -1251,8 +1301,10 @@ impl IosWindow {
+ 
+             let new_size = size(px(new_w), px(new_h));
+ 
+-            // Only process if something actually changed.
++            // Safe area can change without a bounds or scale change (for example
++            // when system bars appear), so refresh insets on every layout pass.
+             if old_bounds.size == new_size && (old_scale - new_scale).abs() < 0.01 {
++                self.refresh_window_insets();
+                 return;
+             }
+ 
+@@ -1298,6 +1350,7 @@ impl IosWindow {
+                     *slot = Some(cb);
+                 }
+             }
++            self.refresh_window_insets();
+         }
+     }
+ }
+@@ -1325,6 +1378,15 @@ impl HasDisplayHandle for IosWindow {
+ }
+ 
+ impl PlatformWindow for IosWindow {
++    fn insets(&self) -> gpui::WindowInsets {
++        self.current_window_insets()
++    }
++
++    fn on_insets_changed(&self, callback: Box<dyn FnMut(gpui::WindowInsets)>) {
++        *self.insets_callback.borrow_mut() = Some(callback);
++        self.refresh_window_insets();
++    }
++
+     fn bounds(&self) -> Bounds<Pixels> {
+         self.bounds.get()
+     }
+@@ -1377,6 +1439,10 @@ impl PlatformWindow for IosWindow {
+         Capslock { on: false }
+     }
+ 
++    fn request_text_input(&self) {
++        self.show_keyboard_with_type(crate::KeyboardType::Default);
++    }
++
+     fn set_input_handler(&mut self, input_handler: PlatformInputHandler) {
+         *self.input_handler.borrow_mut() = Some(input_handler);
+     }
+diff --git a/src/lib.rs b/src/lib.rs
+index 635285f..c7807f6 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -321,6 +321,88 @@ pub fn set_keyboard_height(height: f32) {
+ 
+ // ── Safe area insets ─────────────────────────────────────────────────────────
+ 
++pub(crate) fn logical_window_insets(
++    safe_area: [f32; 4],
++    ime: [f32; 4],
++    scale_factor: f32,
++) -> gpui::WindowInsets {
++    let scale_factor = scale_factor.max(f32::EPSILON);
++    let logical = |edges: [f32; 4]| gpui::Edges {
++        top: gpui::px(edges[0].max(0.0) / scale_factor),
++        bottom: gpui::px(edges[1].max(0.0) / scale_factor),
++        left: gpui::px(edges[2].max(0.0) / scale_factor),
++        right: gpui::px(edges[3].max(0.0) / scale_factor),
++    };
++    gpui::WindowInsets {
++        safe_area: logical(safe_area),
++        ime: logical(ime),
++    }
++}
++
++/// Return inset edges covered by the intersection of a keyboard rect and window.
++/// Rectangles are `(x, y, width, height)` in the same logical coordinate space.
++pub(crate) fn keyboard_occlusion_insets(
++    window_width: f32,
++    window_height: f32,
++    keyboard: [f32; 4],
++) -> [f32; 4] {
++    let [x, y, width, height] = keyboard;
++    let left = x.max(0.0);
++    let top = y.max(0.0);
++    let right = (x + width).min(window_width.max(0.0));
++    let bottom = (y + height).min(window_height.max(0.0));
++    if right <= left || bottom <= top {
++        return [0.0; 4];
++    }
++    let epsilon = 0.5;
++    if bottom >= window_height - epsilon && right - left >= window_width - epsilon {
++        return [0.0, (window_height - top).max(0.0), 0.0, 0.0];
++    }
++    if bottom - top >= window_height - epsilon {
++        return [
++            0.0,
++            0.0,
++            if left <= epsilon { right } else { 0.0 },
++            if right >= window_width - epsilon {
++                (window_width - left).max(0.0)
++            } else {
++                0.0
++            },
++        ];
++    }
++    [if top <= epsilon { bottom } else { 0.0 }, 0.0, 0.0, 0.0]
++}
++
++#[cfg(test)]
++mod inset_tests {
++    use super::*;
++
++    #[test]
++    fn logical_window_insets_convert_physical_edges_and_clamp_negative_values() {
++        let insets = logical_window_insets([30.0, 12.0, -1.0, 6.0], [0.0, 300.0, 0.0, 0.0], 3.0);
++        assert_eq!(insets.safe_area.top, gpui::px(10.0));
++        assert_eq!(insets.safe_area.bottom, gpui::px(4.0));
++        assert_eq!(insets.safe_area.left, gpui::px(0.0));
++        assert_eq!(insets.ime.bottom, gpui::px(100.0));
++    }
++
++    #[test]
++    fn keyboard_insets_require_intersection_with_window_edge() {
++        assert_eq!(
++            keyboard_occlusion_insets(400.0, 800.0, [0.0, 500.0, 400.0, 300.0]),
++            [0.0, 300.0, 0.0, 0.0]
++        );
++        assert_eq!(
++            keyboard_occlusion_insets(400.0, 800.0, [20.0, 200.0, 200.0, 200.0]),
++            [0.0; 4]
++        );
++        assert_eq!(
++            keyboard_occlusion_insets(400.0, 800.0, [0.0, 0.0, 50.0, 800.0]),
++            [0.0, 0.0, 50.0, 0.0]
++        );
++    }
++}
++
+ /// Query the safe area insets from the platform.
+ ///
+ /// Returns `(top, bottom, left, right)` in logical points.

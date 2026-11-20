@@ -1,0 +1,852 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -48,6 +48,8 @@
+ zed-crate = "gpui"
+ zed-version = "0.2.2"
+ zed-rev = "bcf6582ce3500df93a8a39366640173e6786cea6"
++
++[workspace]
+ 
+ [features]
+ bench = ["bench-support"]
+--- a/src/debug_overlay.rs
++++ b/src/debug_overlay.rs
+@@ -17,6 +17,17 @@
+     Full,
+ }
+ 
++#[allow(missing_docs)]
++#[derive(Copy, Clone, Debug, Default, PartialEq)]
++pub struct DebugFrameOverlayStats {
++    pub current_ms: Option<f32>,
++    pub p90_ms: Option<f32>,
++    pub p99_ms: Option<f32>,
++    pub max_ms: Option<f32>,
++    pub frames: u64,
++    pub samples: usize,
++}
++
+ impl DebugFrameOverlayMode {
+     /// Returns the next mode in the Hidden → FrameTime → Detailed cycle.
+     pub fn next(self) -> Self {
+@@ -92,6 +103,22 @@
+         self.draw_durations.push_back(draw_duration);
+     }
+ 
++    pub(crate) fn stats(&self) -> DebugFrameOverlayStats {
++        let mut sorted: Vec<Duration> = self.draw_durations.iter().copied().collect();
++        sorted.sort_unstable();
++        let percentile = |numerator: usize| {
++            (!sorted.is_empty()).then(|| sorted[(sorted.len() - 1) * numerator / 100])
++        };
++        DebugFrameOverlayStats {
++            current_ms: self.draw_durations.back().copied().map(duration_ms),
++            p90_ms: percentile(90).map(duration_ms),
++            p99_ms: percentile(99).map(duration_ms),
++            max_ms: sorted.last().copied().map(duration_ms),
++            frames: self.total_frame_count,
++            samples: self.draw_durations.len(),
++        }
++    }
++
+     pub(crate) fn paint(&self, scene: &mut Scene, viewport_size: Size<Pixels>, scale_factor: f32) {
+         if !self.is_enabled() {
+             return;
+@@ -192,14 +219,15 @@
+     }
+ }
+ 
++fn duration_ms(duration: Duration) -> f32 {
++    duration.as_secs_f32() * 1000.0
++}
++
+ /// Formats as `abc.d MS`, right-aligned in room for three integer digits and
+ /// one decimal (padded with spaces, not zeroes), so stacked readouts align.
+ fn format_ms(duration: Option<Duration>) -> String {
+     match duration {
+-        Some(duration) => {
+-            let ms = duration.as_secs_f32() * 1000.0;
+-            format!("{ms:>5.1} MS")
+-        }
++        Some(duration) => format!("{:>5.1} MS", duration_ms(duration)),
+         None => "   -- MS".into(),
+     }
+ }
+@@ -425,4 +453,19 @@
+         overlay.set_mode(DebugFrameOverlayMode::Minimal);
+         assert_eq!(overlay.lines(), vec![" 10.0 MS".to_string()]);
+     }
++
++    #[test]
++    fn stats_match_the_full_overlay_percentiles() {
++        let mut overlay = DebugFrameOverlay::new();
++        for milliseconds in 1..=100 {
++            overlay.record_frame(Duration::from_millis(milliseconds));
++        }
++        let stats = overlay.stats();
++        assert_eq!(stats.current_ms, Some(100.0));
++        assert_eq!(stats.p99_ms, Some(99.0));
++        assert_eq!(stats.p90_ms, Some(90.0));
++        assert_eq!(stats.max_ms, Some(100.0));
++        assert_eq!(stats.frames, 100);
++        assert_eq!(stats.samples, 100);
++    }
+ }
+--- a/src/elements/div.rs
++++ b/src/elements/div.rs
+@@ -782,6 +782,26 @@
+         Stateful { element: self }
+     }
+ 
++    /// Observe this element's own bounds every time it is painted.
++    ///
++    /// Unlike `Div::on_children_prepainted`, this needs no extra wrapper element,
++    /// so it can record the bounds of a leaf such as an image or an SVG without
++    /// changing how that leaf participates in layout.
++    ///
++    /// It reports from paint rather than prepaint because prepaint is
++    /// speculative: `List::prepaint` prepaints a range of rows, and can then roll
++    /// the window back through `Window::transact` and prepaint a different range.
++    /// A listener that ran in prepaint would keep the bounds of a row that is not
++    /// on screen. It does not fire for an element whose style is
++    /// `Visibility::Hidden`, which paints nothing.
++    fn on_painted(
++        mut self,
++        listener: impl Fn(Bounds<Pixels>, &mut Window, &mut App) + 'static,
++    ) -> Self {
++        self.interactivity().paint_bounds_listener = Some(Box::new(listener));
++        self
++    }
++
+     /// Track the focus state of the given focus handle on this element.
+     /// If the focus handle is focused by the application, this element will
+     /// apply its focused styles.
+@@ -875,6 +895,17 @@
+         self
+     }
+ 
++    /// Capture the pointer on left mouse down so move and up keep targeting this
++    /// element after the pointer leaves its bounds. Released on mouse up, or when
++    /// this element is not painted.
++    fn capture_pointer(mut self) -> Self
++    where
++        Self: Sized,
++    {
++        self.interactivity().capture_pointer = true;
++        self
++    }
++
+     #[cfg(any(test, feature = "test-support"))]
+     /// Set a key that can be used to look up this element's bounds
+     /// in the [`crate::VisualTestContext::debug_bounds`] map
+@@ -2179,6 +2210,8 @@
+     pub(crate) tooltip_builder: Option<TooltipBuilder>,
+     pub(crate) tooltip_show_delay: Option<Duration>,
+     pub(crate) window_control: Option<WindowControlArea>,
++    pub(crate) paint_bounds_listener: Option<Box<dyn Fn(Bounds<Pixels>, &mut Window, &mut App)>>,
++    pub(crate) capture_pointer: bool,
+     pub(crate) hitbox_behavior: HitboxBehavior,
+     pub(crate) tab_index: Option<isize>,
+     pub(crate) tab_group: bool,
+@@ -2422,6 +2455,7 @@
+             || !self.drop_listeners.is_empty()
+             || !self.drag_over_styles.is_empty()
+             || self.tooltip_builder.is_some()
++            || self.capture_pointer
+             || window.is_inspector_picking(cx)
+     }
+ 
+@@ -2530,6 +2564,10 @@
+                     return ((), element_state);
+                 }
+ 
++                if let Some(listener) = self.paint_bounds_listener.take() {
++                    listener(bounds, window, cx);
++                }
++
+                 let mut tab_group = None;
+                 if self.tab_group {
+                     tab_group = self.tab_index;
+@@ -2787,6 +2825,15 @@
+             })
+         }
+ 
++        if self.capture_pointer {
++            let hitbox = hitbox.clone();
++            window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
++                if phase == DispatchPhase::Bubble && event.button == MouseButton::Left && hitbox.is_hovered(window) {
++                    window.capture_pointer(hitbox.id);
++                }
++            });
++        }
++
+         for listener in self.mouse_up_listeners.drain(..) {
+             let hitbox = hitbox.clone();
+             window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
+--- a/src/elements/list.rs
++++ b/src/elements/list.rs
+@@ -9,9 +9,9 @@
+ 
+ use crate::{
+     AnyElement, App, AvailableSpace, Bounds, ContentMask, DispatchPhase, Edges, Element, EntityId,
+-    FocusHandle, GlobalElementId, Hitbox, HitboxBehavior, InspectorElementId, IntoElement,
+-    Overflow, Pixels, Point, ScrollDelta, ScrollWheelEvent, Size, Style, StyleRefinement, Styled,
+-    Window, point, px, size,
++    FocusHandle, GlobalElementId, Hitbox, HitboxBehavior, InspectorElementId, InteractiveElement,
++    Interactivity, IntoElement, Overflow, Pixels, Point, ScrollDelta, ScrollWheelEvent, Size,
++    StatefulInteractiveElement, Style, StyleRefinement, Styled, Window, point, px, size,
+ };
+ use collections::VecDeque;
+ use refineable::Refineable as _;
+@@ -30,6 +30,7 @@
+         render_item: Box::new(render_item),
+         style: StyleRefinement::default(),
+         sizing_behavior: ListSizingBehavior::default(),
++        interactivity: Interactivity::new(),
+     }
+ }
+ 
+@@ -39,6 +40,7 @@
+     render_item: Box<RenderItemFn>,
+     style: StyleRefinement,
+     sizing_behavior: ListSizingBehavior,
++    interactivity: Interactivity,
+ }
+ 
+ impl List {
+@@ -223,6 +225,11 @@
+     Unconstrained,
+ }
+ 
++/// The width rows get inside a list of `width` with `padding`.
++fn padded_width(width: Pixels, padding: &Edges<Pixels>) -> Pixels {
++    (width - padding.left - padding.right).max(px(0.))
++}
++
+ struct LayoutItemsResponse {
+     max_item_width: Pixels,
+     scroll_top: ListOffset,
+@@ -294,6 +301,8 @@
+     rendered_count: usize,
+     unrendered_count: usize,
+     height: Pixels,
++    /// The part of `height` that rows measured themselves, without the hints of the rest.
++    measured_height: Pixels,
+     has_focus_handles: bool,
+     has_unknown_height: bool,
+ }
+@@ -656,7 +665,13 @@
+         )
+     }
+ 
+-    /// Scroll the list to the given offset
++    /// Scroll the list to the given offset.
++    ///
++    /// A negative `offset_in_item` anchors the viewport top *above* the item:
++    /// the item's top edge ends up `-offset_in_item` pixels below the viewport
++    /// top. The next layout resolves the offset against real item heights by
++    /// walking upward, so a caller can keep an item at a fixed on-screen
++    /// position while items of unknown height are spliced in above it.
+     pub fn scroll_to(&self, mut scroll_top: ListOffset) {
+         let state = &mut *self.0.borrow_mut();
+         let item_count = state.items.summary().count;
+@@ -795,6 +810,35 @@
+         Point::new(px(0.), -offset)
+     }
+ 
++    /// How far the list can scroll and how far it has, for a scrollbar, with rows that
++    /// are not measured yet taken to be as tall as the average measured row rather than as
++    /// tall as their size hint. A hint is one guess for every row; a list of tall rows
++    /// with a short hint would otherwise draw a thumb several times too long, and move it as
++    /// rows come into view. `None` until a row is measured. Both values are zero or positive;
++    /// `offset` is how far the content has moved up.
++    pub fn averaged_scroll_extent(&self) -> Option<(Pixels, Pixels)> {
++        let state = self.0.borrow();
++        let summary = state.items.summary();
++        if summary.rendered_count == 0 {
++            return None;
++        }
++        let average = summary.measured_height / summary.rendered_count as f32;
++        let total = summary.measured_height + average * summary.unrendered_count as f32;
++        let viewport = state.last_layout_bounds.unwrap_or_default().size.height;
++        let max = (total - viewport).max(px(0.));
++        let offset = if state.logical_scroll_top.is_none()
++            && state.alignment == ListAlignment::Bottom
++        {
++            max
++        } else {
++            let top = state.logical_scroll_top();
++            let mut cursor = state.items.cursor::<ListItemSummary>(());
++            let before: ListItemSummary = cursor.summary(&Count(top.item_ix), Bias::Right);
++            before.measured_height + average * before.unrendered_count as f32 + top.offset_in_item
++        };
++        Some((max, offset.min(max)))
++    }
++
+     /// Return the bounds of the viewport in pixels.
+     pub fn viewport_bounds(&self) -> Bounds<Pixels> {
+         self.0.borrow().last_layout_bounds.unwrap_or_default()
+@@ -1056,6 +1100,29 @@
+             }),
+             AvailableSpace::MinContent,
+         );
++
++        // Resolve a negative offset from `scroll_to` here rather than eagerly,
++        // because only layout can measure the items above the anchor. Walking
++        // upward against real heights is what keeps the anchor item at a fixed
++        // on-screen position when unmeasured items were spliced in above it.
++        if scroll_top.offset_in_item < px(0.) {
++            let mut cursor = old_items.cursor::<Count>(());
++            cursor.seek(&Count(scroll_top.item_ix), Bias::Right);
++            while scroll_top.offset_in_item < px(0.) && scroll_top.item_ix > 0 {
++                cursor.prev();
++                let Some(item) = cursor.item() else {
++                    break;
++                };
++                let size = item.size().unwrap_or_else(|| {
++                    let mut element = render_item(cursor.start().0, window, cx);
++                    element.layout_as_root(available_item_space, window, cx)
++                });
++                scroll_top.item_ix = cursor.start().0;
++                scroll_top.offset_in_item += size.height;
++            }
++            scroll_top.offset_in_item = scroll_top.offset_in_item.max(px(0.));
++            self.logical_scroll_top = Some(scroll_top);
++        }
+ 
+         let mut cursor = old_items.cursor::<Count>(());
+ 
+@@ -1257,16 +1324,18 @@
+         window: &mut Window,
+         cx: &mut App,
+     ) -> Result<LayoutItemsResponse, ListOffset> {
++        // Rows are as wide as the list is inside its left and right padding.
++        let content_width = padded_width(bounds.size.width, &padding);
+         window.transact(|window| {
+             match self.measuring_behavior {
+                 ListMeasuringBehavior::Measure(has_measured) if !has_measured => {
+-                    self.layout_all_items(bounds.size.width, render_item, window, cx);
++                    self.layout_all_items(content_width, render_item, window, cx);
+                 }
+                 _ => {}
+             }
+ 
+             let mut layout_response = self.layout_items(
+-                Some(bounds.size.width),
++                Some(content_width),
+                 bounds.size.height,
+                 &padding,
+                 render_item,
+@@ -1279,7 +1348,7 @@
+ 
+             // Only paint the visible items, if there is actually any space for them (taking padding into account)
+             if bounds.size.height > padding.top + padding.bottom {
+-                let mut item_origin = bounds.origin + Point::new(px(0.), padding.top);
++                let mut item_origin = bounds.origin + Point::new(padding.left, padding.top);
+                 item_origin.y -= layout_response.scroll_top.offset_in_item;
+                 for item in &mut layout_response.item_layouts {
+                     window.with_content_mask(Some(ContentMask { bounds }), |window| {
+@@ -1308,10 +1377,8 @@
+                                     };
+                                     let size = prev_item.size().unwrap_or_else(|| {
+                                         let mut element = render_item(cursor.start().0, window, cx);
+-                                        let item_available_size = size(
+-                                            bounds.size.width.into(),
+-                                            AvailableSpace::MinContent,
+-                                        );
++                                        let item_available_size =
++                                            size(content_width.into(), AvailableSpace::MinContent);
+                                         element.layout_as_root(item_available_size, window, cx)
+                                     });
+                                     item_ix = cursor.start().0;
+@@ -1339,7 +1406,7 @@
+                                 let size = item.size().unwrap_or_else(|| {
+                                     let mut item = render_item(cursor.start().0, window, cx);
+                                     let item_available_size =
+-                                        size(bounds.size.width.into(), AvailableSpace::MinContent);
++                                        size(content_width.into(), AvailableSpace::MinContent);
+                                     item.layout_as_root(item_available_size, window, cx)
+                                 });
+                                 height -= size.height;
+@@ -1442,13 +1509,23 @@
+     type PrepaintState = ListPrepaintState;
+ 
+     fn id(&self) -> Option<crate::ElementId> {
+-        None
++        self.interactivity.element_id.clone()
+     }
+ 
+     fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+-        None
++        self.interactivity.source_location()
+     }
+ 
++    fn a11y_role(&self) -> Option<accesskit::Role> {
++        self.interactivity
++            .override_role
++            .filter(|role| *role != accesskit::Role::GenericContainer)
++    }
++
++    fn write_a11y_info(&self, node: &mut accesskit::Node) {
++        self.interactivity.write_a11y_info(node);
++    }
++
+     fn request_layout(
+         &mut self,
+         _id: Option<&GlobalElementId>,
+@@ -1540,14 +1617,23 @@
+ 
+         let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
+ 
+-        // If the width of the list has changed, invalidate all cached item heights
+-        if state
+-            .last_layout_bounds
+-            .is_none_or(|last_bounds| last_bounds.size.width != bounds.size.width)
+-        {
++        let padding = style
++            .padding
++            .to_pixels(bounds.size.into(), window.rem_size());
++
++        // A change in the width rows get, from the list's own width or its
++        // horizontal padding, can alter wrapped heights. Keep the last size as a
++        // hint so off-screen rows do not collapse to 0. First layout must not wipe
++        // with_uniform_item_height hints.
++        if state.last_layout_bounds.is_some_and(|last_bounds| {
++            padded_width(
++                last_bounds.size.width,
++                &state.last_padding.unwrap_or_default(),
++            ) != padded_width(bounds.size.width, &padding)
++        }) {
+             let new_items = SumTree::from_iter(
+                 state.items.iter().map(|item| ListItem::Unmeasured {
+-                    size_hint: None,
++                    size_hint: item.size().or(item.size_hint()),
+                     focus_handle: item.focus_handle(),
+                 }),
+                 (),
+@@ -1557,9 +1643,6 @@
+             state.measuring_behavior.reset();
+         }
+ 
+-        let padding = style
+-            .padding
+-            .to_pixels(bounds.size.into(), window.rem_size());
+         let layout =
+             match state.prepaint_items(bounds, padding, true, &mut self.render_item, window, cx) {
+                 Ok(layout) => layout,
+@@ -1635,6 +1718,14 @@
+     }
+ }
+ 
++impl InteractiveElement for List {
++    fn interactivity(&mut self) -> &mut Interactivity {
++        &mut self.interactivity
++    }
++}
++
++impl StatefulInteractiveElement for List {}
++
+ impl sum_tree::Item for ListItem {
+     type Summary = ListItemSummary;
+ 
+@@ -1652,6 +1743,7 @@
+                 } else {
+                     px(0.)
+                 },
++                measured_height: px(0.),
+                 has_focus_handles: focus_handle.is_some(),
+                 has_unknown_height: size_hint.is_none(),
+             },
+@@ -1662,6 +1754,7 @@
+                 rendered_count: 1,
+                 unrendered_count: 0,
+                 height: size.height,
++                measured_height: size.height,
+                 has_focus_handles: focus_handle.is_some(),
+                 has_unknown_height: false,
+             },
+@@ -1679,6 +1772,7 @@
+         self.rendered_count += summary.rendered_count;
+         self.unrendered_count += summary.unrendered_count;
+         self.height += summary.height;
++        self.measured_height += summary.measured_height;
+         self.has_focus_handles |= summary.has_focus_handles;
+         self.has_unknown_height |= summary.has_unknown_height;
+     }
+@@ -2969,5 +3063,33 @@
+              the bottom of its track, even when content has grown during the drag \
+              (so frozen_bottom < live_bottom)"
+         );
++    }
++
++    #[gpui::test]
++    fn test_uniform_height_hints_survive_first_layout(cx: &mut TestAppContext) {
++        let cx = cx.add_empty_window();
++        let state = ListState::new(100, crate::ListAlignment::Top, px(0.))
++            .with_uniform_item_height(px(40.));
++
++        struct TestView(ListState);
++        impl Render for TestView {
++            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
++                list(self.0.clone(), |_, _, _| {
++                    div().h(px(40.)).w_full().into_any()
++                })
++                .w_full()
++                .h_full()
++            }
++        }
++
++        cx.draw(point(px(0.), px(0.)), size(px(100.), px(160.)), |_, cx| {
++            cx.new(|_| TestView(state.clone())).into_any_element()
++        });
++
++        state.scroll_to(crate::ListOffset {
++            item_ix: 80,
++            offset_in_item: px(0.),
++        });
++        assert_eq!(state.scroll_px_offset_for_scrollbar().y, px(-3200.));
+     }
+ }
+--- a/src/key_dispatch.rs
++++ b/src/key_dispatch.rs
+@@ -127,7 +127,7 @@
+     pub(crate) context_stack: Vec<KeyContext>,
+ }
+ 
+-type KeyListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
++pub(crate) type KeyListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
+ type ModifiersChangedListener = Rc<dyn Fn(&ModifiersChangedEvent, &mut Window, &mut App)>;
+ 
+ #[derive(Clone)]
+--- a/src/platform.rs
++++ b/src/platform.rs
+@@ -910,6 +910,8 @@
+     fn modifiers(&self) -> Modifiers;
+     fn capslock(&self) -> Capslock;
+     fn set_input_handler(&mut self, input_handler: PlatformInputHandler);
++    /// Reopen the native IME for the focused editor after a user gesture.
++    fn request_text_input(&self) {}
+     fn take_input_handler(&mut self) -> Option<PlatformInputHandler>;
+     /// Apply the focused text region's [`TextInputConfiguration`] to the
+     /// platform's text input session (e.g. attributes of the hidden editable
+--- a/src/profiler/hang.rs
++++ b/src/profiler/hang.rs
+@@ -465,6 +465,8 @@
+ 
+     use proptest::prelude::*;
+     use rand::prelude::*;
++    // proptest can re-export a different rand version's traits.
++    use ::rand::Rng as _;
+     use scheduler::SpawnTime;
+ 
+     use crate::{
+--- a/src/style.rs
++++ b/src/style.rs
+@@ -291,6 +291,10 @@
+     /// Box shadow of the element
+     pub box_shadow: Vec<BoxShadow>,
+ 
++    /// A line drawn outside the border box, like CSS `outline`. It takes no
++    /// layout space, so showing it (for example on focus) moves nothing.
++    pub outline: Option<Outline>,
++
+     /// The text style of this element
+     #[refineable]
+     pub text: TextStyleRefinement,
+@@ -342,6 +346,17 @@
+     Visible,
+     /// The element should not be drawn, but should still take up space in the layout.
+     Hidden,
++}
++
++/// The possible values of the outline property.
++#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
++pub struct Outline {
++    /// Line thickness.
++    pub width: Pixels,
++    /// Line color.
++    pub color: Hsla,
++    /// Gap between the border box and the line. Negative values draw it inside.
++    pub offset: Pixels,
+ }
+ 
+ /// The possible values of the box-shadow property
+@@ -755,6 +770,35 @@
+             ));
+         }
+ 
++        if let Some(outline) = self.outline
++            && outline.width > px(0.)
++            && !outline.color.is_transparent()
++        {
++            // Grow the box by offset + width and paint a border-only quad, so
++            // the line sits outside the element and follows its corners.
++            let grow = outline.offset + outline.width;
++            let outer = bounds.dilate(grow);
++            let grow_corner = |radius: Pixels| {
++                if radius > px(0.) { (radius + grow).max(px(0.)) } else { px(0.) }
++            };
++            let radii = Corners {
++                top_left: grow_corner(corner_radii.top_left),
++                top_right: grow_corner(corner_radii.top_right),
++                bottom_right: grow_corner(corner_radii.bottom_right),
++                bottom_left: grow_corner(corner_radii.bottom_left),
++            };
++            let mut background = outline.color;
++            background.a = 0.;
++            window.paint_quad(quad(
++                outer,
++                radii,
++                background,
++                outline.width,
++                outline.color,
++                BorderStyle::default(),
++            ));
++        }
++
+         #[cfg(debug_assertions)]
+         if self.debug_below {
+             cx.remove_global::<DebugBelow>();
+@@ -806,6 +850,7 @@
+             border_style: BorderStyle::default(),
+             corner_radii: Corners::default(),
+             box_shadow: Default::default(),
++            outline: None,
+             text: TextStyleRefinement::default(),
+             mouse_cursor: None,
+             opacity: None,
+--- a/src/styled.rs
++++ b/src/styled.rs
+@@ -33,6 +33,13 @@
+     gpui_macros::border_style_methods!();
+     gpui_macros::box_shadow_style_methods!();
+ 
++    /// Draw a line outside the border box, like CSS `outline`. Takes no layout
++    /// space. A zero width hides it, for example in a refinement.
++    fn outline(mut self, outline: crate::Outline) -> Self {
++        self.style().outline = Some(outline);
++        self
++    }
++
+     /// Sets the display type of the element to `block`.
+     /// [Docs](https://tailwindcss.com/docs/display)
+     fn block(mut self) -> Self {
+--- a/src/tab_stop.rs
++++ b/src/tab_stop.rs
+@@ -182,6 +182,57 @@
+         cursor.item()
+     }
+ 
++    pub fn next_among(
++        &self,
++        focused_id: Option<&FocusId>,
++        allowed: impl FnMut(&FocusId) -> bool,
++    ) -> Option<FocusHandle> {
++        self.among(focused_id, allowed, true)
++    }
++
++    pub fn prev_among(
++        &self,
++        focused_id: Option<&FocusId>,
++        allowed: impl FnMut(&FocusId) -> bool,
++    ) -> Option<FocusHandle> {
++        self.among(focused_id, allowed, false)
++    }
++
++    fn among(
++        &self,
++        focused_id: Option<&FocusId>,
++        mut allowed: impl FnMut(&FocusId) -> bool,
++        forward: bool,
++    ) -> Option<FocusHandle> {
++        let start_allowed = focused_id.is_some_and(|id| allowed(id));
++        let mut current = if start_allowed {
++            if forward {
++                self.next(focused_id)
++            } else {
++                self.prev(focused_id)
++            }
++        } else if forward {
++            self.next(None)
++        } else {
++            self.prev(None)
++        };
++        let first = current.as_ref().map(|handle| handle.id);
++        while let Some(handle) = current {
++            if allowed(&handle.id) {
++                return Some(handle);
++            }
++            current = if forward {
++                self.next(Some(&handle.id))
++            } else {
++                self.prev(Some(&handle.id))
++            };
++            if current.as_ref().map(|next| next.id) == first {
++                break;
++            }
++        }
++        None
++    }
++
+     pub fn replay(&mut self, nodes: &[TabStopOperation]) {
+         for node in nodes {
+             match node {
+--- a/src/window.rs
++++ b/src/window.rs
+@@ -606,6 +606,8 @@
+     pub fn is_focused(&self, window: &Window) -> bool {
+         self.id.is_focused(window)
+     }
++    /// The id used by the window's tab-stop map.
++    pub fn id(&self) -> FocusId { self.id }
+ 
+     /// Obtains whether the element associated with this handle contains the focused
+     /// element or is itself focused.
+@@ -981,6 +983,7 @@
+     pub(crate) element_states: FxHashMap<(GlobalElementId, TypeId), ElementStateBox>,
+     accessed_element_states: Vec<(GlobalElementId, TypeId)>,
+     pub(crate) mouse_listeners: Vec<Option<AnyMouseListener>>,
++    root_key_listeners: Vec<Option<crate::key_dispatch::KeyListener>>,
+     pub(crate) dispatch_tree: DispatchTree,
+     pub(crate) scene: Scene,
+     pub(crate) hitboxes: Vec<Hitbox>,
+@@ -1016,6 +1019,7 @@
+     #[cfg(any(test, feature = "test-support"))]
+     debug_bounds_index: usize,
+     mouse_listeners_index: usize,
++    root_key_listeners_index: usize,
+     input_handlers_index: usize,
+     cursor_styles_index: usize,
+     accessed_element_states_index: usize,
+@@ -1037,6 +1041,7 @@
+             element_states: FxHashMap::default(),
+             accessed_element_states: Vec::new(),
+             mouse_listeners: Vec::new(),
++            root_key_listeners: Vec::new(),
+             dispatch_tree,
+             scene: Scene::default(),
+             hitboxes: Vec::new(),
+@@ -1064,6 +1069,7 @@
+         self.element_states.clear();
+         self.accessed_element_states.clear();
+         self.mouse_listeners.clear();
++        self.root_key_listeners.clear();
+         self.dispatch_tree.clear();
+         self.scene.clear();
+         self.input_handlers.clear();
+@@ -2311,6 +2317,21 @@
+         self.refresh();
+     }
+ 
++    /// Ask the native platform to reopen its IME after a gesture.
++    pub fn request_text_input(&self) { self.platform_window.request_text_input(); }
++    /// Move to the next tab stop accepted by `allowed`.
++    pub fn focus_next_among(&mut self, allowed: impl FnMut(&FocusId) -> bool, cx: &mut App) {
++        if self.focus_enabled {
++            if let Some(handle) = self.rendered_frame.tab_stops.next_among(self.focus.as_ref(), allowed) { self.focus(&handle, cx); }
++        }
++    }
++    /// Move to the previous tab stop accepted by `allowed`.
++    pub fn focus_prev_among(&mut self, allowed: impl FnMut(&FocusId) -> bool, cx: &mut App) {
++        if self.focus_enabled {
++            if let Some(handle) = self.rendered_frame.tab_stops.prev_among(self.focus.as_ref(), allowed) { self.focus(&handle, cx); }
++        }
++    }
++
+     /// Remove focus from all elements within this context's window.
+     pub fn blur(&mut self, cx: &mut App) {
+         self.clear_pending_keystrokes(cx);
+@@ -2779,6 +2800,9 @@
+     pub fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
+         self.platform_window.visual_viewport_bounds()
+     }
++
++    /// Returns the current platform safe-area and keyboard insets.
++    pub fn insets(&self) -> crate::WindowInsets { self.platform_window.insets() }
+ 
+     /// Returns a conservative rectangle avoiding platform-known obscured content.
+     ///
+@@ -3506,6 +3530,13 @@
+         self.refresh();
+     }
+ 
++    /// Returns statistics for the debug frame overlay's retained draw samples.
++    #[cfg(feature = "profiler")]
++    #[allow(missing_docs)]
++    pub fn debug_frame_overlay_stats(&self) -> crate::DebugFrameOverlayStats {
++        self.debug_frame_overlay.stats()
++    }
++
+     fn draw_roots(&mut self, cx: &mut App) {
+         self.invalidator.set_phase(DrawPhase::Prepaint);
+         self.tooltip_bounds.take();
+@@ -3876,6 +3907,7 @@
+             #[cfg(any(test, feature = "test-support"))]
+             debug_bounds_index: self.next_frame.debug_bounds_records.len(),
+             mouse_listeners_index: self.next_frame.mouse_listeners.len(),
++            root_key_listeners_index: self.next_frame.root_key_listeners.len(),
+             input_handlers_index: self.next_frame.input_handlers.len(),
+             cursor_styles_index: self.next_frame.cursor_styles.len(),
+             accessed_element_states_index: self.next_frame.accessed_element_states.len(),
+@@ -3917,6 +3949,10 @@
+                 .iter()
+                 .map(|(id, type_id)| (id.clone(), *type_id)),
+         );
++        self.next_frame.root_key_listeners.extend(
++            self.rendered_frame.root_key_listeners[range.start.root_key_listeners_index..range.end.root_key_listeners_index]
++                .iter_mut().map(|listener| listener.take()),
++        );
+         self.next_frame.tab_stops.replay(
+             &self.rendered_frame.tab_stops.insertion_history
+                 [range.start.tab_handle_index..range.end.tab_handle_index],
+@@ -5266,7 +5302,7 @@
+         )));
+     }
+ 
+-    /// Register a key event listener on this node for the next frame. The type of event
++    /// Register a window-root key listener, independent of focus, for the next frame. The type of event
+     /// is determined by the first parameter of the given listener. When the next frame is rendered
+     /// the listener will be cleared.
+     ///
+@@ -5274,6 +5310,18 @@
+     /// a specific need to register a listener yourself.
+     ///
+     /// This method should only be called as part of the paint phase of element drawing.
++    pub fn on_root_key_event<Event: KeyEvent>(
++        &mut self,
++        listener: impl Fn(&Event, DispatchPhase, &mut Window, &mut App) + 'static,
++    ) {
++        self.invalidator.debug_assert_paint();
++        self.next_frame.root_key_listeners.push(Some(Rc::new(move |event: &dyn Any, phase, window: &mut Window, cx: &mut App| {
++            if let Some(event) = event.downcast_ref::<Event>() { listener(event, phase, window, cx) }
++        })));
++    }
++
++    /// Register a key listener on the current dispatch node for the next frame.
++    /// Call only during paint; ancestors receive capture and bubble phases.
+     pub fn on_key_event<Event: KeyEvent>(
+         &mut self,
+         listener: impl Fn(&Event, DispatchPhase, &mut Window, &mut App) + 'static,
+@@ -6045,6 +6093,11 @@
+         dispatch_path: &SmallVec<[DispatchNodeId; 32]>,
+         cx: &mut App,
+     ) {
++        let root_key_listeners = self.rendered_frame.root_key_listeners.iter().flatten().cloned().collect::<Vec<_>>();
++        for listener in &root_key_listeners {
++            listener(event, DispatchPhase::Capture, self, cx);
++            if !cx.propagate_event { return; }
++        }
+         // Capture phase
+         for node_id in dispatch_path {
+             let node = self.rendered_frame.dispatch_tree.node(*node_id);
+@@ -6067,6 +6120,10 @@
+                     return;
+                 }
+             }
++        }
++        for listener in &root_key_listeners {
++            listener(event, DispatchPhase::Bubble, self, cx);
++            if !cx.propagate_event { return; }
+         }
+     }
+ 

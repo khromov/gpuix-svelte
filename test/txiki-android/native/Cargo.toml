@@ -1,0 +1,26 @@
+[package]
+name = "gpuix-txiki-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "gpuix_app"
+crate-type = ["cdylib"]
+
+[dependencies]
+gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false }
+gpuix-core = { path = "../../../.generated/gpuix/packages/core" }
+gpuix-svelte-txiki-host = { path = "../../../native/txiki-host" }
+gpui-mobile = { path = "../../../.generated/gpuix/.generated/gpui-mobile", default-features = false }
+android-activity = { version = "0.6", features = ["native-activity"] }
+android_logger = "0.15"
+jni = "0.22"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[patch.crates-io]
+gpui-pre = { path = "../../../.generated/gpuix/.generated/gpui-pre" }
+gpui-pre-wgpu = { path = "../../../.generated/gpuix/.generated/gpui-pre-wgpu" }

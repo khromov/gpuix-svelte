@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22)
+project(txiki_android LANGUAGES C CXX)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+add_subdirectory("${TXIKI_SOURCE}" txiki)
+add_library(txiki_app SHARED bridge.c)
+target_link_libraries(txiki_app PRIVATE tjs log)
+target_link_options(txiki_app PRIVATE "-Wl,--exclude-libs,ALL")

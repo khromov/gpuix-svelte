@@ -69,8 +69,7 @@ export const aria_disabled = (disabled: boolean | undefined): Record<string, boo
 /** Marks a page's link to the screen it is on; GPUI's accessibility tree has no such attribute. */
 export const aria_current = (current: boolean): Record<string, string> => (IS_GPUIX || !current ? {} : { 'aria-current': 'page' });
 
-/** The value attributes a DOM slider or progress bar needs; GPUI forwards none of them. */
-export const aria_value = (now: number, min: number, max: number): Record<string, number> => (IS_GPUIX ? {} : { 'aria-valuenow': now, 'aria-valuemin': min, 'aria-valuemax': max });
+export const aria_value = (now: number, min: number, max: number): Record<string, number> => ({ 'aria-valuenow': now, 'aria-valuemin': min, 'aria-valuemax': max });
 
 export interface Box {
 	x: number;
@@ -110,7 +109,7 @@ export const pointer_x = (e: { x?: number; clientX?: number }): number => (IS_GP
 /** Whether a button is still held during a move: GPUI reports `pressedButton`, the DOM `buttons`. */
 export const still_pressed = (e: { pressedButton?: number | null; buttons?: number }): boolean => (IS_GPUIX ? e.pressedButton != null : (e.buttons ?? 0) > 0);
 
-const platform = globalThis.process?.platform;
+const platform: string | undefined = globalThis.process?.platform;
 
 /**
  * GPUI takes one installed family name and draws every weight regular for one it lacks; a page takes a
@@ -123,7 +122,9 @@ export const MONO: string = IS_GPUIX
 			? 'Consolas'
 			: platform === 'linux'
 				? 'DejaVu Sans Mono'
-				: 'Menlo'
+				: platform === 'android'
+					? 'Droid Sans Mono'
+					: 'Menlo'
 	: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 export const BREAKPOINTS = { sm: 480, md: 768, lg: 1024, xl: 1280 } as const;

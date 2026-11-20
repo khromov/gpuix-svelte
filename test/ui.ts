@@ -228,6 +228,10 @@ check('dragging the Slider thumb sets the value', Math.abs(dragged - 75) <= 1, t
 focus(find_test_id('volume-track')!);
 press('right');
 check('an arrow key steps it', text_of('volume-echo'), `Volume: ${dragged + 1}`);
+press('pageup');
+check('pageup steps it further', text_of('volume-echo'), `Volume: ${dragged + 1 + 10}`);
+press('pagedown');
+check('pagedown steps it back', text_of('volume-echo'), `Volume: ${dragged + 1}`);
 press('alt-left');
 check('Alt+Left is Back, not a step', text_of('volume-echo'), `Volume: ${dragged + 1}`);
 press('end');
@@ -362,4 +366,4 @@ const shots = join(fileURLToPath(new URL('.', import.meta.url)), '.ui-tmp');
 mkdirSync(shots, { recursive: true });
 screenshot(join(shots, 'gpui.png'));
 
-finish('ui', 85);
+finish('ui', 87);

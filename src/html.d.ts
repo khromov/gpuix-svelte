@@ -70,7 +70,17 @@ interface GpuixAttributes extends GpuixEvents {
 	'aria-expanded'?: Flag;
 	'aria-selected'?: Flag;
 	'aria-valuetext'?: Text;
+	'aria-valuenow'?: Count;
+	'aria-valuemin'?: Count;
+	'aria-valuemax'?: Count;
 	'aria-level'?: Count;
+	'aria-orientation'?: Text;
+	'aria-disabled'?: Flag;
+	'aria-checked'?: Flag | 'mixed';
+	'aria-invalid'?: Flag;
+	'aria-hidden'?: Flag;
+	'aria-current'?: Flag | Text;
+	'aria-describedby'?: Text;
 	// Svelte drops a return that is not a function, so `(node) => (x = node)` is fine.
 	[key: symbol]: ((node: ShadowNode) => unknown) | false | null | undefined;
 }

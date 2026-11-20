@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const PUBLISHED_SPEC = '>=5.56.0';
@@ -44,6 +45,15 @@ function emit_lib() {
 	if (run(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.lib.json']) !== 0) {
 		throw new Error('lib emit failed');
 	}
+	// Mobile's Node entry must not execute TypeScript from inside node_modules.
+	mkdirSync(join(lib, 'scripts'), { recursive: true });
+	for (const name of ['mobile', 'mobile-config', 'txiki-source']) {
+		const source = readFileSync(join(root, `scripts/${name}.ts`), 'utf8');
+		const js = stripTypeScriptTypes(source, { mode: 'strip' })
+			.replaceAll("'../src/txiki-bundle.ts'", "'../txiki-bundle.js'")
+			.replace(/(['"])(\.\/[^'"]+)\.ts\1/g, '$1$2.js$1');
+		writeFileSync(join(lib, `scripts/${name}.js`), js);
+	}
 	// tsc never copies a hand-written .d.ts, and html.d.ts reaches into types.ts.
 	copyFileSync(join(root, 'src/html.d.ts'), join(lib, 'html.d.ts'));
 	// tsc rewrites the JS specifiers but keeps the declarations' `./x.ts`, which only resolve under allowImportingTsExtensions.
@@ -72,9 +82,9 @@ function published_manifest() {
 	out.main = lib_for(out.main);
 	// The workspace is the repository's; an installed copy is not a workspace root.
 	delete out.workspaces;
-	out.files = ['lib', 'src/components', 'bin', 'assets/icon.png'];
+	out.files = ['lib', 'src/components', 'bin', 'native', 'scripts/prepare-gpuix.mjs', 'scripts/prepare-gpui.mjs', 'scripts/prepare-gpui-wgpu.mjs', 'scripts/prepare-gpui-mobile.mjs', 'scripts/prepare-native-deps.mjs', 'scripts/cargo-gpui.mjs', 'patches', 'assets/icon.png'];
 	for (const [key, value] of Object.entries(out.exports as Record<string, unknown>)) {
-		out.exports[key] = key === './html' ? { types: './lib/html.d.ts' } : published_target(value);
+		out.exports[key] = key === './html' ? { types: './lib/html.d.ts' } : key === './mobile-cli' ? './lib/scripts/mobile.js' : published_target(value);
 	}
 	return JSON.stringify(out, null, '\t') + '\n';
 }

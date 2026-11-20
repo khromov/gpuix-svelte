@@ -1,0 +1,52 @@
+--- a/packages/core/src/lib.rs
++++ b/packages/core/src/lib.rs
+@@ -31,7 +31,7 @@
+ mod theme;
+ pub use element_tree::*;
+ pub use renderer::{apply_batch_to_tree, EventCallback, GpuixView};
+-pub use renderer::{install_host, EmbeddedRenderer, PathPromptOptions, PathPromptSink};
++pub use renderer::{install_host, open_url, read_clipboard_text, write_clipboard_text, EmbeddedRenderer, PathPromptOptions, PathPromptSink};
+ pub fn init(cx: &mut gpui::App) {
+     custom_elements::input::init(cx);
+     custom_elements::img::init(cx);
+--- a/packages/core/src/embedded.rs
++++ b/packages/core/src/embedded.rs
+@@ -15,6 +15,28 @@
+ /// JS must run from a foreground task, never from an App/entity update closure.
+ pub fn install_host(app: AsyncApp) {
+     HOST.with(|host| *host.borrow_mut() = Some(app));
++}
++
++/// Dispatch a platform operation through the installed GPUI host on its
++/// foreground event loop. Callers must not invoke this from a GPUI update
++/// closure, which would re-enter the app context.
++pub fn open_url(url: &str) -> Result<()> {
++    let app = HOST
++        .with(|host| host.borrow().clone())
++        .context("No GPUI host installed; cannot open URL")?;
++    app.update(|cx| cx.open_url(url));
++    Ok(())
++}
++
++pub fn read_clipboard_text() -> Result<Option<String>> {
++    let app = HOST.with(|host| host.borrow().clone()).context("No GPUI host installed")?;
++    Ok(app.update(|cx| cx.read_from_clipboard().and_then(|item| item.text())))
++}
++
++pub fn write_clipboard_text(text: &str) -> Result<()> {
++    let app = HOST.with(|host| host.borrow().clone()).context("No GPUI host installed")?;
++    app.update(|cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.to_owned())));
++    Ok(())
+ }
+ 
+ /// A renderer's window owns the native view, not the JavaScript engine.
+@@ -615,9 +637,6 @@
+         settle: impl FnOnce(Result<Option<Vec<String>>>) + Send + 'static,
+     ) {
+         let result = (|| -> Result<_> {
+-            if cfg!(any(target_os = "android", target_os = "ios")) {
+-                bail!("Native path pickers are not implemented on this mobile platform");
+-            }
+             let options = options.unwrap_or_default();
+             let directories = options.directories.unwrap_or(false);
+             let files = options.files.unwrap_or(!directories);
