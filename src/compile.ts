@@ -16,12 +16,8 @@ import { compile_source } from './compile-core.ts';
  */
 export const RENDERER_MODULE = process.env.GPUIX_SVELTE_RENDERER || 'gpuix-svelte/renderer';
 
-/**
- * The registry's svelte carries the same version number as the custom-renderer build this
- * package bundles, so the loaders check for the API itself.
- */
 export const WRONG_SVELTE =
-	'[gpuix-svelte] svelte resolved to a build without the custom-renderer API. gpuix-svelte bundles the build it needs — remove svelte from your own dependencies and reinstall.';
+	'[gpuix-svelte] svelte resolved to a version without svelte/renderer. gpuix-svelte needs svelte ^5.59.1 — add it to your dependencies and reinstall.';
 
 /** The only nodes that carry a module specifier; a string that merely looks like one does not. */
 const SPECIFIER_NODES = new Set([

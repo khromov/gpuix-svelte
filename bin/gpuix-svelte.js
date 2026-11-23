@@ -36,7 +36,7 @@ const bun =
 	process.versions.bun != null ||
 	(process.env.npm_config_user_agent ?? '').startsWith('bun/');
 
-const conditions = ['--conditions', 'custom-renderer', '--conditions', 'development'];
+const conditions = ['--conditions', 'svelte-custom-renderer', '--conditions', 'development'];
 // Through the package's own exports, which are src/*.ts in the repo and lib/*.js once packed.
 const loader = bun
 	? ['--preload', fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'))]

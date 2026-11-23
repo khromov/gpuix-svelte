@@ -10,7 +10,8 @@
 		"typecheck": "tsc --noEmit && svelte-check --diagnostic-sources js,svelte --fail-on-warnings"
 	},
 	"dependencies": {
-		"gpuix-svelte": "^0.1.0"
+		"gpuix-svelte": "^0.1.0",
+		"svelte": "^5.59.1"
 	},
 	"devDependencies": {
 		"@types/node": "^26.6.5",

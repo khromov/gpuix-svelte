@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const PROTOCOL = '2025-06-18';
 // template/ is create-gpuix-svelte's gitignored copy of starter/, so starter/ is the one checked.
-const SKIP = new Set(['node_modules', 'dist', 'vendor', 'template']);
+const SKIP = new Set(['node_modules', 'dist', 'template']);
 
 const HELP = `usage: npm run check:svelte -- [options] [file|dir ...]
 

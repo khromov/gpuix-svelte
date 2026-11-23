@@ -748,23 +748,15 @@ type GpuixSvelteRenderer = ReturnType<typeof createRenderer<Nodes>>;
 
 const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	createFragment: () => node('fragment', '', ''),
-	createElement(name) {
-		const el = node('element', name, '');
-		// The compiler reads the anchor inside its wrapper as `wrapper.lastChild`, the one DOM property it takes off a node, so the read also tells that wrapper from an element the app gave the same name.
-		if (STYLE_PROPS.has(name)) Object.defineProperty(el, 'lastChild', { get: () => unbox(el).last });
-		return el;
-	},
-	createTextNode: (data) => node('text', '', data),
+	createElement: (name) => node('element', name, ''),
+	createText: (data) => node('text', '', data),
 	createComment: (data) => node('comment', '', data),
 
-	nodeType: (n) => n.kind,
+	getNodeType: (n) => n.kind,
 
-	getNodeValue(n) {
-		// Load-bearing for comments too: `first_child` skips a leading comment
-		// only when this returns '', and `set_text` seeds its diff cache from it.
-		if (n.kind === 'text' || n.kind === 'comment') return n.data;
-		return null;
-	},
+	// Load-bearing for comments too: `first_child` skips a leading comment
+	// only when this returns '', and `set_text` seeds its diff cache from it.
+	getText: (n) => n.data,
 
 	getAttribute(el, name) {
 		const value = el.attrs[name];
@@ -777,9 +769,11 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			renderer.removeAttribute(el, key);
 			return;
 		}
+		// Svelte sets the whole `class` and `style` again whenever the effect around them runs, and a restyle ships a native `setStyle`.
+		if (STYLE_ATTRS.has(key) && typeof value === 'string' && el.attrs[key] === value) return;
 
-		// Keep the raw string: Svelte does read-modify-write on the `style`
-		// attribute for `style:` directives, so it must round-trip byte for byte.
+		// Keep the raw string: Svelte reads `style` back (a style prop's wrapper
+		// builds on it), so it must round-trip byte for byte.
 		el.attrs[key] = value;
 
 		if (STYLE_ATTRS.has(key)) apply_style(el);
@@ -809,17 +803,12 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 	hasAttribute: (el, name) => name in el.attrs,
 
 	setText(n, text) {
-		if (n.kind === 'comment') {
-			n.data = text;
-			return;
-		}
-
 		n.data = text;
 
 		if (n.nativeId !== null) {
 			// Going blank has to give the id back, or the node keeps its slot in
 			// GPUI's flex layout — the same reason blank text never gets one.
-			if (n.kind === 'text' && is_blank(text)) {
+			if (is_blank(text)) {
 				emit(['destroyElement', n.nativeId]);
 				by_id.delete(n.nativeId);
 				n.nativeId = null;
@@ -833,14 +822,15 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
-		if (n.kind !== 'text' || is_blank(text) || !n.live) return;
+		if (is_blank(text) || !n.live) return;
 		materialize(n);
 		attach(n);
 		rewrap_beside(n.prev, n.next);
 	},
 
 	getFirstChild: (n) => n.first,
-	getLastChild: (n) => n.last,
+	// The compiler reaches the anchor inside its style-prop wrapper this way, the one element it asks for a last child, so the call also tells that wrapper from an element the app gave the same name.
+	getLastChild: (n) => (n.kind === 'element' && STYLE_PROPS.has(n.name) ? unbox(n) : n).last,
 	getNextSibling: (n) => n.next,
 	getParent: (n) => n.parent,
 

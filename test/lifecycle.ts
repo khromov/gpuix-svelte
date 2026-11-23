@@ -254,7 +254,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	console.error = (line: unknown) => void refusals_of_text.push(line);
 	const cut = '\u{1F600}'.slice(0, 1);
 	const wording = `whole \u{1F600} cut ${cut} literal \\ud83d`;
-	const text = renderer.createTextNode(wording);
+	const text = renderer.createText(wording);
 	renderer.insert(child, text, null);
 	const labelled = renderer.createElement('div');
 	renderer.setAttribute(labelled, 'testId', cut);

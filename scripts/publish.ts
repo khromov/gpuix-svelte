@@ -1,16 +1,12 @@
-// The repo installs svelte from vendor/, but Bun refuses a `file:` spec in a published
-// manifest even with the bundle in place, so the registry range exists only for the length
-// of `npm pack` / `npm publish` — a wrapper rather than prepack/postpack, because
-// `npm publish` re-reads the manifest after postpack has restored it. The same window
-// compiles src/*.ts to lib/*.js with declarations beside them and points `exports` there,
-// because Node refuses to strip types under node_modules and a consumer would need tsx.
+// Node refuses to strip types under node_modules, so for the length of `npm pack` / `npm publish`
+// src/*.ts is compiled to lib/*.js with declarations beside them and `exports` points there — a
+// wrapper rather than prepack/postpack, because `npm publish` re-reads the manifest after postpack
+// has restored it.
 
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const PUBLISHED_SPEC = '>=5.56.0';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const manifest = join(root, 'package.json');
@@ -22,17 +18,8 @@ if (command !== 'pack' && command !== 'publish') {
 	process.exit(2);
 }
 
-const vendored = readdirSync(join(root, 'vendor')).filter((f) => f.endsWith('.tgz'));
-if (vendored.length !== 1) throw new Error(`expected exactly one tarball under vendor/, found ${vendored.length}`);
-const vendored_spec = `file:vendor/${vendored[0]}`;
-
 const original = readFileSync(manifest, 'utf8');
 const json = JSON.parse(original);
-if (json.dependencies.svelte !== vendored_spec) throw new Error(`package.json has svelte ${json.dependencies.svelte}, expected ${vendored_spec}`);
-if (!json.bundleDependencies?.includes('svelte')) throw new Error('svelte is not in bundleDependencies');
-
-const installed = JSON.parse(readFileSync(join(root, 'node_modules/svelte/package.json'), 'utf8'));
-if (!installed.exports?.['./renderer']) throw new Error('node_modules/svelte is not the custom-renderer build — run bun install');
 
 function run(cmd: string, args: string[]) {
 	const { status } = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' && cmd !== process.execPath });
@@ -68,7 +55,6 @@ function published_target(value: unknown): unknown {
 // TypeScript finds each lib/x.d.ts beside its lib/x.js, so no `types` conditions are needed.
 function published_manifest() {
 	const out = structuredClone(json);
-	out.dependencies.svelte = PUBLISHED_SPEC;
 	out.main = lib_for(out.main);
 	// The workspace is the repository's; an installed copy is not a workspace root.
 	delete out.workspaces;

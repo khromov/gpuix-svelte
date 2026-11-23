@@ -12,7 +12,6 @@
 	import './ModuleStore.svelte.ts';
 	import Shipped from 'gpuix-svelte/components/Scroller.svelte';
 
-	// import Commented from './HotComment.svelte';
 	const sample = "import Doc from './HotString.svelte'";
 	const path = './HotPath.svelte';
 

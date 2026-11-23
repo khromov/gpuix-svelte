@@ -12,6 +12,6 @@ The headless viewport's height caps at 538 logical px: anything laid out below c
 - `npm run demo` — the four demos, each a different corner of the renderer.
 - `npm run demo:styling` — every style string next to what GPUI made of it.
 - `CLAUDE.md` — the architecture notes, including the mutation contract.
-- [The Svelte custom-renderer PR](https://github.com/sveltejs/svelte/pull/18511) this is all built on.
+- [Svelte's custom renderers](https://svelte.dev/docs/svelte/custom-renderers), the feature this is all built on.
 
 Your quiz score is in the footer. Thanks for reading!

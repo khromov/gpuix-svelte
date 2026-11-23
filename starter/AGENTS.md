@@ -125,8 +125,8 @@ extension. Write `./util.ts`: tsc also accepts `./util.js`, which Node then cann
 
 ## Dependencies
 
-`gpuix-svelte` brings its own build of Svelte, the one with the custom renderer API, and resolves
-every `svelte` import to it. Keep `svelte` itself out of `package.json`.
+`svelte` is a peer dependency of `gpuix-svelte`, 5.59.1 or later, and sits beside it in
+`package.json`. The app, svelte-check and the renderer all run on that one copy.
 
 ## Files
 
@@ -140,4 +140,4 @@ every `svelte` import to it. Keep `svelte` itself out of `package.json`.
   commits on main must be conventional commits for release-please to see them.
 - `tsconfig.json`, `svelte.d.ts`, `svelte.config.js` — TypeScript and svelte-check setup.
 - `bunfig.toml` — preloads the `.svelte` loader for Bun; a plain `bun file.ts` still needs the
-  `--conditions custom-renderer --conditions development` flags, so use `bun run start`.
+  `--conditions svelte-custom-renderer --conditions development` flags, so use `bun run start`.

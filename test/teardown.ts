@@ -51,7 +51,7 @@ function fresh(width?: number, height?: number) {
 	renderer.insert(root, row, anchor);
 
 	const texts = ['A', 'B', 'C'].map((content) => {
-		const t = renderer.createTextNode(content);
+		const t = renderer.createText(content);
 		renderer.insert(row, t, null);
 		return t;
 	});

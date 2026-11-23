@@ -1,7 +1,7 @@
 /**
  * The `browser` condition's entry: everything `index.ts` has except `render_hot`,
  * whose `node:fs` watch cannot resolve in a browser bundle. `dom.ts` mirrors this
- * list for builds without the `custom-renderer` condition.
+ * list for builds without the `svelte-custom-renderer` condition.
  */
 
 /** True on GPUI, native window or wasm canvas alike; `dom.ts` answers false. Decided per build, so it can be read before anything is mounted. */

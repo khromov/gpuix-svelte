@@ -2,7 +2,7 @@
  * The DOM side of the package, mounted for real: happy-dom stands in for the browser, the components and the
  * cross-target example are compiled without the custom renderer (as Vite would), and every
  * `gpuix-svelte` import in them is pointed at src/dom.ts, because this process runs under the
- * custom-renderer condition and would otherwise hand them the GPUI entry. `test:cross-target`
+ * svelte-custom-renderer condition and would otherwise hand them the GPUI entry. `test:cross-target`
  * is the same component on GPUI.
  */
 

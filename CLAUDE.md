@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Svelte custom renderer that targets GPUI (Zed's GPU-accelerated UI framework) through
 `@gpuix/native`. Svelte components render into a real native desktop window — no DOM, no
-webview, no browser. Built on Svelte's unreleased custom renderer API
-([sveltejs/svelte#18511](https://github.com/sveltejs/svelte/pull/18511)). The same package has a
+webview, no browser. Built on Svelte's experimental [custom renderer
+API](https://svelte.dev/docs/svelte/custom-renderers), new in Svelte 5.59. The same package has a
 DOM build for Vite and SvelteKit, and `packages/ui` is a component toolkit for both.
 
 User-facing documentation lives in `README.md` and `docs/*.md` (every page is in `scripts/docs.ts`'s
@@ -21,11 +21,12 @@ Everything goes through the package scripts, and those go through `bin/gpuix-sve
 (`gpuix-svelte [--bun] [runtime flags] <entry> [args]`, published as the `gpuix-svelte` bin). The
 first argument not starting with `--` is the entry, so a runtime flag that takes a value needs the
 `=` form; `gpuix-svelte update …` is the updater's release CLI (`bin/update.js`). On Node it runs
-`node --conditions custom-renderer --conditions development --import gpuix-svelte/register <entry>`,
+`node --conditions svelte-custom-renderer --conditions development --import gpuix-svelte/register <entry>`,
 on Bun the same conditions with `--preload gpuix-svelte/plugin`; both loaders resolve through the
 package's own `exports` (`src/*.ts` here, `lib/*.js` once packed). The conditions are
-**mandatory**: without `custom-renderer`, `gpuix-svelte` resolves to its DOM build (`src/dom.ts`),
-whose `render_hot` rejects and whose `render()` throws, both naming the bin. So an ad-hoc
+**mandatory**: without `svelte-custom-renderer`, `svelte` resolves to its server build and
+`gpuix-svelte` to its DOM build (`src/dom.ts`), whose `render_hot` rejects and whose `render()`
+throws, both naming the bin. So an ad-hoc
 `node app.ts` or `bun app.ts` fails; go through the bin. Flags before the entry are forwarded to
 the runtime (`demo:glass-ffi` passes `--experimental-ffi` that way).
 
@@ -70,7 +71,6 @@ npm run shots              # every other screenshot the homepage, README and doc
                            # examples/ui-app's Settings screen as docs/assets/ui-app.png, atop docs/ui.md
 npm run wallpapers         # macOS only: Apple's wallpapers for the share cards, gitignored since they may
                            # not be republished; -- --use <slug> writes the tracked webp a release's `wall` names
-npm run vendor             # re-vendor svelte; see "Hard constraints"
 npm run parity             # @gpuix/native methods nothing in src/ calls (--all for every method and its
                            # callers); run it after a native bump
 npm run pack -- <dir>      # the npm tarball (scripts/publish.ts; publish:npm wraps `npm publish` the same way)
@@ -88,7 +88,7 @@ bun:test`, `npm run bun:demo:counter`, ...) running the same entry with `--bun`.
 means adding both halves and, for a test, chaining both into `test` / `bun:test`. `compile` and
 `demo:web` are Bun-only, `demo:dom` and `demo:ui-dom` run Vite on Node, `shots` has no twin,
 `bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the tooling
-that needs no loader (`lint`, `check:svelte`, `docs`, `docs:serve`, `og`, `wallpapers`, `vendor`,
+that needs no loader (`lint`, `check:svelte`, `docs`, `docs:serve`, `og`, `wallpapers`,
 `parity`, `pack`, `publish:*`) runs on plain `node`, which strips their types itself.
 
 ## Testing
@@ -166,12 +166,14 @@ scaffolder's `npm pack --dry-run`, a binding load check, the suites docs/contrib
 `xvfb-run`, on both runtimes where there are twins. `TestGpuixRenderer` is Metal on macOS and
 DirectX on Windows.
 
-`test:coverage` mounts every sample from Svelte's own custom-renderer suite; point
-`SVELTE_SAMPLES_DIR` at a svelte checkout's `packages/svelte/tests/custom-renderers/samples` (it
-skips at exit 0 otherwise). It copies them into `test/.samples-tmp` first, because importing in
-place would mix two Svelte runtimes. It asserts at least 33 mount, no unexpected compile error,
-and exactly one runtime failure, raw-snippet (whose `_config.js` declares `error:` rather than
-`compile_error`); at the last count 33 of 47 mounted and 13 were refused by design.
+`test:coverage` mounts every sample from Svelte's own custom renderer suite; point
+`SVELTE_SAMPLES_DIR` at `packages/svelte/tests/custom-renderers/samples` in a svelte checkout at the
+installed version's tag (`svelte@5.59.1`; a sparse clone of that one directory is enough; it skips
+at exit 0 otherwise). It copies them into `test/.samples-tmp` first, because importing in place
+would mix two Svelte runtimes. It asserts at least 37 mount, no unexpected compile error, and
+exactly one runtime failure, raw-snippet (whose `_config.js` declares `error:` rather than
+`compile_error`); at 5.59.1, 37 of 51 mounted and 13 were refused by design. boundary-pending
+`await`s in its markup, which compiles only with `async: true` (see "Compiling").
 
 ### Seeing what a demo renders
 
@@ -261,10 +263,10 @@ registration from `bunfig.toml`, so it wires `src/plugin.ts`'s exported hooks in
 - `load_svelte` / `load_module` compile components, and the build counts the components that went
   through them, because without the plugin a `.svelte` import silently becomes a file asset while
   the build still succeeds.
-- `resolve_svelte(conditions)` pins `svelte` to the bundled copy under the build's own conditions
-  (`custom-renderer` + `production` here, `custom-renderer` + `browser` in `scripts/web.ts`).
-  `production` only takes effect together with the `process.env.NODE_ENV` define, because Bun
-  implies `development` otherwise and esm-env lists it first.
+- The build's `conditions` are `svelte-custom-renderer` + `production` (`svelte-custom-renderer`
+  + `browser` in `scripts/web.ts`). `production` only takes effect together with the
+  `process.env.NODE_ENV` define, because Bun implies `development` otherwise and esm-env lists it
+  first.
 - `resolve_native_cjs` points `@gpuix/native` at its `index.cjs`: the ESM loader finds the `.node`
   through `createRequire(import.meta.url)`, which `Bun.build` cannot trace, and without the CJS
   entry the binary ships without the addon and dies at launch — the size floor catches that. Bun
@@ -413,7 +415,7 @@ match the desktop app. (A browser DOM is the other target; see the next section.
 `browser.mjs` pulls the wasm in with `with { type: 'file' }`, which only Bun reads, so
 `scripts/web.ts` (`Bun.build({ target: 'browser' })` with `build.ts`'s plugin hooks) is Bun-only and
 fails if no `.wasm` was emitted; the docs' playground builds the same path with Vite by importing the
-wasm through `?url`. The package's `custom-renderer` → `browser` export is `src/web.ts`, everything
+wasm through `?url`. The package's `svelte-custom-renderer` → `browser` export is `src/web.ts`, everything
 `index.ts` has but `render_hot`. docs/shipping.md has the hosting side (cross-origin isolation,
 `application/wasm`, no `file://`). A browser bundle has no `process`, and a bare `process.env.X`
 throws before `render()` mounts — with GPUI already up, which makes it look like a renderer bug;
@@ -434,10 +436,10 @@ so Chrome fast-forwards frames forever and hangs.
 ### Rendering in the DOM
 
 `src/dom.ts` is Svelte's own DOM renderer: what `gpuix-svelte` resolves to without the
-`custom-renderer` condition, which is every browser toolchain (Vite, SvelteKit) and never the
-desktop path. `exports["."]` nests the conditions — `custom-renderer` → (`browser` → `web.ts`, else
+`svelte-custom-renderer` condition, which is every browser toolchain (Vite, SvelteKit) and never the
+desktop path. `exports["."]` nests the conditions — `svelte-custom-renderer` → (`browser` → `web.ts`, else
 `index.ts`), `default` → `dom.ts` — and `./components/*` likewise falls back to
-`src/components/dom/*`; `./dom` names the DOM build for a tool that sets `custom-renderer` anyway,
+`src/components/dom/*`; `./dom` names the DOM build for a tool that sets `svelte-custom-renderer` anyway,
 such as a hybrid app's tsconfig. `docs/dom.md` is the user-facing page.
 `github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo` is a companion repository (a
 SvelteKit site and a GPUI window sharing one component library on this package, with the two
@@ -503,7 +505,7 @@ keep it building. The design:
   shares the frame's chunks — one Svelte runtime, one renderer, live bindings intact. An import
   outside that list is a compile error naming it; a new shipped component or svelte entry point
   goes in `modules.ts`. The GPUI frame swaps `@gpuix/native` for a virtual module importing the
-  wasm through `?url`, under `custom-renderer` + `browser`, with `base: './'`. `frame-gpui.ts` wraps
+  wasm through `?url`, under `svelte-custom-renderer` + `browser`, with `base: './'`. `frame-gpui.ts` wraps
   `applyBatch` and posts every batch to the page, where `tree.ts`'s `Mirror` rebuilds the element
   tree, text wrappers included, for the Render tree and Mutations views. The GPUI frame is
   remounted through `render()` on every edit (so `set_css_vars` values outlive a run, while a
@@ -531,14 +533,12 @@ keep it building. The design:
 - **`test/dom.ts`** registers happy-dom's globals before anything imports `svelte`, compiles the DOM
   components and the example into `test/.dom-tmp/`, and rewrites their `gpuix-svelte` and component
   specifiers to `src/dom.ts` and the compiled components, because the process itself runs under the
-  custom-renderer condition. `check` compares JSON, under which every DOM element is `{}`, so element
-  identity is asserted as `a === b`. `test/cross-target.ts` mounts the same example on GPUI.
+  `svelte-custom-renderer` condition. `check` compares JSON, under which every DOM element is `{}`,
+  so element identity is asserted as `a === b`. `test/cross-target.ts` mounts the same example on
+  GPUI.
 - **Publishing**: `scripts/publish.ts` rewrites nested condition objects recursively and leaves
-  `.svelte` pattern targets alone. `scripts/consume.ts` builds a Vite page in the consumer with a
-  plugin that fails if any `svelte` import made from inside the package resolves to the bundled copy
-  instead of the app's (vite-plugin-svelte's `resolve.dedupe` keeps them apart), then runs the GPUI
-  test again, because an app on both targets has the registry svelte in its root `node_modules` and
-  the loaders have to keep pinning the bundled one.
+  `.svelte` pattern targets alone. `scripts/consume.ts` builds a Vite page in the consumer on the
+  same svelte the GPUI side runs, after checking that neither package got a svelte of its own.
 
 ### The UI toolkit
 
@@ -648,39 +648,25 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   lowercases attribute names except `on*`, names on hyphenated tags and the `{shorthand}` form, so
   `html.d.ts` declares `minrows` and `minRows` both; and it splits blocks on a literal
   `<style>`/`<script>` even inside a comment or string. `svelte.config.js` is read by the editor and
-  svelte-check, never at runtime; svelte-check pulls the registry's svelte in as its peer, which
-  lacks `customRenderer`, so the starter's sets only the a11y `warningFilter`. README "TypeScript"
-  has what a consumer's tsconfig needs.
+  svelte-check, never at runtime; the starter's sets `experimental.customRenderer` (so svelte-check
+  reports what the loaders refuse) and the a11y `warningFilter`. README "TypeScript" has what a
+  consumer's tsconfig needs.
 - **Node >= 24** (`engines`; the package needs `module.registerHooks` and `stripTypeScriptTypes`;
   only the glass-ffi demo needs 26.1's experimental `node:ffi`) or **Bun >= 1.4.0**. See "Runtime"
   for where runtime-specific code may live.
 - **Never `bun --hot`.** `render_hot` implements its own in-process reload; `--hot` re-evaluates
   Svelte's runtime, so the old component belongs to a module instance the new one can't see and
   `unmount()` fails.
-- **`svelte` is vendored and bundled**: `dependencies.svelte` is
-  `file:vendor/svelte-<version>-<sha7>.tgz`, a build of sveltejs/svelte at that commit of the
-  custom-renderer PR stack (#18042 → #18405 → #18461 → #18511, whose `custom-condition` branch is
-  the tip), and `bundleDependencies` lists it, so the npm tarball carries that build (and its
-  transitive deps) under `node_modules/svelte` and a consumer never installs svelte. It has to be in
-  `dependencies` (npm-packlist skips dev and peer deps when bundling) and there is no
-  `peerDependencies` (npm 7+ would auto-install the registry release with the same version string,
-  which has no `mount()`). The bundled copy is nested, so both loaders pin every `svelte` /
-  `svelte/*` import to it — `register.ts` with a `resolve` hook that swaps `parentURL` for its own
-  URL, `plugin.ts` with one `build.module()` virtual module per svelte export (Bun's runtime
-  `onResolve` never sees a bare specifier) — and both throw `WRONG_SVELTE` when `svelte/renderer`
-  fails to resolve, which is how a non-PR build is caught. The *published* manifest cannot carry the
-  `file:` spec (Bun resolves a bundled dep's spec before honouring the bundle, and npm `overrides`
-  cannot diverge from a direct dep: `EOVERRIDE`), so `scripts/publish.ts` rewrites it to `>=5.56.0`
-  for the duration of `npm pack` / `npm publish` and restores it in `finally` (not
-  `prepack`/`postpack`: `npm publish` re-reads the manifest after `postpack`).
-  `starter/tsconfig.json` shows the `paths` a consumer's `tsc` needs to see the nested copy. It
-  can't be a URL pin: pkg.svelte.dev drops a build once a force-push removes its commit from the
-  branch, and this PR is rebased on every update. `npm run vendor` moves the pin (it errors if
-  pkg.svelte.dev hasn't built the head yet); then run `npm test` and `npm run bun:test`. For a commit
-  pkg.svelte.dev no longer has, `pnpm build && pnpm pack` in a svelte checkout's `packages/svelte`
-  and drop the tarball in by hand under the same name. `.gitignore` un-ignores `vendor/*.tgz`;
-  `files` keeps it out of the npm package. `bun.lock` records the tarball's sha512, so a new build is
-  a new lockfile entry.
+- **`svelte` is a peer dependency, `^5.59.1`** (5.59 is the first release with `svelte/renderer`),
+  and a dev dependency here. A peer rather than a dependency because the app's components and the
+  renderer must share one Svelte runtime, and an app pinning another svelte would otherwise get a
+  second copy nested under `gpuix-svelte`; `consume` asserts the installed app has exactly one.
+  The toolkit's published manifest peers the same range (`publish-ui.ts` reads it from the root's),
+  and `starter/package.json` lists svelte beside `gpuix-svelte`. Both loaders throw `WRONG_SVELTE`
+  when `svelte/renderer` fails to resolve, which is how an older svelte is caught. Custom renderers
+  are still experimental upstream, so a Svelte minor can move the API: after `bun update svelte`, run
+  `npm test`, `npm run bun:test` and `test:coverage` against that tag's samples. A new minimum goes
+  into `peerDependencies`, `devDependencies`, `starter/package.json` and `WRONG_SVELTE`.
 - **`@gpuix/native` range is `>=0.11.0 <0.12.0`** (pre-1.0, so every minor may break) and the
   renderer speaks its mutation contract: applyBatch only — no `removeChild` op (reinserts reparent
   implicitly; nodes that leave the live tree are destroyed at commit and re-materialize if shown
@@ -707,10 +693,10 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   redo `docs/styling.md`'s lists if `style.rs` moved (see "Regenerating the styling reference").
   0.11's terminal mode is untested here: native `init()` honours `GPUIX_TERMINAL=1` on its own, and
   `render()` logs to the stdout that mode draws on.
-- **The `custom-renderer` export condition is the renderer switch.** Every desktop path sets it
+- **The `svelte-custom-renderer` export condition is the renderer switch.** Every desktop path sets it
   (the bin, `Bun.build` in `build.ts` and `scripts/web.ts`, every tsconfig but `tsconfig.dom.json`)
   and no browser toolchain does. A new export that a component may import needs the same
-  `custom-renderer` / `default` split as `.` and `./components/*`, or a DOM build fails to resolve
+  `svelte-custom-renderer` / `default` split as `.` and `./components/*`, or a DOM build fails to resolve
   it; a new helper in `web.ts`'s list needs its counterpart in `dom.ts`, covered in `test/dom.ts`.
   The toolkit's components import `gpuix-svelte` by name for the same reason: the condition, not the
   file, picks their build.
@@ -731,7 +717,7 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   hot.ts       render_hot's fs.watch reload ─ node:* stays out of render.ts
   index.ts     web.ts plus render_hot ─ the desktop entry
   web.ts       the `browser` condition's entry ─ IS_GPUIX → true
-  dom.ts       the entry without `custom-renderer` ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
+  dom.ts       the entry without `svelte-custom-renderer` ─ the DOM build for Vite / SvelteKit; IS_GPUIX → false
   reset.ts     the DOM build's CSS reset, one `:where()` rule per tag GPUI draws bare ─ a new alias tag adds its entry here
   register.ts  Node loader (module.registerHooks) ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks ─ the `bun:*` scripts, build.ts, scripts/web.ts
@@ -747,7 +733,7 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   window.ts    window, picker, focus, image, overlay helpers ─ no-op where native lacks the method
   search.ts    TextSearch, find_ranges ─ createSubscriber, so no runes in src/
   components/  Scroller, Portal, Tooltip, Popover .svelte ─ `gpuix-svelte/components/*`
-  components/dom/  their DOM versions, plus Anchored.svelte ─ the same specifier without `custom-renderer`
+  components/dom/  their DOM versions, plus Anchored.svelte ─ the same specifier without `svelte-custom-renderer`
 ```
 
 **Compiling.** `compile-core.ts`'s `compile_source` compiles `.svelte` with `runes: true` (legacy
@@ -755,10 +741,10 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
 the compiler emit `import $renderer from 'gpuix-svelte/renderer'` into every component;
 `compile.ts`'s `compile_svelte` reads the file, calls it and busts child specifiers.
 `GPUIX_SVELTE_RENDERER` overrides that baked specifier — needed for components outside this
-workspace, since it must resolve from the `.svelte` file's own location. `async: true` rides along
-because a `pending`/`failed` snippet in a `<svelte:boundary>` crashes the compiler without it
-(`SvelteBoundary.js` reads through the `renderer_snippet` wrapper; still present in the vendored
-build). Reported upstream on #18511; drop the flag once it lands.
+workspace, since it must resolve from the `.svelte` file's own location (Svelte refuses a relative
+one). `async: true` is what lets a component `await` in its script and markup, which Svelte's
+custom renderer docs list as supported; `test:compile` and coverage's boundary-pending fail
+without it.
 
 Before compiling, `collapse_whitespace` does to the template's text what an HTML parser would:
 GPUI draws a text node as written and the compiler leaves interior whitespace to the browser, so a
@@ -846,9 +832,9 @@ reader up declares anything (`scoped` in `build_style`), and under a declaring e
 parsed per element, about 4 µs for six declarations. A cache per scope would save that in a subtree
 wrapped by one declaring element, at the price of a generation bump on every redeclaration and
 move. What such a change makes out of date is queued in `stale` and restyled once by the next
-`commit()`, never where the change is seen: Svelte writes a style prop or a `style:` directive one
-`setAttribute` per variable, and restyling on each write shipped every reader once per variable
-(eight style props over 51 readers were 408 `setStyle` ops). `restyle_readers` queues every element
+`commit()`, never where the change is seen, since several can land in one frame (an element's
+`class` and `style`, declaring elements nested in each other) and restyling on each would ship
+every reader once per change. `restyle_readers` queues every element
 below that read a variable, with no record of which one, so a variable that changes on every frame
 belongs on an element with little inside it. `apply_style` calls it for the readers below an element
 whose own declarations changed (a class, an inline style and an `@media` answer all arrive there),
@@ -873,16 +859,14 @@ tree where Svelte holds it, never gets a native id, and its children are nativel
 (`native_parent_of` climbs past it, `first_native_from` looks inside it and `first_native_after`
 continues after it, `attach` re-attaches its children last to first on a move, `retire` destroys
 them when it leaves). It is the one node with no GPUI presence that has children. The compiler
-reaches the anchor inside the wrapper as `wrapper.lastChild`, the only DOM property it reads off a
-node, so `createElement` defines that getter on an element of either name; without it a style prop
-throws at mount. That read is also all that tells the compiler's wrapper from a `<g>` or a
-`<svelte-css-wrapper>` the app wrote itself, so it is what makes a node boxless (`unbox`), and an
-element of those names that is never read that way is a `<div>` with the unknown-tag warning, like
-any other. Svelte keeps a template out of the tree while something it awaits is pending, so the read
-comes before the wrapper is live; `unbox` still handles one that went up as a `<div>` first, moving
-its children to its parent. Not reported upstream yet: `test:style-props` asserts the emitted
-shape, so it fails when the compiler goes through the renderer, at which point the getter can go
-and the wrapper needs another mark. Text at the edge of such a component counts as beside an
+reaches the anchor inside the wrapper through `getLastChild`, the one element it asks that of
+(Svelte's other calls are on fragments). That call is all that tells the compiler's wrapper from a
+`<g>` or a `<svelte-css-wrapper>` the app wrote itself, so on an element of either name it is what
+makes a node boxless (`unbox`), and an element of those names never asked is a `<div>` with the
+unknown-tag warning, like any other. Svelte keeps a template out of the tree while something it
+awaits is pending, so the call comes before the wrapper is live; `unbox` still handles one that
+went up as a `<div>` first, moving its children to its parent. `test:style-props` asserts the
+emitted `$.get_last_child(wrapper)`, so it fails if the compiler stops asking. Text at the edge of such a component counts as beside an
 element, so it is labelled on its own rather than joining the parent's text run. Two other designs
 were built and dropped: the wrapper as a real `div` (a growing or percentage-wide root collapses,
 since the box becomes the flex item), and no wrapper at all, with a compile pre-pass moving the
@@ -917,7 +901,8 @@ rule then never reached the tree.
 **Loaders.** There are two because there is no shared API: Bun has no `module.registerHooks`, and
 its `module.register()` is a silent no-op. Both wrap `compile_svelte()` and must be installed before
 the entry module resolves, which the bin does (`bunfig.toml`'s `preload` alone is not enough: the
-`--conditions` flags pick the custom-renderer build); tests rely on that registration. Both also
+`--conditions` flags pick Svelte's client runtime and the GPUI build); tests rely on that
+registration. Both also
 compile `.svelte.ts` runes modules through `compile_module()` (`compileModule` from
 `svelte/compiler`), which does **not** strip types, so the loaders do it first: `register.ts` puts
 Node's `module-typescript` source through `stripTypeScriptTypes`, `plugin.ts` runs `Bun.Transpiler`.
@@ -1022,8 +1007,11 @@ state still survives a reload.
 
 **`style.ts`** — Svelte hands over the `style` attribute as CSS *text*; GPUI wants a camelCase
 object with bare-number lengths (`12px` → `12`, while `50%`, `auto` and `#1e1e2e` stay strings). The
-raw string is kept on the shadow node because Svelte read-modify-writes it for `style:` directives.
-docs/styling.md is the user-facing list of what survives.
+raw string is kept on the shadow node because Svelte reads it back (`css_props` builds a style
+prop's wrapper style on top of it). Svelte also sets a custom renderer's whole `class` and `style`
+again whenever the effect around them runs, changed or not, so `setAttribute` skips an unchanged
+string on `STYLE_ATTRS`, or each run would ship a native `setStyle`. docs/styling.md is the
+user-facing list of what survives.
 
 Unknown *keys* need no allowlist — serde drops them. Unknown **values** are the opposite: a key GPUI
 knows, handed a value it can't deserialize, makes native refuse the batch, and `ship`'s resend then
@@ -1297,7 +1285,7 @@ redone by hand if the lockup changes.
 it holds an `App.svelte`, falling back to `starter/` — so a `template/` left by an earlier pack makes
 a hand run copy a stale starter (`consume` refreshes it first). It is also the app `npm run consume`
 installs the packed tarball into (under `$TMPDIR`, so the checked-in one stays pristine), with its
-own tsconfig (the `paths` for the nested svelte) and `AGENTS.md` (and a `CLAUDE.md` that imports it)
+own tsconfig, svelte as a dependency beside `gpuix-svelte`, and `AGENTS.md` (and a `CLAUDE.md` that imports it)
 for the consumer's agents, and is excluded from the root tsconfig, eslint and `files`. The release
 workflow is optional: an interactive run asks (and for `owner/repo`, which it writes into
 `standalone.ts`'s commented-out `update:` line, uncommenting it), `--github [owner/repo]` /
@@ -1309,8 +1297,8 @@ workflow is optional: an interactive run asks (and for `owner/repo`, which it wr
 
 Node 26 (`.nvmrc`; `nvm use` before anything). Install with `bun install` (CI: `--frozen-lockfile`;
 a locked version moves within its range with `bun update <pkg>`), run scripts with
-`npm run <script>`; packing and publishing stay on npm (`npm pack` bundles the vendored svelte and
-its dependencies, and `npm publish` does the OIDC trusted publishing). Keep the source
+`npm run <script>`; packing and publishing stay on npm (`npm publish` does the OIDC trusted
+publishing). Keep the source
 runtime-agnostic — `node:*` builtins only, no `Bun.*` calls and no `bun` imports outside
 `src/plugin.ts`, `src/build.ts` and `scripts/web.ts` (Bun is the bundler there; `update.ts`'s
 guarded `globalThis.Bun?.main` read is the one other touch). Import types with `import type`, and
@@ -1332,9 +1320,8 @@ itself, and svelte-check (part of `typecheck`) checks them.
   Fatal error: Array index out of range", hiservices XPC errors) — run `npm test`, `consume` and
   the demos with the sandbox disabled.
 - Sibling checkouts: `../gpuix` is the fork this repo was extracted from; read upstream release tags
-  for native instead (see "Regenerating the styling reference"). `../svelte` (khromov/svelte) is the
-  local copy of the custom-renderer PR stack; check out its `custom-condition` branch before reading
-  (it is force-pushed about weekly). To run a consumer app's test suite against this checkout, swap
+  for native instead (see "Regenerating the styling reference"). `../svelte` (khromov/svelte) is a
+  local svelte checkout; read the source at the tag of the installed version. To run a consumer app's test suite against this checkout, swap
   its `node_modules/gpuix-svelte` for a symlink to this repo; `bun install` there restores the
   published copy.
 - A Bun canary for `--aot` / `--trim` builds lives in the gitignored `.bun-canary/`, never through

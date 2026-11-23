@@ -218,8 +218,7 @@ export function compile_source(source: string, path: string, renderer_module: st
 		// The value returned here is the class the compiler stamps on every element a
 		// selector matches, which is how the renderer finds the right sheet at runtime.
 		cssHash: (args) => (scope = `svelte-${args.hash(args.css)}`),
-		// async is on because a `pending`/`failed` snippet in a <svelte:boundary> crashes the
-		// compiler without it (SvelteBoundary.js reads through the `renderer_snippet` wrapper).
+		// Without async a component can't `await` in its script or markup.
 		experimental: { customRenderer: renderer_module, async: true }
 	});
 

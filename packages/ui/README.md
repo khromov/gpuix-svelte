@@ -5,7 +5,7 @@ components for a native GPUI window and a browser DOM (Vite, SvelteKit). Buttons
 menus, dialogs, toasts, layout and feedback pieces, and the theme behind them.
 
 ```sh
-npm install gpuix-svelte gpuix-svelte-ui
+npm install gpuix-svelte gpuix-svelte-ui svelte
 ```
 
 ```svelte

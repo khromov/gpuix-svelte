@@ -13,13 +13,6 @@ const decode = (source: string | ArrayBuffer | NodeJS.TypedArray) =>
 	typeof source === 'string' ? source : new TextDecoder().decode(source);
 
 registerHooks({
-	// svelte is bundled inside this package, so a consumer's compiled component (and any
-	// copy hoisted next to it) must resolve `svelte` from here, or two runtimes would meet.
-	resolve(specifier, context, nextResolve) {
-		if (!/^svelte(\/|$)/.test(specifier)) return nextResolve(specifier, context);
-		return nextResolve(specifier, { ...context, parentURL: import.meta.url });
-	},
-
 	load(url, context, nextLoad) {
 		if (/\.svelte\.[jt]s(\?|$)/.test(url)) {
 			const file = new URL(url);
@@ -45,8 +38,7 @@ registerHooks({
 		const query = file.search;
 		file.search = '';
 
-		// Declaring the format is what gets a `.svelte` URL past
-		// ERR_UNKNOWN_FILE_EXTENSION; the `resolve` hook above only pins `svelte`.
+		// Declaring the format is what gets a `.svelte` URL past ERR_UNKNOWN_FILE_EXTENSION.
 		return {
 			format: 'module',
 			shortCircuit: true,

@@ -102,7 +102,7 @@ jobs:
       - run: xvfb-run -a npm run bun:test:automation-live
 
   # Build-only: a runner has no display. It checks that the bundle resolves with the
-  # custom-renderer condition, that the addon gets embedded (gpuix-svelte/build asserts both)
+  # svelte-custom-renderer condition, that the addon gets embedded (gpuix-svelte/build asserts both)
   # and that each OS's packaging runs: the .app and icns on macOS, the .ico and version info on Windows.
   compile:
     strategy:

@@ -70,7 +70,7 @@ export function create_window_root(
 		if (e.clickCount === 2) native()?.zoomWindow?.();
 	});
 
-	title_text = renderer.createTextNode(titlebar.title);
+	title_text = renderer.createText(titlebar.title);
 	renderer.insert(element('text', TITLE, bar), title_text, null);
 
 	button(bar, 'Minimize window', MINIMIZE, 'var(--titlebar-hover, #262626)', () => native()?.minimizeWindow?.());

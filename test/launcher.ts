@@ -66,12 +66,12 @@ const runtime = (result: ReturnType<typeof launch>) => (typeof result === 'strin
 
 try {
 	const first = launch();
-	check('Bun named node: svelte resolves to its custom-renderer build', client(first), 'index-client.js');
+	check('Bun named node: svelte resolves to its client build', client(first), 'index-client.js');
 	check('Bun named node: the entry runs on the copy named bun beside it', runtime(first), real(beside));
 
 	await remove(beside);
 	const fallback = launch();
-	check('Bun named node with no bun beside it: the custom-renderer build', client(fallback), 'index-client.js');
+	check('Bun named node with no bun beside it: the client build', client(fallback), 'index-client.js');
 	check('Bun named node with no bun beside it: the entry runs on bun from PATH', runtime(fallback), real(bun));
 
 	// cmd.exe reports a missing `bun` itself, and Windows spells the variable Path.

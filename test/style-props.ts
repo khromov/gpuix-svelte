@@ -16,7 +16,7 @@ import { import_fresh } from '../src/hot.ts';
 import { mount_headless, bounds, click, find_test_id, settle, tree, check, finish, type TreeNode } from 'gpuix-svelte/test';
 
 const code = compile_svelte(fileURLToPath(new URL('./StyleProps.svelte', import.meta.url)));
-check("the compiler puts its own wrapper around the component, and reaches the anchor in it as a DOM node's lastChild", [code.includes("'svelte-css-wrapper'"), /\$\.css_props\((\w+),[^]*?\(\1\.lastChild,/.test(code)], [true, true]);
+check('the compiler puts its own wrapper around the component, and reaches the anchor in it through the renderer', [code.includes("'svelte-css-wrapper'"), /\$\.css_props\((\w+),[^]*?\(\$\.get_last_child\(\1\),/.test(code)], [true, true]);
 
 let ops: Mutation[] = [];
 const apply_batch = TestGpuixRenderer.prototype.applyBatch;
@@ -131,7 +131,7 @@ check('as it does beside a <text> in a fragment with no other element, where a <
 	'#040506'
 ]);
 
-const wrapper = renderer.createElement('svelte-css-wrapper') as ShadowNode & { lastChild: ShadowNode | null };
+const wrapper = renderer.createElement('svelte-css-wrapper');
 renderer.setAttribute(wrapper, 'testId', 'named');
 const parked = renderer.createElement('div');
 renderer.setAttribute(parked, 'testId', 'parked');
@@ -140,8 +140,8 @@ renderer.insert(root, wrapper, null);
 settle();
 const as_written = [find_test_id('named')?.type, names('named'), tag_warnings('svelte-css-wrapper')];
 const parked_id = parked.nativeId;
-// The compiled code's read, which is what tells Svelte's wrapper from an element the app gave its name.
-void wrapper.lastChild;
+// The compiled code's call, which is what tells Svelte's wrapper from an element the app gave its name.
+renderer.getLastChild(wrapper);
 settle();
 check("an element with the wrapper's name is a <div> like any unknown tag, until that read makes it the wrapper and hands its children to its parent", [as_written, find_test_id('named'), (tree().children ?? []).some((child) => child.testId === 'parked'), parked.nativeId === parked_id], [
 	['div', ['parked'], 1],

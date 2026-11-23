@@ -177,9 +177,9 @@ const hears = element('color: var(--v)', loud);
 settle();
 check('!important is no part of the value an inline style declares', [shipped(hears, 'color'), [...(loud.vars ?? [])]], ['#0a0b0c', [['v', '#0a0b0c']]]);
 
-// The read of `lastChild` is the compiled code's, and what makes the element Svelte's wrapper.
-const wrapper = renderer.createElement('svelte-css-wrapper') as ShadowNode & { lastChild: ShadowNode | null };
-void wrapper.lastChild;
+// The `getLastChild` call is the compiled code's, and what makes the element Svelte's wrapper.
+const wrapper = renderer.createElement('svelte-css-wrapper');
+renderer.getLastChild(wrapper);
 const wrapped = element('color: var(--v)', wrapper);
 renderer.insert(a, wrapper, null);
 settle();

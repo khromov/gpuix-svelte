@@ -4,7 +4,7 @@ The smallest project that consumes `gpuix-svelte` from npm: a counter in a nativ
 `npm create gpuix-svelte@latest` copies it into a new directory; then:
 
 ```bash
-npm install          # gpuix-svelte brings its own Svelte build
+npm install
 npm start            # opens the window; edit App.svelte and save to hot-reload
 npm test             # headless: mounts App.svelte, clicks through GPUI's real hit testing
 npm run typecheck    # tsc --noEmit, then svelte-check over App.svelte against GPUI's element types
@@ -16,8 +16,8 @@ npm run build        # the app for this platform: a .app on macOS, an .exe on Wi
 renderer needs and the `.svelte` loader installed. Spelled out:
 
 ```bash
-node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.ts
-bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
+node --conditions svelte-custom-renderer --conditions development --import gpuix-svelte/register app.ts
+bun  --conditions svelte-custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
 ```
 
 ## Files
@@ -44,12 +44,13 @@ bun  --conditions custom-renderer --conditions development --preload gpuix-svelt
 - `test.ts` — a headless test through `gpuix-svelte/test`; plain script, exits 1 on failure.
   Runs on macOS and Windows, where the headless renderer is built.
 - `svelte.d.ts` — declares `*.svelte` modules for `tsc`.
-- `tsconfig.json` — `nodenext`, and a `paths` entry so `tsc` finds the Svelte that is nested
-  inside the package. `svelteOptions.namespace` and the `gpuix-svelte/html` type entry make the
-  editor and svelte-check type `App.svelte`'s markup as GPUI elements rather than DOM ones.
+- `tsconfig.json` — `nodenext`, with `svelteOptions.namespace` and the `gpuix-svelte/html` type
+  entry, so the editor and svelte-check type `App.svelte`'s markup as GPUI elements rather than DOM
+  ones.
 - `AGENTS.md` — instructions for coding agents, pointing at the docs' `llms.txt`; `CLAUDE.md`
   imports it for Claude Code.
-- `svelte.config.js` — editor and svelte-check only: switches off Svelte's DOM a11y advice.
+- `svelte.config.js` — editor and svelte-check only: switches the custom renderer on and Svelte's DOM
+  a11y advice off.
 - `bunfig.toml` — preloads the `.svelte` loader for Bun. A plain `bun file.ts` still needs the two
   `--conditions` flags above, so go through the bin.
 
