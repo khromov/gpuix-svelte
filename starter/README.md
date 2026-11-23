@@ -49,8 +49,7 @@ bun  --conditions svelte-custom-renderer --conditions development --preload gpui
   ones.
 - `AGENTS.md` — instructions for coding agents, pointing at the docs' `llms.txt`; `CLAUDE.md`
   imports it for Claude Code.
-- `svelte.config.js` — editor and svelte-check only: switches the custom renderer on and Svelte's DOM
-  a11y advice off.
+- `svelte.config.js` — editor and svelte-check only: switches off Svelte's DOM a11y advice.
 - `bunfig.toml` — preloads the `.svelte` loader for Bun. A plain `bun file.ts` still needs the two
   `--conditions` flags above, so go through the bin.
 

@@ -13,6 +13,13 @@ const decode = (source: string | ArrayBuffer | NodeJS.TypedArray) =>
 	typeof source === 'string' ? source : new TextDecoder().decode(source);
 
 registerHooks({
+	// Every `svelte` import resolves from here, as the renderer's own do: in a linked gpuix-svelte checkout the app's
+	// components would otherwise reach the app's copy and the renderer the checkout's, and two runtimes cannot cross.
+	resolve(specifier, context, nextResolve) {
+		if (!/^svelte(\/|$)/.test(specifier)) return nextResolve(specifier, context);
+		return nextResolve(specifier, { ...context, parentURL: import.meta.url });
+	},
+
 	load(url, context, nextLoad) {
 		if (/\.svelte\.[jt]s(\?|$)/.test(url)) {
 			const file = new URL(url);
@@ -38,7 +45,8 @@ registerHooks({
 		const query = file.search;
 		file.search = '';
 
-		// Declaring the format is what gets a `.svelte` URL past ERR_UNKNOWN_FILE_EXTENSION.
+		// Declaring the format is what gets a `.svelte` URL past
+		// ERR_UNKNOWN_FILE_EXTENSION; the `resolve` hook above only pins `svelte`.
 		return {
 			format: 'module',
 			shortCircuit: true,

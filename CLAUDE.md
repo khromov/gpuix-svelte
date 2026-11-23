@@ -36,6 +36,18 @@ spawns `process.execPath`, except on the copy of Bun named `node` that `bun run`
 where Node is not installed (and always under `bun --bun run`): that one ignores `--conditions`
 (oven-sh/bun#44611), so the bin runs the `bun` beside it, or `bun` from PATH (`test:launcher`).
 
+Before anything else the bin runs `bin/migrate.js` on the working directory, when its
+`package.json` depends on `gpuix-svelte` and `CI` is unset (or `false`): it brings `tsconfig.json`
+and `AGENTS.md` from a starter that predates the peer svelte (0.6 and earlier) up to date and says
+so on stderr. It renames the condition inside `customConditions`, deletes the two `paths` entries
+only while nothing else shares that `paths`, and replaces two `AGENTS.md` passages word for word
+(`test/starter-0.6` holds v0.6.0's files, and `test:migrate` checks they come out as `starter/`'s),
+so a change to those starter files needs the same change in `migrate.js`. It never touches
+`package.json`, because a dependency added without a reinstall fails a frozen-lockfile install, nor
+`svelte.config.js`, whose custom renderer would break a Vite or SvelteKit build reading the same file.
+`docs/migrating.md` is the user-facing side: a release that needs more than a version bump gets an
+entry there, ending in instructions to paste to a coding agent.
+
 ```bash
 bun install                # entire setup (bun.lock is the lockfile); @gpuix/native ships prebuilt
 npm run typecheck          # tsc --noEmit, then svelte-check --fail-on-warnings twice (tsconfig.json for the
@@ -263,10 +275,11 @@ registration from `bunfig.toml`, so it wires `src/plugin.ts`'s exported hooks in
 - `load_svelte` / `load_module` compile components, and the build counts the components that went
   through them, because without the plugin a `.svelte` import silently becomes a file asset while
   the build still succeeds.
-- The build's `conditions` are `svelte-custom-renderer` + `production` (`svelte-custom-renderer`
-  + `browser` in `scripts/web.ts`). `production` only takes effect together with the
-  `process.env.NODE_ENV` define, because Bun implies `development` otherwise and esm-env lists it
-  first.
+- `resolve_svelte(conditions)` pins `svelte` to the copy gpuix-svelte itself resolves, under the
+  build's own conditions (`svelte-custom-renderer` + `production` here, `svelte-custom-renderer` +
+  `browser` in `scripts/web.ts`), as the loaders do (see "Hard constraints"). `production` only
+  takes effect together with the `process.env.NODE_ENV` define, because Bun implies `development`
+  otherwise and esm-env lists it first.
 - `resolve_native_cjs` points `@gpuix/native` at its `index.cjs`: the ESM loader finds the `.node`
   through `createRequire(import.meta.url)`, which `Bun.build` cannot trace, and without the CJS
   entry the binary ships without the addon and dies at launch — the size floor catches that. Bun
@@ -648,9 +661,10 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   lowercases attribute names except `on*`, names on hyphenated tags and the `{shorthand}` form, so
   `html.d.ts` declares `minrows` and `minRows` both; and it splits blocks on a literal
   `<style>`/`<script>` even inside a comment or string. `svelte.config.js` is read by the editor and
-  svelte-check, never at runtime; the starter's sets `experimental.customRenderer` (so svelte-check
-  reports what the loaders refuse) and the a11y `warningFilter`. README "TypeScript" has what a
-  consumer's tsconfig needs.
+  svelte-check, never at runtime; the starter's sets only the a11y `warningFilter`, because the Vite
+  or SvelteKit build docs/dom.md adds to an app reads the same file, and with
+  `experimental.customRenderer` there it compiles the DOM components for GPUI and fails at mount
+  (`renderer_cannot_cross`). README "TypeScript" has what a consumer's tsconfig needs.
 - **Node >= 24** (`engines`; the package needs `module.registerHooks` and `stripTypeScriptTypes`;
   only the glass-ffi demo needs 26.1's experimental `node:ffi`) or **Bun >= 1.4.0**. See "Runtime"
   for where runtime-specific code may live.
@@ -662,8 +676,17 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   renderer must share one Svelte runtime, and an app pinning another svelte would otherwise get a
   second copy nested under `gpuix-svelte`; `consume` asserts the installed app has exactly one.
   The toolkit's published manifest peers the same range (`publish-ui.ts` reads it from the root's),
-  and `starter/package.json` lists svelte beside `gpuix-svelte`. Both loaders throw `WRONG_SVELTE`
-  when `svelte/renderer` fails to resolve, which is how an older svelte is caught. Custom renderers
+  and `starter/package.json` lists svelte beside `gpuix-svelte`. Both loaders still pin every
+  `svelte` / `svelte/*` import to the copy gpuix-svelte itself resolves — `register.ts` with a
+  `resolve` hook that swaps `parentURL` for its own URL, `plugin.ts` with one `build.module()`
+  virtual module per svelte export (Bun's runtime `onResolve` never sees a bare specifier), and
+  `build()` through `resolve_svelte` — because a linked install (a symlink, `file:..`, a workspace)
+  resolves the package's imports from its real path: the app's components would reach the app's
+  svelte and the renderer the checkout's, two runtimes that fail with `renderer_cannot_cross`
+  (`test:linked`). From an npm or Bun install it changes nothing, since both resolve the same
+  hoisted copy, and under pnpm it reaches the peer pnpm linked for the package even when the app
+  lists no svelte. Both loaders throw `WRONG_SVELTE` when that copy has no `svelte/renderer`, which
+  is how an older svelte is caught. Custom renderers
   are still experimental upstream, so a Svelte minor can move the API: after `bun update svelte`, run
   `npm test`, `npm run bun:test` and `test:coverage` against that tag's samples. A new minimum goes
   into `peerDependencies`, `devDependencies`, `starter/package.json` and `WRONG_SVELTE`.

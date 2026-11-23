@@ -125,8 +125,8 @@ extension. Write `./util.ts`: tsc also accepts `./util.js`, which Node then cann
 
 ## Dependencies
 
-`svelte` is a peer dependency of `gpuix-svelte`, 5.59.1 or later, and sits beside it in
-`package.json`. The app, svelte-check and the renderer all run on that one copy.
+`svelte` is a peer dependency of `gpuix-svelte`, 5.59.1 or later, so the app, svelte-check and the
+renderer all run on one copy of it.
 
 ## Files
 

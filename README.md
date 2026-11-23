@@ -156,6 +156,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [DOM](docs/dom.md)                     | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers  |
 | [UI toolkit](docs/ui.md)               | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
 | [Updating](docs/updating.md)           | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow                                                                           |
+| [Migrating](docs/migrating.md)         | What to change when upgrading between releases, with instructions to paste to a coding agent                                                                                |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)). To try
 a component without installing anything, the [playground](https://gpuix-svelte.stanislav.garden/playground.html)
@@ -223,8 +224,8 @@ elements, your `tsconfig.json` needs the `gpuixHTML` namespace:
 ```
 
 That config needs `typescript`, `@types/node` and `svelte-check` as dev dependencies. You'll also
-want a `*.svelte` module declaration and a `svelte.config.js` that turns on the custom renderer and
-turns off Svelte's DOM accessibility advice. [`starter/`](starter) has all of it, ready to copy.
+want a `*.svelte` module declaration and a `svelte.config.js` that turns off Svelte's DOM
+accessibility advice. [`starter/`](starter) has all of it, ready to copy.
 
 Node runs TypeScript by stripping the types, which rules out enums, namespaces, parameter
 properties, a type imported without `import type`, and a relative import without a file
@@ -280,6 +281,10 @@ In practice:
 
 - List `svelte` in your own `package.json`. An older one stops the bin with an error naming the
   version it needs.
+- An app scaffolded while `gpuix-svelte` still bundled its own Svelte (0.6 and earlier) has
+  `tsconfig.json` and `AGENTS.md` brought up to date the first time the bin runs, with a one-line
+  notice. It changes only the lines the starter wrote for the bundled Svelte, never runs in CI, and
+  leaves `package.json` to you. The [migration guide](docs/migrating.md#06-to-07) covers the rest.
 - The feature is experimental in Svelte too, so its API can change in a Svelte minor. If a new
   Svelte breaks your app, stay on the last one that worked until a `gpuix-svelte` release catches up.
 
