@@ -5,9 +5,18 @@
 
 import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
+import { WRONG_SVELTE } from './loader-config.ts';
 
-export { RENDERER_MODULE } from './compile.ts';
+export { RENDERER_MODULE } from './loader-config.ts';
+
+try {
+	import.meta.resolve('svelte/renderer');
+} catch {
+	throw new Error(WRONG_SVELTE);
+}
+
+// After the check, since compile.ts imports svelte/compiler itself.
+const { compile_module, compile_svelte } = await import('./compile.ts');
 
 const decode = (source: string | ArrayBuffer | NodeJS.TypedArray) =>
 	typeof source === 'string' ? source : new TextDecoder().decode(source);
@@ -54,9 +63,3 @@ registerHooks({
 		};
 	}
 });
-
-try {
-	import.meta.resolve('svelte/renderer');
-} catch {
-	throw new Error(WRONG_SVELTE);
-}

@@ -279,8 +279,8 @@ your app, `svelte-check` and the renderer all run on the one copy your app insta
 
 In practice:
 
-- List `svelte` in your own `package.json`. An older one stops the bin with an error naming the
-  version it needs.
+- List `svelte` in your own `package.json`. A missing or older one stops the bin with an error
+  naming the version it needs.
 - An app scaffolded while `gpuix-svelte` still bundled its own Svelte (0.6 and earlier) has
   `tsconfig.json` and `AGENTS.md` brought up to date the first time the bin runs, with a one-line
   notice. It changes only the lines the starter wrote for the bundled Svelte, never runs in CI, and

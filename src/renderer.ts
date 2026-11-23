@@ -802,13 +802,14 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 
 	hasAttribute: (el, name) => name in el.attrs,
 
+	// Svelte hands this only text nodes, but `renderer` is public and one type covers every kind, so an element keeps its native node.
 	setText(n, text) {
 		n.data = text;
 
 		if (n.nativeId !== null) {
 			// Going blank has to give the id back, or the node keeps its slot in
 			// GPUI's flex layout — the same reason blank text never gets one.
-			if (is_blank(text)) {
+			if (n.kind === 'text' && is_blank(text)) {
 				emit(['destroyElement', n.nativeId]);
 				by_id.delete(n.nativeId);
 				n.nativeId = null;
@@ -822,7 +823,7 @@ const renderer: GpuixSvelteRenderer = createRenderer<Nodes>({
 			return;
 		}
 
-		if (is_blank(text) || !n.live) return;
+		if (n.kind !== 'text' || is_blank(text) || !n.live) return;
 		materialize(n);
 		attach(n);
 		rewrap_beside(n.prev, n.next);

@@ -243,6 +243,17 @@ check('the same style set again queues no restyle, and a changed one does', [aft
 renderer.setAttribute(box, 'style', written);
 commit();
 
+// Only Svelte's own calls are on text nodes; `renderer` is public, and a caller may hand setText an element.
+const lone = renderer.createElement('text');
+renderer.insert(box, lone, null);
+commit();
+const lone_id = lone.nativeId;
+renderer.setText(lone, '');
+commit();
+check('a blank setText on an element leaves its native node alone', [lone_id !== null, lone.nativeId === lone_id], [true, true]);
+renderer.remove(lone);
+commit();
+
 // Copied from native's StyleDesc rather than exported by style.ts, so every entry is held against native as well.
 const PIXEL_ONLY = [
 	'flexGrow', 'flexShrink', 'flexBasis', 'gap', 'rowGap', 'columnGap', 'gridTemplateColumns', 'gridTemplateRows',
@@ -298,4 +309,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 53);
+finish('style', 54);

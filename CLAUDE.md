@@ -685,8 +685,14 @@ user-facing page and `packages/ui/README.md` the npm readme. The design:
   svelte and the renderer the checkout's, two runtimes that fail with `renderer_cannot_cross`
   (`test:linked`). From an npm or Bun install it changes nothing, since both resolve the same
   hoisted copy, and under pnpm it reaches the peer pnpm linked for the package even when the app
-  lists no svelte. Both loaders throw `WRONG_SVELTE` when that copy has no `svelte/renderer`, which
-  is how an older svelte is caught. Custom renderers
+  lists no svelte. Both loaders throw `WRONG_SVELTE` when that copy is missing or has no
+  `svelte/renderer` (Svelte 4 included), and only then import `compile.ts`, whose static import of
+  `svelte/compiler` would otherwise fail first with Node's or Bun's own error; so `WRONG_SVELTE` and
+  `RENDERER_MODULE` live in `loader-config.ts`, which imports no svelte (`test:wrong-svelte`, whose
+  copy of the package gets a `node_modules` because without one Bun auto-installs the missing
+  svelte). On Bun, `svelte/package.json` stays unpinned: a `build.module()` also answers
+  `require.resolve`, which then returns the bare specifier, and `resolve_svelte` reads that file
+  through it. Custom renderers
   are still experimental upstream, so a Svelte minor can move the API: after `bun update svelte`, run
   `npm test`, `npm run bun:test` and `test:coverage` against that tag's samples. A new minimum goes
   into `peerDependencies`, `devDependencies`, `starter/package.json` and `WRONG_SVELTE`.
@@ -744,6 +750,7 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   reset.ts     the DOM build's CSS reset, one `:where()` rule per tag GPUI draws bare ─ a new alias tag adds its entry here
   register.ts  Node loader (module.registerHooks) ─ the default
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks ─ the `bun:*` scripts, build.ts, scripts/web.ts
+  loader-config.ts  RENDERER_MODULE and WRONG_SVELTE ─ no svelte import, so a loader checks the install before compile.ts loads
   build.ts     Bun.build({ compile }) + per-platform packaging ─ `gpuix-svelte/build`; Bun-only
   app-bundle.ts  build.ts's Node-testable half: app options from source, metadata, Info.plist, .icns/.ico, codesign, notarytool, the archive
   update.ts    `gpuix-svelte/update` ─ zip.ts is its adm-zip layer, update-web.ts its browser stub

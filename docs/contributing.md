@@ -72,7 +72,7 @@ single demo for that, since several would all write to the same file.
 
 The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:migrate`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:migrate`, `test:wrong-svelte`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
 the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
 
@@ -116,7 +116,7 @@ The browser previews listen on every interface, because the container sets `HOST
 its own origin (a forwarded or published port), not behind a path prefix such as `/proxy/4174/`.
 
 Linux has no headless renderer, so `npm test` fails right after `typecheck`. Run the suites CI's Linux
-job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:migrate`, `test:dom`,
+job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:migrate`, `test:wrong-svelte`, `test:dom`,
 `test:ui-dom`, `test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only`,
 `demo:dom -- --build-only` and `demo:ui-dom -- --build-only`.
 
