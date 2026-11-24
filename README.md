@@ -273,6 +273,10 @@ with `npm run dev` opening both.
 
 ## About the Svelte version
 
+> [!NOTE]
+> This section describes 0.7.0, which isn't released yet. Until it is on npm, 0.6 bundles its own
+> Svelte build; the [migration guide](docs/migrating.md#06-to-07) covers the move.
+
 [Custom renderers](https://svelte.dev/docs/svelte/custom-renderers) arrived in Svelte 5.59 as an
 experimental feature, and `gpuix-svelte` needs 5.59.1 or later. Svelte is a peer dependency, so
 your app, `svelte-check` and the renderer all run on the one copy your app installs.

@@ -1296,6 +1296,12 @@ like marketing. Commit messages follow the same shape: a conventional title line
 paragraph of the why. When the scope changes while the PR is open, edit the description rather than
 appending to it; the final text is what the squash commit and the release notes carry.
 
+The docs site deploys from `main` on every push (`docs.yml`), ahead of npm, so a change that needs a
+migration lands with a `> [!NOTE]` saying its release isn't out yet, atop its `docs/migrating.md`
+entry and any README section that describes it. Take those notes out on the release PR's branch
+before merging it, or the README npm publishes with the release says it is unreleased; 0.7.0's
+are in `docs/migrating.md` "0.6 to 0.7" and README "About the Svelte version".
+
 `homepage/share/index.html` (`/share/`, `noindex`) draws a release's share cards from the
 `RELEASES` array at the top of its script, newest first (its comments cover the layouts and the
 WebKit workarounds in **Download PNG**). A new release is a new entry on top with its own `tiles`

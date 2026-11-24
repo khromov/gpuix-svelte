@@ -5,6 +5,10 @@ instructions you can paste to a coding agent.
 
 ## 0.6 to 0.7
 
+> [!NOTE]
+> 0.7.0 isn't released yet. This entry describes the code on `main`; until 0.7.0 is on npm,
+> `npm install gpuix-svelte` still gets 0.6, which bundles its own Svelte and needs none of this.
+
 Svelte 5.59 ships [custom renderers](https://svelte.dev/docs/svelte/custom-renderers), so
 `gpuix-svelte` no longer bundles a Svelte build of its own. Two things change:
 
