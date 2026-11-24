@@ -50,7 +50,7 @@ order('show {#if} again', ['head', 'IF', '1', '2', '3', 'tail']);
 
 // By hand, because a keyed {#each} moves its rows with no remove in between, so nothing above takes these paths.
 const moved = renderer.createElement('div');
-renderer.insert(moved, renderer.createTextNode('moved'), null);
+renderer.insert(moved, renderer.createText('moved'), null);
 renderer.insert(root, moved, anchor);
 settle();
 const moved_id = moved.nativeId;
@@ -74,8 +74,8 @@ check('left parked offscreen, it stops painting', has_moved(), false);
 
 const row = renderer.createElement('div');
 const mover = renderer.createElement('div');
-renderer.insert(mover, renderer.createTextNode('mover'), null);
-for (const n of [renderer.createTextNode('left'), mover, renderer.createTextNode('right')]) renderer.insert(row, n, null);
+renderer.insert(mover, renderer.createText('mover'), null);
+for (const n of [renderer.createText('left'), mover, renderer.createText('right')]) renderer.insert(row, n, null);
 renderer.insert(root, row, anchor);
 const in_row = () => all_text().filter((t) => ['left', 'mover', 'right'].includes(t));
 settle();

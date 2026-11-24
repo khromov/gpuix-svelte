@@ -5,16 +5,25 @@
 
 import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
+import { WRONG_SVELTE } from './loader-config.ts';
 
-export { RENDERER_MODULE } from './compile.ts';
+export { RENDERER_MODULE } from './loader-config.ts';
+
+try {
+	import.meta.resolve('svelte/renderer');
+} catch {
+	throw new Error(WRONG_SVELTE);
+}
+
+// After the check, since compile.ts imports svelte/compiler itself.
+const { compile_module, compile_svelte } = await import('./compile.ts');
 
 const decode = (source: string | ArrayBuffer | NodeJS.TypedArray) =>
 	typeof source === 'string' ? source : new TextDecoder().decode(source);
 
 registerHooks({
-	// svelte is bundled inside this package, so a consumer's compiled component (and any
-	// copy hoisted next to it) must resolve `svelte` from here, or two runtimes would meet.
+	// Every `svelte` import resolves from here, as the renderer's own do: in a linked gpuix-svelte checkout the app's
+	// components would otherwise reach the app's copy and the renderer the checkout's, and two runtimes cannot cross.
 	resolve(specifier, context, nextResolve) {
 		if (!/^svelte(\/|$)/.test(specifier)) return nextResolve(specifier, context);
 		return nextResolve(specifier, { ...context, parentURL: import.meta.url });
@@ -54,9 +63,3 @@ registerHooks({
 		};
 	}
 });
-
-try {
-	import.meta.resolve('svelte/renderer');
-} catch {
-	throw new Error(WRONG_SVELTE);
-}

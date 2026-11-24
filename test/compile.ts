@@ -29,7 +29,7 @@ check('no child specifier is left bare', ['HotChild', 'HotSideEffect', 'HotLazy'
 // A specifier-shaped string is not a specifier; the lexical rewrite busted these too.
 check('a `.svelte` string literal is left alone', [busted('HotString'), busted('HotPath')], [false, false]);
 check('a commented-out import is left alone', busted('HotComment'), false);
-check('both lookalikes survive verbatim', bare('HotString') && bare('HotPath') && bare('HotComment'), true);
+check('all three lookalikes survive verbatim', bare('HotString') && bare('HotPath') && bare('HotComment'), true);
 
 // A runes module is one instance per process by design, so busting it would hand the
 // remounted tree a second copy of the state the first one is still using.
@@ -140,4 +140,6 @@ check(
 	[true, true, true]
 );
 
-finish('compile', 28 + (process.versions.bun ? 1 : 0));
+check('a component can await in its script and its markup', compiled('<script>const n = await Promise.resolve(1);</script>\n<p>{await Promise.resolve(n)}</p>').includes("import 'svelte/internal/flags/async'"), true);
+
+finish('compile', 29 + (process.versions.bun ? 1 : 0));

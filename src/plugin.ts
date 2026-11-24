@@ -7,9 +7,18 @@
 import { plugin, type OnLoadArgs, type OnLoadResult, type OnResolveArgs, type PluginBuilder } from 'bun';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { compile_module, compile_svelte, WRONG_SVELTE } from './compile.ts';
+import { WRONG_SVELTE } from './loader-config.ts';
 
-export { RENDERER_MODULE } from './compile.ts';
+export { RENDERER_MODULE } from './loader-config.ts';
+
+try {
+	Bun.resolveSync('svelte/renderer', import.meta.dir);
+} catch {
+	throw new Error(WRONG_SVELTE);
+}
+
+// After the check, since compile.ts imports svelte/compiler itself.
+const { compile_module, compile_svelte } = await import('./compile.ts');
 
 // `compileModule` does not strip types, so a `.svelte.ts` goes through Bun's transpiler first.
 const transpiler = new Bun.Transpiler({ loader: 'ts' });
@@ -50,15 +59,14 @@ function pick(target: ExportTarget | undefined, accepted: Set<string>): string |
 }
 
 /**
- * `Bun.build` resolves `svelte` from the importer, and in a consumer's project that can be the
- * registry build svelte-check hoists, so this pins it to the copy bundled here, under the build's
- * own conditions. Use as `build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(conditions))`.
+ * `Bun.build` resolves `svelte` from the importer, so an app on a linked gpuix-svelte checkout would bundle the app's
+ * copy beside the checkout's; this pins every import to the copy resolved from here, under the build's own conditions.
+ * Use as `build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(conditions))`.
  */
 export function resolve_svelte(conditions: string[]) {
 	const manifest_path = createRequire(import.meta.url).resolve('svelte/package.json');
 	const dir = manifest_path.slice(0, -'package.json'.length);
 	const exports: Record<string, ExportTarget> = JSON.parse(readFileSync(manifest_path, 'utf8')).exports;
-	if (!exports['./renderer']) throw new Error(WRONG_SVELTE);
 	const accepted = new Set([...conditions, 'import', 'default']);
 
 	return (args: OnResolveArgs) => {
@@ -68,21 +76,15 @@ export function resolve_svelte(conditions: string[]) {
 }
 
 /**
- * svelte is bundled inside this package, but a runtime `onResolve` never sees a bare
- * specifier, so each of svelte's entry points becomes a virtual module re-exporting the
- * copy that resolves from here — the same instance the renderer itself imports.
+ * The runtime twin of `resolve_svelte`: a runtime `onResolve` never sees a bare specifier, so each of svelte's entry
+ * points becomes a virtual module re-exporting the copy that resolves from here, the one the renderer imports.
  */
 function pin_svelte(build: PluginBuilder) {
-	let manifest: { exports: Record<string, string | Record<string, string>> };
-	try {
-		manifest = JSON.parse(readFileSync(Bun.resolveSync('svelte/package.json', import.meta.dir), 'utf8'));
-		Bun.resolveSync('svelte/renderer', import.meta.dir);
-	} catch {
-		throw new Error(WRONG_SVELTE);
-	}
+	const manifest: { exports: Record<string, string | Record<string, string>> } = JSON.parse(readFileSync(Bun.resolveSync('svelte/package.json', import.meta.dir), 'utf8'));
 
 	for (const [key, target] of Object.entries(manifest.exports)) {
-		if (typeof target === 'string' || Object.keys(target).every((condition) => condition === 'types')) continue;
+		// package.json stays out: a virtual module also answers `require.resolve`, which then returns no path to read.
+		if (typeof target === 'string' ? !/\.[cm]?js$/.test(target) : Object.keys(target).every((condition) => condition === 'types')) continue;
 		const specifier = key === '.' ? 'svelte' : `svelte/${key.slice(2)}`;
 		build.module(specifier, () => ({
 			contents: `export * from ${JSON.stringify(Bun.resolveSync(specifier, import.meta.dir))};`,

@@ -82,6 +82,10 @@ jobs:
       - run: npm run bun:test:update
       - run: npm run test:launcher
       - run: npm run bun:test:launcher
+      - run: npm run test:migrate
+      - run: npm run bun:test:migrate
+      - run: npm run test:wrong-svelte
+      - run: npm run bun:test:wrong-svelte
       # The browser bundle, which the `browser` condition of every export has to keep buildable.
       - run: npm run demo:web -- --build-only
       # The DOM side of the package: the happy-dom suite needs no headless renderer, and Vite builds the example on it.
@@ -102,7 +106,7 @@ jobs:
       - run: xvfb-run -a npm run bun:test:automation-live
 
   # Build-only: a runner has no display. It checks that the bundle resolves with the
-  # custom-renderer condition, that the addon gets embedded (gpuix-svelte/build asserts both)
+  # svelte-custom-renderer condition, that the addon gets embedded (gpuix-svelte/build asserts both)
   # and that each OS's packaging runs: the .app and icns on macOS, the .ico and version info on Windows.
   compile:
     strategy:

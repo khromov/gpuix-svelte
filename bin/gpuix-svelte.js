@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { migrate } from './migrate.js';
 
 const args = process.argv.slice(2);
 const at = args.findIndex((arg) => !arg.startsWith('--'));
@@ -20,6 +21,10 @@ if (at === -1) {
 	console.error('usage: gpuix-svelte [--bun] [runtime flags] <entry.ts> [args]\n       gpuix-svelte update keygen | manifest | verify');
 	process.exit(2);
 }
+
+// stderr, since stdout is the automation wire.
+const migrated = migrate(process.cwd());
+if (migrated.length > 0) console.error(`[gpuix-svelte] updated ${migrated.join(', ')} for svelte from npm; review and commit the change`);
 
 // The release-side commands of gpuix-svelte/update need no runtime flags or loader.
 if (args[at] === 'update') {
@@ -36,7 +41,7 @@ const bun =
 	process.versions.bun != null ||
 	(process.env.npm_config_user_agent ?? '').startsWith('bun/');
 
-const conditions = ['--conditions', 'custom-renderer', '--conditions', 'development'];
+const conditions = ['--conditions', 'svelte-custom-renderer', '--conditions', 'development'];
 // Through the package's own exports, which are src/*.ts in the repo and lib/*.js once packed.
 const loader = bun
 	? ['--preload', fileURLToPath(import.meta.resolve('gpuix-svelte/plugin'))]

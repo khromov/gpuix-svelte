@@ -156,6 +156,7 @@ files, spawn processes, open SQLite databases and load native addons directly.
 | [DOM](docs/dom.md)                     | Rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: `IS_GPUIX`, what each helper and component does there, writing for both renderers  |
 | [UI toolkit](docs/ui.md)               | `gpuix-svelte-ui`: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for both renderers, a router, the theme behind them, responsive layouts |
 | [Updating](docs/updating.md)           | In-app updates from a static manifest, hash and signature checked, with a GitHub release workflow                                                                           |
+| [Migrating](docs/migrating.md)         | What to change when upgrading between releases, with instructions to paste to a coding agent                                                                                |
 
 For real code, the [examples](examples) are the best reference (see [Examples](#examples)). To try
 a component without installing anything, the [playground](https://gpuix-svelte.stanislav.garden/playground.html)
@@ -165,11 +166,11 @@ element tree, the mutations and the compiled JavaScript beside it.
 ## Adding it to an existing project
 
 ```bash
-npm install gpuix-svelte
+npm install gpuix-svelte svelte
 ```
 
-`gpuix-svelte` brings its own Svelte, so it's the only runtime dependency you add (see [About the
-Svelte version](#about-the-svelte-version)). Run your entry through the package's bin, usually from
+`svelte` is a peer dependency, 5.59.1 or later (see [About the Svelte
+version](#about-the-svelte-version)). Run your entry through the package's bin, usually from
 `package.json`:
 
 ```json
@@ -183,8 +184,8 @@ Svelte version](#about-the-svelte-version)). Run your entry through the package'
 ```
 
 The bin starts Node, or Bun when you pass `--bun` or launch it with `bun run`. Before your entry
-loads, it points `svelte` at the build with the custom renderer API and teaches the runtime to
-import `.svelte` files. Your `.ts` files need nothing extra: Node and Bun run TypeScript
+loads, it sets the `svelte-custom-renderer` condition, which picks Svelte's client runtime and this
+package's GPUI build, and teaches the runtime to import `.svelte` files. Your `.ts` files need nothing extra: Node and Bun run TypeScript
 themselves.
 
 Runtime flags go before the entry, and a flag that takes a value needs the `=` form
@@ -192,8 +193,8 @@ Runtime flags go before the entry, and a flag that takes a value needs the `=` f
 the entry go to your script. Spelled out, the bin runs:
 
 ```bash
-node --conditions custom-renderer --conditions development --import gpuix-svelte/register app.ts
-bun  --conditions custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
+node --conditions svelte-custom-renderer --conditions development --import gpuix-svelte/register app.ts
+bun  --conditions svelte-custom-renderer --conditions development --preload gpuix-svelte/plugin app.ts
 ```
 
 The two `--conditions` flags matter: without them `svelte` resolves to its server build and
@@ -202,9 +203,8 @@ run, so go through the bin.
 
 ### TypeScript
 
-The package ships type declarations. Your `tsconfig.json` needs a `paths` entry that points at the
-Svelte build nested inside the package. For the editor and `svelte-check` to type your markup as
-GPUI elements, it also needs the `gpuixHTML` namespace:
+The package ships type declarations. For the editor and `svelte-check` to type your markup as GPUI
+elements, your `tsconfig.json` needs the `gpuixHTML` namespace:
 
 ```jsonc
 {
@@ -215,13 +215,9 @@ GPUI elements, it also needs the `gpuixHTML` namespace:
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
-    "customConditions": ["custom-renderer", "development"],
+    "customConditions": ["svelte-custom-renderer", "development"],
     "types": ["node", "gpuix-svelte/html"],
     "skipLibCheck": true,
-    "paths": {
-      "svelte": ["./node_modules/gpuix-svelte/node_modules/svelte"],
-      "svelte/*": ["./node_modules/gpuix-svelte/node_modules/svelte/*"],
-    },
   },
   "svelteOptions": { "namespace": "gpuixHTML" },
 }
@@ -277,19 +273,24 @@ with `npm run dev` opening both.
 
 ## About the Svelte version
 
-The custom renderer API is still an open Svelte pull request. Each release of this package
-**bundles** the exact build of that pull request it was tested against, inside
-`node_modules/gpuix-svelte/node_modules/svelte`, and every `svelte` import, yours included,
-resolves to that copy.
+> [!NOTE]
+> This section describes 0.7.0, which isn't released yet. Until it is on npm, 0.6 bundles its own
+> Svelte build; the [migration guide](docs/migrating.md#06-to-07) covers the move.
+
+[Custom renderers](https://svelte.dev/docs/svelte/custom-renderers) arrived in Svelte 5.59 as an
+experimental feature, and `gpuix-svelte` needs 5.59.1 or later. Svelte is a peer dependency, so
+your app, `svelte-check` and the renderer all run on the one copy your app installs.
 
 In practice:
 
-- `gpuix-svelte` is your one dependency, and the Svelte you import is the one it brings. Keep
-  `svelte` itself out of your `package.json`.
-- Upgrading `gpuix-svelte` can change the Svelte build underneath you, so read the changelog before
-  a minor bump.
-- `svelte-check` installs the registry's Svelte as its own peer dependency and uses it to read your
-  components. The `paths` entry in your tsconfig points type imports at the bundled build.
+- List `svelte` in your own `package.json`. A missing or older one stops the bin with an error
+  naming the version it needs.
+- An app scaffolded while `gpuix-svelte` still bundled its own Svelte (0.6 and earlier) has
+  `tsconfig.json` and `AGENTS.md` brought up to date the first time the bin runs, with a one-line
+  notice. It changes only the lines the starter wrote for the bundled Svelte, never runs in CI, and
+  leaves `package.json` to you. The [migration guide](docs/migrating.md#06-to-07) covers the rest.
+- The feature is experimental in Svelte too, so its API can change in a Svelte minor. If a new
+  Svelte breaks your app, stay on the last one that worked until a `gpuix-svelte` release catches up.
 
 ## Good to know
 
@@ -323,8 +324,8 @@ in-process hot reload. The full design notes are in [CLAUDE.md](CLAUDE.md).
 
 ## Contributing
 
-See [docs/contributing.md](docs/contributing.md) for running the demos and tests, moving the
-vendored Svelte build, and how releases are cut.
+See [docs/contributing.md](docs/contributing.md) for running the demos and tests, and how releases
+are cut.
 
 ## License
 

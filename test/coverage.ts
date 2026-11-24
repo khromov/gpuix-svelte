@@ -107,6 +107,6 @@ check('nothing we should support fails to compile', results.compile_error, []);
 // raw-snippet's _config.js declares `error:` rather than `compile_error`, so its throw —
 // the outcome the sample asks for — lands here instead of with the expected refusals.
 check('only the known runtime failure', results.runtime_error.sort(), ['raw-snippet: snippet_renderer_mismatch']);
-check('at least the recorded baseline still mounts', results.ok.length >= 33);
+check('at least the recorded baseline still mounts', results.ok.length >= 37);
 
 finish('coverage', 4);

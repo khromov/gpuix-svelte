@@ -58,7 +58,7 @@ export interface Step {
 
 export const CHAPTERS = ['Foundations', 'Building blocks', 'The GPUI side', 'Workflow'];
 
-const CONDITIONS = '--conditions custom-renderer --conditions development';
+const CONDITIONS = '--conditions svelte-custom-renderer --conditions development';
 
 export const STEPS: Step[] = [
 	{
@@ -151,7 +151,7 @@ export const STEPS: Step[] = [
 			],
 			answer: 1,
 			explanation:
-				'The custom-renderer build of Svelte is selected through package conditions; without them the exports map picks the server build.'
+				'Svelte\'s client runtime is selected through the svelte-custom-renderer condition; without it the exports map picks the server build.'
 		}
 	},
 	{

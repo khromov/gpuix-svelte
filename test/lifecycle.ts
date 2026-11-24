@@ -122,12 +122,15 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 		await sleep(ms);
 		return ticks - from;
 	};
+	// The 8 ms pace makes 25 ticks or more in this window even on Windows and the fallback 5 at most, so a stalled runner still tells them apart.
+	const PACE_WINDOW = 400;
+	const AT_PACE = 10;
 
 	set_native(native);
 	const root = create_root();
 	commit();
 	let loop = start_frame_loop(native);
-	check('by default a window whose display link stopped keeps the 8 ms pace, as accessibility clients need', (await ticks_during(150)) >= 5, true);
+	check('by default a window whose display link stopped keeps the 8 ms pace, as accessibility clients need', (await ticks_during(PACE_WINDOW)) >= AT_PACE, true);
 	loop.stop();
 
 	// The rest runs the 100 ms idle pace upstream uses, so the machinery stays proven for when it comes back on.
@@ -151,7 +154,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	handle_event({ elementId: -1, eventType: 'keyDown' });
 	await ticked;
 	check('input brings the next tick forward rather than leaving it to the 100 ms fallback', performance.now() - sent < 50, true);
-	check('and keeps the 8 ms pace for a while, since the next key reaches JS only on a tick', (await ticks_during(150)) >= 5, true);
+	check('and keeps the 8 ms pace for a while, since the next key reaches JS only on a tick', (await ticks_during(PACE_WINDOW)) >= AT_PACE, true);
 	loop.stop();
 
 	loop = start_frame_loop(native, 100);
@@ -178,7 +181,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 		}, 8);
 	});
 	check('while wakes keep coming, the timer stays out of their way', ticks - before_stream <= wakes + 3, true);
-	check('and once they stop, it keeps the 8 ms pace for a while', (await ticks_during(150)) >= 5, true);
+	check('and once they stop, it keeps the 8 ms pace for a while', (await ticks_during(PACE_WINDOW)) >= AT_PACE, true);
 
 	const times: number[] = [];
 	const pump = native.tick;
@@ -254,7 +257,7 @@ async function errors_during(body: (logged: string[]) => unknown): Promise<strin
 	console.error = (line: unknown) => void refusals_of_text.push(line);
 	const cut = '\u{1F600}'.slice(0, 1);
 	const wording = `whole \u{1F600} cut ${cut} literal \\ud83d`;
-	const text = renderer.createTextNode(wording);
+	const text = renderer.createText(wording);
 	renderer.insert(child, text, null);
 	const labelled = renderer.createElement('div');
 	renderer.setAttribute(labelled, 'testId', cut);

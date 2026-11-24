@@ -1,5 +1,5 @@
 /**
- * The DOM side of the package, mirroring `web.ts`: what `gpuix-svelte` resolves to when the `custom-renderer`
+ * The DOM side of the package, mirroring `web.ts`: what `gpuix-svelte` resolves to when the `svelte-custom-renderer`
  * condition is absent, i.e. under Vite, SvelteKit or any other browser toolchain. Same
  * names, same signatures; each does the DOM's equivalent where one is cheap and nothing
  * where only GPUI has the feature, so a component renders on both targets as written.

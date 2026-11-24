@@ -12,12 +12,14 @@
 	import './ModuleStore.svelte.ts';
 	import Shipped from 'gpuix-svelte/components/Scroller.svelte';
 
-	// import Commented from './HotComment.svelte';
 	const sample = "import Doc from './HotString.svelte'";
 	const path = './HotPath.svelte';
 
 	let loaded = $state<AnyComponent | null>(null);
-	const lazy = async () => (loaded = (await import('./HotLazy.svelte')).default);
+	const lazy = async () => {
+		// The compiler keeps a comment in a function body: import Commented from './HotComment.svelte';
+		loaded = (await import('./HotLazy.svelte')).default;
+	};
 </script>
 
 <div>{typeof Static === 'function' ? 'static' : ''}{loaded ? 'lazy' : ''}{typeof lazy === 'function' ? '' : ''}{sample ? '' : ''}{path ? '' : ''}{typeof Shipped === 'function' ? '' : ''}</div>

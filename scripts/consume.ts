@@ -1,5 +1,5 @@
 // Scaffolds an app with create-gpuix-svelte and installs the packed tarball into it the way
-// a consumer would — a tarball, not a symlink, so the bundled svelte, the emitted declarations
+// a consumer would — a tarball, not a symlink, so the peer svelte, the emitted declarations
 // and the bin's own resolution are what gets tested — then typechecks and runs its headless
 // test where there is one (or opens the window).
 
@@ -85,7 +85,6 @@ writeFileSync(
 	$effect(() => apply_theme('dark'));
 </script>
 
-<!-- A markup snippet is typed against the app's own svelte, a second copy next to the one gpuix-svelte bundles. -->
 {#snippet home()}
 	<div>Home</div>
 {/snippet}
@@ -112,6 +111,12 @@ finish('consumer-ui', 1);
 const pm = bun ? 'bun' : 'npm';
 run(pm, bun ? ['install'] : ['install', '--no-audit', '--no-fund'], consumer);
 
+// A second svelte would be a second runtime, which the renderer's components would never meet.
+if (!existsSync(join(consumer, 'node_modules/svelte/package.json'))) throw new Error('svelte was not installed beside gpuix-svelte');
+for (const name of ['gpuix-svelte', 'gpuix-svelte-ui']) {
+	if (existsSync(join(consumer, 'node_modules', name, 'node_modules/svelte'))) throw new Error(`${name} got a svelte of its own`);
+}
+
 // Node refuses to strip types under node_modules, so the installed package must run as plain JS.
 if (existsSync(join(consumer, 'node_modules/tsx'))) throw new Error('tsx was installed into the consumer');
 for (const name of ['gpuix-svelte', 'gpuix-svelte-ui']) {
@@ -122,7 +127,7 @@ for (const name of ['gpuix-svelte', 'gpuix-svelte-ui']) {
 	if (typescript.length) throw new Error(`${name} ships TypeScript Node cannot run: ${typescript.join(', ')}`);
 }
 
-// The published `exports` have to pick the DOM build without the custom-renderer condition and the GPUI entry with it.
+// The published `exports` have to pick the DOM build without the svelte-custom-renderer condition and the GPUI entry with it.
 function resolved(specifier: string, conditions: string[]): string {
 	const flags = conditions.flatMap((c) => ['--conditions', c]);
 	const { stdout } = spawnSync(process.execPath, [...flags, '--input-type=module', '-e', `console.log(import.meta.resolve(${JSON.stringify(specifier)}))`], { cwd: consumer, encoding: 'utf8' });
@@ -130,11 +135,11 @@ function resolved(specifier: string, conditions: string[]): string {
 }
 for (const [specifier, conditions, expected] of [
 	['gpuix-svelte', [], '/lib/dom.js'],
-	['gpuix-svelte', ['custom-renderer'], '/lib/index.js'],
+	['gpuix-svelte', ['svelte-custom-renderer'], '/lib/index.js'],
 	['gpuix-svelte/components/Scroller.svelte', [], '/src/components/dom/Scroller.svelte'],
-	['gpuix-svelte/components/Scroller.svelte', ['custom-renderer'], '/src/components/Scroller.svelte'],
+	['gpuix-svelte/components/Scroller.svelte', ['svelte-custom-renderer'], '/src/components/Scroller.svelte'],
 	['gpuix-svelte-ui', [], '/node_modules/gpuix-svelte-ui/lib/index.js'],
-	['gpuix-svelte-ui/components/Button.svelte', ['custom-renderer'], '/node_modules/gpuix-svelte-ui/src/components/Button.svelte']
+	['gpuix-svelte-ui/components/Button.svelte', ['svelte-custom-renderer'], '/node_modules/gpuix-svelte-ui/src/components/Button.svelte']
 ] as const) {
 	const url = resolved(specifier, [...conditions]);
 	if (!url.endsWith(expected)) throw new Error(`${specifier} resolves to ${url || 'nothing'} under [${conditions.join(', ')}], expected …${expected}`);
@@ -144,40 +149,23 @@ run(pm, ['run', 'typecheck'], consumer);
 if (open || process.platform !== 'linux') run(pm, ['run', open ? 'start' : 'test'], consumer);
 if (!open && process.platform !== 'linux') run(process.execPath, [join(consumer, 'node_modules/gpuix-svelte/bin/gpuix-svelte.js'), ...(bun ? ['--bun'] : []), 'ui.ts'], consumer);
 
-// Every svelte import made from inside the package has to land on the app's svelte, never the bundled custom-renderer build.
 const VITE_CONFIG = `import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-const strays = [];
 export default defineConfig({
 	root: 'dom',
 	logLevel: 'warn',
 	build: { outDir: '../dist-dom', emptyOutDir: true },
 	plugins: [
-		{
-			name: 'one-svelte',
-			enforce: 'pre',
-			async resolveId(source, importer) {
-				if (!importer || !/^svelte(\\/|$)/.test(source) || !/\\/node_modules\\/gpuix-svelte(-ui)?\\//.test(importer.replaceAll('\\\\', '/'))) return null;
-				const resolved = await this.resolve(source, importer, { skipSelf: true });
-				if (resolved && resolved.id.replaceAll('\\\\', '/').includes('/gpuix-svelte/node_modules/svelte/')) strays.push(source + ' from ' + importer);
-				return resolved;
-			},
-			closeBundle() {
-				if (strays.length) throw new Error('the bundled svelte reached the DOM build:\\n' + strays.join('\\n'));
-			}
-		},
 		// The starter's svelte.config.js sits above this root, so its a11y filter is repeated here.
 		svelte({ onwarn: (warning, handler) => warning.code.startsWith('a11y_') || handler(warning) })
 	]
 });
 `;
 
-// The DOM build through a consumer's own Vite: the packed package's lib/dom.js, the shipped components compiled by
-// the consumer's plugin against the registry's svelte, and that svelte deduped over the bundled one. The GPUI test
-// runs again afterwards, because an app that ships to both targets has that svelte in its root node_modules.
+// The DOM build through a consumer's own Vite: the packed package's lib/dom.js and the shipped components compiled by the consumer's plugin.
 if (!open) {
-	const tools = ['vite', '@sveltejs/vite-plugin-svelte', 'svelte'];
+	const tools = ['vite', '@sveltejs/vite-plugin-svelte'];
 	run(pm, bun ? ['add', '-d', ...tools] : ['install', '--no-audit', '--no-fund', '-D', ...tools], consumer);
 	const dom = join(consumer, 'dom');
 	mkdirSync(dom);
@@ -199,11 +187,6 @@ if (!open) {
 	writeFileSync(join(consumer, 'vite.config.mjs'), VITE_CONFIG);
 	run(process.execPath, [join(consumer, 'node_modules/vite/bin/vite.js'), 'build', '--config', 'vite.config.mjs'], consumer);
 	if (!existsSync(join(consumer, 'dist-dom/index.html'))) throw new Error('the Vite build wrote no dist-dom/index.html');
-	// The toolkit's lib/ imports svelte/reactivity from node_modules, right next to that registry svelte now.
-	if (process.platform !== 'linux') {
-		run(pm, ['run', 'test'], consumer);
-		run(process.execPath, [join(consumer, 'node_modules/gpuix-svelte/bin/gpuix-svelte.js'), ...(bun ? ['--bun'] : []), 'ui.ts'], consumer);
-	}
 }
 // The build needs Bun whichever manager installed the app, and only the Bun pass is sure to have it.
 if (bun) {

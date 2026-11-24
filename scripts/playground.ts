@@ -150,7 +150,7 @@ export async function build_playground(out_dir: string) {
 			}
 		}
 	});
-	await build_frame('gpui', out, [gpui_plugin], ['custom-renderer', 'module', 'browser', 'development|production']);
+	await build_frame('gpui', out, [gpui_plugin], ['svelte-custom-renderer', 'module', 'browser', 'development|production']);
 	await build_frame('dom', out, dom_plugins({ emitCss: false }));
 	copyFileSync(join(source_dir, 'sw.js'), join(out_dir, 'playground-sw.js'));
 }

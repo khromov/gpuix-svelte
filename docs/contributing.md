@@ -8,8 +8,8 @@ and the constraints any change has to respect, are written down in [CLAUDE.md](.
 You need both runtimes: Node 24 or later (`.nvmrc` pins 26, and `demo:glass-ffi` needs 26.1) and
 Bun 1.4 or later, on macOS (arm64), Windows (x64 or arm64) or Linux (x64). Bun installs the
 dependencies (`bun.lock` is the lockfile), and every script body runs on Node through `npm run`,
-the `bun:` twins included. `@gpuix/native` comes prebuilt from npm, and Svelte comes from
-`vendor/svelte-<version>-<sha>.tgz`, a build of the unreleased custom-renderer PR.
+the `bun:` twins included. `@gpuix/native` comes prebuilt from npm, and so does Svelte, a dev
+dependency here and a peer dependency of the published packages.
 
 ```bash
 git clone https://github.com/khromov/gpuix-svelte
@@ -72,13 +72,13 @@ single demo for that, since several would all write to the same file.
 
 The demos run on all three platforms. Most tests run only on macOS and Windows, where gpuix builds
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
-headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
+headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:migrate`, `test:wrong-svelte`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
 the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
 
-`npm run test:coverage` mounts Svelte's own custom-renderer samples when `SVELTE_SAMPLES_DIR`
-points at a svelte checkout's `packages/svelte/tests/custom-renderers/samples`. Without it, the
-script skips.
+`npm run test:coverage` mounts Svelte's own custom renderer samples when `SVELTE_SAMPLES_DIR`
+points at `packages/svelte/tests/custom-renderers/samples` in a svelte checkout, at the tag of the
+installed version. Without it, the script skips.
 
 The headless renderer and every window crash under Claude Code's Bash sandbox, so run tests and
 demos with it disabled.
@@ -116,16 +116,16 @@ The browser previews listen on every interface, because the container sets `HOST
 its own origin (a forwarded or published port), not behind a path prefix such as `/proxy/4174/`.
 
 Linux has no headless renderer, so `npm test` fails right after `typecheck`. Run the suites CI's Linux
-job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:dom`,
+job runs instead, on both runtimes: `test:bundle`, `test:update`, `test:launcher`, `test:migrate`, `test:wrong-svelte`, `test:dom`,
 `test:ui-dom`, `test:docs`, `test:compile`, plus `lint`, `demo:web -- --build-only`,
 `demo:dom -- --build-only` and `demo:ui-dom -- --build-only`.
 
-## Moving the Svelte build
+## Moving Svelte
 
-`npm run vendor` looks up the custom-renderer PR's head commit, downloads that commit's build from
-pkg.svelte.dev into `vendor/`, repoints `package.json` and reinstalls. Run `npm test` and
-`npm run bun:test` afterwards. Each release of the package ships exactly the build it was tested
-against.
+`bun update svelte` moves it within the peer range; run `npm test`, `npm run bun:test` and
+`npm run test:coverage` against that version's samples afterwards. A new minimum goes into
+`peerDependencies` and `devDependencies` in `package.json` (the toolkit's published peer range reads
+it from there), `starter/package.json` and `WRONG_SVELTE` in `src/compile.ts`.
 
 ## The consumer path
 

@@ -58,9 +58,8 @@ function published_manifest() {
 	}
 	out.files = ['lib', 'src/components'];
 	delete out.devDependencies;
-	// A toolkit release goes with the gpuix-svelte release of the same version; svelte is only the browser side's.
-	out.peerDependencies = { 'gpuix-svelte': `^${out.version}`, svelte: '^5.29.0' };
-	out.peerDependenciesMeta = { svelte: { optional: true } };
+	// A toolkit release goes with the gpuix-svelte release of the same version, and runs on the svelte that one peers.
+	out.peerDependencies = { 'gpuix-svelte': `^${out.version}`, svelte: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).peerDependencies.svelte };
 	return JSON.stringify(out, null, '\t') + '\n';
 }
 

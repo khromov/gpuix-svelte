@@ -6,7 +6,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { TestGpuixRenderer } from '@gpuix/native';
-import { renderer, parse_css_text, build_style, set_native, create_root, commit, set_css_vars } from 'gpuix-svelte';
+import { renderer, parse_css_text, build_style, set_native, create_root, commit, is_dirty, set_css_vars } from 'gpuix-svelte';
 import { compile_svelte } from '../src/compile.ts';
 import { mount_headless, find_test_id, check, finish } from 'gpuix-svelte/test';
 
@@ -213,7 +213,7 @@ renderer.setAttribute(
 );
 renderer.insert(root, box, anchor);
 const label = renderer.createElement('text');
-renderer.setText(label, 'X');
+renderer.insert(label, renderer.createText('X'), null);
 renderer.insert(box, label, null);
 
 // commit() outlives a refused batch by resending it one op at a time, so only its log says whether native refused one.
@@ -233,6 +233,26 @@ native.flush();
 const box_bounds = native.getElementBounds(label.nativeId!);
 check('padding actually applied (x, y)', box_bounds && [box_bounds.x, box_bounds.y].map(Math.round), [24, 12]);
 check('and 1rem reached GPUI as 16 px', JSON.parse(native.getTreeJson()).children[0].style?.fontSize, 16);
+
+// Svelte sets the whole `style` again whenever the effect around it runs, changed or not.
+const written = String(box.attrs.style);
+renderer.setAttribute(box, 'style', written);
+const after_same = is_dirty();
+renderer.setAttribute(box, 'style', `${written}; opacity: 0.5`);
+check('the same style set again queues no restyle, and a changed one does', [after_same, is_dirty()], [false, true]);
+renderer.setAttribute(box, 'style', written);
+commit();
+
+// Only Svelte's own calls are on text nodes; `renderer` is public, and a caller may hand setText an element.
+const lone = renderer.createElement('text');
+renderer.insert(box, lone, null);
+commit();
+const lone_id = lone.nativeId;
+renderer.setText(lone, '');
+commit();
+check('a blank setText on an element leaves its native node alone', [lone_id !== null, lone.nativeId === lone_id], [true, true]);
+renderer.remove(lone);
+commit();
 
 // Copied from native's StyleDesc rather than exported by style.ts, so every entry is held against native as well.
 const PIXEL_ONLY = [
@@ -289,4 +309,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 52);
+finish('style', 54);

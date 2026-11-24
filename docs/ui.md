@@ -14,7 +14,7 @@ page.
 ## Setup
 
 ```sh
-npm install gpuix-svelte gpuix-svelte-ui
+npm install gpuix-svelte gpuix-svelte-ui svelte
 ```
 
 ```svelte

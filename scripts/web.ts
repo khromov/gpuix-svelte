@@ -34,7 +34,7 @@ let components = 0;
 const svelte_plugin: BunPlugin = {
 	name: 'gpuix-svelte',
 	setup(build) {
-		build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['custom-renderer', 'browser']));
+		build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['svelte-custom-renderer', 'browser']));
 		build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 		build.onLoad({ filter: /\.svelte$/ }, (args) => {
 			components++;
@@ -54,7 +54,7 @@ const result = await Bun.build({
 	naming: { entry: 'app.js', asset: '[name].[ext]' },
 	// Additive — `browser` comes from the target. As in scripts/compile.ts, Bun
 	// implies `development` unless NODE_ENV is production at build time too.
-	conditions: production ? ['custom-renderer', 'production'] : ['custom-renderer'],
+	conditions: production ? ['svelte-custom-renderer', 'production'] : ['svelte-custom-renderer'],
 	...(production && { define: { 'process.env.NODE_ENV': '"production"' }, minify: true }),
 	plugins: [svelte_plugin],
 	throw: false

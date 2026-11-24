@@ -11,6 +11,7 @@ test/.hot-tmp
 test/.bundle-tmp
 test/.dom-tmp
 test/.ui-tmp
+test/.linked-tmp
 
 # compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib
@@ -60,6 +61,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Apple's wallpapers, which may not be republished: `npm run wallpapers` rebuilds both locally
 /wallpapers
 /homepage/assets/wall/library
-
-# the custom-renderer svelte build, see CLAUDE.md
-!vendor/*.tgz

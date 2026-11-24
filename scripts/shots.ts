@@ -3,7 +3,7 @@
 // per example, driven to the state each image documents), the web capture and the README image
 // (four of those captures with CSS window chrome on a dark background) through headless Chrome
 // over the DevTools protocol, and the two og images through scripts/og.ts. Runs through the bin
-// (`npm run shots`), since the automation module needs the custom-renderer conditions; needs
+// (`npm run shots`), since the automation module needs the svelte-custom-renderer condition; needs
 // macOS or Windows for the windows, Bun for the web build and Chrome (or $CHROME) for the rest.
 // glass.png and app-icon.png are not retaken: the first needs a desktop behind it. The hero's
 // wallpapers are plain and stay as they are.

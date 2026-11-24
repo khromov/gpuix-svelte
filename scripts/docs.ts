@@ -36,6 +36,7 @@ const PAGES = [
 	{ source: 'docs/dom.md', name: 'dom', nav: 'DOM', about: 'rendering Svelte components in both gpuix-svelte and normal DOM, with Vite or SvelteKit: IS_GPUIX, the DOM versions of the helpers and components, writing for both renderers' },
 	{ source: 'docs/ui.md', name: 'ui', nav: 'UI toolkit', about: 'gpuix-svelte-ui: buttons, fields, choices, menus, dialogs, toasts, layout and feedback components for a GPUI window and the DOM alike, the theme behind them, and responsive layouts with @media and media_query' },
 	{ source: 'docs/updating.md', name: 'updating', nav: 'Updating', about: 'in-app updates from a static manifest with hash and signature checks, the GitHub release workflow, what install() does' },
+	{ source: 'docs/migrating.md', name: 'migrating', nav: 'Migrating', about: 'what to change when upgrading between releases, with instructions to paste to a coding agent' },
 	{ source: 'docs/contributing.md', name: 'contributing', nav: 'Contributing', about: 'working on the gpuix-svelte repository itself', optional: true }
 ];
 type Page = (typeof PAGES)[number];
@@ -113,8 +114,8 @@ function llms_txt() {
 Elements are GPUI's (\`div\`, \`text\`, \`img\`, \`input\`, \`textarea\`, \`virtual-list\`, ...), styling is CSS
 text for a flexbox layout in logical pixels, events go to the element under the pointer (\`hitbox="self"\`
 hands a clickable element the clicks on its children), and inputs report their value in event
-payloads. Read the Styling page before writing CSS. The package bundles its own Svelte build, so
-a project depends on \`gpuix-svelte\` alone and runs its entry through the \`gpuix-svelte\` bin.
+payloads. Read the Styling page before writing CSS. A project depends on \`gpuix-svelte\` and on
+\`svelte\` 5.59.1 or later, its peer, and runs its entry through the \`gpuix-svelte\` bin.
 
 ## Docs
 

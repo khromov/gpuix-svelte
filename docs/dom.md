@@ -2,7 +2,7 @@
 
 gpuix-svelte's helpers and built-in components render in the DOM as well as in a GPUI window, so
 the same components can be shared between a gpuix-svelte app and a normal Svelte app such as
-SvelteKit, without changes to their code. A build that does not set the `custom-renderer` export
+SvelteKit, without changes to their code. A build that does not set the `svelte-custom-renderer` export
 condition gets the DOM versions. `IS_GPUIX` tells a component which renderer it is on.
 
 This is not the [WebAssembly build](shipping.md#run-it-in-a-browser), which is GPUI itself
@@ -27,15 +27,14 @@ export default defineConfig({ plugins: [svelte()] });
 ```
 
 That is all. Vite, SvelteKit and every other browser toolchain resolve without the
-`custom-renderer` condition, so `import { … } from 'gpuix-svelte'` lands on the DOM build and
+`svelte-custom-renderer` condition, so `import { … } from 'gpuix-svelte'` lands on the DOM build and
 `gpuix-svelte/components/Scroller.svelte` on the DOM `Scroller`. (The desktop side always sets
 the condition: the bin, `gpuix-svelte/build` and the tsconfig a scaffolded app comes with.)
-`gpuix-svelte/dom` names the DOM build outright, for a tool that sets the `custom-renderer` condition
+`gpuix-svelte/dom` names the DOM build outright, for a tool that sets the `svelte-custom-renderer` condition
 anyway, such as the tsconfig of an app that ships to both targets.
 
-The DOM `Scroller`, `Portal`, `Tooltip` and `Popover` are compiled by your app's Svelte, so they
-need Svelte 5.29 or later (they use `{@attach}`). Vite dedupes `svelte` to your app's copy; the
-custom-renderer build nested inside the package is never loaded in a browser.
+The DOM `Scroller`, `Portal`, `Tooltip` and `Popover` are compiled by your app's Svelte, the same
+copy the desktop side runs on.
 
 An entry mounts the component the same way a desktop one does:
 

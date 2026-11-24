@@ -155,7 +155,7 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		name: 'gpuix-svelte',
 		setup(build) {
 			build.onResolve({ filter: /^@gpuix\/native$/ }, addon ? () => ({ path: direct }) : resolve_native_cjs);
-			build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['custom-renderer', 'production']));
+			build.onResolve({ filter: /^svelte(\/|$)/ }, resolve_svelte(['svelte-custom-renderer', 'production']));
 			build.onLoad({ filter: /\.svelte\.[jt]s$/ }, load_module);
 			build.onLoad({ filter: /\.svelte$/ }, (args) => {
 				components++;
@@ -172,7 +172,7 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		target: 'bun',
 		// Bun implies `development` unless NODE_ENV is production at build time, and
 		// esm-env lists it first, so both are needed for Svelte's production runtime.
-		conditions: ['custom-renderer', 'production'],
+		conditions: ['svelte-custom-renderer', 'production'],
 		define: {
 			'process.env.NODE_ENV': '"production"',
 			'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)),
