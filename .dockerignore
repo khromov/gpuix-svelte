@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/dist
+**/out
+**/lib
+.bun-canary
+test/.*-tmp
+packages/create-gpuix-svelte/template
+*.tgz
+.env*
+**/.DS_Store
+/wallpapers
+/homepage/assets/wall/library

@@ -152,7 +152,10 @@ uploads the archives and a signed `update.json` to the GitHub release (see
 `npm run docs` renders the README and `docs/*.md` to static HTML in `dist/docs`, along with a
 markdown copy of each page, an `llms.txt` index and an `llms-full.txt` for coding agents. It also
 copies the homepage (`homepage/`) to the root, so the README renders as `overview.html`. The
-`docs` workflow publishes it to GitHub Pages on every push to `main` that touches any of them. A
+`docs` workflow builds it into an nginx image ([`Dockerfile`](../Dockerfile),
+[`nginx.conf`](../nginx.conf)) and deploys it to CapRover on every push to `main` that touches any
+of them; `docker build -t gpuix-svelte-docs . && docker run -p 8080:80 gpuix-svelte-docs` serves
+the same image at http://localhost:8080. A
 new page needs an entry in `PAGES` in [`scripts/docs.ts`](../scripts/docs.ts). `npm run docs:serve`
 builds it the same way, then serves it at http://127.0.0.1:4321 (`HOST` changes the address) and opens it in your browser, and
 rebuilds whenever the README, `docs/`, `homepage/`, the DOM versions of the components or the script itself changes

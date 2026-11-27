@@ -1,4 +1,4 @@
-// Renders README.md and docs/*.md to static HTML in dist/docs, for GitHub Pages; code blocks are
+// Renders README.md and docs/*.md to static HTML in dist/docs, which the Dockerfile serves; code blocks are
 // coloured in the browser by docs/assets/prism.js, a vendored Prism build. A ```svelte demo <name>
 // block is also a live demo: its source is compiled as a component in the DOM and mounted into
 // the page beside the code (see bundle_demos). Beside each page goes a standalone markdown copy,
@@ -431,7 +431,7 @@ const head = ({ title, about, url, extra }: Head) => `<!doctype html>
 <meta name="twitter:image:alt" content="${OG_ALT}">
 <style>${CSS}</style>
 <script src="prism.js" defer></script>
-${extra}<script defer src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
+${extra}<script defer crossorigin="anonymous" src="https://u.khromov.se/u.js" data-website-id="4acad772-f733-4a21-ba45-e25689155f2a"></script>
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>`;
