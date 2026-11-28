@@ -419,19 +419,27 @@ export interface Rgba {
 	data: Uint8Array;
 }
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 /** Only the PNGs Bun.Image writes: 8-bit RGBA, not interlaced. */
 export function decode_png(file: Uint8Array): Rgba {
 	const png = Buffer.from(file.buffer, file.byteOffset, file.byteLength);
-	if (png.readUInt32BE(0) !== 0x89504e47) throw new Error('not a PNG');
+	if (png.length < 33 || !png.subarray(0, 8).equals(PNG_SIGNATURE) || png.toString('latin1', 12, 16) !== 'IHDR') throw new Error('not a PNG');
 	const width = png.readUInt32BE(16);
 	const height = png.readUInt32BE(20);
 	if (png[24] !== 8 || png[25] !== 6 || png[28] !== 0) throw new Error(`only 8-bit RGBA PNGs without interlacing decode, not bit depth ${png[24]}, colour type ${png[25]}, interlace ${png[28]}`);
 	const idat: Buffer[] = [];
-	for (let at = 8; at < png.length; at += 12 + png.readUInt32BE(at)) {
-		if (png.toString('latin1', at + 4, at + 8) === 'IDAT') idat.push(png.subarray(at + 8, at + 8 + png.readUInt32BE(at)));
+	for (let at = 8; at + 12 <= png.length; ) {
+		const length = png.readUInt32BE(at);
+		if (at + 12 + length > png.length) throw new Error('truncated PNG chunk');
+		const type = png.toString('latin1', at + 4, at + 8);
+		if (type === 'IDAT') idat.push(png.subarray(at + 8, at + 8 + length));
+		else if (type === 'IEND') break;
+		at += 12 + length;
 	}
 	const raw = inflateSync(Buffer.concat(idat));
 	const stride = width * 4;
+	if (raw.length !== height * (stride + 1)) throw new Error(`PNG image data is ${raw.length} bytes, expected ${height * (stride + 1)}`);
 	const data = new Uint8Array(stride * height);
 	for (let y = 0; y < height; y++) {
 		const filter = raw[y * (stride + 1)];

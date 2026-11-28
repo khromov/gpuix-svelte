@@ -44,7 +44,7 @@ npm run demo:ui-dom       # the same through Vite (-- --build-only writes dist/d
 npm run demo:ui-app       # Orbit (examples/ui-app), a small app built from the toolkit: the picture atop ui.md
 npm run tutorial          # interactive onboarding guide: 12 steps with live samples and quizzes
 npm run typecheck         # tsc, then svelte-check for the GPUI markup and again for the DOM components
-npm test                  # typecheck, then every test suite except automation-live and coverage
+npm test                  # typecheck, then every test suite except automation-live, linux-icon and coverage
 npm run lint              # ESLint; not part of `npm test`, so run it before pushing
 npm run check:svelte      # every component through the Svelte MCP server's autofixer (needs network)
 npm run parity            # @gpuix/native methods nothing here calls; run it after a native bump
@@ -54,7 +54,7 @@ New here? `npm run tutorial` opens a guided walkthrough of the renderer that is 
 gpuix-svelte app. Each step pairs an explanation and a diagram with the source of a small
 component, most of them running live, and ends with a quiz.
 
-Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`
+Every test script (except the Linux/Bun-only `test:linux-icon`), and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`
 and `demo:ui-dom`, has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
 twins run the same entry points on Bun, which takes the `.svelte` loader as a `--preload`. CI runs
 both runtimes.

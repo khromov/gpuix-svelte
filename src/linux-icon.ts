@@ -4,7 +4,7 @@
  * other X11 window managers read off the window itself. GNOME uses only the first, Wayland has no second.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 // A namespace, since Bun's browser polyfill for node:net has no `connect` to import by name and the web build bundles this too.
 import * as net from 'node:net';
 import type { Socket } from 'node:net';
@@ -33,12 +33,11 @@ const STRING = 31;
  * and returns what sets `_NET_WM_ICON` once the window is there; null outside a Linux build.
  */
 export function linux_icon(app_id: string | undefined, name: string): (() => void) | null {
-	// Spelled out so gpuix-svelte/build's define replaces it.
-	const raw = typeof process === 'undefined' ? undefined : process.env.GPUIX_APP_ICON;
-	if (!raw || process.platform !== 'linux' || !app_id || (!process.env.WAYLAND_DISPLAY && !process.env.DISPLAY)) return null;
+	// Spelled out, not read through a local const, so non-Linux builds' define folds the body away.
+	if (typeof process === 'undefined' || !process.env.GPUIX_APP_ICON || process.platform !== 'linux' || !app_id || (!process.env.WAYLAND_DISPLAY && !process.env.DISPLAY)) return null;
 	let icon: EmbeddedIcon;
 	try {
-		icon = JSON.parse(raw) as EmbeddedIcon;
+		icon = JSON.parse(process.env.GPUIX_APP_ICON) as EmbeddedIcon;
 	} catch {
 		return null;
 	}
@@ -113,14 +112,20 @@ export function install_desktop_entry(home: string, dirs: string[], app_id: stri
 		if (existsSync(path) && readFileSync(path).equals(bytes)) continue;
 		mkdirSync(dirname(path), { recursive: true });
 		const partial = `${path}.${process.pid}.tmp`;
-		writeFileSync(partial, bytes);
-		renameSync(partial, path);
+		try {
+			writeFileSync(partial, bytes);
+			renameSync(partial, path);
+		} catch (error) {
+			rmSync(partial, { force: true });
+			throw error;
+		}
 		written++;
 	}
 	return written;
 }
 
 const CARDINAL = 6;
+const WINDOW = 33;
 const FAMILY_LOCAL = 256;
 const FAMILY_WILD = 65535;
 const TIMEOUT_MS = 5000;
@@ -135,6 +140,7 @@ export function x11_cookie(file: Buffer, display: string, host: string): Buffer 
 			const fields: Buffer[] = [];
 			for (let i = 0; i < 4; i++) {
 				const length = file.readUInt16BE(at);
+				if (at + 2 + length > file.length) return null;
 				fields.push(file.subarray(at + 2, at + 2 + length));
 				at += 2 + length;
 			}
@@ -173,11 +179,11 @@ export async function set_x11_icon(icon: Buffer, pid: number, app_id: string, en
 	const x = await open_display(env);
 	if (!x) return null;
 	try {
-		const [pid_atom, icon_atom] = await Promise.all([x.atom('_NET_WM_PID'), x.atom('_NET_WM_ICON')]);
+		const [pid_atom, icon_atom, client_list_atom] = await Promise.all([x.atom('_NET_WM_PID'), x.atom('_NET_WM_ICON'), x.atom('_NET_CLIENT_LIST')]);
 		let windows: number[] = [];
-		for (let attempt = 0; attempt < 10 && windows.length === 0; attempt++) {
-			if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 100));
-			const candidates = await x.windows_of(pid_atom, pid);
+		for (let attempt = 0; attempt < 46 && windows.length === 0; attempt++) {
+			if (attempt > 0) await new Promise<void>((resolve) => setTimeout(resolve, attempt < 10 ? 100 : 250).unref());
+			const candidates = await x.windows_of(pid_atom, pid, client_list_atom);
 			// PIDs repeat across PID namespaces (two Flatpak apps are both 2), so the window's class has to be ours too.
 			const classes = await Promise.all(candidates.map((window) => x.property(window, WM_CLASS, STRING, 256)));
 			windows = candidates.filter((_, i) => classes[i]?.data.toString('latin1').split('\0')[0] === app_id);
@@ -214,6 +220,7 @@ export class X11 {
 	private max_request = 0;
 	private waiting = new Map<number, Waiter>();
 	private setup: Waiter | null = null;
+	private closed: Error | null = null;
 
 	private constructor(socket: Socket) {
 		this.socket = socket;
@@ -222,6 +229,7 @@ export class X11 {
 			this.read();
 		});
 		const fail = (error: Error) => {
+			this.closed ??= error;
 			for (const waiter of [this.setup, ...this.waiting.values()]) waiter?.reject(error);
 			this.setup = null;
 			this.waiting.clear();
@@ -257,7 +265,7 @@ export class X11 {
 	}
 
 	async atom(name: string): Promise<number> {
-		const length = Buffer.byteLength(name);
+		const length = Buffer.byteLength(name, 'latin1');
 		const request = Buffer.alloc(8 + pad(length));
 		request[0] = 16;
 		request.writeUInt16LE(request.length / 4, 2);
@@ -291,11 +299,20 @@ export class X11 {
 		return { type: reply.readUInt32LE(8), format: reply[1], data: reply.subarray(32, 32 + reply.readUInt32LE(16) * (reply[1] / 8)) };
 	}
 
-	/** Down three levels from the root, which reaches a client window inside a reparenting window manager's frame. */
-	async windows_of(pid_atom: number, pid: number): Promise<number[]> {
+	/** Checks EWMH `_NET_CLIENT_LIST` first, falling back to a 3-level walk from the root for bare servers without a window manager. */
+	async windows_of(pid_atom: number, pid: number, client_list_atom?: number): Promise<number[]> {
+		if (client_list_atom) {
+			const list = await this.property(this.root, client_list_atom, WINDOW, 65536);
+			if (list && list.format === 32 && list.data.length >= 4) {
+				const clients = Array.from({ length: list.data.length / 4 }, (_, i) => list.data.readUInt32LE(4 * i));
+				const owners = await Promise.all(clients.map((window) => this.property(window, pid_atom, CARDINAL)));
+				const matched = clients.filter((_, i) => owners[i]?.data.length === 4 && owners[i]?.data.readUInt32LE(0) === pid);
+				if (matched.length > 0) return matched;
+			}
+		}
 		const found: number[] = [];
 		let level = [this.root];
-		for (let depth = 0; depth < 3 && level.length > 0; depth++) {
+		for (let depth = 0; depth < 3 && level.length > 0 && found.length === 0; depth++) {
 			const children = (await Promise.all(level.map((window) => this.children(window)))).flat();
 			const owners = await Promise.all(children.map((window) => this.property(window, pid_atom, CARDINAL)));
 			level = children.filter((window, i) => {
@@ -335,15 +352,18 @@ export class X11 {
 	}
 
 	close() {
+		this.closed ??= new Error('the X server connection was closed');
 		this.socket.destroy();
 	}
 
 	private send(request: Buffer): number {
+		if (this.closed) return 0;
 		this.socket.write(request);
 		return (this.sequence = (this.sequence + 1) & 0xffff);
 	}
 
 	private request(request: Buffer): Promise<Buffer> {
+		if (this.closed) return Promise.reject(this.closed);
 		return new Promise((resolve, reject) => this.waiting.set(this.send(request), { resolve, reject }));
 	}
 

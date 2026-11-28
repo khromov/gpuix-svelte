@@ -53,7 +53,7 @@ bun install                # entire setup (bun.lock is the lockfile); @gpuix/nat
 npm run typecheck          # tsc --noEmit, then svelte-check --fail-on-warnings twice (tsconfig.json for the
                            # GPUI markup, tsconfig.dom.json for the DOM components); the first step of `test`
 npm run lint               # eslint; NOT part of `test` (only CI's linux job runs it), so run it before pushing
-npm test                   # typecheck, then every test:* below except automation-live and coverage
+npm test                   # typecheck, then every test:* below except automation-live, linux-icon and coverage
 npm run test:<name>        # test/<name>.ts (test:media also runs test/media-default.ts); each file's header
                            # says what it covers. test:update and test:launcher need `bun` on PATH
 npm run test:automation-live  # opens a window: launch()es the counter and drives it; not in `test`,
@@ -100,8 +100,7 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build into dist/ (
 
 Every test and demo script that goes through the bin has a `bun:`-prefixed twin (`npm run
 bun:test`, `npm run bun:demo:counter`, ...) running the same entry with `--bun`. Adding a bin script
-means adding both halves and, for a test, chaining both into `test` / `bun:test`. `compile` and
-`demo:web` are Bun-only, `demo:dom` and `demo:ui-dom` run Vite on Node, `shots` has no twin,
+means adding both halves and, for a test, chaining both into `test` / `bun:test`. `compile`, `demo:web` and `test:linux-icon` are Bun-only, `demo:dom` and `demo:ui-dom` run Vite on Node, `shots` has no twin,
 `bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the tooling
 that needs no loader (`lint`, `check:svelte`, `docs`, `docs:serve`, `og`, `wallpapers`,
 `parity`, `pack`, `publish:*`) runs on plain `node`, which strips their types itself.

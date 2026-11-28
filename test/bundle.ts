@@ -269,6 +269,17 @@ try {
 	refused = (error as Error).message;
 }
 check('decode_png refuses what Bun.Image does not write, rather than misreading it', refused.startsWith('only 8-bit RGBA'), true);
+const trailing = Buffer.concat([readFileSync(DEFAULT_ICON), Buffer.from([1, 2, 3])]);
+check('decode_png stops at IEND even if trailing bytes follow', decode_png(trailing).width, 1024);
+let short_idat = '';
+try {
+	const bad_png = Buffer.from(readFileSync(DEFAULT_ICON));
+	bad_png.writeUInt32BE(2048, 20);
+	decode_png(bad_png);
+} catch (error) {
+	short_idat = (error as Error).message;
+}
+check('decode_png rejects truncated image data instead of zero-filling pixels', short_idat.startsWith('PNG image data is '), true);
 check(
 	"_NET_WM_ICON is each image's width and height, then 0xAARRGGBB pixels, little-endian",
 	net_wm_icon([{ width: 2, height: 1, data: Uint8Array.of(1, 2, 3, 4, 5, 6, 7, 8) }]).toString('hex'),
@@ -360,10 +371,16 @@ const authority = Buffer.concat([
 	xauth(256, 'this-host', '', 'XDM-AUTHORIZATION-1', 'C'),
 	xauth(256, 'this-host', '', 'MIT-MAGIC-COOKIE-1', 'D')
 ]);
+const partial_cookie = xauth(256, 'this-host', '0', 'MIT-MAGIC-COOKIE-1', '0123456789abcdef');
 check(
-	"the X11 cookie is this host's or a wildcard's, for the display or any, and a truncated file ends the search",
-	[x11_cookie(authority, '0', 'this-host'), x11_cookie(authority, '1', 'this-host'), x11_cookie(authority.subarray(0, 30), '0', 'this-host')].map((cookie) => cookie?.toString() ?? null),
-	['D', 'B', null]
+	"the X11 cookie is this host's or a wildcard's, for the display or any, and a truncated entry ends the search",
+	[
+		x11_cookie(authority, '0', 'this-host'),
+		x11_cookie(authority, '1', 'this-host'),
+		x11_cookie(authority.subarray(0, 30), '0', 'this-host'),
+		x11_cookie(partial_cookie.subarray(0, partial_cookie.length - 4), '0', 'this-host')
+	].map((cookie) => cookie?.toString() ?? null),
+	['D', 'B', null, null]
 );
 
 // An aot or trim build resolves @gpuix/native to this file and searches the executable for its bytes.
@@ -372,4 +389,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 53 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 55 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));

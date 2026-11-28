@@ -336,7 +336,8 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 
 		// Terminal mode draws into the terminal and opens no window to give an icon.
 		const terminal = window_options.terminal ?? env('GPUIX_TERMINAL') === '1';
-		const set_icon = built && !terminal ? linux_icon(window_options.appId, built.name) : null;
+		// Spelled out, not read through a local const, so non-Linux builds' define folds the branch and linux-icon.ts away.
+		const set_icon = typeof process !== 'undefined' && process.env.GPUIX_APP_ICON && built && !terminal ? linux_icon(window_options.appId, built.name) : null;
 		slot.native.init(window_options);
 		set_icon?.();
 		// Spelled out, not read through env() or a local const, so build()'s define folds the branch and its import away.
