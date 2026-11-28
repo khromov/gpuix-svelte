@@ -438,8 +438,11 @@ right-to-left mark (U+200F) in front.
 On Windows GPUI draws a right-to-left run mirrored, so there `RtlText` hands it each line already
 in display order, with Arabic and Persian letters swapped for the joined forms Unicode has for them
 (Arabic Presentation Forms), and gives a screen reader the line as written through `aria-label`.
-The font has to carry those forms; Segoe UI, Tahoma, Arial and Vazirmatn do. Copying a line there
-gives the display order, not the text you passed.
+The font has to carry those forms; Segoe UI, Tahoma, Arial and Vazirmatn do. A word with a letter
+Unicode has no such forms for (Pashto's ښ, Kurdish ڕ, Sindhi ڪ, Syriac) keeps its letters as
+typed, and Windows joins it itself, though a ZWNJ inside such a word can draw as a thin bar. What
+the line holds there is its display order, so copying it, a text search over it or a test reading
+its text gets that rather than the text you passed.
 
 What it does not fix:
 

@@ -1131,21 +1131,28 @@ adding there.
   On Windows every line and measured text goes through `rtl_display` (`src/rtl-display.ts`), since
   GPUI's `DrawGlyphRun` ignores `bidiLevel` and lays a right-to-left run out in typed order:
   `shape()` swaps each Arabic letter for its presentation form (the table is UnicodeData.txt's
-  `<isolated>`/`<final>`/`<initial>`/`<medial>` decompositions, frozen by Unicode; a letter with no
-  forms passes through unjoined), `bidi-js` reorders with base `rtl` and mirrors brackets (its
+  `<isolated>`/`<final>`/`<initial>`/`<medial>` decompositions, frozen by Unicode, joining types
+  from ArabicShaping.txt), `bidi-js` reorders with base `rtl` and mirrors brackets (its
   `getMirroredCharactersMap` takes `levels.levels`, not the result object), grapheme clusters move
-  whole so marks stay after their letter and surrogates stay paired, ZWNJs are dropped once
-  applied (a cluster carries one to the wrong side, and one next to a vowel mark drew as a bar),
-  and LRO…PDF keeps DirectWrite from reordering again. DirectWrite still ligates a lam the reversal
-  put directly before a joined alef, so a ZWNJ goes between those two only; a mark between them
-  stops the ligature already. npm's `arabic-persian-reshaper` was tried first and dropped: it has
+  whole so marks stay after their letter and surrogates stay paired, and LRO…PDF keeps DirectWrite
+  from reordering again. bidi-js classes each UTF-16 unit on its own, a surrogate as L, so it runs
+  on a copy with each astral character as two BMP characters of its class (`classed`). A ZWNJ that
+  kept Arabic letters apart is dropped once shaping applied it (one left in drew as a bar next to a
+  vowel mark); any other moves to the far side of its letter in a reversed run. DirectWrite still
+  ligates a lam the reversal put directly before a joined alef, so a ZWNJ goes between those two
+  only; a mark between them stops the ligature already. A word holding a letter Unicode gives no
+  presentation forms (Pashto, Kurdish, Sindhi, Syriac; U+0677 and U+06BA have fewer than they join
+  with) is left as typed, because DirectWrite joins base letters right under LRO; that route is not
+  the default because a ZWNJ in it drew as a bar and dropped the next letter in a pixel comparison
+  against the shaped route, which drew the same pixels on lines without one. npm's `arabic-persian-reshaper` was tried first and dropped: it has
   no types, which the UI package's lib emit (the root's `src` without its `types/`) and a linked
   consumer can't do without, and it doubles the alef of a lam, mark, alef. `bidi-js`'s types
   describe an ES default export while Node loads its CommonJS main, whose export is the factory
   itself, hence the one cast. The drawn line carries `aria-label` with the logical line, which
   native exposes as the label beside the drawn value. It was checked against GDI's
-  `TextRenderer.DrawText` of the same strings, in Segoe UI and Vazirmatn; vowel marks in a line that
-  also has a bare lam before a joined alef are untested.
+  `TextRenderer.DrawText` of the same strings, in Segoe UI and Vazirmatn, the formless route in
+  Segoe UI on Pashto, Kurdish, Sindhi, Urdu and Syriac; vowel marks in a line that also has a bare
+  lam before a joined alef are untested.
 
 ### Regenerating the styling reference
 

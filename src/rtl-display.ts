@@ -33,6 +33,9 @@ const FORMS = new Map<number, readonly number[]>(
 );
 // Alef maksura's initial and medial forms are in the other block.
 FORMS.set(0x649, [0xfeef, 0xfef0, 0xfbe8, 0xfbe9]);
+// Unicode gives these fewer forms than they join with in ArabicShaping.txt, so they count as having none.
+FORMS.delete(0x677);
+FORMS.delete(0x6ba);
 
 /** Lam followed by each of these alefs is one ligature, isolated then final. */
 const LAM_ALEF = new Map([
@@ -43,16 +46,35 @@ const LAM_ALEF = new Map([
 ]);
 const LAM = 0x644;
 const ZWNJ = 0x200c;
-/** ZWJ and tatweel join on both sides and have no forms of their own. */
-const JOINER = new Set([0x200d, 0x640]);
+/** The join-causing characters of ArabicShaping.txt: ZWJ, tatweel and its kin, which have no forms of their own. */
+const JOINER = new Set([0x200d, 0x640, 0x7fa, 0x883, 0x884, 0x885]);
+/** The format characters ArabicShaping.txt makes non-joining rather than transparent: the number signs, the end of ayah, the isolates. */
+const NON_JOINING = /^[\u{600}-\u{605}\u{6DD}\u{890}\u{891}\u{8E2}\u{2066}-\u{2069}]$/u;
 const MARK_OR_FORMAT = /^[\p{Mn}\p{Me}\p{Cf}]$/u;
+/** A letter of a joining script that Unicode has no presentation forms for, so a word holding one is left for DirectWrite to join. */
+const FORMLESS = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}]/u;
 
 const joins_next = (point: number) => JOINER.has(point) || (FORMS.get(point)?.[2] ?? 0) !== 0;
 const joins_prev = (point: number) => JOINER.has(point) || (FORMS.get(point)?.[1] ?? 0) !== 0;
-const transparent = (point: number) => point !== ZWNJ && !JOINER.has(point) && MARK_OR_FORMAT.test(String.fromCodePoint(point));
+const transparent = (point: number) => {
+	const char = String.fromCodePoint(point);
+	return point !== ZWNJ && !JOINER.has(point) && !NON_JOINING.test(char) && MARK_OR_FORMAT.test(char);
+};
+const formless = (char: string) => /\p{L}/u.test(char) && FORMLESS.test(char) && !FORMS.has(char.codePointAt(0)!) && !JOINER.has(char.codePointAt(0)!);
 
-/** Each Arabic letter as the presentation form it takes where it stands, and lam-alef as its ligature. */
+/**
+ * Each Arabic letter as the presentation form it takes where it stands, lam-alef as its ligature, and the ZWNJs that
+ * shaping has applied dropped. A word with a letter that has no forms keeps its letters as typed, since shaping only
+ * its neighbours would leave them unjoined; DirectWrite joins such a word itself once it is in display order.
+ */
 function shape(text: string): string {
+	return text
+		.split(/(\s+)/)
+		.map((word) => (Array.from(word).some(formless) ? word : shape_word(word)))
+		.join('');
+}
+
+function shape_word(text: string): string {
 	const points = Array.from(text, (char) => char.codePointAt(0)!);
 	const beside = (from: number, step: number) => {
 		let at = from + step;
@@ -64,7 +86,8 @@ function shape(text: string): string {
 		const point = points[at];
 		const forms = FORMS.get(point);
 		if (!forms) {
-			shaped += String.fromCodePoint(point);
+			const applied = point === ZWNJ && [beside(at, -1), beside(at, 1)].some((near) => FORMS.has(points[near]));
+			if (!applied) shaped += String.fromCodePoint(point);
 			continue;
 		}
 		const before = beside(at, -1);
@@ -87,7 +110,14 @@ let bidi: Bidi | null = null;
 let graphemes: Intl.Segmenter | null = null;
 
 /** DirectWrite still ligates a lam that the reversal put right before a joined alef; a ZWNJ between them stops it. */
-const LAM_BEFORE_ALEF = /([ﻝ-ﻠ])(?=[ﺂﺄﺈﺎ])/g;
+const LAM_BEFORE_ALEF = /([\u{FEDD}-\u{FEE0}])(?=[\u{FE82}\u{FE84}\u{FE88}\u{FE8E}])/gu;
+
+/** A BMP character of each bidi class a character outside the BMP has, since bidi-js classes a surrogate on its own, as L. */
+const STAND_IN: Record<string, string> = { L: 'a', R: '\u{5D0}', AL: '\u{627}', EN: '0', ES: '+', ET: '#', AN: '\u{660}', CS: ',', NSM: '\u{300}', BN: '\u{200B}', ON: '!' };
+
+function classed(bidi: Bidi, text: string): string {
+	return text.replace(/[\u{10000}-\u{10FFFF}]/gu, (char) => (STAND_IN[bidi.getBidiCharTypeName(char)] ?? 'a').repeat(2));
+}
 
 /** What GPUI should draw for one line of right-to-left text: the line itself, or on Windows its display order. */
 export function rtl_display(line: string): string {
@@ -96,7 +126,8 @@ export function rtl_display(line: string): string {
 	graphemes ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 	const shaped = shape(line);
-	const levels = bidi.getEmbeddingLevels(shaped, 'rtl');
+	const stand_in = classed(bidi, shaped);
+	const levels = bidi.getEmbeddingLevels(stand_in, 'rtl');
 	const chars = shaped.split('');
 	for (const [at, mirror] of bidi.getMirroredCharactersMap(shaped, levels.levels)) chars[at] = mirror;
 
@@ -105,15 +136,18 @@ export function rtl_display(line: string): string {
 	const clusters: string[] = [];
 	for (const { index, segment } of graphemes.segment(shaped)) {
 		for (let at = index; at < index + segment.length; at++) cluster_of[at] = clusters.length;
-		clusters.push(chars.slice(index, index + segment.length).join(''));
+		let cluster = chars.slice(index, index + segment.length).join('');
+		// A ZWNJ ends the cluster of the letter before it, which in a reversed run is the letter after it.
+		if (levels.levels[index] & 1 && cluster.length > 1 && cluster.endsWith('\u{200C}')) cluster = `\u{200C}${cluster.slice(0, -1)}`;
+		clusters.push(cluster);
 	}
 	const shown = new Set<number>();
 	let display = '';
-	for (const at of bidi.getReorderedIndices(shaped, levels)) {
+	for (const at of bidi.getReorderedIndices(stand_in, levels)) {
 		if (shown.has(cluster_of[at])) continue;
 		shown.add(cluster_of[at]);
 		display += clusters[cluster_of[at]];
 	}
-	// Shaping has applied every ZWNJ, which its cluster carried to the wrong side; the override keeps DirectWrite from reordering.
-	return `‭${display.replaceAll('‌', '').replace(LAM_BEFORE_ALEF, '$1‌')}‬`;
+	// The override keeps DirectWrite from reordering what is already in display order.
+	return `\u{202D}${display.replace(LAM_BEFORE_ALEF, '$1\u{200C}')}\u{202C}`;
 }

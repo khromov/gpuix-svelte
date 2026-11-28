@@ -59,7 +59,22 @@ check(
 	[`${LRO}${u(0xfedd, 0x200c, 0xfe8e, 0xfe91)}${PDF}`, `${LRO}${u(0xfefb)}${PDF}`]
 );
 check('a lam-alef with a mark between them is the ligature, the mark after it', rtl_display('بلَا'), `${LRO}${u(0xfefc, 0x64e, 0xfe91)}${PDF}`);
-check('a ZWNJ keeps the letters either side apart and is then dropped', rtl_display(`ب${ZWNJ}ب`), `${LRO}${u(0xfe8f, 0xfe8f)}${PDF}`);
+check(
+	'a ZWNJ keeps Arabic letters either side apart and is then dropped, and stays in other text',
+	[rtl_display(`ب${ZWNJ}ب`), rtl_display(`a${ZWNJ}b`)],
+	[`${LRO}${u(0xfe8f, 0xfe8f)}${PDF}`, `${LRO}a${ZWNJ}b${PDF}`]
+);
+check(
+	'a character outside the BMP takes its own bidi class: two emoji swap with the line, and Adlam runs right to left',
+	[rtl_display('سلام 😀😃'), rtl_display('𞤀𞤁 𞤂')],
+	[`${LRO}😃😀 ${u(0xfee1, 0xfefc, 0xfeb3)}${PDF}`, `${LRO}${u(0x1e902, 0x20, 0x1e901, 0x1e900)}${PDF}`]
+);
+check(
+	'a word with a letter Unicode has no forms for keeps its letters as typed, its ZWNJ on the far side of its letter, while the next word is shaped',
+	[rtl_display('پښتو سلام'), rtl_display(`ښ${ZWNJ}ب`)],
+	[`${LRO}${u(0xfee1, 0xfefc, 0xfeb3, 0x20, 0x648, 0x62a, 0x69a, 0x67e)}${PDF}`, `${LRO}${u(0x628, 0x200c, 0x69a)}${PDF}`]
+);
+check('the end of ayah keeps the letters either side from joining across it', rtl_display('ب\u{6DD}ب'), `${LRO}${u(0x6dd, 0xfe8f, 0xfe8f)}${PDF}`);
 pretend(platform);
 
-finish('rtl', 13);
+finish('rtl', 16);

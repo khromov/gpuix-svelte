@@ -347,9 +347,9 @@ recording while the overlay is hidden. A hot reload keeps whatever mode is showi
 ## Other scripts and right-to-left text
 
 GPUI shapes text with Core Text on macOS, DirectWrite on Windows and cosmic-text on Linux. Each
-joins Arabic and Persian letters, orders a right-to-left run inside its line, and takes a
-character the font in use lacks from another font that has it. Which fonts a window can fall back
-to decides whether it draws a script at all:
+joins Arabic and Persian letters, orders a right-to-left run inside its line (which GPUI then
+draws mirrored on Windows, see below), and takes a character the font in use lacks from another
+font that has it. Which fonts a window can fall back to decides whether it draws a script at all:
 
 - On macOS and Windows, the system's own fonts, which cover Arabic and Persian, so neither needs a
   font registered.
