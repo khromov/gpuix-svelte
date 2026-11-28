@@ -65,6 +65,19 @@ check('aspect-ratio drops a length rather than reading it as a ratio', parse_css
 check('scrollbar-color keeps the thumb of a thumb-and-track pair', parse_css_text('scrollbar-color: rgb(1, 2, 3) #000'), {
 	scrollbarColor: 'rgb(1, 2, 3)'
 });
+// GPUI matches one family by its exact name, so a list or quotes would name no font and fall back to its default stack.
+check(
+	'font-family keeps the first family of a list, unquoted',
+	[parse_css_text(`font-family: 'Vazirmatn', sans-serif`), parse_css_text('font-family: "Noto Sans Arabic", Tahoma'), parse_css_text('font-family: Menlo')],
+	[{ fontFamily: 'Vazirmatn' }, { fontFamily: 'Noto Sans Arabic' }, { fontFamily: 'Menlo' }]
+);
+check(
+	'an unquoted name collapses its spaces, and a quoted one keeps its commas and escapes',
+	[parse_css_text('font-family:  Noto   Sans Arabic , serif'), parse_css_text(`font-family: "Font \\"X\\", Y", Z`)],
+	[{ fontFamily: 'Noto Sans Arabic' }, { fontFamily: 'Font "X", Y' }]
+);
+set_css_vars({ 'style-face': `'Vazirmatn', system-ui` });
+check('a var() holding a list resolves to its first family too', parse_css_text('font-family: var(--style-face)'), { fontFamily: 'Vazirmatn' });
 check('a nested pseudo style written as a declaration is dropped', parse_css_text('focus-visible: red; hover: red; active: red; color: blue'), {
 	color: 'blue'
 });
@@ -109,7 +122,7 @@ check(
 	'a ; inside quotes, parens or a comment stays in its value',
 	parse_css_text(`font-family: "a;b"; color: rgb(1, 2, 3); background-color: url(x;y); border-color: 'c;d'; cursor: "e\\";f"; outline-color: g /* h;i */`),
 	{
-		fontFamily: '"a;b"',
+		fontFamily: 'a;b',
 		color: 'rgb(1, 2, 3)',
 		backgroundColor: 'url(x;y)',
 		borderColor: "'c;d'",
@@ -309,4 +322,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 54);
+finish('style', 57);

@@ -69,6 +69,9 @@ work for class rules, which are translated the same way.
   (see [Theming with CSS variables](#theming-with-css-variables)).
 - `transform`, `transition`, `z-index`, `letter-spacing` and `font-style` are ignored, mostly
   without a warning.
+- `direction` is ignored, and so is a `dir` attribute: a line runs in the direction of its first
+  letter and starts at the left of its box. [Other scripts and right-to-left
+  text](guide.md#other-scripts-and-right-to-left-text) covers fonts and what GPUI can't lay out yet.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
   `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select`,
   `selection-color` and the variables an element declares. An `<svg>` gets its parent's `color`
@@ -105,7 +108,7 @@ keywords are recognised.
   any CSS colour syntax; `opacity`; `border-width` and its four sides; `border-radius` and its four
   corners, with 1 to 4 value shorthands; `border-style: solid | dashed`; `outline-width`,
   `outline-color`, `outline-offset`.
-- Text: `font-size`; `font-family`, passed through as written, so give one family name;
+- Text: `font-size`; `font-family`, of which GPUI takes the first family of a list, unquoted;
   `font-weight` (`100`–`900`, `normal`, `bold`); `text-align: left | center | right | start`;
   `line-height` in px or rem; `white-space: nowrap | normal`; `text-overflow: ellipsis`;
   `text-decoration: underline | line-through | none`.

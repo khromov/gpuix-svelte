@@ -121,6 +121,9 @@ const RATIO = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(?:\s*\/\s*([+-]?(?:\d+(?:\.\d+)?|
 /** GPUI paints a thumb and no track, so only the first colour of `scrollbar-color: thumb track` applies. */
 const FIRST_COLOR = /^(?:[^\s(]+\([^)]*\)|\S+)/;
 
+/** GPUI takes one family and matches its name exactly, so a list or a quoted name would match no font. */
+const FIRST_FAMILY = /^\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^,]*))/;
+
 /** The only keys GPUI reads as a `DimensionValue`, so the only ones `%` and `auto` survive; `fontWeight` is typed the same, but for weight names. */
 const DIMENSION = set_of<Exclude<Extract<Takes<string>, Takes<number>>, 'fontWeight'>>()(['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight']);
 
@@ -344,6 +347,11 @@ function coerce(value: string): StyleValue {
 	return value;
 }
 
+function first_family(value: string) {
+	const [, double, single, bare] = FIRST_FAMILY.exec(value)!;
+	return (double ?? single)?.replace(/\\(.)/g, '$1') ?? bare.trim().replace(/\s+/g, ' ');
+}
+
 function accepts(key: string, value: StyleValue) {
 	if (NEVER.has(key)) return false;
 	if (NUMBER_ONLY.has(key)) return typeof value === 'number';
@@ -368,6 +376,7 @@ function assign(out: GpuiStyle, key: string, value: string) {
 		const ratio = RATIO.exec(value);
 		coerced = ratio ? parseFloat(ratio[1]) / (ratio[2] ? parseFloat(ratio[2]) : 1) : value;
 	} else if (key === 'scrollbarColor') coerced = FIRST_COLOR.exec(value)?.[0] ?? value;
+	else if (key === 'fontFamily') coerced = first_family(value);
 	else if (BOOLEAN.has(key) && (value === 'true' || value === 'false')) coerced = value === 'true';
 	else if (coerced === 'auto' && OVERFLOW.has(key)) coerced = 'scroll';
 	else if (typeof coerced === 'string' && DIMENSION.has(key) && INTRINSIC.test(coerced)) coerced = 'auto';

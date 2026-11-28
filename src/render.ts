@@ -21,7 +21,7 @@ import renderer, {
 	on_window_key,
 	on_selection_change
 } from './renderer.ts';
-import { set_debug_overlay } from './window.ts';
+import { register_waiting_fonts, set_debug_overlay } from './window.ts';
 import { create_window_root, wants_titlebar } from './titlebar.ts';
 import { wait_for_previous_instance } from './previous-instance.ts';
 import { voiceover_running } from './screen-reader.ts';
@@ -341,6 +341,7 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 	}
 
 	set_native(slot.native);
+	register_waiting_fonts();
 	set_tab_navigation(tabNavigation);
 
 	const overlay = overlay_on_render(env('GPUIX_FPS'), debugFrameOverlay, slot.overlay, created);

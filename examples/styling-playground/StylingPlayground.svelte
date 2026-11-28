@@ -53,6 +53,11 @@
 					note: 'underline, line-through and none'
 				},
 				{
+					kind: 'rtl',
+					css: 'text-align: right; flex-grow: 1',
+					note: 'Persian and Arabic join up and run right to left within a line (not yet on Windows); text-align: right sets them on the right'
+				},
+				{
 					css: 'visibility: hidden',
 					note: 'paints nothing but keeps its box, and drops out of the tab order'
 				}
@@ -82,6 +87,16 @@
 				{
 					css: 'margin: 0 auto',
 					note: 'auto is dropped, so the box stays on the left'
+				},
+				{
+					kind: 'rtl',
+					css: 'direction: rtl; flex-grow: 1',
+					note: 'unknown key, dropped silently: the text stays on the left'
+				},
+				{
+					kind: 'rtl-lines',
+					css: 'width: 180px',
+					note: 'GPUI wraps right-to-left text as if it ran left to right, so the lines come out broken and out of place'
 				},
 				{
 					kind: 'blank',
@@ -148,6 +163,8 @@
 	const FILL = 'background-color: #1c1c1c';
 	const BLOCKS = ['#ff3e00', '#4cc38a', '#f5a524', '#ff6166', '#52a8ff', '#a78bfa'];
 	const LONG = 'The quick brown fox jumps over the lazy dog and keeps running well past the edge of this box';
+	const RTL = 'سلام دنیا، مرحبا بالعالم';
+	const LONG_RTL = 'این یک متن فارسی است که از لبه‌ی این جعبه بلندتر است و باید در چند خط شکسته شود';
 
 	// Inline wins over a class, so the class case must not carry the base inline.
 	function sample_style(c: Case) {
@@ -187,6 +204,10 @@
 								{/each}
 							{:else if c.kind === 'lines'}
 								{LONG}
+							{:else if c.kind === 'rtl'}
+								{RTL}
+							{:else if c.kind === 'rtl-lines'}
+								{LONG_RTL}
 							{:else if c.kind !== 'blank'}
 								sample
 							{/if}

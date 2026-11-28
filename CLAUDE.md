@@ -1061,7 +1061,8 @@ that fails is dropped with a one-time warning per property. A trailing `!importa
 first. A few spellings are rewritten before the check: `Nrem` → `N × 16` (GPUI's rem size, which
 gpuix never changes), `overflow*: auto` → `scroll` (native matches only `scroll`/`hidden`),
 `max-content`/`min-content`/`fit-content(...)` → `auto` on dimension keys, `aspect-ratio: 16 / 9`
-→ a number, `scrollbar-color` → its first colour, and `'true'`/`'false'` → booleans on `BOOLEAN`
+→ a number, `scrollbar-color` → its first colour, `font-family` → the first family of its list,
+unquoted (GPUI matches one name exactly), and `'true'`/`'false'` → booleans on `BOOLEAN`
 keys. `em` stays dropped because it means the inherited font size, which the renderer cannot see,
 and `vh`/`vw` because a class rule is parsed at compile time and nothing re-resolves on resize.
 
@@ -1203,6 +1204,14 @@ user-facing rules; these are the ones that bite most often, and the renderer beh
   first read outside any effect owns its poll forever (`createSubscriber` semantics, as Svelte's
   `MediaQuery`). The host object resolves `get_native()` on every call, so a poll that outlives a
   remount follows the new native. `selected_text()` is event-driven over `on_selection_change`.
+- Fonts and right-to-left text (docs/guide.md "Other scripts and right-to-left text"):
+  `register_font` with no native yet queues in `window.ts`, and `render()` adds the queue right after
+  `set_native`, ahead of the first commit, because GPUI's cosmic-text backend (Linux, wasm) caches a
+  family lookup that found nothing and `add_fonts` never clears it (`test:fonts`, which runs on Linux
+  over a plain-object native). GPUI also refuses a font with no `m` glyph, and on Linux naming one
+  removes it from fallback. Shaping and in-line bidi are the platform's; GPUI's wrapping, caret and
+  selection geometry (`line_layout.rs`) and its DirectWrite glyph placement assume left to right,
+  and native 0.11 has no `direction` to map, so nothing here works around them.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component: the root
   becomes a column, the bar its first child, and the app mounts into a `position: relative` box below
   it that a given `rootStyle` styles (through a class rule, so the box's defaults merge under it), so
