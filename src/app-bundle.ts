@@ -410,7 +410,6 @@ export function pe_resources(exe: Buffer, type: number): PeResource[] {
 	);
 }
 
-/** The icon theme's sizes a built Linux app installs, and the smaller set its window hands X11 window managers. */
 export const LINUX_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256];
 export const X11_ICON_SIZES = [16, 24, 32, 48, 64, 128];
 

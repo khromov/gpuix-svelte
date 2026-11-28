@@ -155,11 +155,15 @@ A Linux executable carries no icon that the desktop reads, so the built app give
 when it starts:
 
 - It installs a desktop entry, `~/.local/share/applications/<identifier>.desktop`, and the icon at
-  each size under `~/.local/share/icons/hicolor` (`$XDG_DATA_HOME` in place of `~/.local/share` if
-  it is set). The entry is hidden from the app grid and names the window's app id as its
+  each size under `~/.local/share/icons/hicolor` (an absolute `$XDG_DATA_HOME` in place of
+  `~/.local/share`). Both are named after the window's app id, which is `identifier` unless
+  `render()` is given an `appId`. The entry is hidden from the app grid and names that id as its
   `StartupWMClass`, which is how GNOME and KDE find the icon for the dock, the window switcher and
   the overview. It is rewritten only when something in it changes, such as the executable moving;
   delete the files to remove it.
+- It leaves alone an entry of that name that a package installed (anywhere in `$XDG_DATA_DIRS`, such
+  as `/usr/share/applications`) or that someone else wrote in `~/.local/share/applications`, so a
+  `.deb` or `.rpm` that ships its own entry keeps it.
 - On GNOME that is the only way: GNOME 46 and later show no icon a window supplies itself. The
   first launch shows the generic icon for about five seconds, until GNOME rereads its list of apps;
   later launches have the icon at once.
@@ -168,7 +172,8 @@ when it starts:
 
 `build({ desktopEntry: false })` leaves the user's home alone; the window then keeps only its own
 icon under X11, and GNOME shows the generic one unless a package installs a desktop entry named
-after `identifier`. Under `npm start` none of this happens.
+after `identifier`. An `identifier` that can't name a file (anything but letters, digits, `.`, `-`
+and `_`) gets no entry either, and the build says so. Under `npm start` none of this happens.
 
 The file manager shows `dist/my-app` itself with the generic executable icon whatever the build
 does: Files and the others draw an executable by its file type, and read nothing inside it for an

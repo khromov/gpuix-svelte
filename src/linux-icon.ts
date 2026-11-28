@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import * as net from 'node:net';
 import type { Socket } from 'node:net';
 import { homedir, hostname } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 /** What gpuix-svelte/build embeds as `GPUIX_APP_ICON`, base64: the icon theme's PNGs by size, unless the build opted out of the desktop entry, and `_NET_WM_ICON`'s data. */
 export interface EmbeddedIcon {
@@ -20,7 +20,13 @@ export interface EmbeddedIcon {
 const TAG = '[gpuix-svelte]';
 
 /** A desktop file ID and icon name, which also keeps the paths built from it inside their directories. */
-const APP_ID = /^[A-Za-z0-9][\w.-]*$/;
+export const APP_ID = /^[A-Za-z0-9][\w.-]*$/;
+
+/** The line that marks an entry as written by the app, the only kind it rewrites. */
+const OWN = 'X-Gpuix-Svelte=true';
+
+const WM_CLASS = 67;
+const STRING = 31;
 
 /**
  * Writes the desktop entry, which has to be in place before the window opens for GNOME to match it at once,
@@ -29,16 +35,16 @@ const APP_ID = /^[A-Za-z0-9][\w.-]*$/;
 export function linux_icon(app_id: string | undefined, name: string): (() => void) | null {
 	// Spelled out so gpuix-svelte/build's define replaces it.
 	const raw = typeof process === 'undefined' ? undefined : process.env.GPUIX_APP_ICON;
-	if (!raw || process.platform !== 'linux' || !app_id || !APP_ID.test(app_id)) return null;
+	if (!raw || process.platform !== 'linux' || !app_id || (!process.env.WAYLAND_DISPLAY && !process.env.DISPLAY)) return null;
 	let icon: EmbeddedIcon;
 	try {
 		icon = JSON.parse(raw) as EmbeddedIcon;
 	} catch {
 		return null;
 	}
-	if (icon.png) {
+	if (icon.png && APP_ID.test(app_id)) {
 		try {
-			install_desktop_entry(data_home(), app_id, name, process.execPath, icon.png);
+			install_desktop_entry(data_home(), data_dirs(), app_id, name, process.execPath, icon.png);
 		} catch (error) {
 			console.error(`${TAG} could not install the desktop entry that gives the window its icon:`, (error as Error).message);
 		}
@@ -46,13 +52,23 @@ export function linux_icon(app_id: string | undefined, name: string): (() => voi
 	// gpui takes Wayland whenever WAYLAND_DISPLAY is set, and X11 only otherwise.
 	if (process.env.WAYLAND_DISPLAY || !icon.x11) return null;
 	return () => {
-		set_x11_icon(Buffer.from(icon.x11, 'base64'), process.pid).catch((error: Error) => console.error(`${TAG} could not set the window icon:`, error.message));
+		set_x11_icon(Buffer.from(icon.x11, 'base64'), process.pid, app_id).then(
+			(count) => {
+				if (count === 0) console.error(`${TAG} found no window of ${app_id} to set its icon on`);
+			},
+			(error: Error) => console.error(`${TAG} could not set the window icon:`, error.message)
+		);
 	};
 }
 
 export function data_home(env: Record<string, string | undefined> = process.env): string {
 	const xdg = env.XDG_DATA_HOME;
 	return xdg && isAbsolute(xdg) ? xdg : join(homedir(), '.local', 'share');
+}
+
+/** Where packages install desktop entries. */
+export function data_dirs(env: Record<string, string | undefined> = process.env): string[] {
+	return (env.XDG_DATA_DIRS || '/usr/local/share:/usr/share').split(':').filter((dir) => isAbsolute(dir));
 }
 
 /** Hidden from the app grid, since running the app is not installing it; GNOME and KDE match the window to it by `StartupWMClass`. */
@@ -67,6 +83,7 @@ export function desktop_entry(app_id: string, name: string, executable: string):
 		`StartupWMClass=${app_id}`,
 		'NoDisplay=true',
 		'Terminal=false',
+		OWN,
 		''
 	].join('\n');
 }
@@ -81,10 +98,16 @@ function exec_argument(path: string): string {
 	return quoted.replaceAll('%', '%%');
 }
 
-/** Writes only what is missing or changed, the icons before the entry, each through a rename so nothing reads half a file. */
-export function install_desktop_entry(home: string, app_id: string, name: string, executable: string, png: Record<string, string>): number {
+/**
+ * Writes only what is missing or changed, the icons before the entry, each through a rename so nothing reads half a file.
+ * An entry a package installed in `dirs`, or one in `home` the app did not write, is left alone: ours would hide or replace it.
+ */
+export function install_desktop_entry(home: string, dirs: string[], app_id: string, name: string, executable: string, png: Record<string, string>): number {
+	const entry = join(home, 'applications', `${app_id}.desktop`);
+	if (dirs.some((dir) => resolve(dir) !== resolve(home) && existsSync(join(dir, 'applications', `${app_id}.desktop`)))) return 0;
+	if (existsSync(entry) && !readFileSync(entry, 'utf8').split('\n').includes(OWN)) return 0;
 	const files: Array<[string, Buffer]> = Object.entries(png).map(([size, data]) => [join(home, 'icons', 'hicolor', `${size}x${size}`, 'apps', `${app_id}.png`), Buffer.from(data, 'base64')]);
-	files.push([join(home, 'applications', `${app_id}.desktop`), Buffer.from(desktop_entry(app_id, name, executable))]);
+	files.push([entry, Buffer.from(desktop_entry(app_id, name, executable))]);
 	let written = 0;
 	for (const [path, bytes] of files) {
 		if (existsSync(path) && readFileSync(path).equals(bytes)) continue;
@@ -135,19 +158,29 @@ export async function open_display(env: Record<string, string | undefined> = pro
 	} catch {
 		// No Xauthority file: a server that trusts local users takes the connection without one.
 	}
-	return X11.open(`/tmp/.X11-unix/X${display}`, auth);
+	const path = `/tmp/.X11-unix/X${display}`;
+	// A container without /tmp/.X11-unix still reaches the server through its abstract socket.
+	return X11.open(path, auth).catch((error: NodeJS.ErrnoException) =>
+		error.code === 'ENOENT' || error.code === 'ECONNREFUSED' ? X11.open(`\0${path}`, auth) : Promise.reject(error)
+	);
 }
 
-/** Sets the icon on every top-level window of `pid`, speaking the X11 protocol itself so no runtime needs FFI; resolves to how many. */
-export async function set_x11_icon(icon: Buffer, pid: number, env: Record<string, string | undefined> = process.env): Promise<number> {
+/**
+ * Sets the icon on this app's windows, speaking the X11 protocol itself so no runtime needs FFI; resolves to how many,
+ * or null where DISPLAY is not a local display.
+ */
+export async function set_x11_icon(icon: Buffer, pid: number, app_id: string, env: Record<string, string | undefined> = process.env): Promise<number | null> {
 	const x = await open_display(env);
-	if (!x) return 0;
+	if (!x) return null;
 	try {
 		const [pid_atom, icon_atom] = await Promise.all([x.atom('_NET_WM_PID'), x.atom('_NET_WM_ICON')]);
 		let windows: number[] = [];
 		for (let attempt = 0; attempt < 10 && windows.length === 0; attempt++) {
 			if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 100));
-			windows = await x.windows_of(pid_atom, pid);
+			const candidates = await x.windows_of(pid_atom, pid);
+			// PIDs repeat across PID namespaces (two Flatpak apps are both 2), so the window's class has to be ours too.
+			const classes = await Promise.all(candidates.map((window) => x.property(window, WM_CLASS, STRING, 256)));
+			windows = candidates.filter((_, i) => classes[i]?.data.toString('latin1').split('\0')[0] === app_id);
 		}
 		for (const window of windows) x.change_property(window, icon_atom, CARDINAL, icon);
 		// Closing before the server has read the requests can lose them.
@@ -216,7 +249,7 @@ export class X11 {
 		});
 		if (reply[0] !== 1) {
 			x.close();
-			throw new Error(`the X server refused the connection: ${reply.toString('latin1', 8, 8 + (reply[0] === 0 ? reply[1] : reply.length)).trim()}`);
+			throw new Error(`the X server refused the connection: ${reply.toString('latin1', 8, 8 + (reply[0] === 0 ? reply[1] : reply.length)).replace(/\0+$/, '').trim()}`);
 		}
 		x.max_request = reply.readUInt16LE(26) * 4;
 		x.root = reply.readUInt32LE(40 + pad(reply.readUInt16LE(24)) + 8 * reply[29]);

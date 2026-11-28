@@ -12,6 +12,7 @@ test/.bundle-tmp
 test/.dom-tmp
 test/.ui-tmp
 test/.linked-tmp
+test/.linux-icon-tmp
 
 # compiled on demand by examples/liquid-glass-ffi/glass.ts
 examples/liquid-glass-ffi/.glass-shim.dylib

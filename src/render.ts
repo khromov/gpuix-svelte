@@ -272,12 +272,12 @@ export function window_options_for(options: WindowOptions, app: AppOptions | und
 	if (merged.title == null && app?.name) merged.title = app.name;
 	// Native takes the "Hide" and "Quit" menu items' name from the title otherwise.
 	if (merged.appName == null && app?.name) merged.appName = app.name;
-	const identifier = app?.identifier ?? built?.identifier;
+	// `||`, as the build reads it: an empty identifier there becomes `local.<slug>`.
+	const identifier = app?.identifier || built?.identifier;
 	if (merged.appId == null && identifier) merged.appId = identifier;
 	return merged;
 }
 
-/** What gpuix-svelte/build embedded; null in a dev run. */
 function built_app(): EmbeddedAppInfo | null {
 	// Spelled out so the build's define replaces it.
 	const raw = typeof process === 'undefined' ? undefined : process.env.GPUIX_APP_INFO;
@@ -334,7 +334,9 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 			handle_event(event, onEvent);
 		});
 
-		const set_icon = built ? linux_icon(window_options.appId, built.name) : null;
+		// Terminal mode draws into the terminal and opens no window to give an icon.
+		const terminal = window_options.terminal ?? env('GPUIX_TERMINAL') === '1';
+		const set_icon = built && !terminal ? linux_icon(window_options.appId, built.name) : null;
 		slot.native.init(window_options);
 		set_icon?.();
 		// Spelled out, not read through env() or a local const, so build()'s define folds the branch and its import away.

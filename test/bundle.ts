@@ -31,7 +31,7 @@ import {
 	X11_ICON_SIZES,
 	type AppInfo
 } from '../src/app-bundle.ts';
-import { data_home, desktop_entry, install_desktop_entry, linux_icon, x11_cookie } from '../src/linux-icon.ts';
+import { data_dirs, data_home, desktop_entry, install_desktop_entry, linux_icon, x11_cookie } from '../src/linux-icon.ts';
 import { window_options_for } from '../src/render.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -247,15 +247,16 @@ check(
 	[
 		window_options_for({}, { name: 'N' }, { identifier: 'local.n' }),
 		window_options_for({}, { identifier: 'com.x.y' }, { identifier: 'local.n' }).appId,
-		window_options_for({ appId: 'a.b' }, undefined, { identifier: 'local.n' }).appId
+		window_options_for({ appId: 'a.b' }, undefined, { identifier: 'local.n' }).appId,
+		window_options_for({}, { identifier: '' }, { identifier: 'local.n' }).appId
 	],
-	[{ title: 'N', appName: 'N', appId: 'local.n' }, 'com.x.y', 'a.b']
+	[{ title: 'N', appName: 'N', appId: 'local.n' }, 'com.x.y', 'a.b', 'local.n']
 );
 
 // The reference is PIL's decode of the same file.
 const decoded = decode_png(readFileSync(DEFAULT_ICON));
 check(
-	'decode_png reads the default icon, whose rows use every filter type, as PIL does',
+	'decode_png reads the default icon, whose rows use the Sub, Up, Average and Paeth filters, as PIL does',
 	[decoded.width, decoded.height, createHash('sha256').update(decoded.data).digest('hex')],
 	[1024, 1024, 'b8c755b18946619ab57c4b768a0bf40fefbffcac9561203433886f523c971f13']
 );
@@ -292,6 +293,7 @@ check(
 		'StartupWMClass=com.x.y',
 		'NoDisplay=true',
 		'Terminal=false',
+		'X-Gpuix-Svelte=true',
 		''
 	].join('\n')
 );
@@ -307,9 +309,9 @@ const theme = Object.fromEntries(LINUX_ICON_SIZES.map((size) => [size, Buffer.fr
 check(
 	'the desktop entry and icons are written once, and again only when something in them changed',
 	[
-		install_desktop_entry(data, 'com.x.y', 'My App', '/opt/a', theme),
-		install_desktop_entry(data, 'com.x.y', 'My App', '/opt/a', theme),
-		install_desktop_entry(data, 'com.x.y', 'My App', '/opt/b', theme)
+		install_desktop_entry(data, [], 'com.x.y', 'My App', '/opt/a', theme),
+		install_desktop_entry(data, [], 'com.x.y', 'My App', '/opt/a', theme),
+		install_desktop_entry(data, [], 'com.x.y', 'My App', '/opt/b', theme)
 	],
 	[LINUX_ICON_SIZES.length + 1, 0, 1]
 );
@@ -318,7 +320,28 @@ check(
 	[readFileSync(join(data, 'icons', 'hicolor', '16x16', 'apps', 'com.x.y.png'), 'utf8'), readFileSync(join(data, 'applications', 'com.x.y.desktop'), 'utf8')],
 	['png 16', desktop_entry('com.x.y', 'My App', '/opt/b')]
 );
-check('XDG_DATA_HOME is used only when absolute', [data_home({ XDG_DATA_HOME: '/x/data' }), data_home({ XDG_DATA_HOME: 'data' })], ['/x/data', join(homedir(), '.local', 'share')]);
+const packaged = join(scratch, 'usr-share');
+mkdirSync(join(packaged, 'applications'), { recursive: true });
+writeFileSync(join(packaged, 'applications', 'com.x.y.desktop'), '[Desktop Entry]\n');
+const by_hand = join(scratch, 'by-hand');
+mkdirSync(join(by_hand, 'applications'), { recursive: true });
+writeFileSync(join(by_hand, 'applications', 'com.x.y.desktop'), '[Desktop Entry]\nName=Mine\n');
+check(
+	"a package's entry, or one the user wrote, is left alone, while the data home listed as a data dir is still ours",
+	[
+		install_desktop_entry(join(scratch, 'fresh'), [packaged], 'com.x.y', 'My App', '/opt/a', theme),
+		existsSync(join(scratch, 'fresh', 'applications')),
+		install_desktop_entry(by_hand, [], 'com.x.y', 'My App', '/opt/a', theme),
+		readFileSync(join(by_hand, 'applications', 'com.x.y.desktop'), 'utf8'),
+		install_desktop_entry(data, [data], 'com.x.y', 'My App', '/opt/c', theme)
+	],
+	[0, false, 0, '[Desktop Entry]\nName=Mine\n', 1]
+);
+check(
+	'XDG_DATA_HOME and XDG_DATA_DIRS count only when absolute, and the data dirs default to /usr/local/share and /usr/share',
+	[data_home({ XDG_DATA_HOME: '/x/data' }), data_home({ XDG_DATA_HOME: 'data' }), data_dirs({ XDG_DATA_DIRS: '/a:b:/c' }), data_dirs({})],
+	['/x/data', join(homedir(), '.local', 'share'), ['/a', '/c'], ['/usr/local/share', '/usr/share']]
+);
 check('a dev run, with no icon built in, installs nothing', linux_icon('com.x.y', 'My App'), null);
 
 const xauth = (family: number, address: string, display: string, kind: string, cookie: string) => {
@@ -349,4 +372,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 52 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 53 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));

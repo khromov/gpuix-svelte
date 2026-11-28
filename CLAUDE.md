@@ -352,11 +352,16 @@ Per platform:
   matches). So `embedded_linux_icon` in `build.ts` cuts `LINUX_ICON_SIZES` with `Bun.Image` (Linux has no
   `resize_png` scaler), decodes `X11_ICON_SIZES` of them with `decode_png` (only Bun.Image's own
   output, 8-bit RGBA, not interlaced) into `net_wm_icon`'s CARDINALs, and defines both as
-  `GPUIX_APP_ICON`. At launch `src/linux-icon.ts`, before `init()`, writes
-  `$XDG_DATA_HOME/applications/<appId>.desktop` (`NoDisplay`, `StartupWMClass`, `Exec`/`TryExec` the
-  running executable) and the hicolor PNGs, each only when its bytes differ; then, when gpui took X11
-  (`WAYLAND_DISPLAY` empty), sets `_NET_WM_ICON` on every window whose `_NET_WM_PID` is ours, over a
-  raw X11 socket (`X11`, Xauthority cookie as Xlib picks it), since Node 24 has no FFI. GNOME rereads
+  `GPUIX_APP_ICON`. At launch (not in terminal mode, and only with a display) `src/linux-icon.ts`,
+  before `init()`, writes `$XDG_DATA_HOME/applications/<appId>.desktop` (`NoDisplay`,
+  `StartupWMClass`, `Exec`/`TryExec` the running executable, and the `X-Gpuix-Svelte=true` marker)
+  and the hicolor PNGs, each only when its bytes differ. It writes nothing when `$XDG_DATA_DIRS` has an
+  entry of that name (a package's, which ours would shadow and hide from the grid) or the user's dir
+  has one without the marker. Then, when gpui took X11 (`WAYLAND_DISPLAY` empty), it sets
+  `_NET_WM_ICON` on every window whose `_NET_WM_PID` is ours and whose `WM_CLASS` is the app id (PIDs
+  repeat across namespaces), over a raw X11 socket (`X11`, Xauthority cookie as Xlib picks it; the
+  abstract socket when the file is missing), since Node 24 has no FFI, and warns if it found none. The
+  build warns about an `identifier` `APP_ID` rejects, which gets no entry but keeps the X11 icon. GNOME rereads
   its app cache about 5 s after a `.desktop` file appears and then re-matches open windows, so the first
   launch shows the cog that long and later ones match at once (checked in a private
   `gnome-shell --headless` session on both Wayland and Xwayland). `build({ desktopEntry: false })`

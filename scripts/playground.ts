@@ -23,8 +23,11 @@ const NATIVE = '\0gpuix-native-wasm';
 
 // render.ts imports these for code no browser reaches; Bun's browser build stubs them silently, Vite warns per import.
 const NODE_STUBS: Record<string, string> = {
-	'node:fs': 'export const writeFileSync = undefined;',
-	'node:child_process': 'export const execFile = undefined;'
+	'node:fs': 'export const existsSync = undefined, mkdirSync = undefined, readFileSync = undefined, renameSync = undefined, writeFileSync = undefined;',
+	'node:child_process': 'export const execFile = undefined;',
+	'node:net': 'export const connect = undefined;',
+	'node:os': 'export const homedir = undefined, hostname = undefined;',
+	'node:path': 'export const dirname = undefined, isAbsolute = undefined, join = undefined, resolve = undefined;'
 };
 const STUB = '\0gpuix-node-stub:';
 

@@ -1,11 +1,12 @@
 /**
  * Not part of `npm test`: Linux and Bun only, and it opens a window on the X11 display in DISPLAY (CI runs it
- * under xvfb-run). Builds tic-tac-toe, starts the executable with an empty XDG_DATA_HOME, and reads back the
- * desktop entry and icons it installed and the `_NET_WM_ICON` it set on its window.
+ * under xvfb-run). Builds an entry that declares no identifier, starts the executable with an empty
+ * XDG_DATA_HOME, and reads back the app id its window got, the desktop entry and icons it installed, and the
+ * `_NET_WM_ICON` it set on its window.
  */
 
-import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,16 +19,25 @@ if (process.platform !== 'linux' || !process.versions.bun || !process.env.DISPLA
 	process.exit(0);
 }
 
+let child: ChildProcess | null = null;
+process.on('exit', () => child?.kill());
 setTimeout(() => {
 	console.error('linux-icon: no verdict after 120 s');
 	process.exit(1);
 }, 120_000).unref();
 
+// Inside the repo, so `gpuix-svelte` resolves from the entry as the build requires.
+const entry_dir = fileURLToPath(new URL('.linux-icon-tmp', import.meta.url));
+rmSync(entry_dir, { recursive: true, force: true });
+mkdirSync(entry_dir);
+const entry = join(entry_dir, 'standalone.ts');
+writeFileSync(entry, `import { render } from 'gpuix-svelte';\nimport Counter from '../../examples/counter/Counter.svelte';\n\nrender(Counter, { title: 'Icon test' });\n`);
+
 const { build } = await import('../src/build.ts');
 const scratch = mkdtempSync(join(tmpdir(), 'gpuix-svelte-linux-icon-'));
 const data = join(scratch, 'data');
-const { binary, app } = await build({ entry: fileURLToPath(new URL('../examples/tic-tac-toe/standalone.ts', import.meta.url)), outdir: join(scratch, 'dist') });
-const child = spawn(binary, [], { env: { ...process.env, WAYLAND_DISPLAY: '', XDG_DATA_HOME: data }, stdio: 'inherit' });
+const { binary, app } = await build({ entry, outdir: join(scratch, 'dist') });
+child = spawn(binary, [], { env: { ...process.env, WAYLAND_DISPLAY: '', XDG_DATA_HOME: data }, stdio: 'inherit' });
 
 const x = await open_display();
 if (!x) throw new Error(`linux-icon: DISPLAY=${process.env.DISPLAY} is not a local display`);
@@ -47,7 +57,11 @@ x.close();
 child.kill();
 
 const theme = LINUX_ICON_SIZES.map((size) => readFileSync(join(data, 'icons', 'hicolor', `${size}x${size}`, 'apps', `${app.identifier}.png`)));
-check('the window has the identifier as its WM_CLASS, which the desktop entry names', wm_class, `${app.identifier}\0${app.identifier}\0`);
+check(
+	"with no identifier in the entry, the window's WM_CLASS is the build's local.<slug>",
+	[app.identifier, wm_class],
+	['local.icon-test', 'local.icon-test\0local.icon-test\0']
+);
 check(
 	'the executable installed a desktop entry naming itself',
 	readFileSync(join(data, 'applications', `${app.identifier}.desktop`), 'utf8'),
@@ -65,4 +79,5 @@ check(
 );
 
 rmSync(scratch, { recursive: true, force: true });
+rmSync(entry_dir, { recursive: true, force: true });
 finish('linux-icon', 4);

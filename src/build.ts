@@ -37,7 +37,7 @@ import {
 	type EntryApp,
 	type IconImage
 } from './app-bundle.ts';
-import type { EmbeddedIcon } from './linux-icon.ts';
+import { APP_ID, type EmbeddedIcon } from './linux-icon.ts';
 
 import { is_version } from './update.ts';
 
@@ -157,6 +157,9 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		icons = windows_icons(app.icon, scratch);
 	}
 	const linux = process.platform === 'linux' ? await embedded_linux_icon(app.icon, options.desktopEntry !== false) : null;
+	if (linux?.png && !APP_ID.test(app.identifier)) {
+		log(`identifier "${app.identifier}" cannot name a desktop entry (letters, digits, ".", "-" and "_"), so the app installs none and GNOME shows it without an icon`);
+	}
 
 	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
 	const addon = flags.length > 0 ? native_addon() : null;
