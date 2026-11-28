@@ -351,7 +351,8 @@ joins Arabic and Persian letters, orders a right-to-left run inside its line, an
 character the font in use lacks from another font that has it. Which fonts a window can fall back
 to decides whether it draws a script at all:
 
-- On macOS and Windows, the system's own fonts, which cover Arabic and Persian.
+- On macOS and Windows, the system's own fonts, which cover Arabic and Persian, so neither needs a
+  font registered.
 - On Linux, any installed font that covers the script (DejaVu Sans, Noto Sans Arabic, Vazirmatn
   and so on). With none, every letter is an empty box.
 - In a browser canvas ([Run it in a browser](shipping.md#run-it-in-a-browser), and the
@@ -394,7 +395,8 @@ list, unquoted: Vazirmatn here, with `sans-serif` left for a browser. Two things
 
 - On Linux a family is looked up once and a miss is kept, so a font registered after text has
   asked for its family never reaches that text. Registering before `render()` adds it ahead of the
-  first frame.
+  first frame. Windows looks the family up again, so there a font registered later still reaches
+  text on its next frame.
 - GPUI measures text with the letter `m` and refuses a font that has none. `register_font` throws
   for an Arabic-only font such as Noto Sans Arabic, and naming an installed one in `font-family`
   takes it out of Linux's fallback as well, leaving boxes. Leave such a font to fallback, or use one
@@ -402,7 +404,7 @@ list, unquoted: Vazirmatn here, with `sans-serif` left for a browser. Two things
 
 Right-to-left layout is where GPUI itself falls short
 ([zed#31102](https://github.com/zed-industries/zed/issues/31102)), and this package works around
-only the wrapping:
+the wrapping, and Windows' mirroring, in [`RtlText`](components.md#rtltext):
 
 - There is no base direction to set. `direction: rtl` is dropped and elements have no `dir`. On
   macOS and Linux a line takes its direction from its first letter, but it still starts at the left
@@ -413,11 +415,13 @@ only the wrapping:
   or cut it to one line with `white-space: nowrap` and `text-overflow: ellipsis`.
 - On Linux, a line that opens with a number and goes on in right-to-left text loses the number. A
   right-to-left mark (U+200F) in front keeps it, and `RtlText` puts one there.
-- On Windows, GPUI places the letters DirectWrite shaped for a right-to-left run from left to
-  right, so Arabic and Persian come out mirrored, with their letters apart.
+- On Windows, GPUI draws every right-to-left run from left to right in the order it was typed, so
+  Arabic, Persian and Hebrew come out mirrored and Arabic and Persian letters come apart, whatever
+  the font. `RtlText` hands it each line already in display order, so use it there for any
+  right-to-left text, a single line too.
 - In an `<input>`, a `<textarea>` and a text selection, the caret and the highlight are placed as
   if the text ran left to right, so over right-to-left text they land on the wrong letters or show
-  nothing.
+  nothing. On Windows, where the text itself runs left to right, they match the mirrored letters.
 
 In the DOM build the browser does all of this, `direction: rtl` included.
 

@@ -70,7 +70,7 @@ work for class rules, which are translated the same way.
 - `transform`, `transition`, `z-index`, `letter-spacing` and `font-style` are ignored, mostly
   without a warning.
 - `direction` is ignored, and so is a `dir` attribute: on macOS and Linux a line runs in the
-  direction of its first letter and starts at the left of its box. [Other scripts and right-to-left
+  direction of its first letter, on Windows left to right, and it starts at the left of its box. [Other scripts and right-to-left
   text](guide.md#other-scripts-and-right-to-left-text) covers fonts and what GPUI can't lay out yet.
 - Only text properties inherit from a parent (colour, font, `line-height`, `text-align`,
   `white-space`, `text-overflow`, `line-clamp`, `text-decoration`), plus `user-select`,

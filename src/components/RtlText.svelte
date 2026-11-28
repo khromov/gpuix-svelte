@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { rtl_line, rtl_lines, rtl_words, type GpuixEvent } from 'gpuix-svelte';
+	import { rtl_display, rtl_line, rtl_lines, rtl_words, type GpuixEvent } from 'gpuix-svelte';
 
 	let {
 		text,
@@ -36,13 +36,15 @@
 <div class="rtl" {style}>
 	<div class="lines" onlayout={(e: GpuixEvent) => (width = e.width ?? 0)}>
 		{#each lines as line, at (at)}
-			<text class="line">{line}</text>
+			{@const shown = rtl_display(line)}
+			<!-- On Windows the drawn string is in display order, which a screen reader would read backwards. -->
+			<text class="line" aria-label={shown === line ? undefined : line}>{shown}</text>
 		{/each}
 	</div>
 	<div class="measure">
-		<text class="word" role="none" onlayout={(e: GpuixEvent) => (whole = e.width ?? 0)}>{rtl_line(words)}</text>
+		<text class="word" role="none" onlayout={(e: GpuixEvent) => (whole = e.width ?? 0)}>{rtl_display(rtl_line(words))}</text>
 		{#each unique as word (word)}
-			<text class="word" role="none" onlayout={(e: GpuixEvent) => (sizes[word] = (e.width ?? 0) / COPIES)}>{rtl_line([Array(COPIES).fill(word).join('\u200C')])}</text>
+			<text class="word" role="none" onlayout={(e: GpuixEvent) => (sizes[word] = (e.width ?? 0) / COPIES)}>{rtl_display(rtl_line([Array(COPIES).fill(word).join('\u200C')]))}</text>
 		{/each}
 	</div>
 </div>

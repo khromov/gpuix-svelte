@@ -3,12 +3,15 @@
  * component, whose words GPUI measures.
  */
 
-import { rtl_line, rtl_lines, rtl_words } from 'gpuix-svelte';
+import { rtl_display, rtl_line, rtl_lines, rtl_words } from 'gpuix-svelte';
 import { check, finish } from 'gpuix-svelte/test';
 
 const ZWNJ = String.fromCodePoint(0x200c);
 const NBSP = String.fromCodePoint(0xa0);
 const RLM = String.fromCodePoint(0x200f);
+const LRO = String.fromCodePoint(0x202d);
+const PDF = String.fromCodePoint(0x202c);
+const u = (...points: number[]) => String.fromCodePoint(...points);
 
 check(
 	'words split at spaces, tabs and line breaks, as under white-space: normal, and a ZWNJ or a no-break space stays inside its word',
@@ -28,4 +31,35 @@ check(
 );
 check('each line is marked on its own', rtl_lines(['سلام', 'gpuix', 'svelte'], [30, 40, 40], 120, 75), ['سلام gpuix', `${RLM}svelte`]);
 
-finish('rtl', 6);
+const platform = process.platform;
+const pretend = (name: string) => Object.defineProperty(process, 'platform', { value: name, configurable: true });
+
+pretend('darwin');
+check('off Windows a line is drawn as written', rtl_display('سلام دنیا'), 'سلام دنیا');
+
+pretend('win32');
+check(
+	'on Windows a line is drawn in display order, each letter in the joined form it takes, inside a left-to-right override',
+	rtl_display('سلام دنیا'),
+	`${LRO}${u(0xfe8e, 0xfbff, 0xfee7, 0xfea9, 0x20, 0xfee1, 0xfefc, 0xfeb3)}${PDF}`
+);
+check(
+	'a number and a Latin word keep their own order, and brackets are mirrored',
+	[rtl_display('نسخه 2.5'), rtl_display('(با npm)')],
+	[`${LRO}2.5 ${u(0xfeea, 0xfea8, 0xfeb4, 0xfee7)}${PDF}`, `${LRO}(npm ${u(0xfe8e, 0xfe91)})${PDF}`]
+);
+check(
+	"a letter's vowel mark stays after it, and an emoji stays whole",
+	[rtl_display('بِل'), rtl_display('سلام 👋')],
+	[`${LRO}${u(0xfede, 0xfe91, 0x650)}${PDF}`, `${LRO}👋 ${u(0xfee1, 0xfefc, 0xfeb3)}${PDF}`]
+);
+check(
+	'a lam the reversal puts before a joined alef is kept from ligating with it, and a real lam-alef stays one ligature',
+	[rtl_display('بال'), rtl_display('لا')],
+	[`${LRO}${u(0xfedd, 0x200c, 0xfe8e, 0xfe91)}${PDF}`, `${LRO}${u(0xfefb)}${PDF}`]
+);
+check('a lam-alef with a mark between them is the ligature, the mark after it', rtl_display('بلَا'), `${LRO}${u(0xfefc, 0x64e, 0xfe91)}${PDF}`);
+check('a ZWNJ keeps the letters either side apart and is then dropped', rtl_display(`ب${ZWNJ}ب`), `${LRO}${u(0xfe8f, 0xfe8f)}${PDF}`);
+pretend(platform);
+
+finish('rtl', 13);

@@ -435,11 +435,16 @@ and it breaks them again when its width, its text or its font changes. Every lin
 right-to-left order, one that opens with a Latin word or a number too: such a line gets a
 right-to-left mark (U+200F) in front.
 
+On Windows GPUI draws a right-to-left run mirrored, so there `RtlText` hands it each line already
+in display order, with Arabic and Persian letters swapped for the joined forms Unicode has for them
+(Arabic Presentation Forms), and gives a screen reader the line as written through `aria-label`.
+The font has to carry those forms; Segoe UI, Tahoma, Arial and Vazirmatn do. Copying a line there
+gives the display order, not the text you passed.
+
 What it does not fix:
 
 - Inside a line, the caret and the selection highlight still assume left to right, and the text
   can't be edited: an `<input>` or `<textarea>` has GPUI's caret problem as before.
-- On Windows, GPUI still places each line's letters from left to right, mirrored.
 - The whole paragraph reads right to left. A line break in `text` is a space, as in HTML.
 - A screen reader hears it a line at a time.
 - Each word is laid out again out of sight to be measured, several times over, so it suits

@@ -767,6 +767,7 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   window.ts    window, picker, focus, image, overlay helpers ─ no-op where native lacks the method
   search.ts    TextSearch, find_ranges ─ createSubscriber, so no runes in src/
   rtl.ts       RtlText's line breaking (rtl_words, rtl_line, rtl_lines) ─ exported by both builds
+  rtl-display.ts  rtl_display, a line in display order for Windows ─ its own Arabic shaping over bidi-js; dom.ts has an identity
   components/  Scroller, Portal, Tooltip, Popover, RtlText .svelte ─ `gpuix-svelte/components/*`
   components/dom/  their DOM versions, plus Anchored.svelte ─ the same specifier without `svelte-custom-renderer`
 ```
@@ -1125,7 +1126,26 @@ adding there.
   does not open with a right-to-left letter, because GPUI takes a line's direction from its first
   letter and on Linux drops a number that opens a right-to-left line. The measuring texts carry
   `role="none"` and `user-select: none`, so screen readers and copying skip them. `test:rtl` (Linux
-  too) covers `src/rtl.ts`, `test:rtl-text` the mounted component.
+  too) covers `src/rtl.ts` and `rtl_display`, `test:rtl-text` the mounted component.
+
+  On Windows every line and measured text goes through `rtl_display` (`src/rtl-display.ts`), since
+  GPUI's `DrawGlyphRun` ignores `bidiLevel` and lays a right-to-left run out in typed order:
+  `shape()` swaps each Arabic letter for its presentation form (the table is UnicodeData.txt's
+  `<isolated>`/`<final>`/`<initial>`/`<medial>` decompositions, frozen by Unicode; a letter with no
+  forms passes through unjoined), `bidi-js` reorders with base `rtl` and mirrors brackets (its
+  `getMirroredCharactersMap` takes `levels.levels`, not the result object), grapheme clusters move
+  whole so marks stay after their letter and surrogates stay paired, ZWNJs are dropped once
+  applied (a cluster carries one to the wrong side, and one next to a vowel mark drew as a bar),
+  and LRO…PDF keeps DirectWrite from reordering again. DirectWrite still ligates a lam the reversal
+  put directly before a joined alef, so a ZWNJ goes between those two only; a mark between them
+  stops the ligature already. npm's `arabic-persian-reshaper` was tried first and dropped: it has
+  no types, which the UI package's lib emit (the root's `src` without its `types/`) and a linked
+  consumer can't do without, and it doubles the alef of a lam, mark, alef. `bidi-js`'s types
+  describe an ES default export while Node loads its CommonJS main, whose export is the factory
+  itself, hence the one cast. The drawn line carries `aria-label` with the logical line, which
+  native exposes as the label beside the drawn value. It was checked against GDI's
+  `TextRenderer.DrawText` of the same strings, in Segoe UI and Vazirmatn; vowel marks in a line that
+  also has a bare lam before a joined alef are untested.
 
 ### Regenerating the styling reference
 
@@ -1224,7 +1244,11 @@ user-facing rules; these are the ones that bite most often, and the renderer beh
   over a plain-object native). GPUI also refuses a font with no `m` glyph, and on Linux naming one
   removes it from fallback. Shaping and in-line bidi are the platform's; GPUI's wrapping, caret and
   selection geometry (`line_layout.rs`) and its DirectWrite glyph placement assume left to right,
-  and native 0.11 has no `direction` to map; `RtlText` works around the wrapping alone.
+  and native 0.11 has no `direction` to map; `RtlText` works around the wrapping, and on Windows
+  the placement. On Windows a late `register_font` lands (DirectWrite caches no miss), and since a
+  run is drawn in typed order, the caret and selection match it. Judge direction in a screenshot
+  by a string whose gap gives it away (`אבגדה ו` renders right with the lone letter on the left),
+  since mirrored text is easy to misread as right.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component: the root
   becomes a column, the bar its first child, and the app mounts into a `position: relative` box below
   it that a given `rootStyle` styles (through a class rule, so the box's defaults merge under it), so

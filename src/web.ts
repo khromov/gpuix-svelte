@@ -53,6 +53,7 @@ export {
 export { isTerminal as is_terminal } from '@gpuix/native';
 export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
 export { rtl_words, rtl_line, rtl_lines } from './rtl.ts';
+export { rtl_display } from './rtl-display.ts';
 export type {
 	ShadowNode,
 	ShadowAttrs,
