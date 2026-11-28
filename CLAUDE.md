@@ -766,7 +766,8 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   titlebar.ts  render's `titlebar` option: a static bar above the app root (GNOME Wayland draws none)
   window.ts    window, picker, focus, image, overlay helpers ─ no-op where native lacks the method
   search.ts    TextSearch, find_ranges ─ createSubscriber, so no runes in src/
-  components/  Scroller, Portal, Tooltip, Popover .svelte ─ `gpuix-svelte/components/*`
+  rtl.ts       RtlText's line breaking (rtl_words, rtl_line, rtl_lines) ─ exported by both builds
+  components/  Scroller, Portal, Tooltip, Popover, RtlText .svelte ─ `gpuix-svelte/components/*`
   components/dom/  their DOM versions, plus Anchored.svelte ─ the same specifier without `svelte-custom-renderer`
 ```
 
@@ -1114,6 +1115,18 @@ adding there.
   (`style="--tooltip-surface: #fff"`), since a style prop or a variable declared around the trigger
   reaches the layer on GPUI but not in the DOM, where it hangs off `<body>`.
 
+- **`RtlText`** breaks a right-to-left paragraph into lines itself, since GPUI finds wrap points
+  over glyphs in visual order; native 0.11 maps no `row-reverse` or `order`, so a wrapping row of
+  words can't fill from the right. A 0×0 `overflow: hidden` layer lays out the whole line and each
+  word eight times over, joined by ZWNJs (taffy rounds boxes to whole pixels, and one copy let lines
+  overshoot by 2 px); `visibility: hidden` would paint nothing and so report no `onlayout`.
+  `rtl_lines` breaks greedily, and each line is a `white-space: nowrap` `<text>` in an
+  `align-items: end` column. `rtl_line` puts U+200F in front of a line, measured or drawn, that
+  does not open with a right-to-left letter, because GPUI takes a line's direction from its first
+  letter and on Linux drops a number that opens a right-to-left line. The measuring texts carry
+  `role="none"` and `user-select: none`, so screen readers and copying skip them. `test:rtl` (Linux
+  too) covers `src/rtl.ts`, `test:rtl-text` the mounted component.
+
 ### Regenerating the styling reference
 
 The two `<details>` lists in `docs/styling.md` are transcribed from the native side, so redo them
@@ -1211,7 +1224,7 @@ user-facing rules; these are the ones that bite most often, and the renderer beh
   over a plain-object native). GPUI also refuses a font with no `m` glyph, and on Linux naming one
   removes it from fallback. Shaping and in-line bidi are the platform's; GPUI's wrapping, caret and
   selection geometry (`line_layout.rs`) and its DirectWrite glyph placement assume left to right,
-  and native 0.11 has no `direction` to map, so nothing here works around them.
+  and native 0.11 has no `direction` to map; `RtlText` works around the wrapping alone.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component: the root
   becomes a column, the bar its first child, and the app mounts into a `position: relative` box below
   it that a given `rootStyle` styles (through a class rule, so the box's defaults merge under it), so

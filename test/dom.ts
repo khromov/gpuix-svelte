@@ -38,7 +38,7 @@ function compile_for_dom(path: string): string {
 	return pathToFileURL(out).href;
 }
 
-for (const name of ['Anchored', 'Scroller', 'Portal', 'Tooltip', 'Popover']) compile_for_dom(join(root, 'src/components/dom', `${name}.svelte`));
+for (const name of ['Anchored', 'Scroller', 'Portal', 'Tooltip', 'Popover', 'RtlText']) compile_for_dom(join(root, 'src/components/dom', `${name}.svelte`));
 const CrossTarget = (await import(compile_for_dom(join(root, 'examples/cross-target/CrossTarget.svelte')))).default;
 
 const by_id = (id: string) => document.querySelector<HTMLElement>(`[testid="${id}"], [data-testid="${id}"]`);
@@ -540,5 +540,27 @@ check('a class change on the declaring element reaches the readers below it, bar
 unmount(with_scoped as never);
 scoped_host.remove();
 
+writeFileSync(
+	join(tmp, 'Rtl.svelte'),
+	`<script>
+	import RtlText from 'gpuix-svelte/components/RtlText.svelte';
+</script>
+<div testid="rtl-host"><RtlText text="سلام  دنیا، gpuix 2.5" style="color: rgb(1, 2, 3)" /></div>
+`
+);
+const Rtl = (await import(compile_for_dom(join(tmp, 'Rtl.svelte')))).default;
+const rtl_host = document.createElement('div');
+document.body.append(rtl_host);
+const rtl = mount(Rtl, { target: rtl_host });
+flushSync();
+const paragraph = by_id('rtl-host')?.firstElementChild as HTMLElement | null;
+check(
+	'RtlText in the DOM is one element the browser lays out right to left, holding the text as written and the style',
+	[paragraph?.getAttribute('dir'), paragraph?.textContent, paragraph?.style.color],
+	['rtl', 'سلام  دنیا، gpuix 2.5', 'rgb(1, 2, 3)']
+);
+unmount(rtl as never);
+rtl_host.remove();
+
 rmSync(tmp, { recursive: true, force: true });
-finish('dom', 97);
+finish('dom', 98);

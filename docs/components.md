@@ -1,7 +1,7 @@
 # Components
 
-Four components ship in the package: `Scroller`, `Portal`, `Tooltip` and `Popover`. They're
-plain `.svelte` files and compile like your own components:
+Five components ship in the package: `Scroller`, `Portal`, `Tooltip`, `Popover` and `RtlText`.
+They're plain `.svelte` files and compile like your own components:
 
 ```svelte
 <script>
@@ -9,6 +9,7 @@ plain `.svelte` files and compile like your own components:
   import Portal from 'gpuix-svelte/components/Portal.svelte';
   import Tooltip from 'gpuix-svelte/components/Tooltip.svelte';
   import Popover from 'gpuix-svelte/components/Popover.svelte';
+  import RtlText from 'gpuix-svelte/components/RtlText.svelte';
 </script>
 ```
 
@@ -409,6 +410,62 @@ renderers the pointer's `e.x` / `e.y`; on GPUI a right click would come through 
 </style>
 ```
 
+## RtlText
+
+A right-to-left paragraph that wraps. GPUI draws one line of Arabic, Persian or Hebrew correctly,
+but wraps a longer one as if it ran left to right, breaking it mid-word and drawing the lines out
+of place (see [Other scripts and right-to-left text](guide.md#other-scripts-and-right-to-left-text)).
+`RtlText` breaks the lines itself, at the spaces, and hands GPUI one unwrapped line at a time,
+aligned to the right:
+
+```svelte
+<RtlText text={about} style="font-size: 16px; color: var(--ink)" />
+```
+
+Props:
+
+- `text`: the paragraph. It breaks where a browser would under `white-space: normal`: at spaces,
+  tabs and line breaks, never at a no-break space or a ZWNJ.
+- `style`: inline CSS for the paragraph, whose font, size and colour its lines take
+  (`style="font-size: 18px; width: 320px"`).
+
+It takes the width its parent gives it, as a wrapping `<text>` does, so in a row give it a `width`
+or `flex-grow`. It measures its words with `onlayout`, so its lines appear a frame after it mounts,
+and it breaks them again when its width, its text or its font changes. Every line keeps
+right-to-left order, one that opens with a Latin word or a number too: such a line gets a
+right-to-left mark (U+200F) in front.
+
+What it does not fix:
+
+- Inside a line, the caret and the selection highlight still assume left to right, and the text
+  can't be edited: an `<input>` or `<textarea>` has GPUI's caret problem as before.
+- On Windows, GPUI still places each line's letters from left to right, mirrored.
+- The whole paragraph reads right to left. A line break in `text` is a space, as in HTML.
+- A screen reader hears it a line at a time.
+- Each word is laid out again out of sight to be measured, several times over, so it suits
+  paragraphs rather than long documents.
+
+In the DOM it is a `<div dir="rtl">`, and the browser breaks and orders the lines.
+
+```svelte demo rtl-text
+<script>
+  import RtlText from 'gpuix-svelte/components/RtlText.svelte';
+</script>
+
+<div class="card">
+  <RtlText text="نسخه‌ی 2.5 از gpuix svelte را نصب کنید (با npm یا bun)، سپس برنامه را اجرا کنید؛ آیا کار می‌کند؟" style="font-size: 18px" />
+</div>
+
+<style>
+  .card {
+    width: 260px;
+    padding: 12px;
+    border-radius: 8px;
+    background-color: var(--panel);
+  }
+</style>
+```
+
 ## `<anchored>`
 
 For anything else that should sit beside a trigger, GPUI's native `<anchored>` element positions
@@ -445,10 +502,11 @@ string reaches native as a string and reads as `0` or `true`.
 
 ## In a browser DOM
 
-All four render in the DOM as well, so the same components can be shared between a gpuix-svelte
+All five render in the DOM as well, so the same components can be shared between a gpuix-svelte
 app and a normal Svelte app such as SvelteKit. A Vite or SvelteKit build gets their DOM versions
 under the same import paths, with the same props and CSS variables: the browser scrolls the `Scroller`, `Portal` moves
-its layer to `<body>`, and `Tooltip` and `Popover` place a fixed layer beside the trigger. See
+its layer to `<body>`, `Tooltip` and `Popover` place a fixed layer beside the trigger, and `RtlText`
+is a `<div dir="rtl">`. See
 [Rendering Svelte components in both gpuix-svelte and normal DOM](dom.md#the-components-in-the-dom),
-and for all four inside a library that a SvelteKit site and a GPUI window share,
+and for the first four inside a library that a SvelteKit site and a GPUI window share,
 [gpuix-svelte-sveltekit-shared-components-demo](https://github.com/khromov/gpuix-svelte-sveltekit-shared-components-demo).

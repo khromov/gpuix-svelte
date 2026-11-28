@@ -397,15 +397,18 @@ list, unquoted: Vazirmatn here, with `sans-serif` left for a browser. Two things
   that has Latin letters too, like Vazirmatn.
 
 Right-to-left layout is where GPUI itself falls short
-([zed#31102](https://github.com/zed-industries/zed/issues/31102)), and nothing in this package can
-make up for it:
+([zed#31102](https://github.com/zed-industries/zed/issues/31102)), and this package works around
+only the wrapping:
 
 - There is no base direction to set. `direction: rtl` is dropped and elements have no `dir`. On
   macOS and Linux a line takes its direction from its first letter, but it still starts at the left
   of its box, so right-align it with `text-align: right` (`start` means left).
 - A right-to-left paragraph that wraps comes out wrong: GPUI breaks lines as if the text ran left
-  to right, mid-word, and draws them out of place. Keep such text to lines that fit, or cut it with
-  `white-space: nowrap` and `text-overflow: ellipsis`, which work.
+  to right, mid-word, and draws them out of place. Put it in
+  [`RtlText`](components.md#rtltext), which breaks the lines itself and hands GPUI one at a time,
+  or cut it to one line with `white-space: nowrap` and `text-overflow: ellipsis`.
+- On Linux, a line that opens with a number and goes on in right-to-left text loses the number. A
+  right-to-left mark (U+200F) in front keeps it, and `RtlText` puts one there.
 - On Windows, GPUI places the letters DirectWrite shaped for a right-to-left run from left to
   right, so Arabic and Persian come out mirrored, with their letters apart.
 - In an `<input>`, a `<textarea>` and a text selection, the caret and the highlight are placed as

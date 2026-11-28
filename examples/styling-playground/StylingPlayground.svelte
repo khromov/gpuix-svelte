@@ -96,7 +96,7 @@
 				{
 					kind: 'rtl-lines',
 					css: 'width: 180px',
-					note: 'GPUI wraps right-to-left text as if it ran left to right, so the lines come out broken and out of place'
+					note: 'GPUI wraps right-to-left text as if it ran left to right, so the lines come out broken and out of place; gpuix-svelte/components/RtlText.svelte breaks them itself'
 				},
 				{
 					kind: 'blank',
