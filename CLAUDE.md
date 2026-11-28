@@ -78,7 +78,8 @@ npm run check:svelte       # every .svelte / .svelte.ts through the Svelte MCP s
                            # suggestions. Needs the network
 npm run docs               # README.md + docs/*.md → dist/docs (scripts/docs.ts), with the live demos and
                            # the playground; a new page needs an entry in PAGES. docs:serve serves it at
-                           # :4321 and rebuilds on change; .github/workflows/docs.yml deploys it
+                           # :4321 and rebuilds on change; .github/workflows/docs.yml builds the Dockerfile's
+                           # nginx image of it (nginx.conf) and deploys that to CapRover
 npm run og                 # homepage/og.png from index.html#og through headless Chrome ($CHROME); og:docs
                            # does docs/assets/og-docs.png. Rerun after changing the hero
 npm run shots              # every other screenshot the homepage, README and docs carry (scripts/shots.ts,
@@ -562,11 +563,16 @@ keep it building. The design:
   faces it embeds (IBM Plex Sans 400/600 and Lilex 400/700, each with an italic), and the DOM frame
   loads the same faces from `homepage/assets/fonts/gpui/`, cut out of `gpuix-web_bg.wasm` (scan for
   sfnt headers, length from the table directory) and compressed with fontTools; redo that if a
-  native bump changes the embedded fonts. **Isolation**: GitHub Pages can't send COOP/COEP, so an
-  inline script registers `playground/sw.js` (published as `playground-sw.js`, scope
-  `./playground`) and reloads once; the worker re-serves every response with `credentialless`, or
-  `require-corp` in Safari, which lacks `credentialless` and so loses the cross-origin analytics
-  script. Without isolation (no service worker, plain `http:` off localhost, `docs:serve`) the page
+  native bump changes the embedded fonts. **Isolation**: the site is the `Dockerfile`'s nginx
+  image, and `nginx.conf` sends `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp` on `playground.html` and `playground/` only. The
+  analytics script's server sends CORS headers but no CORP, so the page template gives it
+  `crossorigin` or `require-corp` blocks it (`test:docs` checks every cross-origin script on the
+  page). For a host that can't send the headers, an inline script registers `playground/sw.js`
+  (published as `playground-sw.js`, scope `./playground`) and reloads once; the worker re-serves
+  every response with `credentialless`, or `require-corp` in Safari, which lacks `credentialless`.
+  It stays registered in browsers that visited while the site was on GitHub Pages, where it
+  overrides the server's headers with its own. Without isolation (no service worker, plain `http:` off localhost, `docs:serve`) the page
   defaults to the DOM renderer and shows a note if GPUI is picked. Checking the wasm side is by
   hand in headless Chrome, as for `demo:web`, with `--enable-unsafe-webgpu` or
   `--enable-unsafe-swiftshader`. It scripts well over CDP: serve `dist/docs` from localhost (the

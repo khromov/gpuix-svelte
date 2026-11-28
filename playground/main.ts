@@ -126,7 +126,7 @@ function repaint() {
 }
 
 function show_notice() {
-	const text = target !== 'gpui' ? null : fatal !== null ? `The GPUI renderer could not start in this browser: ${fatal}` : !isolated ? 'The GPUI renderer needs a cross-origin isolated page, which this browser did not grant (it takes a service worker over HTTPS or localhost). The DOM renderer runs the same component.' : null;
+	const text = target !== 'gpui' ? null : fatal !== null ? `The GPUI renderer could not start in this browser: ${fatal}` : !isolated ? 'The GPUI renderer needs a cross-origin isolated page, which this browser did not grant (it takes COOP/COEP headers or a service worker over HTTPS or localhost). The DOM renderer runs the same component.' : null;
 	notice.hidden = text === null;
 	notice.textContent = text ?? '';
 	frames.gpui.el.hidden = target !== 'gpui' || text !== null;

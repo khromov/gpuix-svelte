@@ -169,6 +169,13 @@ check(
 	[playground_page.indexOf("register('playground-sw.js") > 0, playground_page.indexOf("register('playground-sw.js") < playground_page.indexOf('src="playground/main.js"'), existsSync(join(out, 'playground-sw.js'))],
 	[true, true, true]
 );
+// nginx.conf isolates it with `require-corp`, which blocks a no-cors script from a server that sends no CORP.
+const foreign_scripts = playground_page.match(/<script[^>]*\ssrc="https?:[^>]*>/g) ?? [];
+check(
+	'its cross-origin scripts are CORS requests',
+	[foreign_scripts.length > 0, foreign_scripts.filter((tag) => !/\scrossorigin[\s=>]/.test(tag))],
+	[true, []]
+);
 const targets: Target[] = ['gpui', 'dom'];
 check(
 	'each frame is built with its page, its script and every module a component may import',
@@ -268,4 +275,4 @@ check(
 	[{ source: counter, target: 'dom' }, true, { source: counter, target: 'gpui' }, { source: null, target: 'dom' }]
 );
 
-finish('docs', 46);
+finish('docs', 47);

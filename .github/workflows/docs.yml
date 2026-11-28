@@ -1,39 +1,69 @@
 name: docs
 
-# Renders README.md and docs/*.md to static HTML (scripts/docs.ts), bundles the pages' live demos for
-# the DOM and the playground (playground/) for both renderers with Vite (a dev dependency, hence the
-# install), puts the homepage (homepage/) at the root and deploys the result to GitHub Pages. Settings → Pages → Source must be "GitHub Actions".
+# Builds the docs site (README.md, docs/*.md, the live demos, the playground and homepage/) into an nginx image
+# (Dockerfile, nginx.conf), pushes it to GHCR and deploys it to CapRover. A pull request that changes the image only builds it.
 on:
   push:
     branches: [main]
-    paths: [README.md, package.json, bun.lock, docs/**, homepage/**, playground/**, .github/resources/**, scripts/docs.ts, scripts/playground.ts, scripts/vite-dom.ts, src/**, packages/ui/src/**, .github/workflows/docs.yml]
+    paths: [README.md, package.json, bun.lock, docs/**, homepage/**, playground/**, .github/resources/**, scripts/docs.ts, scripts/playground.ts, scripts/vite-dom.ts, src/**, packages/ui/package.json, packages/ui/src/**, Dockerfile, .dockerignore, nginx.conf, .github/workflows/docs.yml]
+  pull_request:
+    paths: [Dockerfile, .dockerignore, nginx.conf, .github/workflows/docs.yml]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  packages: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  IMAGE: ghcr.io/khromov/gpuix-svelte-docs
+  CAPROVER_APP: gpuix-svelte
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        id: meta
         with:
-          node-version: 26
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: npm run docs
-      - uses: actions/upload-pages-artifact@v3
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=long
+
+      - if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
-          path: dist/docs
-      - uses: actions/deploy-pages@v4
-        id: deployment
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
+
+      - name: Deploy to CapRover
+        if: github.ref == 'refs/heads/main'
+        env:
+          CAPROVER_URL: ${{ secrets.CAPROVER_SERVER }}
+          APP_TOKEN: ${{ secrets.CAPROVER_APP_TOKEN }}
+        run: |
+          npm i -g caprover@2.3.1
+          caprover deploy \
+            --caproverUrl "$CAPROVER_URL" \
+            --appToken "$APP_TOKEN" \
+            --appName "$CAPROVER_APP" \
+            --imageName "$IMAGE:sha-$GITHUB_SHA"

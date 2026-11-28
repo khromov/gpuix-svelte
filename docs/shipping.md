@@ -250,7 +250,8 @@ the plumbing differs:
 - **The page must be cross-origin isolated.** GPUI's wasm uses shared memory, so whatever serves
   it has to send `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp`, and serve `.wasm` as `application/wasm`.
-  `scripts/web.ts` does all of this. Browsers only honour those headers over HTTPS (or on
+  `scripts/web.ts` does all of this, and the docs site's [`nginx.conf`](../nginx.conf) does it for
+  the playground. Browsers only honour those headers over HTTPS (or on
   `localhost`), and `file://` can't work at all.
 - **The page sizes the canvas.** The canvas fills the page, styled by the page's CSS. `title`,
   `width` and `height` apply only to desktop windows.

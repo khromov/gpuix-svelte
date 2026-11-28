@@ -1,6 +1,6 @@
-// GPUI's wasm needs SharedArrayBuffer, which a page gets only when it is cross-origin isolated, and
-// a static host such as GitHub Pages cannot send the two headers. Registered for the playground's
-// scope only, this re-serves what the playground fetches with them (the coi-serviceworker technique).
+// GPUI's wasm needs SharedArrayBuffer, which a page gets only when it is cross-origin isolated. The
+// site's nginx.conf sends the two headers; for a host that cannot, this worker, registered for the
+// playground's scope only, re-serves what the playground fetches with them (the coi-serviceworker technique).
 
 // The repository's tsconfig has the DOM lib, where the global scope is a Window, not a service worker's.
 const worker = /** @type {any} */ (globalThis);
