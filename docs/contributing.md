@@ -44,7 +44,7 @@ npm run demo:ui-dom       # the same through Vite (-- --build-only writes dist/d
 npm run demo:ui-app       # Orbit (examples/ui-app), a small app built from the toolkit: the picture atop ui.md
 npm run tutorial          # interactive onboarding guide: 12 steps with live samples and quizzes
 npm run typecheck         # tsc, then svelte-check for the GPUI markup and again for the DOM components
-npm test                  # typecheck, then every test suite except automation-live and coverage
+npm test                  # typecheck, then every test suite except automation-live, linux-icon and coverage
 npm run lint              # ESLint; not part of `npm test`, so run it before pushing
 npm run check:svelte      # every component through the Svelte MCP server's autofixer (needs network)
 npm run parity            # @gpuix/native methods nothing here calls; run it after a native bump
@@ -54,7 +54,7 @@ New here? `npm run tutorial` opens a guided walkthrough of the renderer that is 
 gpuix-svelte app. Each step pairs an explanation and a diagram with the source of a small
 component, most of them running live, and ends with a quiz.
 
-Every test script, and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`
+Every test script (except the Linux/Bun-only `test:linux-icon`), and every demo apart from the Bun-only `demo:web` and the Vite-run `demo:dom`
 and `demo:ui-dom`, has a Bun twin under a `bun:` prefix: `npm run bun:test`, `npm run bun:demo`, `npm run bun:demo:counter`, and so on. The
 twins run the same entry points on Bun, which takes the `.svelte` loader as a `--preload`. CI runs
 both runtimes.
@@ -74,7 +74,9 @@ The demos run on all three platforms. Most tests run only on macOS and Windows, 
 the headless renderer, so on Linux `npm test` fails right after `typecheck`. The suites that need no
 headless renderer (`test:bundle`, `test:compile`, `test:update`, `test:launcher`, `test:migrate`, `test:wrong-svelte`, `test:dom`, `test:ui-dom`, `test:docs`) run anywhere, and so do
 `test:automation-live` (a real window; under Xvfb on CI), `consume` and `bun:consume` (which skip
-the headless test on Linux). CI's Linux job runs those plus `typecheck` and `lint`.
+the headless test on Linux). `test:linux-icon` runs only on Linux, under Bun, with an X11 display:
+it builds tic-tac-toe and checks the desktop entry and window icon the executable sets up. CI's
+Linux job runs those plus `typecheck` and `lint`.
 
 `npm run test:coverage` mounts Svelte's own custom renderer samples when `SVELTE_SAMPLES_DIR`
 points at `packages/svelte/tests/custom-renderers/samples` in a svelte checkout, at the tag of the
@@ -107,6 +109,7 @@ npm run demo:counter                                      # draws on :99
 xwd -root -silent | xwdtopnm | pnmtopng > /tmp/x.png      # the Linux addon can't take screenshots, so read X11
 xdotool mousemove 960 540 click 1 type 'hello'            # poke a window by hand
 npm run test:automation-live                              # a real window, driven through gpuix-svelte/automation
+npm run test:linux-icon                                   # a built app's desktop entry and _NET_WM_ICON
 ```
 
 The browser previews listen on every interface, because the container sets `HOST=0.0.0.0`:

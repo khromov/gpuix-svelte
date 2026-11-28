@@ -2,8 +2,8 @@
  * Like `@gpuix/react`'s `render()`, a `globalThis` slot so `hot.ts` remounts onto the same window,
  * but with a frame loop of its own rather than `@gpuix/native/runtime`'s `startFrameLoop`, which has
  * no room for the commit, the frame waiters or VoiceOver's pace. Its only `node:*` imports are
- * previous-instance.ts's `node:fs` and screen-reader.ts's `node:child_process`, which Bun's browser
- * build stubs, so it bundles for the browser as-is.
+ * previous-instance.ts's `node:fs`, screen-reader.ts's `node:child_process` and linux-icon.ts's, which
+ * Bun's browser build stubs, so it bundles for the browser as-is.
  */
 
 import { GpuixRenderer, type EventPayload, type WindowOptions } from '@gpuix/native';
@@ -25,6 +25,8 @@ import { set_debug_overlay } from './window.ts';
 import { create_window_root, wants_titlebar } from './titlebar.ts';
 import { wait_for_previous_instance } from './previous-instance.ts';
 import { voiceover_running } from './screen-reader.ts';
+import { linux_icon } from './linux-icon.ts';
+import type { EmbeddedAppInfo } from './app-bundle.ts';
 import type { AnyComponent, AppOptions, RenderOptions, ShadowNode } from './types.ts';
 
 /** ~125fps, above the 60 and 120 Hz most displays run at; `setImmediate` instead burns most of a core at idle. */
@@ -261,14 +263,30 @@ export function focus_dim_on_render(option: boolean | undefined, applied: boolea
 	return created || enabled !== applied ? enabled : null;
 }
 
-/** The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by. */
-export function window_options_for(options: WindowOptions, app: AppOptions | undefined): WindowOptions {
+/**
+ * The identifier becomes the app id because that is what a Linux desktop matches a window's `.desktop` file by;
+ * `built` is the build's, which has one even where the entry declares none.
+ */
+export function window_options_for(options: WindowOptions, app: AppOptions | undefined, built: Pick<EmbeddedAppInfo, 'identifier'> | null = null): WindowOptions {
 	const merged = { ...options };
 	if (merged.title == null && app?.name) merged.title = app.name;
 	// Native takes the "Hide" and "Quit" menu items' name from the title otherwise.
 	if (merged.appName == null && app?.name) merged.appName = app.name;
-	if (merged.appId == null && app?.identifier) merged.appId = app.identifier;
+	// `||`, as the build reads it: an empty identifier there becomes `local.<slug>`.
+	const identifier = app?.identifier || built?.identifier;
+	if (merged.appId == null && identifier) merged.appId = identifier;
 	return merged;
+}
+
+function built_app(): EmbeddedAppInfo | null {
+	// Spelled out so the build's define replaces it.
+	const raw = typeof process === 'undefined' ? undefined : process.env.GPUIX_APP_INFO;
+	if (!raw) return null;
+	try {
+		return JSON.parse(raw) as EmbeddedAppInfo;
+	} catch {
+		return null;
+	}
 }
 
 /** Native 0.11 cannot close a window, so the title bar's close button ends the app the way closing its only window would. */
@@ -296,7 +314,9 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 		app,
 		...own_window_options
 	} = options;
-	const window_options = window_options_for(own_window_options, app);
+	const built = built_app();
+	// Only Linux, where the app id is what a desktop entry matches; elsewhere a build keeps the window as the entry declares it.
+	const window_options = window_options_for(own_window_options, app, globalThis.process?.platform === 'linux' ? built : null);
 	const slot = host();
 	const remount = slot.component != null;
 	const created = !slot.native;
@@ -314,7 +334,12 @@ export function render(Component: AnyComponent, options: RenderOptions = {}): Re
 			handle_event(event, onEvent);
 		});
 
+		// Terminal mode draws into the terminal and opens no window to give an icon.
+		const terminal = window_options.terminal ?? env('GPUIX_TERMINAL') === '1';
+		// Spelled out, not read through a local const, so non-Linux builds' define folds the branch and linux-icon.ts away.
+		const set_icon = typeof process !== 'undefined' && process.env.GPUIX_APP_ICON && built && !terminal ? linux_icon(window_options.appId, built.name) : null;
 		slot.native.init(window_options);
+		set_icon?.();
 		// Spelled out, not read through env() or a local const, so build()'s define folds the branch and its import away.
 		if (typeof process !== 'undefined' && process.env.GPUIX_AUTOMATION && process.env.GPUIX_AUTOMATION !== '0') start_automation(slot.native);
 		console.log('[gpuix-svelte] created native window');

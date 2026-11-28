@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { createRequire } from 'node:module';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 import type { AppOptions, AppUpdateOptions } from './types.ts';
 import { is_public_key } from './update.ts';
 import { write_zip } from './zip.ts';
@@ -407,6 +408,76 @@ export function pe_resources(exe: Buffer, type: number): PeResource[] {
 			return { name, lang: lang as number, data: exe.subarray(start, start + exe.readUInt32LE(leaf + 4)) };
 		})
 	);
+}
+
+export const LINUX_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256];
+export const X11_ICON_SIZES = [16, 24, 32, 48, 64, 128];
+
+export interface Rgba {
+	width: number;
+	height: number;
+	data: Uint8Array;
+}
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Only the PNGs Bun.Image writes: 8-bit RGBA, not interlaced. */
+export function decode_png(file: Uint8Array): Rgba {
+	const png = Buffer.from(file.buffer, file.byteOffset, file.byteLength);
+	if (png.length < 33 || !png.subarray(0, 8).equals(PNG_SIGNATURE) || png.toString('latin1', 12, 16) !== 'IHDR') throw new Error('not a PNG');
+	const width = png.readUInt32BE(16);
+	const height = png.readUInt32BE(20);
+	if (png[24] !== 8 || png[25] !== 6 || png[28] !== 0) throw new Error(`only 8-bit RGBA PNGs without interlacing decode, not bit depth ${png[24]}, colour type ${png[25]}, interlace ${png[28]}`);
+	const idat: Buffer[] = [];
+	for (let at = 8; at + 12 <= png.length; ) {
+		const length = png.readUInt32BE(at);
+		if (at + 12 + length > png.length) throw new Error('truncated PNG chunk');
+		const type = png.toString('latin1', at + 4, at + 8);
+		if (type === 'IDAT') idat.push(png.subarray(at + 8, at + 8 + length));
+		else if (type === 'IEND') break;
+		at += 12 + length;
+	}
+	const raw = inflateSync(Buffer.concat(idat));
+	const stride = width * 4;
+	if (raw.length !== height * (stride + 1)) throw new Error(`PNG image data is ${raw.length} bytes, expected ${height * (stride + 1)}`);
+	const data = new Uint8Array(stride * height);
+	for (let y = 0; y < height; y++) {
+		const filter = raw[y * (stride + 1)];
+		if (filter > 4) throw new Error(`row ${y} has filter type ${filter}`);
+		const line = y * (stride + 1) + 1;
+		const row = y * stride;
+		for (let x = 0; x < stride; x++) {
+			const a = x >= 4 ? data[row + x - 4] : 0;
+			const b = y > 0 ? data[row + x - stride] : 0;
+			const c = x >= 4 && y > 0 ? data[row + x - stride - 4] : 0;
+			let value = raw[line + x];
+			if (filter === 1) value += a;
+			else if (filter === 2) value += b;
+			else if (filter === 3) value += (a + b) >> 1;
+			else if (filter === 4) value += paeth(a, b, c);
+			data[row + x] = value;
+		}
+	}
+	return { width, height, data };
+}
+
+function paeth(a: number, b: number, c: number): number {
+	const pa = Math.abs(b - c);
+	const pb = Math.abs(a - c);
+	const pc = Math.abs(a + b - 2 * c);
+	return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+
+/** `_NET_WM_ICON`'s CARDINALs, little-endian like the X11 connection that sends them: each image's width and height, then its pixels as 0xAARRGGBB. */
+export function net_wm_icon(images: Rgba[]): Buffer {
+	const out = Buffer.alloc(images.reduce((n, { width, height }) => n + 8 + 4 * width * height, 0));
+	let at = 0;
+	for (const { width, height, data } of images) {
+		at = out.writeUInt32LE(width, at);
+		at = out.writeUInt32LE(height, at);
+		for (let i = 0; i < data.length; i += 4, at += 4) out.set([data[i + 2], data[i + 1], data[i], data[i + 3]], at);
+	}
+	return out;
 }
 
 export function sign(target: string, identity: string, scratch: string) {

@@ -53,11 +53,14 @@ bun install                # entire setup (bun.lock is the lockfile); @gpuix/nat
 npm run typecheck          # tsc --noEmit, then svelte-check --fail-on-warnings twice (tsconfig.json for the
                            # GPUI markup, tsconfig.dom.json for the DOM components); the first step of `test`
 npm run lint               # eslint; NOT part of `test` (only CI's linux job runs it), so run it before pushing
-npm test                   # typecheck, then every test:* below except automation-live and coverage
+npm test                   # typecheck, then every test:* below except automation-live, linux-icon and coverage
 npm run test:<name>        # test/<name>.ts (test:media also runs test/media-default.ts); each file's header
                            # says what it covers. test:update and test:launcher need `bun` on PATH
 npm run test:automation-live  # opens a window: launch()es the counter and drives it; not in `test`,
                            # CI's linux job runs it under Xvfb
+npm run test:linux-icon    # Linux + Bun only, opens a window: builds tic-tac-toe, runs it with an empty
+                           # XDG_DATA_HOME, reads back its desktop entry and _NET_WM_ICON; CI's linux
+                           # job runs it under xvfb-run
 npm run test:coverage      # optional; needs SVELTE_SAMPLES_DIR (see "Testing")
 npm run demo               # counter, tic-tac-toe, hacker-news and liquid-glass at once (scripts/demo-all.ts)
 npm run demo:<name>        # counter (hot-reloads on save), tictactoe, hn, glass, styling, desktop,
@@ -97,8 +100,7 @@ npm run compile            # tic-tac-toe through gpuix-svelte/build into dist/ (
 
 Every test and demo script that goes through the bin has a `bun:`-prefixed twin (`npm run
 bun:test`, `npm run bun:demo:counter`, ...) running the same entry with `--bun`. Adding a bin script
-means adding both halves and, for a test, chaining both into `test` / `bun:test`. `compile` and
-`demo:web` are Bun-only, `demo:dom` and `demo:ui-dom` run Vite on Node, `shots` has no twin,
+means adding both halves and, for a test, chaining both into `test` / `bun:test`. `compile`, `demo:web` and `test:linux-icon` are Bun-only, `demo:dom` and `demo:ui-dom` run Vite on Node, `shots` has no twin,
 `bun:typecheck` is an alias, `demo` and `consume` take `--bun` for their twins, and the tooling
 that needs no loader (`lint`, `check:svelte`, `docs`, `docs:serve`, `og`, `wallpapers`,
 `parity`, `pack`, `publish:*`) runs on plain `node`, which strips their types itself.
@@ -174,8 +176,8 @@ and 26 and `bun:test` on those three; `consume` + `bun:consume` there and on Lin
 all four (`--archive` with an `update` keygen/manifest/verify round trip, then `--aot --trim`; built,
 never launched); and a Linux job for what needs no headless renderer: `typecheck`, `lint`, the
 scaffolder's `npm pack --dry-run`, a binding load check, the suites docs/contributing.md lists, the
-`--build-only` builds of `demo:web`, `demo:dom` and `demo:ui-dom`, and `test:automation-live` under
-`xvfb-run`, on both runtimes where there are twins. `TestGpuixRenderer` is Metal on macOS and
+`--build-only` builds of `demo:web`, `demo:dom` and `demo:ui-dom`, and `test:automation-live` and
+`test:linux-icon` under `xvfb-run`, on both runtimes where there are twins. `TestGpuixRenderer` is Metal on macOS and
 DirectX on Windows.
 
 `test:coverage` mounts every sample from Svelte's own custom renderer suite; point
@@ -315,7 +317,9 @@ docs/shipping.md has the fields and defaults), so the entry is the one place tha
 The window reads `name` as the `title` fallback and as `appName` (macOS's Hide and Quit items), and
 `identifier` as `appId`, which GPUI hands to Wayland and X11 (`WM_CLASS`) and a desktop matches a
 `.desktop` file by; an explicit `title`, `appName` or `appId` wins (`window_options_for` in
-`render.ts`). `build()` reads them from the entry's source: `Bun.Transpiler` strips the types and
+`render.ts`). A Linux build's window falls back to the build's `identifier` (`local.<slug>` when the
+entry declares none), read from `GPUIX_APP_INFO`, since without a `WM_CLASS` no desktop entry can match
+it; elsewhere the window stays as the entry declares it. `build()` reads them from the entry's source: `Bun.Transpiler` strips the types and
 `read_app_options` (`app-bundle.ts`, so `test:bundle` runs it on Node too) walks acorn's AST for the
 one top-level `render()` imported from `gpuix-svelte`. Its second argument must be an object literal
 or one hop through a top-level `const`; a spread or computed key anywhere in it, or a value under
@@ -341,7 +345,29 @@ Per platform:
   Whatever `compile.windows` leaves unset keeps bun.exe's value (`Bun`, `Oven`, its version), so
   `description` and `publisher` fall back to the name, `copyright` to a single space, and the
   version is its numeric prefix (`0.0.0.0` if none fits).
-- **Linux**: the bare executable.
+- **Linux**: the bare executable, which brings its own icon (issue #90). ELF has none a desktop
+  reads, Bun has no Linux icon option, and GNOME Shell 46+ ignores a window's own `_NET_WM_ICON`
+  (`shell_app_get_icon` falls back to `application-x-executable` for any window no `.desktop` file
+  matches). So `embedded_linux_icon` in `build.ts` cuts `LINUX_ICON_SIZES` with `Bun.Image` (Linux has no
+  `resize_png` scaler), decodes `X11_ICON_SIZES` of them with `decode_png` (only Bun.Image's own
+  output, 8-bit RGBA, not interlaced) into `net_wm_icon`'s CARDINALs, and defines both as
+  `GPUIX_APP_ICON`. At launch (not in terminal mode, and only with a display) `src/linux-icon.ts`,
+  before `init()`, writes `$XDG_DATA_HOME/applications/<appId>.desktop` (`NoDisplay`,
+  `StartupWMClass`, `Exec`/`TryExec` the running executable, and the `X-Gpuix-Svelte=true` marker)
+  and the hicolor PNGs, each only when its bytes differ. It writes nothing when `$XDG_DATA_DIRS` has an
+  entry of that name (a package's, which ours would shadow and hide from the grid) or the user's dir
+  has one without the marker. Then, when gpui took X11 (`WAYLAND_DISPLAY` empty), it sets
+  `_NET_WM_ICON` on every window whose `_NET_WM_PID` is ours and whose `WM_CLASS` is the app id (PIDs
+  repeat across namespaces), over a raw X11 socket (`X11`, Xauthority cookie as Xlib picks it; the
+  abstract socket when the file is missing), since Node 24 has no FFI, and warns if it found none. The
+  build warns about an `identifier` `APP_ID` rejects, which gets no entry but keeps the X11 icon. GNOME rereads
+  its app cache about 5 s after a `.desktop` file appears and then re-matches open windows, so the first
+  launch shows the cog that long and later ones match at once (checked in a private
+  `gnome-shell --headless` session on both Wayland and Xwayland). `build({ desktopEntry: false })`
+  embeds no PNGs, so only `_NET_WM_ICON` remains. Files (Nautilus) draws the binary by its MIME type
+  whatever we do; only per-machine `gio set … metadata::custom-icon` changes that, so it is documented,
+  not done. The X11 module is a namespace import of `node:net` because Bun's browser polyfill has no
+  `connect` export and `web.ts` bundles `render.ts`.
 
 An app that sets no `icon` gets `DEFAULT_ICON`, `assets/icon.png` (in `files` and publish.ts's list,
 so it ships): the homepage's macOS tile, rasterized at 1024 px from the `icon.svg` beside it through
@@ -756,7 +782,8 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks ─ the `bun:*` scripts, build.ts, scripts/web.ts
   loader-config.ts  RENDERER_MODULE and WRONG_SVELTE ─ no svelte import, so a loader checks the install before compile.ts loads
   build.ts     Bun.build({ compile }) + per-platform packaging ─ `gpuix-svelte/build`; Bun-only
-  app-bundle.ts  build.ts's Node-testable half: app options from source, metadata, Info.plist, .icns, the Windows icon group and PE reader, codesign, notarytool, the archive
+  app-bundle.ts  build.ts's Node-testable half: app options from source, metadata, Info.plist, .icns, the Windows icon group and PE reader, the Linux icon's PNG decode, codesign, notarytool, the archive
+  linux-icon.ts  a Linux build's desktop entry and X11 `_NET_WM_ICON` at launch ─ node:fs/net/os/path, stubbed by Bun's browser build
   update.ts    `gpuix-svelte/update` ─ zip.ts is its adm-zip layer, update-web.ts its browser stub
   previous-instance.ts  a relaunched instance's wait for the old one ─ node:fs, stubbed by Bun's browser build
   screen-reader.ts  VoiceOver detection for the frame loop's pace ─ node:child_process, likewise
