@@ -76,6 +76,28 @@ check(
 	[parse_css_text('font-family:  Noto   Sans Arabic , serif'), parse_css_text(`font-family: "Font \\"X\\", Y", Z`)],
 	[{ fontFamily: 'Noto Sans Arabic' }, { fontFamily: 'Font "X", Y' }]
 );
+check(
+	'quoted families starting with digits or punctuation, and -apple-system, survive unquoting',
+	[
+		parse_css_text('font-family: "0xProto", monospace'),
+		parse_css_text('font-family: ".SF NS", sans-serif'),
+		parse_css_text('font-family: -apple-system, BlinkMacSystemFont, sans-serif'),
+		parse_css_text(`font-family: /* persian */ 'Vazirmatn', sans-serif`)
+	],
+	[{ fontFamily: '0xProto' }, { fontFamily: '.SF NS' }, { fontFamily: '-apple-system' }, { fontFamily: 'Vazirmatn' }]
+);
+check(
+	'empty, malformed or numeric font-family values are dropped',
+	[
+		parse_css_text('font-family: "", sans-serif'),
+		parse_css_text("font-family: '   '"),
+		parse_css_text('font-family: , sans-serif'),
+		parse_css_text('font-family: "Vazirmatn, sans-serif'),
+		parse_css_text('font-family: "Vazirmatn" Bold, sans-serif'),
+		parse_css_text('font-family: 12px, sans-serif')
+	],
+	[{}, {}, {}, {}, {}, {}]
+);
 set_css_vars({ 'style-face': `'Vazirmatn', system-ui` });
 check('a var() holding a list resolves to its first family too', parse_css_text('font-family: var(--style-face)'), { fontFamily: 'Vazirmatn' });
 check('a nested pseudo style written as a declaration is dropped', parse_css_text('focus-visible: red; hover: red; active: red; color: blue'), {
@@ -322,4 +344,4 @@ check('a var() resolves to pixels and a fallback auto to scroll', [style_of('the
 check('max-content and fit-content() override as auto', [style_of('sized').width ?? null, style_of('sized').minWidth ?? null], [null, null]);
 check('so the box sizes to its text', parity.native.getElementBounds(find_test_id('sized')!.id)!.width < 300, true);
 
-finish('style', 57);
+finish('style', 59);

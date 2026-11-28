@@ -5,7 +5,7 @@
  */
 
 import type { PathPromptOptions } from '@gpuix/native';
-import { get_native, node_of, on_selection_change, set_viewport_observer, with_native_id } from './renderer.ts';
+import { get_native, node_of, on_selection_change, set_on_native, set_viewport_observer, with_native_id } from './renderer.ts';
 import { set_titlebar_title } from './titlebar.ts';
 import { MEDIA_FEATURES, media_matches, parse_media_query } from './media.ts';
 import type { MediaQueryState, Native, PixelFormat, ShadowNode, WindowNative } from './types.ts';
@@ -169,7 +169,21 @@ export function register_font(bytes: Uint8Array) {
 
 /** Linux's text system keeps a family it looked up and missed, so a font has to be in before any text names it. */
 export function register_waiting_fonts() {
-	for (const bytes of waiting_fonts.splice(0)) win()?.registerFont?.(bytes);
+	const native = win();
+	if (!native) return;
+	let first: unknown;
+	let failed = false;
+	for (const bytes of waiting_fonts.splice(0)) {
+		try {
+			native.registerFont?.(bytes);
+		} catch (error) {
+			if (!failed) {
+				failed = true;
+				first = error;
+			}
+		}
+	}
+	if (failed) throw first;
 }
 
 /** The elements painted under a window point, topmost first, like the DOM's `elementsFromPoint`. */
@@ -289,6 +303,7 @@ const size = polled(readWindowSize, (_host, callback) => watch_size(callback));
 const insets = polled(readWindowInsets, observeWindowInsets);
 
 set_viewport_observer(watch_size);
+set_on_native(register_waiting_fonts);
 
 const warned_queries = new Set<string>();
 

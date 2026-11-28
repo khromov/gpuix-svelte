@@ -373,6 +373,10 @@ register_font(readFileSync(new URL('./fonts/Vazirmatn-Regular.ttf', import.meta.
 render(App);
 ```
 
+That reads the file from disk when running from source; for a [compiled binary](shipping.md), embed
+the font with `import font from './fonts/Vazirmatn-Regular.ttf' with { type: 'file' }` and pass
+`readFileSync(font)` (or read it from beside the executable).
+
 ```svelte
 <div class="app">
   <text>سلام دنیا</text>
