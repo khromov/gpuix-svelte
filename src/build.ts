@@ -206,6 +206,8 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 	}
 	if (components === 0) throw new Error(`${TAG} no .svelte file went through the plugin; ${rel(entry)} has to import the component it renders`);
 
+	// First, since Windows' resource writer drops anything appended past the last section, and the checks below must see the final file.
+	if (icons) await set_exe_icon(binary, icons);
 	const size = statSync(binary).size;
 	if (addon) {
 		// Both flags shrink the runtime below bare Bun, so no size floor can tell a lost addon apart.
@@ -216,7 +218,6 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		const floor = statSync(process.execPath).size + 12 * 1024 * 1024;
 		if (size < floor) throw new Error(`${TAG} ${rel(binary)} is ${mb(size)} MB, under the ${mb(floor)} MB floor — the GPUI addon was not embedded`);
 	}
-	if (icons) await set_exe_icon(binary, icons);
 
 	let output = binary;
 	let executable = binary;

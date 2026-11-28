@@ -103,14 +103,10 @@ check('icon group entries are 14 bytes each', group.length, 34);
 // node.exe and bun.exe both carry icons, so the runtime's own executable exercises the PE reader.
 if (process.platform === 'win32') {
 	const exe = readFileSync(process.execPath);
-	const groups = pe_resources(exe, RT_GROUP_ICON);
+	const named = pe_resources(exe, RT_GROUP_ICON).flatMap(({ data }) => Array.from({ length: data.readUInt16LE(4) }, (_, i) => data.readUInt16LE(6 + 14 * i + 12)));
 	const icons = new Set(pe_resources(exe, RT_ICON).map((icon) => icon.name));
-	check("the runtime's executable has an icon group", groups.length > 0);
-	check(
-		'and every icon its groups name',
-		groups.flatMap(({ data }) => Array.from({ length: data.readUInt16LE(4) }, (_, i) => data.readUInt16LE(6 + 14 * i + 12))).filter((id) => !icons.has(id)),
-		[]
-	);
+	check("the runtime's executable has icon groups that name icons", named.length > 0);
+	check('and holds every icon its groups name', named.filter((id) => !icons.has(id)), []);
 }
 
 // sips on macOS, System.Drawing on Windows; Linux has neither and never needs an icon.

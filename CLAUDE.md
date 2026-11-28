@@ -756,7 +756,7 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   plugin.ts    Bun loader (Bun.plugin) + Bun.build hooks ─ the `bun:*` scripts, build.ts, scripts/web.ts
   loader-config.ts  RENDERER_MODULE and WRONG_SVELTE ─ no svelte import, so a loader checks the install before compile.ts loads
   build.ts     Bun.build({ compile }) + per-platform packaging ─ `gpuix-svelte/build`; Bun-only
-  app-bundle.ts  build.ts's Node-testable half: app options from source, metadata, Info.plist, .icns/.ico, codesign, notarytool, the archive
+  app-bundle.ts  build.ts's Node-testable half: app options from source, metadata, Info.plist, .icns, the Windows icon group and PE reader, codesign, notarytool, the archive
   update.ts    `gpuix-svelte/update` ─ zip.ts is its adm-zip layer, update-web.ts its browser stub
   previous-instance.ts  a relaunched instance's wait for the old one ─ node:fs, stubbed by Bun's browser build
   screen-reader.ts  VoiceOver detection for the frame loop's pace ─ node:child_process, likewise

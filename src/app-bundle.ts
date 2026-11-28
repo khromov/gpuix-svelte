@@ -1,6 +1,6 @@
 /**
  * The packaging around a compiled executable — the macOS `.app`'s plist, icns, signature and
- * notarization, the Windows `.ico` — and the app metadata both are filled from, as the entry's
+ * notarization, the Windows icon resources — and the app metadata both are filled from, as the entry's
  * source declares it. Nothing here needs Bun, so the tests run it on Node; `build.ts` is the Bun half.
  */
 
