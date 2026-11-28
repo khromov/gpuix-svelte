@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.0](https://github.com/khromov/gpuix-svelte/compare/v0.6.0...v0.7.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* run on Svelte 5.59 from npm instead of a bundled build ([#87](https://github.com/khromov/gpuix-svelte/issues/87))
+
+### Features
+
+* run on Svelte 5.59 from npm instead of a bundled build ([#87](https://github.com/khromov/gpuix-svelte/issues/87)) ([e7ebbc6](https://github.com/khromov/gpuix-svelte/commit/e7ebbc640b81ca83871723e50e1261f8cc9a7b23))
+
+
+### Bug Fixes
+
+* give a Linux build's window its icon ([#95](https://github.com/khromov/gpuix-svelte/issues/95)) ([0d1f566](https://github.com/khromov/gpuix-svelte/commit/0d1f566e5e80a7a4d8f27552ec8d636a78a45f12))
+* show the app icon in the window title bar on Windows ([#93](https://github.com/khromov/gpuix-svelte/issues/93)) ([de657d2](https://github.com/khromov/gpuix-svelte/commit/de657d2742dc3e6af2a0c7b0c579dec663e8449b))
+
 ## [0.6.0](https://github.com/khromov/gpuix-svelte/compare/v0.5.0...v0.6.0) (2026-11-18)
 
 
