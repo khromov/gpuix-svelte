@@ -113,6 +113,7 @@
 		"test:tooltip": "node bin/gpuix-svelte.js test/tooltip.ts",
 		"test:automation": "node bin/gpuix-svelte.js test/automation.ts",
 		"test:automation-live": "node bin/gpuix-svelte.js test/automation-live.ts",
+		"test:linux-icon": "node bin/gpuix-svelte.js --bun test/linux-icon.ts",
 		"test:reorder": "node bin/gpuix-svelte.js test/reorder.ts",
 		"test:smoke": "node bin/gpuix-svelte.js test/smoke.ts",
 		"test:autocommit": "node bin/gpuix-svelte.js test/autocommit.ts",

@@ -5,13 +5,33 @@
  * `npm run compile`'s job.
  */
 
+import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import module from 'node:module';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
-import { app_slug, DEFAULT_ICON, icon_group, info_plist, native_addon, pe_resources, read_app_options, resolve_app_info, RT_GROUP_ICON, RT_ICON, windows_icons, write_icns, type AppInfo } from '../src/app-bundle.ts';
+import {
+	app_slug,
+	decode_png,
+	DEFAULT_ICON,
+	icon_group,
+	info_plist,
+	LINUX_ICON_SIZES,
+	native_addon,
+	net_wm_icon,
+	pe_resources,
+	read_app_options,
+	resolve_app_info,
+	RT_GROUP_ICON,
+	RT_ICON,
+	windows_icons,
+	write_icns,
+	X11_ICON_SIZES,
+	type AppInfo
+} from '../src/app-bundle.ts';
+import { data_home, desktop_entry, install_desktop_entry, linux_icon, x11_cookie } from '../src/linux-icon.ts';
 import { window_options_for } from '../src/render.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -222,6 +242,106 @@ check(
 	{ title: 'T', appName: 'N', appId: 'a.b' }
 );
 check('no app adds nothing', window_options_for({ width: 10 }, undefined), { width: 10 });
+check(
+	"a build's identifier is the app id when the entry declares none, and what the entry or window says wins",
+	[
+		window_options_for({}, { name: 'N' }, { identifier: 'local.n' }),
+		window_options_for({}, { identifier: 'com.x.y' }, { identifier: 'local.n' }).appId,
+		window_options_for({ appId: 'a.b' }, undefined, { identifier: 'local.n' }).appId
+	],
+	[{ title: 'N', appName: 'N', appId: 'local.n' }, 'com.x.y', 'a.b']
+);
+
+// The reference is PIL's decode of the same file.
+const decoded = decode_png(readFileSync(DEFAULT_ICON));
+check(
+	'decode_png reads the default icon, whose rows use every filter type, as PIL does',
+	[decoded.width, decoded.height, createHash('sha256').update(decoded.data).digest('hex')],
+	[1024, 1024, 'b8c755b18946619ab57c4b768a0bf40fefbffcac9561203433886f523c971f13']
+);
+const rgb = Buffer.from(readFileSync(DEFAULT_ICON));
+rgb[25] = 2;
+let refused = '';
+try {
+	decode_png(rgb);
+} catch (error) {
+	refused = (error as Error).message;
+}
+check('decode_png refuses what Bun.Image does not write, rather than misreading it', refused.startsWith('only 8-bit RGBA'), true);
+check(
+	"_NET_WM_ICON is each image's width and height, then 0xAARRGGBB pixels, little-endian",
+	net_wm_icon([{ width: 2, height: 1, data: Uint8Array.of(1, 2, 3, 4, 5, 6, 7, 8) }]).toString('hex'),
+	'02000000' + '01000000' + '03020104' + '07060508'
+);
+check(
+	'every size the window gets is one the build cuts for the icon theme',
+	X11_ICON_SIZES.every((size) => LINUX_ICON_SIZES.includes(size)),
+	true
+);
+
+check(
+	"the desktop entry is hidden from the app grid and matched to the window by its app id",
+	desktop_entry('com.x.y', 'My App', '/opt/my-app/my-app'),
+	[
+		'[Desktop Entry]',
+		'Type=Application',
+		'Name=My App',
+		'Exec=/opt/my-app/my-app',
+		'TryExec=/opt/my-app/my-app',
+		'Icon=com.x.y',
+		'StartupWMClass=com.x.y',
+		'NoDisplay=true',
+		'Terminal=false',
+		''
+	].join('\n')
+);
+check(
+	'Exec quotes a path with reserved characters and doubles %, and every value escapes backslashes and newlines',
+	desktop_entry('com.x.y', 'Two\nLines', '/home/u/My Apps/100% $x\\y')
+		.split('\n')
+		.filter((line) => /^(Name|Exec|TryExec)=/.test(line)),
+	[String.raw`Name=Two\nLines`, String.raw`Exec="/home/u/My Apps/100%% \\$x\\\\y"`, String.raw`TryExec=/home/u/My Apps/100% $x\\y`]
+);
+const data = join(scratch, 'data');
+const theme = Object.fromEntries(LINUX_ICON_SIZES.map((size) => [size, Buffer.from(`png ${size}`).toString('base64')]));
+check(
+	'the desktop entry and icons are written once, and again only when something in them changed',
+	[
+		install_desktop_entry(data, 'com.x.y', 'My App', '/opt/a', theme),
+		install_desktop_entry(data, 'com.x.y', 'My App', '/opt/a', theme),
+		install_desktop_entry(data, 'com.x.y', 'My App', '/opt/b', theme)
+	],
+	[LINUX_ICON_SIZES.length + 1, 0, 1]
+);
+check(
+	'they land where the icon theme and the desktop look',
+	[readFileSync(join(data, 'icons', 'hicolor', '16x16', 'apps', 'com.x.y.png'), 'utf8'), readFileSync(join(data, 'applications', 'com.x.y.desktop'), 'utf8')],
+	['png 16', desktop_entry('com.x.y', 'My App', '/opt/b')]
+);
+check('XDG_DATA_HOME is used only when absolute', [data_home({ XDG_DATA_HOME: '/x/data' }), data_home({ XDG_DATA_HOME: 'data' })], ['/x/data', join(homedir(), '.local', 'share')]);
+check('a dev run, with no icon built in, installs nothing', linux_icon('com.x.y', 'My App'), null);
+
+const xauth = (family: number, address: string, display: string, kind: string, cookie: string) => {
+	const fields = [address, display, kind, cookie].map((field) => {
+		const length = Buffer.alloc(2);
+		length.writeUInt16BE(Buffer.byteLength(field));
+		return Buffer.concat([length, Buffer.from(field)]);
+	});
+	const head = Buffer.alloc(2);
+	head.writeUInt16BE(family);
+	return Buffer.concat([head, ...fields]);
+};
+const authority = Buffer.concat([
+	xauth(256, 'other-host', '0', 'MIT-MAGIC-COOKIE-1', 'A'),
+	xauth(65535, '', '1', 'MIT-MAGIC-COOKIE-1', 'B'),
+	xauth(256, 'this-host', '', 'XDM-AUTHORIZATION-1', 'C'),
+	xauth(256, 'this-host', '', 'MIT-MAGIC-COOKIE-1', 'D')
+]);
+check(
+	"the X11 cookie is this host's or a wildcard's, for the display or any, and a truncated file ends the search",
+	[x11_cookie(authority, '0', 'this-host'), x11_cookie(authority, '1', 'this-host'), x11_cookie(authority.subarray(0, 30), '0', 'this-host')].map((cookie) => cookie?.toString() ?? null),
+	['D', 'B', null]
+);
 
 // An aot or trim build resolves @gpuix/native to this file and searches the executable for its bytes.
 const addon = native_addon();
@@ -229,4 +349,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 40 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 52 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));

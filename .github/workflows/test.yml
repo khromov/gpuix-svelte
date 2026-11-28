@@ -104,6 +104,8 @@ jobs:
       # A runner has no display or GPU, so Xvfb and Mesa's software Vulkan stand in for them.
       - run: xvfb-run -a npm run test:automation-live
       - run: xvfb-run -a npm run bun:test:automation-live
+      # Bun-only like the build: a built app installs its desktop entry and sets _NET_WM_ICON on its X11 window.
+      - run: xvfb-run -a npm run test:linux-icon
 
   # Build-only: a runner has no display. It checks that the bundle resolves with the
   # svelte-custom-renderer condition, that the addon gets embedded (gpuix-svelte/build asserts both)

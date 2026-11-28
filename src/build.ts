@@ -1,7 +1,7 @@
 /**
  * `gpuix-svelte/build` — `Bun.build({ compile })` over a static-`render()` entry, then the
  * platform's packaging: a `.app` on macOS, a console-less `.exe` with version info on Windows,
- * a bare executable on Linux. Bun is the bundler, so this is Bun-only like plugin.ts.
+ * a bare executable on Linux that installs its icon when it runs. Bun is the bundler, so this is Bun-only like plugin.ts.
  */
 
 import type { BunPlugin } from 'bun';
@@ -11,10 +11,13 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	archive_name,
+	decode_png,
 	DEFAULT_ICON,
 	icon_group,
 	info_plist,
+	LINUX_ICON_SIZES,
 	native_addon,
+	net_wm_icon,
 	notarize,
 	notary_auth,
 	pe_resources,
@@ -28,11 +31,13 @@ import {
 	windows_icons,
 	write_archive,
 	write_icns,
+	X11_ICON_SIZES,
 	type AppInfo,
 	type EmbeddedAppInfo,
 	type EntryApp,
 	type IconImage
 } from './app-bundle.ts';
+import type { EmbeddedIcon } from './linux-icon.ts';
 
 import { is_version } from './update.ts';
 
@@ -62,6 +67,12 @@ export interface BuildOptions {
 	 * them unused, and the app throws `ERR_FEATURE_REMOVED` if it reaches one.
 	 */
 	trim?: boolean | TrimOptions;
+	/**
+	 * On Linux the executable installs `<identifier>.desktop` and its icon under `~/.local/share` when it starts,
+	 * which is the only place GNOME takes a window's icon from. False leaves the user's home alone; X11 window
+	 * managers that read the icon off the window still get it.
+	 */
+	desktopEntry?: boolean;
 }
 
 /** Bun's `compile.trim` object; the names are Bun's feature names (https://bun.com/docs/compiler/size#feature-names). */
@@ -145,6 +156,7 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		if (windows.version !== app.version) log(`version "${app.version}" goes into the .exe as ${windows.version}; Windows file properties take numbers only`);
 		icons = windows_icons(app.icon, scratch);
 	}
+	const linux = process.platform === 'linux' ? await embedded_linux_icon(app.icon, options.desktopEntry !== false) : null;
 
 	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
 	const addon = flags.length > 0 ? native_addon() : null;
@@ -180,6 +192,7 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 		define: {
 			'process.env.NODE_ENV': '"production"',
 			'process.env.GPUIX_APP_INFO': JSON.stringify(JSON.stringify(embedded)),
+			'process.env.GPUIX_APP_ICON': JSON.stringify(linux ? JSON.stringify(linux) : ''),
 			// The dev-run override must not redirect a shipped app.
 			'process.env.GPUIX_UPDATE_MANIFEST': '""',
 			// A binary cannot serve automation, and `aot` would otherwise compile the server and zod in.
@@ -331,6 +344,17 @@ async function set_exe_icon(exe: string, images: IconImage[]) {
 	const icons = pe_resources(after, RT_ICON);
 	const exact = groups.length === 1 && groups[0].name === 1 && groups[0].data.equals(group) && icons.length === images.length && images.every((image, i) => icons.some((icon) => icon.name === i + 1 && icon.data.equals(image.bytes)));
 	if (!exact) throw new Error(`${TAG} ${rel(exe)} came out with icon groups ${JSON.stringify(groups.map((g) => g.name))} and ${icons.length} icons, not the one group and ${images.length} icons written`);
+}
+
+/** Bun.Image cuts the sizes because Linux has no scaler of its own, and every one comes out as the RGBA PNG `decode_png` reads. */
+async function embedded_linux_icon(png: string, desktop_entry: boolean): Promise<EmbeddedIcon> {
+	const source = readFileSync(png);
+	const theme = await Promise.all(LINUX_ICON_SIZES.map(async (size) => Buffer.from(await new Bun.Image(source).resize(size, size).png().bytes())));
+	const x11 = net_wm_icon(X11_ICON_SIZES.map((size) => decode_png(theme[LINUX_ICON_SIZES.indexOf(size)])));
+	return {
+		...(desktop_entry && { png: Object.fromEntries(theme.map((bytes, i) => [LINUX_ICON_SIZES[i], bytes.toString('base64')])) }),
+		x11: x11.toString('base64')
+	};
 }
 
 /** Windows file versions are up to four 16-bit integers. */

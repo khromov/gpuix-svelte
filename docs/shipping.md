@@ -9,7 +9,8 @@ npm run build
 
 For a project created as `my-app`, on macOS that is `dist/my-app.app`, an application bundle
 with its icon that opens from Finder or the Dock. On Windows it is `dist/my-app.exe`, with the
-icon and version info in its file properties. On Linux it is the executable `dist/my-app`.
+icon and version info in its file properties. On Linux it is the executable `dist/my-app`, which
+gives its window an icon by installing a desktop entry when it starts ([Linux](#linux) below).
 Each carries the Bun runtime, Svelte and the GPUI addon. On Linux the machine also needs the
 system libraries `libxcb`, `libxkbcommon` and `libxkbcommon-x11`, which desktop installs have.
 
@@ -43,9 +44,9 @@ otherwise read the title), and `identifier` as its app id on Linux.
 | Field         | Used for                                                              | Default                                      |
 | ------------- | --------------------------------------------------------------------- | -------------------------------------------- |
 | `name`        | The `.app` name, the Dock and menu bar, the Windows product name      | the window `title`, else `package.json`'s `name` |
-| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on; the window's app id on Linux | `local.<slug>` (the name lowercased, with dashes) in the build, no app id on the window; set a reverse-DNS one before you sign |
+| `identifier`  | The bundle identifier, which signing and macOS's per-app state key on; the window's app id on Linux | `local.<slug>` (the name lowercased, with dashes) in the build, which a Linux build's window takes as its app id too; under `npm start`, no app id on the window. Set a reverse-DNS one before you sign |
 | `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
-| `icon`        | The `.icns` on macOS; on Windows the `.exe`'s icon, which its window's title bar and the taskbar show too; not used on Linux, where the `.desktop` file names the icon (the path is still checked) | the gpuix-svelte icon |
+| `icon`        | The `.icns` on macOS; on Windows the `.exe`'s icon, which its window's title bar and the taskbar show too; on Linux the icon of the desktop entry the executable installs, and of its window under X11 | the gpuix-svelte icon |
 | `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
 | `publisher`, `description` | Windows file properties                                   | the app's name                               |
 | `update`      | `{ manifest, publicKey? }`, where the built app checks for updates; see [Updating](updating.md) | none |
@@ -53,7 +54,7 @@ otherwise read the title), and `identifier` as its app id on Linux.
 `icon` is a square PNG, 1024 × 1024 for macOS's largest size; until you set one, the app wears the
 gpuix-svelte icon. A relative path is read from `standalone.ts`'s directory. The build cuts
 every size the platform wants from it with tools the platform has: `sips` and `iconutil` on macOS,
-.NET's `System.Drawing` through PowerShell on Windows. Windows file properties take numbers only,
+.NET's `System.Drawing` through PowerShell on Windows, Bun's own `Bun.Image` on Linux. Windows file properties take numbers only,
 so a `1.0.0-beta.1` is written there as `1.0.0`; on macOS it goes into
 `CFBundleShortVersionString` as written and `CFBundleVersion` gets its numbers, `1.0.0`.
 
@@ -104,10 +105,6 @@ Good to know:
   on macOS or Linux, start the executable from a shell: `dist/my-app.app/Contents/MacOS/my-app` or
   `dist/my-app`. The Windows `.exe` is a GUI program, so a shell neither waits for it nor shows
   its output; redirect it instead: `dist\my-app.exe > log.txt 2>&1`.
-- **Linux.** Nothing registers the executable with the desktop: a `.desktop` file and an icon
-  under `~/.local/share` are yours to add, or a package's. Name the file after `identifier`
-  (`com.example.my-app.desktop`), because the window reports that as its Wayland app id and X11
-  `WM_CLASS`, which is how the desktop connects the two.
 - **Unsigned by default.** macOS blocks a downloaded, unsigned app until the person allows it under
   System Settings → Privacy & Security, and Windows SmartScreen warns about an unsigned `.exe`. For
   anything you distribute, see [Signing and notarizing on macOS](#signing-and-notarizing-on-macos).
@@ -151,6 +148,31 @@ None of those are features gpuix-svelte uses, but your own code might. A removed
 Both options are Bun's and still experimental, so run the executable itself before you ship it. With
 `aot`, a type error in your own `.ts` files stops the build, and code can't be loaded from disk at
 run time. Bun's [compatibility page](https://bun.com/docs/compiler/compatibility) lists the rest.
+
+## Linux
+
+A Linux executable carries no icon that the desktop reads, so the built app gives its window one
+when it starts:
+
+- It installs a desktop entry, `~/.local/share/applications/<identifier>.desktop`, and the icon at
+  each size under `~/.local/share/icons/hicolor` (`$XDG_DATA_HOME` in place of `~/.local/share` if
+  it is set). The entry is hidden from the app grid and names the window's app id as its
+  `StartupWMClass`, which is how GNOME and KDE find the icon for the dock, the window switcher and
+  the overview. It is rewritten only when something in it changes, such as the executable moving;
+  delete the files to remove it.
+- On GNOME that is the only way: GNOME 46 and later show no icon a window supplies itself. The
+  first launch shows the generic icon for about five seconds, until GNOME rereads its list of apps;
+  later launches have the icon at once.
+- Under X11 it also sets the window's own icon (`_NET_WM_ICON`), which window managers that don't
+  read desktop entries, such as Xfce's, draw in the title bar.
+
+`build({ desktopEntry: false })` leaves the user's home alone; the window then keeps only its own
+icon under X11, and GNOME shows the generic one unless a package installs a desktop entry named
+after `identifier`. Under `npm start` none of this happens.
+
+The file manager shows `dist/my-app` itself with the generic executable icon whatever the build
+does: Files and the others draw an executable by its file type, and read nothing inside it for an
+icon.
 
 ## Signing and notarizing on macOS
 
