@@ -45,7 +45,7 @@ otherwise read the title), and `identifier` as its app id on Linux.
 | `name`        | The `.app` name, the Dock and menu bar, the Windows product name      | the window `title`, else `package.json`'s `name` |
 | `identifier`  | The bundle identifier, which signing and macOS's per-app state key on; the window's app id on Linux | `local.<slug>` (the name lowercased, with dashes) in the build, no app id on the window; set a reverse-DNS one before you sign |
 | `version`     | `CFBundleShortVersionString` on macOS, the file version on Windows    | `package.json`'s `version`                   |
-| `icon`        | The `.icns` on macOS, the `.ico` on Windows; not used on Linux, where the `.desktop` file names the icon (the path is still checked) | the gpuix-svelte icon |
+| `icon`        | The `.icns` on macOS; on Windows the `.exe`'s icon, which its window's title bar and the taskbar show too; not used on Linux, where the `.desktop` file names the icon (the path is still checked) | the gpuix-svelte icon |
 | `copyright`   | `NSHumanReadableCopyright` and the Windows copyright field            | none                                         |
 | `publisher`, `description` | Windows file properties                                   | the app's name                               |
 | `update`      | `{ manifest, publicKey? }`, where the built app checks for updates; see [Updating](updating.md) | none |

@@ -12,21 +12,26 @@ import { fileURLToPath } from 'node:url';
 import {
 	archive_name,
 	DEFAULT_ICON,
+	icon_group,
 	info_plist,
 	native_addon,
 	notarize,
 	notary_auth,
+	pe_resources,
 	read_app_options,
 	resolve_app_info,
+	RT_GROUP_ICON,
+	RT_ICON,
 	sign,
 	update_fragment,
 	update_platform,
+	windows_icons,
 	write_archive,
 	write_icns,
-	write_ico,
 	type AppInfo,
 	type EmbeddedAppInfo,
-	type EntryApp
+	type EntryApp,
+	type IconImage
 } from './app-bundle.ts';
 
 import { is_version } from './update.ts';
@@ -82,7 +87,6 @@ export interface BuildResult {
 
 interface WindowsInfo {
 	hideConsole: boolean;
-	icon?: string;
 	title?: string;
 	publisher?: string;
 	version?: string;
@@ -132,14 +136,14 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 	rmSync(bundle, { recursive: true, force: true });
 
 	let windows: WindowsInfo | undefined;
+	let icons: IconImage[] | undefined;
 	if (process.platform === 'win32') {
 		// Anything left unset keeps bun.exe's own value: description "Bun", publisher "Oven", Bun's version.
 		windows = { hideConsole: true, title: app.name, description: app.description || app.name, publisher: app.publisher || app.name, copyright: app.copyright || ' ' };
 		const numeric = /^v?(\d+(?:\.\d+){0,3})/.exec(app.version)?.[1];
 		windows.version = numeric && windows_version(numeric) ? numeric : '0.0.0.0';
 		if (windows.version !== app.version) log(`version "${app.version}" goes into the .exe as ${windows.version}; Windows file properties take numbers only`);
-		windows.icon = join(scratch, 'AppIcon.ico');
-		write_ico(app.icon, windows.icon, scratch);
+		icons = windows_icons(app.icon, scratch);
 	}
 
 	const flags = supported_flags([...(options.aot ? ['aot' as const] : []), ...(options.trim ? ['trim' as const] : [])]);
@@ -202,6 +206,8 @@ async function build_in(options: BuildOptions, outdir: string, scratch: string):
 	}
 	if (components === 0) throw new Error(`${TAG} no .svelte file went through the plugin; ${rel(entry)} has to import the component it renders`);
 
+	// First, since Windows' resource writer drops anything appended past the last section, and the checks below must see the final file.
+	if (icons) await set_exe_icon(binary, icons);
 	const size = statSync(binary).size;
 	if (addon) {
 		// Both flags shrink the runtime below bare Bun, so no size floor can tell a lost addon apart.
@@ -286,6 +292,45 @@ function supported_flags(requested: CompileFlag[]): CompileFlag[] {
 		log(`${missing.join(' and ')} ${verb} no effect on this build: Bun ${Bun.version_with_sha} does not support ${pronoun}`);
 	}
 	return supported;
+}
+
+const EN_US = 0x409;
+
+/**
+ * GPUI's window class takes its icon from group 1 of the executable, and Bun's `compile.windows.icon` writes group 0 beside
+ * bun.exe's named group, which Explorer then shows, so the build replaces every icon resource with its own.
+ */
+async function set_exe_icon(exe: string, images: IconImage[]) {
+	const { dlopen, FFIType, ptr } = await import('bun:ffi');
+	const { symbols: kernel32, close } = dlopen('kernel32.dll', {
+		BeginUpdateResourceW: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.u64 },
+		UpdateResourceW: { args: [FFIType.u64, FFIType.u64, FFIType.u64, FFIType.u16, FFIType.ptr, FFIType.u32], returns: FFIType.i32 },
+		EndUpdateResourceW: { args: [FFIType.u64, FFIType.i32], returns: FFIType.i32 }
+	});
+	const wide = (text: string) => Buffer.from(`${text}\0`, 'utf16le');
+	const group = icon_group(images);
+	const writes = [...images.map((image, i) => ({ type: RT_ICON, name: i + 1, data: image.bytes })), { type: RT_GROUP_ICON, name: 1, data: group }];
+	const before = readFileSync(exe);
+	const stale = [RT_ICON, RT_GROUP_ICON]
+		.flatMap((type) => pe_resources(before, type).map((resource) => ({ type, ...resource })))
+		.filter(({ type, name, lang }) => lang !== EN_US || !writes.some((write) => write.type === type && write.name === name));
+	try {
+		const handle = kernel32.BeginUpdateResourceW(wide(exe), 0);
+		if (handle === 0n) throw new Error(`${TAG} cannot open ${rel(exe)} to write its icon`);
+		const update = (type: number, name: number | string, lang: number, data: Uint8Array | null) => {
+			const named = typeof name === 'string' ? wide(name) : null;
+			return kernel32.UpdateResourceW(handle, BigInt(type), named ? BigInt(ptr(named)) : BigInt(name), lang, data, data?.length ?? 0) !== 0;
+		};
+		const written = stale.every(({ type, name, lang }) => update(type, name, lang, null)) && writes.every(({ type, name, data }) => update(type, name, EN_US, data));
+		if (!kernel32.EndUpdateResourceW(handle, written ? 0 : 1) || !written) throw new Error(`${TAG} could not write the icon into ${rel(exe)}`);
+	} finally {
+		close();
+	}
+	const after = readFileSync(exe);
+	const groups = pe_resources(after, RT_GROUP_ICON);
+	const icons = pe_resources(after, RT_ICON);
+	const exact = groups.length === 1 && groups[0].name === 1 && groups[0].data.equals(group) && icons.length === images.length && images.every((image, i) => icons.some((icon) => icon.name === i + 1 && icon.data.equals(image.bytes)));
+	if (!exact) throw new Error(`${TAG} ${rel(exe)} came out with icon groups ${JSON.stringify(groups.map((g) => g.name))} and ${icons.length} icons, not the one group and ${images.length} icons written`);
 }
 
 /** Windows file versions are up to four 16-bit integers. */

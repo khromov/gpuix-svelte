@@ -1,7 +1,7 @@
 /**
  * `gpuix-svelte/build`'s runtime-agnostic half: the app options read from an entry's source,
- * and what app-bundle.ts makes of them — metadata defaults, the Info.plist, the .ico container
- * and, where the platform has a scaler, real icon files. The Bun.build call itself is
+ * and what app-bundle.ts makes of them — metadata defaults, the Info.plist, the Windows icon group
+ * and the PE reader, and, where the platform has a scaler, real icon files. The Bun.build call itself is
  * `npm run compile`'s job.
  */
 
@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, finish } from 'gpuix-svelte/test';
-import { app_slug, DEFAULT_ICON, ico, ICO_SIZES, info_plist, native_addon, read_app_options, resolve_app_info, write_icns, write_ico, type AppInfo } from '../src/app-bundle.ts';
+import { app_slug, DEFAULT_ICON, icon_group, info_plist, native_addon, pe_resources, read_app_options, resolve_app_info, RT_GROUP_ICON, RT_ICON, windows_icons, write_icns, type AppInfo } from '../src/app-bundle.ts';
 import { window_options_for } from '../src/render.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -90,20 +90,24 @@ check(
 );
 check('and render() can initialize one', read_app_options(`import { render } from 'gpuix-svelte';\nexport const win = render(A, { title: 'T' });`), { title: 'T' });
 
-const container = ico([
+const group = icon_group([
 	{ size: 16, bytes: new Uint8Array([1, 2, 3]) },
 	{ size: 256, bytes: new Uint8Array([4, 5]) }
 ]);
-check('ico header: reserved 0, type 1, two entries', [container.readUInt16LE(0), container.readUInt16LE(2), container.readUInt16LE(4)], [0, 1, 2]);
-check('ico entries: 16 px as is, 256 px written as 0', [container[6], container[7], container[22], container[23]], [16, 16, 0, 0]);
-check('ico entries: one colour plane at 32 bits', [container.readUInt16LE(10), container.readUInt16LE(12), container.readUInt16LE(26), container.readUInt16LE(28)], [1, 32, 1, 32]);
-check(
-	'ico entries point at contiguous blobs after the directory',
-	[container.readUInt32LE(14), container.readUInt32LE(18), container.readUInt32LE(30), container.readUInt32LE(34)],
-	[3, 38, 2, 41]
-);
-check('ico blobs follow in order', [...container.subarray(38)], [1, 2, 3, 4, 5]);
-check("the .ico leads with its largest image, the one Bun's leftover icon group shows", ICO_SIZES[0], Math.max(...ICO_SIZES));
+check('icon group header: reserved 0, type 1, two entries', [group.readUInt16LE(0), group.readUInt16LE(2), group.readUInt16LE(4)], [0, 1, 2]);
+check('icon group entries: 16 px as is, 256 px written as 0', [group[6], group[7], group[20], group[21]], [16, 16, 0, 0]);
+check('icon group entries: one colour plane at 32 bits', [group.readUInt16LE(10), group.readUInt16LE(12), group.readUInt16LE(24), group.readUInt16LE(26)], [1, 32, 1, 32]);
+check('icon group entries: each image size, then its RT_ICON id counting from 1', [group.readUInt32LE(14), group.readUInt16LE(18), group.readUInt32LE(28), group.readUInt16LE(32)], [3, 1, 2, 2]);
+check('icon group entries are 14 bytes each', group.length, 34);
+
+// node.exe and bun.exe both carry icons, so the runtime's own executable exercises the PE reader.
+if (process.platform === 'win32') {
+	const exe = readFileSync(process.execPath);
+	const named = pe_resources(exe, RT_GROUP_ICON).flatMap(({ data }) => Array.from({ length: data.readUInt16LE(4) }, (_, i) => data.readUInt16LE(6 + 14 * i + 12)));
+	const icons = new Set(pe_resources(exe, RT_ICON).map((icon) => icon.name));
+	check("the runtime's executable has icon groups that name icons", named.length > 0);
+	check('and holds every icon its groups name', named.filter((id) => !icons.has(id)), []);
+}
 
 // sips on macOS, System.Drawing on Windows; Linux has neither and never needs an icon.
 const png = join(awkward, 'ic on ’.png');
@@ -111,18 +115,14 @@ copyFileSync(DEFAULT_ICON, png);
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const scaler = process.platform === 'darwin' || process.platform === 'win32';
 if (scaler) {
-	const out = join(awkward, 'App Icon.ico');
-	write_ico(png, out, awkward);
-	const bytes = readFileSync(out);
-	const entries = Array.from({ length: bytes.readUInt16LE(4) }, (_, i) => {
-		const at = 6 + 16 * i;
-		const blob = bytes.subarray(bytes.readUInt32LE(at + 12), bytes.readUInt32LE(at + 12) + bytes.readUInt32LE(at + 8));
-		return { declared: bytes[at] || 256, png: blob.subarray(0, 8).equals(PNG_MAGIC), width: blob.readUInt32BE(16) };
+	const entries = windows_icons(png, awkward).map(({ size, bytes }) => {
+		const blob = Buffer.from(bytes);
+		return { size, png: blob.subarray(0, 8).equals(PNG_MAGIC), width: blob.readUInt32BE(16) };
 	});
 	check(
-		'the .ico holds one PNG per size, each scaled to it',
+		'the Windows icon is one PNG per size, each scaled to it',
 		entries,
-		[256, 48, 32, 16].map((size) => ({ declared: size, png: true, width: size }))
+		[256, 48, 32, 16].map((size) => ({ size, png: true, width: size }))
 	);
 }
 if (process.platform === 'darwin') {
@@ -229,4 +229,4 @@ check('the host prebuild is an installed .node for this platform', [existsSync(a
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(join(root, 'test', '.bundle-tmp'), { recursive: true, force: true });
-finish('bundle', 41 + (scaler ? 1 : 0) + (process.platform === 'darwin' ? 2 : 0));
+finish('bundle', 40 + (scaler ? 1 : 0) + (process.platform === 'win32' ? 2 : 0) + (process.platform === 'darwin' ? 2 : 0));

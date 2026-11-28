@@ -107,7 +107,8 @@ jobs:
 
   # Build-only: a runner has no display. It checks that the bundle resolves with the
   # svelte-custom-renderer condition, that the addon gets embedded (gpuix-svelte/build asserts both)
-  # and that each OS's packaging runs: the .app and icns on macOS, the .ico and version info on Windows.
+  # and that each OS's packaging runs: the .app and icns on macOS, the icon resources (which the build
+  # reads back) and version info on Windows.
   compile:
     strategy:
       fail-fast: false
