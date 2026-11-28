@@ -254,6 +254,10 @@ the plumbing differs:
   `localhost`), and `file://` can't work at all.
 - **The page sizes the canvas.** The canvas fills the page, styled by the page's CSS. `title`,
   `width` and `height` apply only to desktop windows.
+- **It draws only the fonts it embeds.** GPUI's wasm build can't reach the system's fonts or add
+  one, so it has IBM Plex Sans and Lilex, which cover Latin, Greek and Cyrillic; Arabic, Persian,
+  Hebrew and CJK draw as boxes. See [Other scripts and right-to-left
+  text](guide.md#other-scripts-and-right-to-left-text).
 - **The browser has no `process`.** Bun doesn't shim it for a browser bundle, so a bare
   `process.env.X` in your app code throws a `ReferenceError` there.
 - **It's about a 20 MB download** uncompressed, almost all of it the wasm, so serve it with

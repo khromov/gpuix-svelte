@@ -101,6 +101,10 @@ jobs:
       - run: npm run bun:test:docs
       - run: npm run test:compile
       - run: npm run bun:test:compile
+      - run: npm run test:fonts
+      - run: npm run bun:test:fonts
+      - run: npm run test:rtl
+      - run: npm run bun:test:rtl
       # A runner has no display or GPU, so Xvfb and Mesa's software Vulkan stand in for them.
       - run: xvfb-run -a npm run test:automation-live
       - run: xvfb-run -a npm run bun:test:automation-live

@@ -282,8 +282,10 @@ what `@gpuix/native` 0.11 added (`npm run demo:native-0.11`).
   and is what ffmpeg's `-pix_fmt bgra` produces. The image is dropped when the element is destroyed
   or its `src` changes. Called from `{@attach}`, both wait for the element to exist.
 - `register_font(bytes)` adds a TrueType or OpenType file (or collection), so `font-family` can
-  name the families it declares. Register it before the text that uses the family is first laid
-  out. It throws on a file GPUI can't use, and does nothing in a browser.
+  name the families it declares. Call it before `render()`, which adds the font ahead of the first
+  frame; one added later can miss text already laid out. It throws on a file GPUI can't use (from
+  `render()` if the font was waiting for it), and does nothing in a browser. See [Other scripts and
+  right-to-left text](#other-scripts-and-right-to-left-text).
 - `elements_at(x, y)` returns the elements painted under a window point, topmost first, like the
   DOM's `elementsFromPoint`. It skips anything clipped away or `pointer-events: none`, and returns
   nothing in a browser.
@@ -341,6 +343,87 @@ Turn it on with `render(App, { debugFrameOverlay: 'full' })`, or for any app wit
 control it. `debug_overlay_stats()` reads the same numbers for a script or a headless bench, and
 `reset_debug_overlay_stats()` clears the draw samples (the frame count keeps going). They keep
 recording while the overlay is hidden. A hot reload keeps whatever mode is showing.
+
+## Other scripts and right-to-left text
+
+GPUI shapes text with Core Text on macOS, DirectWrite on Windows and cosmic-text on Linux. Each
+joins Arabic and Persian letters, orders a right-to-left run inside its line (which GPUI then
+draws mirrored on Windows, see below), and takes a character the font in use lacks from another
+font that has it. Which fonts a window can fall back to decides whether it draws a script at all:
+
+- On macOS and Windows, the system's own fonts, which cover Arabic and Persian, so neither needs a
+  font registered.
+- On Linux, any installed font that covers the script (DejaVu Sans, Noto Sans Arabic, Vazirmatn
+  and so on). With none, every letter is an empty box.
+- In a browser canvas ([Run it in a browser](shipping.md#run-it-in-a-browser), and the
+  playground's GPUI renderer), none. GPUI's WebAssembly build draws only the IBM Plex Sans and
+  Lilex it embeds, which cover Latin, Greek and Cyrillic, and can't add a font, so Arabic,
+  Persian, Hebrew and CJK are boxes there. The DOM build and the playground's DOM renderer use the
+  browser's fonts.
+
+To be sure of a font, ship it with the app, register it before `render()` and name it in
+`font-family`. [Vazirmatn](https://github.com/rastikerdar/vazirmatn), under the SIL Open Font
+License, covers Persian, Arabic and Latin:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { register_font, render } from 'gpuix-svelte';
+import App from './App.svelte';
+
+register_font(readFileSync(new URL('./fonts/Vazirmatn-Regular.ttf', import.meta.url)));
+render(App);
+```
+
+That reads the file from disk when running from source; for a [compiled binary](shipping.md), embed
+the font with `import font from './fonts/Vazirmatn-Regular.ttf' with { type: 'file' }` and pass
+`readFileSync(font)` (or read it from beside the executable).
+
+```svelte
+<div class="app">
+  <text>سلام دنیا</text>
+</div>
+
+<style>
+  .app {
+    font-family: 'Vazirmatn', sans-serif;
+  }
+</style>
+```
+
+GPUI takes one family and matches its name exactly, so `font-family` uses the first family of a
+list, unquoted: Vazirmatn here, with `sans-serif` left for a browser. Two things keep a font out:
+
+- On Linux a family is looked up once and a miss is kept, so a font registered after text has
+  asked for its family never reaches that text. Registering before `render()` adds it ahead of the
+  first frame. Windows looks the family up again, so there a font registered later still reaches
+  text on its next frame.
+- GPUI measures text with the letter `m` and refuses a font that has none. `register_font` throws
+  for an Arabic-only font such as Noto Sans Arabic, and naming an installed one in `font-family`
+  takes it out of Linux's fallback as well, leaving boxes. Leave such a font to fallback, or use one
+  that has Latin letters too, like Vazirmatn.
+
+Right-to-left layout is where GPUI itself falls short
+([zed#31102](https://github.com/zed-industries/zed/issues/31102)), and this package works around
+the wrapping, and Windows' mirroring, in [`RtlText`](components.md#rtltext):
+
+- There is no base direction to set. `direction: rtl` is dropped and elements have no `dir`. On
+  macOS and Linux a line takes its direction from its first letter, but it still starts at the left
+  of its box, so right-align it with `text-align: right` (`start` means left).
+- A right-to-left paragraph that wraps comes out wrong: GPUI breaks lines as if the text ran left
+  to right, mid-word, and draws them out of place. Put it in
+  [`RtlText`](components.md#rtltext), which breaks the lines itself and hands GPUI one at a time,
+  or cut it to one line with `white-space: nowrap` and `text-overflow: ellipsis`.
+- On Linux, a line that opens with a number and goes on in right-to-left text loses the number. A
+  right-to-left mark (U+200F) in front keeps it, and `RtlText` puts one there.
+- On Windows, GPUI draws every right-to-left run from left to right in the order it was typed, so
+  Arabic, Persian and Hebrew come out mirrored and Arabic and Persian letters come apart, whatever
+  the font. `RtlText` hands it each line already in display order, so use it there for any
+  right-to-left text, a single line too.
+- In an `<input>`, a `<textarea>` and a text selection, the caret and the highlight are placed as
+  if the text ran left to right, so over right-to-left text they land on the wrong letters or show
+  nothing. On Windows, where the text itself runs left to right, they match the mirrored letters.
+
+In the DOM build the browser does all of this, `direction: rtl` included.
 
 ## State that survives hot reload
 

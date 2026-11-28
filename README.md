@@ -122,10 +122,10 @@ files, spawn processes, open SQLite databases and load native addons directly.
   `{@attach}` hands you the element. → [docs/guide.md](docs/guide.md)
 - **Keyboard shortcuts** go through `on_window_key('keydown', handler)`, which hears keys
   whatever has focus. → [docs/guide.md](docs/guide.md#keyboard-shortcuts-and-focus)
-- **`Scroller`, `Portal`, `Tooltip` and `Popover` ship with the package**: a scroll column with a
-  draggable scrollbar (virtualised on request), a wrapper that paints modals, menus and toasts on
-  top from anywhere in the tree, and a hover tip and a controlled panel that hang beside their
-  trigger. → [docs/components.md](docs/components.md)
+- **`Scroller`, `Portal`, `Tooltip`, `Popover` and `RtlText` ship with the package**: a scroll
+  column with a draggable scrollbar (virtualised on request), a wrapper that paints modals, menus
+  and toasts on top from anywhere in the tree, a hover tip and a controlled panel that hang beside
+  their trigger, and a right-to-left paragraph that wraps. → [docs/components.md](docs/components.md)
 - **Window and desktop APIs** cover the title, fullscreen, the file picker, file drops, images
   from raw pixels, focus and accessibility attributes.
   → [docs/guide.md](docs/guide.md#window-and-desktop-helpers)
@@ -148,8 +148,8 @@ files, spawn processes, open SQLite databases and load native addons directly.
 |                                        |                                                                                                                                                                             |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Styling](docs/styling.md)             | Every CSS property and value GPUI understands, what is dropped, theming with variables                                                                                      |
-| [Components](docs/components.md)       | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, and the native `<anchored>` they build on                                                             |
-| [Guide](docs/guide.md)                 | Forms, text search, keyboard and focus, reactive window size, the title bar on GNOME, window and desktop helpers, state that survives hot reload                            |
+| [Components](docs/components.md)       | `Scroller` (incl. virtualised lists), `Portal`, `Tooltip`, `Popover`, the native `<anchored>` they build on, and `RtlText` for right-to-left paragraphs                     |
+| [Guide](docs/guide.md)                 | Forms, text search, keyboard and focus, reactive window size, the GNOME title bar, window and desktop helpers, fonts and right-to-left text, state that survives hot reload |
 | [Accessibility](docs/accessibility.md) | What reaches a screen reader, what GPUI lacks and what to use instead, keyboard patterns for menus, dialogs and lists                                                       |
 | [Testing](docs/testing.md)             | Headless tests that click through GPUI's real hit testing, screenshots, and driving a running window                                                                        |
 | [Shipping](docs/shipping.md)           | Standalone binaries, signed macOS apps, and running in a browser via WebGPU                                                                                                 |

@@ -18,6 +18,10 @@ export { dismiss_scope } from './layers.ts';
 export { parse_css_text, build_style } from './style.ts';
 export { to_gpui_event, GPUI_EVENTS } from './events.ts';
 export { TextSearch, find_ranges, type TextSearchOptions, type SearchMatches } from './search.ts';
+export { rtl_words, rtl_line, rtl_lines } from './rtl.ts';
+
+/** The line as written: a browser orders and joins right-to-left text itself. */
+export const rtl_display = (line: string): string => line;
 
 /** False here; the GPUI entries answer true. Decided per build, so it can be read before anything is mounted. */
 export const IS_GPUIX: boolean = false;

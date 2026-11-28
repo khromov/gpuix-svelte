@@ -966,6 +966,13 @@ export function set_css_vars(vars: Record<string, string | number | null>) {
 
 // Host wiring for `render.ts` and the test harness.
 
+let on_native: (() => void) | null = null;
+
+/** Called at the end of `set_native()` so window-level queues (fonts registered before mount) flush ahead of the first batch. */
+export function set_on_native(cb: () => void) {
+	on_native = cb;
+}
+
 export function set_native(instance: NativeSink) {
 	native = instance;
 	queue = [];
@@ -996,6 +1003,7 @@ export function set_native(instance: NativeSink) {
 	// The id map is new, so the window listeners need a fresh registration.
 	window_node.nativeId = null;
 	if (window_node.listeners.size > 0 || tab_navigation) sync_window_events();
+	on_native?.();
 }
 
 /** `render`'s `tabNavigation`: false leaves Tab to the app, as before native 0.11. */

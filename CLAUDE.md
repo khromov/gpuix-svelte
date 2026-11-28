@@ -793,7 +793,9 @@ compile.ts   .svelte → JS + the ?v=N buster ─┘
   titlebar.ts  render's `titlebar` option: a static bar above the app root (GNOME Wayland draws none)
   window.ts    window, picker, focus, image, overlay helpers ─ no-op where native lacks the method
   search.ts    TextSearch, find_ranges ─ createSubscriber, so no runes in src/
-  components/  Scroller, Portal, Tooltip, Popover .svelte ─ `gpuix-svelte/components/*`
+  rtl.ts       RtlText's line breaking (rtl_words, rtl_line, rtl_lines) ─ exported by both builds
+  rtl-display.ts  rtl_display, a line in display order for Windows ─ its own Arabic shaping over bidi-js; dom.ts has an identity
+  components/  Scroller, Portal, Tooltip, Popover, RtlText .svelte ─ `gpuix-svelte/components/*`
   components/dom/  their DOM versions, plus Anchored.svelte ─ the same specifier without `svelte-custom-renderer`
 ```
 
@@ -1088,7 +1090,8 @@ that fails is dropped with a one-time warning per property. A trailing `!importa
 first. A few spellings are rewritten before the check: `Nrem` → `N × 16` (GPUI's rem size, which
 gpuix never changes), `overflow*: auto` → `scroll` (native matches only `scroll`/`hidden`),
 `max-content`/`min-content`/`fit-content(...)` → `auto` on dimension keys, `aspect-ratio: 16 / 9`
-→ a number, `scrollbar-color` → its first colour, and `'true'`/`'false'` → booleans on `BOOLEAN`
+→ a number, `scrollbar-color` → its first colour, `font-family` → the first family of its list,
+unquoted (GPUI matches one name exactly), and `'true'`/`'false'` → booleans on `BOOLEAN`
 keys. `em` stays dropped because it means the inherited font size, which the renderer cannot see,
 and `vh`/`vw` because a class rule is parsed at compile time and nothing re-resolves on resize.
 
@@ -1139,6 +1142,44 @@ adding there.
   rules cannot reach in, and it is the per-instance hook that holds on both renderers
   (`style="--tooltip-surface: #fff"`), since a style prop or a variable declared around the trigger
   reaches the layer on GPUI but not in the DOM, where it hangs off `<body>`.
+
+- **`RtlText`** breaks a right-to-left paragraph into lines itself, since GPUI finds wrap points
+  over glyphs in visual order; native 0.11 maps no `row-reverse` or `order`, so a wrapping row of
+  words can't fill from the right. A 0×0 `overflow: hidden` layer lays out the whole line and each
+  word eight times over, joined by ZWNJs (taffy rounds boxes to whole pixels, and one copy let lines
+  overshoot by 2 px); `visibility: hidden` would paint nothing and so report no `onlayout`.
+  `rtl_lines` breaks greedily, and each line is a `white-space: nowrap` `<text>` in an
+  `align-items: end` column. `rtl_line` puts U+200F in front of a line, measured or drawn, that
+  does not open with a right-to-left letter, because GPUI takes a line's direction from its first
+  letter and on Linux drops a number that opens a right-to-left line. The measuring texts carry
+  `role="none"` and `user-select: none`, so screen readers and copying skip them. `test:rtl` (Linux
+  too) covers `src/rtl.ts` and `rtl_display`, `test:rtl-text` the mounted component.
+
+  On Windows every line and measured text goes through `rtl_display` (`src/rtl-display.ts`), since
+  GPUI's `DrawGlyphRun` ignores `bidiLevel` and lays a right-to-left run out in typed order:
+  `shape()` swaps each Arabic letter for its presentation form (the table is UnicodeData.txt's
+  `<isolated>`/`<final>`/`<initial>`/`<medial>` decompositions, frozen by Unicode, joining types
+  from ArabicShaping.txt), `bidi-js` reorders with base `rtl` and mirrors brackets (its
+  `getMirroredCharactersMap` takes `levels.levels`, not the result object), grapheme clusters move
+  whole so marks stay after their letter and surrogates stay paired, and LRO…PDF keeps DirectWrite
+  from reordering again. bidi-js classes each UTF-16 unit on its own, a surrogate as L, so it runs
+  on a copy with each astral character as two BMP characters of its class (`classed`). A ZWNJ that
+  kept Arabic letters apart is dropped once shaping applied it (one left in drew as a bar next to a
+  vowel mark); any other moves to the far side of its letter in a reversed run. DirectWrite still
+  ligates a lam the reversal put directly before a joined alef, so a ZWNJ goes between those two
+  only; a mark between them stops the ligature already. A word holding a letter Unicode gives no
+  presentation forms (Pashto, Kurdish, Sindhi, Syriac; U+0677 and U+06BA have fewer than they join
+  with) is left as typed, because DirectWrite joins base letters right under LRO; that route is not
+  the default because a ZWNJ in it drew as a bar and dropped the next letter in a pixel comparison
+  against the shaped route, which drew the same pixels on lines without one. npm's `arabic-persian-reshaper` was tried first and dropped: it has
+  no types, which the UI package's lib emit (the root's `src` without its `types/`) and a linked
+  consumer can't do without, and it doubles the alef of a lam, mark, alef. `bidi-js`'s types
+  describe an ES default export while Node loads its CommonJS main, whose export is the factory
+  itself, hence the one cast. The drawn line carries `aria-label` with the logical line, which
+  native exposes as the label beside the drawn value. It was checked against GDI's
+  `TextRenderer.DrawText` of the same strings, in Segoe UI and Vazirmatn, the formless route in
+  Segoe UI on Pashto, Kurdish, Sindhi, Urdu and Syriac; vowel marks in a line that also has a bare
+  lam before a joined alef are untested.
 
 ### Regenerating the styling reference
 
@@ -1230,6 +1271,18 @@ user-facing rules; these are the ones that bite most often, and the renderer beh
   first read outside any effect owns its poll forever (`createSubscriber` semantics, as Svelte's
   `MediaQuery`). The host object resolves `get_native()` on every call, so a poll that outlives a
   remount follows the new native. `selected_text()` is event-driven over `on_selection_change`.
+- Fonts and right-to-left text (docs/guide.md "Other scripts and right-to-left text"):
+  `register_font` with no native yet queues in `window.ts`, and `render()` adds the queue right after
+  `set_native`, ahead of the first commit, because GPUI's cosmic-text backend (Linux, wasm) caches a
+  family lookup that found nothing and `add_fonts` never clears it (`test:fonts`, which runs on Linux
+  over a plain-object native). GPUI also refuses a font with no `m` glyph, and on Linux naming one
+  removes it from fallback. Shaping and in-line bidi are the platform's; GPUI's wrapping, caret and
+  selection geometry (`line_layout.rs`) and its DirectWrite glyph placement assume left to right,
+  and native 0.11 has no `direction` to map; `RtlText` works around the wrapping, and on Windows
+  the placement. On Windows a late `register_font` lands (DirectWrite caches no miss), and since a
+  run is drawn in typed order, the caret and selection match it. Judge direction in a screenshot
+  by a string whose gap gives it away (`אבגדה ו` renders right with the lone letter on the left),
+  since mirrored text is easy to misread as right.
 - `render`'s `titlebar` (`src/titlebar.ts`) is plain renderer nodes, not a component: the root
   becomes a column, the bar its first child, and the app mounts into a `position: relative` box below
   it that a given `rootStyle` styles (through a class rule, so the box's defaults merge under it), so

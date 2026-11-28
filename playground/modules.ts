@@ -21,7 +21,7 @@ const SHARED: PlaygroundModule[] = [
 	{ specifier: 'svelte/easing' },
 	{ specifier: 'svelte/attachments' },
 	{ specifier: 'gpuix-svelte' },
-	...['Scroller', 'Portal', 'Tooltip', 'Popover'].map((name) => ({ specifier: `gpuix-svelte/components/${name}.svelte`, default: true }))
+	...['Scroller', 'Portal', 'Tooltip', 'Popover', 'RtlText'].map((name) => ({ specifier: `gpuix-svelte/components/${name}.svelte`, default: true }))
 ];
 
 export const MODULES: Record<Target, PlaygroundModule[]> = {

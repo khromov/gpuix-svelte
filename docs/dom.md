@@ -33,8 +33,8 @@ the condition: the bin, `gpuix-svelte/build` and the tsconfig a scaffolded app c
 `gpuix-svelte/dom` names the DOM build outright, for a tool that sets the `svelte-custom-renderer` condition
 anyway, such as the tsconfig of an app that ships to both targets.
 
-The DOM `Scroller`, `Portal`, `Tooltip` and `Popover` are compiled by your app's Svelte, the same
-copy the desktop side runs on.
+The DOM `Scroller`, `Portal`, `Tooltip`, `Popover` and `RtlText` are compiled by your app's
+Svelte, the same copy the desktop side runs on.
 
 An entry mounts the component the same way a desktop one does:
 
@@ -197,6 +197,7 @@ Same props, same slots, same CSS variables; `testid` becomes a `data-testid` att
   trigger that moves. The tooltip has `role="tooltip"` and takes no pointer, so a click on it
   lands on what lies beneath, as on GPUI; the popover closes on a `mousedown` outside the panel
   and the trigger, and on Escape.
+- **RtlText** is a `<div dir="rtl">` holding the text, which the browser breaks and orders itself.
 
 ## Writing a component for both
 

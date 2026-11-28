@@ -73,11 +73,11 @@ check('a page with demos does, as a module', page('components').includes('<scrip
 check('the markdown copy keeps the block as a code sample', /```svelte demo tooltip\r?\n/.test(readFileSync(join(out, 'components.md'), 'utf8')), true);
 
 show('components');
-check('components.html mounts its four demos', bundle.mount_demos(), {
-	mounted: ['components-scroller', 'components-portal', 'components-tooltip', 'components-popover'],
+check('components.html mounts its five demos', bundle.mount_demos(), {
+	mounted: ['components-scroller', 'components-portal', 'components-tooltip', 'components-popover', 'components-rtl-text'],
 	failed: []
 });
-check('each into its own element, in place of the noscript note', [mounted(), document.querySelector('[data-demo] noscript')], [[true, true, true, true], null]);
+check('each into its own element, in place of the noscript note', [mounted(), document.querySelector('[data-demo] noscript')], [[true, true, true, true, true], null]);
 
 click(leaf('Open a dialog'));
 await sleep(0);
