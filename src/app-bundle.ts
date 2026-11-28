@@ -326,42 +326,87 @@ export function write_icns(png: string, out: string, scratch: string) {
 	rmSync(iconset, { recursive: true, force: true });
 }
 
-// Largest first: Bun keeps its own icon group, which the shell picks and which points at the first image.
-export const ICO_SIZES = [256, 48, 32, 16];
+export const ICON_SIZES = [256, 48, 32, 16];
 
-export function write_ico(png: string, out: string, scratch: string) {
+export interface IconImage {
+	size: number;
+	bytes: Uint8Array;
+}
+
+/** One PNG per size; Windows has read PNG-compressed icons since Vista, 256 px included. */
+export function windows_icons(png: string, scratch: string): IconImage[] {
 	mkdirSync(scratch, { recursive: true });
-	const images = ICO_SIZES.map((size) => {
+	return ICON_SIZES.map((size) => {
 		const file = join(scratch, `icon-${size}.png`);
 		resize_png(png, size, file);
 		const bytes = readFileSync(file);
 		rmSync(file);
 		return { size, bytes };
 	});
-	writeFileSync(out, ico(images));
 }
 
-/** An .ico is a directory over image blobs; Windows has read PNG-compressed entries since Vista, 256 px included. */
-export function ico(images: Array<{ size: number; bytes: Uint8Array }>): Buffer {
-	const header = Buffer.alloc(6 + 16 * images.length);
-	header.writeUInt16LE(0, 0);
-	header.writeUInt16LE(1, 2);
-	header.writeUInt16LE(images.length, 4);
-	let offset = header.length;
+export const RT_ICON = 3;
+export const RT_GROUP_ICON = 14;
+
+/** An RT_GROUP_ICON resource: an .ico directory whose entries name an RT_ICON id, counting from 1, where the file has an offset. */
+export function icon_group(images: IconImage[]): Buffer {
+	const group = Buffer.alloc(6 + 14 * images.length);
+	group.writeUInt16LE(1, 2);
+	group.writeUInt16LE(images.length, 4);
 	images.forEach(({ size, bytes }, i) => {
-		const at = 6 + 16 * i;
+		const at = 6 + 14 * i;
 		// A 256 px entry writes its dimensions as 0, the one value the byte can't hold.
-		header.writeUInt8(size === 256 ? 0 : size, at);
-		header.writeUInt8(size === 256 ? 0 : size, at + 1);
-		header.writeUInt8(0, at + 2);
-		header.writeUInt8(0, at + 3);
-		header.writeUInt16LE(1, at + 4);
-		header.writeUInt16LE(32, at + 6);
-		header.writeUInt32LE(bytes.length, at + 8);
-		header.writeUInt32LE(offset, at + 12);
-		offset += bytes.length;
+		group.writeUInt8(size === 256 ? 0 : size, at);
+		group.writeUInt8(size === 256 ? 0 : size, at + 1);
+		group.writeUInt16LE(1, at + 4);
+		group.writeUInt16LE(32, at + 6);
+		group.writeUInt32LE(bytes.length, at + 8);
+		group.writeUInt16LE(i + 1, at + 12);
 	});
-	return Buffer.concat([header, ...images.map((image) => Buffer.from(image.bytes))]);
+	return group;
+}
+
+export interface PeResource {
+	name: number | string;
+	lang: number;
+	data: Buffer;
+}
+
+/** Every resource of one type in a PE file. */
+export function pe_resources(exe: Buffer, type: number): PeResource[] {
+	const pe = exe.readUInt32LE(0x3c);
+	const optional = pe + 24;
+	const directories = optional + (exe.readUInt16LE(optional) === 0x20b ? 112 : 96);
+	const sections = optional + exe.readUInt16LE(pe + 20);
+	const offset_of = (rva: number) => {
+		for (let i = 0; i < exe.readUInt16LE(pe + 6); i++) {
+			const at = sections + 40 * i;
+			const start = exe.readUInt32LE(at + 12);
+			if (rva >= start && rva < start + Math.max(exe.readUInt32LE(at + 8), exe.readUInt32LE(at + 16))) return rva - start + exe.readUInt32LE(at + 20);
+		}
+		throw new Error(`RVA 0x${rva.toString(16)} is in no section`);
+	};
+	const resources = exe.readUInt32LE(directories + 16);
+	if (resources === 0) return [];
+	const root = offset_of(resources);
+	// Names and subdirectories are offsets into the resource section; a set high bit marks a string or a subdirectory.
+	const entries = (directory: number) =>
+		Array.from({ length: exe.readUInt16LE(directory + 12) + exe.readUInt16LE(directory + 14) }, (_, i) => {
+			const name = exe.readUInt32LE(directory + 16 + 8 * i);
+			const string = root + (name & 0x7fffffff);
+			return {
+				name: name & 0x80000000 ? exe.toString('utf16le', string + 2, string + 2 + 2 * exe.readUInt16LE(string)) : name,
+				at: root + (exe.readUInt32LE(directory + 20 + 8 * i) & 0x7fffffff)
+			};
+		});
+	const of_type = entries(root).find((entry) => entry.name === type);
+	if (!of_type) return [];
+	return entries(of_type.at).flatMap(({ name, at }) =>
+		entries(at).map(({ name: lang, at: leaf }) => {
+			const start = offset_of(exe.readUInt32LE(leaf));
+			return { name, lang: lang as number, data: exe.subarray(start, start + exe.readUInt32LE(leaf + 4)) };
+		})
+	);
 }
 
 export function sign(target: string, identity: string, scratch: string) {

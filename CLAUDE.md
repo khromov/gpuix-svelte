@@ -328,12 +328,16 @@ Per platform:
 - **macOS**: the executable moves into `dist/<Name>.app/Contents/MacOS/<slug>` with an `Info.plist`
   and `AppIcon.icns` cut by `sips` + `iconutil`; signing and notarization (`sign`, `notarize`) run on
   the bundle when the env vars are set, and the bare binary is not kept.
-- **Windows**: the icon becomes a PNG-compressed `.ico` (`write_ico`: 256/48/32/16, scaled with
-  .NET's `System.Drawing` through PowerShell) in Bun's `compile.windows` with `hideConsole: true`.
-  The largest image comes first because Bun writes the `.ico` as group `#0` beside bun.exe's own
-  `IDI_MYICON`, which the shell picks and which points at the first image (Explorer also caches
-  icons by path, so check a build under a new file name). GPUI's window class loads icon resource
-  1, which neither group is, so the title bar stays generic while the taskbar shows the exe's icon.
+- **Windows**: Bun's `compile.windows` takes the version info and `hideConsole: true`, but not the
+  icon. GPUI registers its window class with icon group 1 of the process's executable (node.exe has
+  one, so a dev window wears Node's icon; bun.exe has none), and Bun's `compile.windows.icon` writes
+  group 0 beside bun.exe's named `IDI_MYICON`, whose stale directory Explorer shows, which left the
+  title bar generic (issue #90). So `set_exe_icon` in `build.ts` writes the icon itself after
+  `Bun.build`: it deletes every `RT_ICON` and `RT_GROUP_ICON` already there, writes PNG-compressed
+  images at 256/48/32/16 (`windows_icons`, scaled with .NET's `System.Drawing` through PowerShell) as
+  icons 1–4 and one group 1 through `bun:ffi`'s `UpdateResourceW`, then reads the file back with
+  `pe_resources` and fails unless that is all it holds, so a change in what Bun writes fails CI's
+  Windows compile job. Explorer caches icons by path, so check a build under a new file name.
   Whatever `compile.windows` leaves unset keeps bun.exe's value (`Bun`, `Oven`, its version), so
   `description` and `publisher` fall back to the name, `copyright` to a single space, and the
   version is its numeric prefix (`0.0.0.0` if none fits).
